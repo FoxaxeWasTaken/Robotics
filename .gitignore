@@ -35,3 +35,7 @@ results/bags/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Claude Code: personal files (the shared instructions are CLAUDE.md -> AGENTS.md)
+CLAUDE.local.md
+.claude/settings.local.json
