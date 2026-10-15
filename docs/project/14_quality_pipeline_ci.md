@@ -56,7 +56,11 @@ flowchart LR
 | Valid YAML / TOML / XML | | ✅ | ✅ | | pre-commit-hooks |
 | Files > 1 MB blocked, private keys | | ✅ | ✅ | | pre-commit-hooks |
 | LF line endings | ✅ (editorconfig) | ✅ | ✅ | | mixed-line-ending + `.gitattributes` |
-| Conventional commit message | | ✅ (commit-msg) | | | conventional-pre-commit |
+| Conventional commit message | | ✅ (commit-msg) | ✅ PR title (= the squash commit) | | conventional-pre-commit · `pr-title.yml` |
+| Workflows: syntax and security (pinned actions, token scope, injection) | | ✅ | ✅ | | actionlint · zizmor |
+| Shell scripts · Dockerfiles | | ✅ | ✅ | | shellcheck (warnings) · hadolint (`.hadolint.yaml`) |
+| Secrets in the whole history | | | ✅ | | gitleaks |
+| `package.xml` against the ROS schema | | | ✅ | | `ament_xmllint` (control job) |
 | **Project-rule guards** (C-05, C-06, C-23) | | | ✅ | | `tools/ci/guards.sh` |
 | `colcon` build (control and perception images) | | | ✅ | | Docker + colcon |
 | Unit tests | | | ✅ | | pytest via `colcon test` |
@@ -74,7 +78,10 @@ flowchart LR
 | --- | --- | --- | --- |
 | Python lint and format | flake8 + black + isort · `ament_flake8`/`ament_pep257` (ROS ament_lint) · **ruff** | **ruff** (ADR-024) | One tool, 10–100× faster, autofix, configured in `pyproject.toml`; ament_lint imposes per-package config and redundant lint tests |
 | Hook manager | husky (Node) · lefthook · **pre-commit** | **pre-commit** | Python ecosystem; **same configuration locally and in CI** |
-| Commit messages | commitlint (Node) · **conventional-pre-commit** | **conventional-pre-commit** | No Node install for the team |
+| Commit messages | commitlint (Node) · **conventional-pre-commit** | **conventional-pre-commit** + a PR-title check | No Node install for the team. Squash merge writes the **PR title** on `main`, so a few lines of shell check it (no third-party action, no token) |
+| Workflow security | none · **zizmor** · CodeQL for Actions | **zizmor** in pre-commit; actions pinned by commit SHA, updated by Dependabot (7-day cooldown) | CodeQL needs GitHub Team + Code Security on a private repository; zizmor is free and local |
+| Secrets | `detect-private-key` · GitHub secret scanning · **gitleaks** | **gitleaks** on the whole history in the lint job | Secret scanning and push protection need a paid plan on a private repository; free once public |
+| Code quality platform | **none for now** · SonarQube Cloud (free: private projects ≤ 50k lines, 5 users) · CodeQL | Planned: SonarQube Cloud once coverage exists (non-blocking), CodeQL and secret scanning when the repository goes public | Sonar adds a gate on new code (coverage, duplication, complexity); without coverage it adds little to ruff |
 | Typing | mypy · pyright · none | **Staged**: not blocking in phase 1, then `mypy` on pure modules (`so101_common`, `kinematics`, `fsm`, `geometry`) once stable | rclpy nodes have few stubs; maximal gain on pure logic |
 | Tests | unittest · **pytest** · **launch_testing** | **pytest + launch_testing** through `colcon test` | Already in the image (pytest 7.4.4, launch_testing, launch_testing_ros) [MES-23] |
 | Coverage | pytest-cov · none | **Non-blocking report** on pure modules, target ≥ 80 % | `coverage` is not in the image: add it in a Docker layer when needed |
@@ -100,7 +107,8 @@ flowchart LR
 
 | Job | Fails when… | Artifacts |
 | --- | --- | --- |
-| `lint` | A ruff or markdownlint rule is violated, a file is not formatted, a YAML is invalid, a file exceeds 1 MB | Diff shown (`--show-diff-on-failure`) |
+| `lint` | A ruff, markdownlint, actionlint, zizmor, shellcheck or hadolint rule is violated, a file is not formatted, a YAML is invalid, a file exceeds 1 MB, gitleaks finds a secret in the history | Diff shown (`--show-diff-on-failure`) |
+| `PR title` (`pr-title.yml`) | The PR title is not `type(scope): description` | — |
 | `guards` | brain or perception imports the backend; ground truth or provided extrinsics appear in the pipeline | Offending lines |
 | `control` | `colcon build` fails or a test fails (`colcon test-result --verbose`); only packages with a `test/` folder are tested | Each package's `pytest.xml` |
 | `perception` | Same for the perception packages (separate build, ADR-002); **skipped until `COLCON_IGNORE` is removed** (step 3.1) | — |
@@ -111,7 +119,8 @@ flowchart LR
 - **Docker cache**: `docker/build-push-action` with `cache-from/to: type=gha`. First build ≈ 10 min (apt + pip), then 1–2 min if the Dockerfiles did not change.
 - **Runner disk**: the `control` image is 4.2 GB, fine on `ubuntu-24.04`; if space runs out, add a cleanup step (remove preinstalled SDKs) before the build.
 - **Headless**: `MUJOCO_GL=osmesa`: sim and rendering run on CPU, no GPU or X11 [MES-02], [MES-03].
-- **`concurrency`**: a new push cancels the previous run of the same branch.
+- **`concurrency`**: a new push cancels the previous run of the same PR; runs on `main` are never cancelled (each merged commit gets its full CI).
+- **Supply chain**: every action pinned by commit SHA (version in a comment), updated by Dependabot after a 7-day cooldown; `persist-credentials: false` on every checkout (zizmor).
 - **Minimal permissions**: `contents: read`.
 - Validated by **actionlint 1.7.12: 0 error** on `ci.yml`, `nightly.yml`, `mirror.yml` [MES-23].
 
@@ -120,7 +129,7 @@ flowchart LR
 | Repo | GitHub quota (free plan) | Estimate | Consequence |
 | --- | --- | --- | --- |
 | Public | Unlimited | — | Daily nightly without constraint |
-| Private | 2,000 min/month | ≈ 12 min × 60 PRs + 30 nightlies × 45 min ≈ 2,000 min | **Run the nightly 2–3 times a week**, or manually only (`workflow_dispatch`) |
+| Private, GitHub Pro (our plan) | 3,000 min/month | Measured on 2026-10-15: a cached PR run ≈ 3.4 min of jobs, ≈ 6 billed (each job rounded up to the minute); first build ≈ 10 min. 100 PR pushes ≈ 600 min, leaving room for a nightly bench (≈ 45 min) most days | Daily nightly once the bench exists; watch Settings → Billing |
 
 ## 6. Nightly
 
@@ -219,7 +228,7 @@ Files are **already in place at the repository root** (workflows, hooks, configu
 1. Replace `@member1/2/3` in `.github/CODEOWNERS`.
 2. Every member: `pip install pre-commit && pre-commit install --install-hooks -t pre-commit -t commit-msg`.
 3. Private repo → Settings → Variables: `CI_ENABLED=true` (CI and nightly are opt-in so they do not run on the school mirror, `16`).
-4. Settings → Rules (or Branches): protect `main` (PR required, 1 approval, required checks **by their displayed job names**: `Lint (pre-commit)`, `Project rules (C-05, C-06, C-23)`, `Build + tests (control image)`, `Build + tests (perception image)`). A private repository needs GitHub Pro for this (`15` §12.5).
+4. Settings → Rules (or Branches): protect `main` (PR required, 1 approval, required checks **by their displayed job names**: `Lint (pre-commit)`, `Project rules (C-05, C-06, C-23)`, `Build + tests (control image)`, `Build + tests (perception image)`, `PR title (conventional commit)`). A private repository needs GitHub Pro for this (`15` §12.5). Done on 2026-10-15 (ruleset "main protection", no bypass).
 5. School mirror: `16` §5.
 6. Step 3.1: the `perception` job enables itself once `COLCON_IGNORE` is removed from the package.
 7. Step 4.5: variable `E2E_ENABLED=true`.

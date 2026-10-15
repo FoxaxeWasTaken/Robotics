@@ -24,19 +24,21 @@ jobs:
     runs-on: ubuntu-24.04
     environment: school-mirror
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
       - name: SSH key for the school repo
         env:
           SSH_KEY: ${{ secrets.SCHOOL_DEPLOY_KEY }}
           GIT_HOST: ${{ vars.SCHOOL_GIT_HOST || 'github.com' }}
+          SCHOOL_URL: ${{ vars.SCHOOL_REPO_SSH_URL }}
         run: |
           install -m 700 -d ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -t ed25519 "$GIT_HOST" >> ~/.ssh/known_hosts
-          git remote add school "${{ vars.SCHOOL_REPO_SSH_URL }}"
+          git remote add school "$SCHOOL_URL"
       - name: Push main (forced, exact copy)
         if: ${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}
         run: git push --force school origin/main:refs/heads/main

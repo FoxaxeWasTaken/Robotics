@@ -30,7 +30,7 @@ Full environment (WSL2, usbipd, RViz): `docs/project/02`.
 
 5. Commit with a **conventional message**: `feat(driver): publish camera_info` (the hook rejects anything else).
 6. Open a PR with `Closes #<issue#>`, fill in the checklist; CODEOWNERS requests the review and the ticket moves to **In review**.
-7. **Squash merge** once CI is green and the PR is approved: the ticket closes and moves to **Done**, the branch is deleted.
+7. **Squash merge** once CI is green and the PR is approved. The squash commit takes the **PR title**, so it must be conventional too (`feat(driver): …`), CI checks it: the ticket closes and moves to **Done**, the branch is deleted.
 
 ## 3. Non-negotiable rules (from the project brief)
 

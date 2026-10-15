@@ -9,7 +9,7 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}   # never cancel a run on main
 
 permissions:
   contents: read
@@ -20,23 +20,31 @@ jobs:
     name: Lint (pre-commit)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0          # gitleaks scans the whole history
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-      - uses: actions/cache@v6
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
       - run: pip install pre-commit
       - run: pre-commit run --all-files --show-diff-on-failure
+      - name: Secrets in the whole history (gitleaks)
+        # detect-private-key only sees private keys; GitHub secret scanning needs a paid plan on a private repo.
+        run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact --verbose
 
   guards:
     if: ${{ vars.CI_ENABLED == 'true' }}   # opt-in: nothing runs on the school mirror
     name: Project rules (C-05, C-06, C-23)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - run: bash tools/ci/guards.sh
 
   control:
@@ -45,10 +53,12 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [lint, guards]
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Build tek5/control (GitHub Actions cache)
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: docker/Dockerfile.control
@@ -61,11 +71,12 @@ jobs:
           docker run --rm -e MUJOCO_GL=osmesa -v "$PWD/ros2_ws:/ros2_ws" tek5/control:ci bash -lc '
             source /opt/ros/jazzy/setup.bash && cd /ros2_ws &&
             colcon build --symlink-install --packages-skip so101_perception --event-handlers console_cohesion+ &&
+            ament_xmllint src/*/package.xml &&   # package.xml against the ROS schema (check-xml only checks syntax)
             # Only packages with a test/ folder: since Python 3.12 an empty package fails ("NO TESTS RAN").
             pkgs=$(ls -d src/*/test 2>/dev/null | cut -d/ -f2) &&
             if [ -z "$pkgs" ]; then echo "No test folder yet: nothing to test."; else
               colcon test --packages-select $pkgs --event-handlers console_cohesion+ && colcon test-result --verbose; fi'
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: test-results-control
@@ -78,9 +89,11 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [lint, guards]
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/build-push-action@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: docker/Dockerfile.perception
@@ -106,7 +119,9 @@ jobs:
     needs: [control, perception]
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Build images
         run: docker compose -f docker/docker-compose.yml build
       - name: Evaluation bench (N=3)
@@ -115,7 +130,7 @@ jobs:
           docker compose -f docker/docker-compose.yml up -d control perception viz
           docker compose -f docker/docker-compose.yml exec -T control bash -lc '
             source /ros2_ws/install/setup.bash && ros2 run so101_bringup evaluate --episodes 3 --out /ros2_ws/eval.csv'
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: e2e-smoke

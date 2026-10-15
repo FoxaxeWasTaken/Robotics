@@ -37,3 +37,7 @@ Minute quota exceeded (self-hosted runner) or build too long (publish the image 
 ## Update (2026-10-09)
 
 The job command as first written (`colcon test --packages-skip so101_perception`) exited 1: under Python 3.12 a package without tests fails with "NO TESTS RAN". The 6/6 of [MES-23] came from the driver package alone. The job now tests only the packages that have a `test/` folder; replayed: exit 0, 6/6. Required checks are selected by their displayed job names (`14` §10).
+
+## Update (2026-10-15)
+
+Actions pinned by commit SHA and updated by Dependabot (7-day cooldown); `persist-credentials: false` on every checkout; runs on `main` are never cancelled; `ament_xmllint` in the control job; required checks: the four jobs plus `PR title (conventional commit)` (ruleset "main protection").

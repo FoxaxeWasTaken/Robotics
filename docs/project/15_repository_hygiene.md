@@ -65,10 +65,10 @@ The school mirror is described in `16`.
 ├── AGENTS.md  CLAUDE.md         ← instructions for AI coding agents (CLAUDE.md imports AGENTS.md) [team]
 ├── LICENSE                      ← to be decided (ADR-031)                                     [OPEN]
 ├── pyproject.toml               ← ruff configuration                                          [team]
-├── .pre-commit-config.yaml  .markdownlint-cli2.yaml  .editorconfig  .gitattributes  .gitignore
+├── .pre-commit-config.yaml  .markdownlint-cli2.yaml  .hadolint.yaml  .editorconfig  .gitattributes  .gitignore
 ├── .git-blame-ignore-revs       ← purely mechanical commits (formatting)
 ├── .github/
-│   ├── workflows/ci.yml  nightly.yml  mirror.yml
+│   ├── workflows/ci.yml  pr-title.yml  nightly.yml  mirror.yml
 │   ├── CODEOWNERS  PULL_REQUEST_TEMPLATE.md  dependabot.yml
 │   └── ISSUE_TEMPLATE.md
 ├── .vscode/extensions.json  settings.json   ← shared recommendations (everything else ignored)

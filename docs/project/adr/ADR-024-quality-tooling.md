@@ -36,3 +36,7 @@ ruff covers typing (future rules), or another language appears (C++: add clang-f
 ## Update
 
 After the upstream pull, `docs/SUJET.md` (13 markdownlint issues) and the provided slides were excluded; ruff also excludes `docs/` and `*.md` because it formats Python blocks inside Markdown.
+
+## Update (2026-10-15)
+
+Added after a CI review: **actionlint**, **zizmor** (workflow security), **shellcheck** (warnings) and **hadolint** in pre-commit; **gitleaks** on the whole history in the lint job; a **PR-title** check, since squash merge writes the PR title on `main`. SonarQube Cloud is planned once coverage exists (`14` §4).

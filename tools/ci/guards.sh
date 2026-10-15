@@ -2,7 +2,7 @@
 # Project-rule guards (docs/project/00: C-05, C-06, C-23).
 # Fails (exit 1) if a rule is violated. Used in CI and locally: bash tools/ci/guards.sh
 set -uo pipefail
-cd "$(git rev-parse --show-toplevel)"
+cd "$(git rev-parse --show-toplevel)" || exit 1
 fail=0
 check() {  # check "<description>" <ERE pattern> -- <pathspecs...>
   local desc=$1 pattern=$2; shift 2

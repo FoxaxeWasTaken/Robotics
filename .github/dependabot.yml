@@ -5,5 +5,7 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 7      # let a new release settle a week before proposing it
     commit-message:
       prefix: ci

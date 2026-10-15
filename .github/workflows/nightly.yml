@@ -19,11 +19,13 @@ jobs:
     if: ${{ vars.CI_ENABLED == 'true' }}
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Render every Mermaid diagram
         run: bash tools/ci/check_mermaid.sh
       - name: External links
-        uses: lycheeverse/lychee-action@v2
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         with:
           args: --no-progress --exclude-path core --exclude-path sim "./**/*.md"
           fail: true
@@ -34,7 +36,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - run: docker compose -f docker/docker-compose.yml build
       - name: Bench (randomized cube + box)
         env:
@@ -45,7 +49,7 @@ jobs:
           docker compose -f docker/docker-compose.yml exec -T -e EPISODES control bash -lc '
             source /ros2_ws/install/setup.bash &&
             ros2 run so101_bringup evaluate --episodes "$EPISODES" --out /ros2_ws/eval.csv --bags /ros2_ws/bags'
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: evaluation-${{ github.run_number }}

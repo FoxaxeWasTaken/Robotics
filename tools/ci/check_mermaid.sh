@@ -2,7 +2,7 @@
 # Checks that every ```mermaid block of the Markdown files renders without error (mermaid-cli in Docker).
 # Usage: bash tools/ci/check_mermaid.sh
 set -uo pipefail
-cd "$(git rev-parse --show-toplevel)"
+cd "$(git rev-parse --show-toplevel)" || exit 1
 IMAGE=${MERMAID_CLI_IMAGE:-minlag/mermaid-cli:12.0.1}
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 chmod 777 "$tmp"
