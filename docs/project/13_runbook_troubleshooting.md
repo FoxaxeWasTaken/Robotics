@@ -96,5 +96,5 @@ Per-symptom details:
 | Real arm: computed TCP below the table at rest (z < 0) | LeRobot's zero (middle of the recorded range) ≠ URDF zero [MES-30] | Ruler check of the rest pose; per-joint offset (`07` §4) |
 | `colcon test` fails on a package without tests ("NO TESTS RAN") | Python 3.12 unittest exits 5 when it finds no test | Test only packages with a `test/` folder (`ci.yml` does it). A package's **first** test also needs `tests_require=["pytest"]` in `setup.py` and `<test_depend>python3-pytest</test_depend>` in `package.xml`, otherwise colcon falls back to unittest: same exit 5 |
 | CI jobs all skipped | `CI_ENABLED` variable missing on the private repo | Settings → Variables → `CI_ENABLED=true` (`14` §10) |
-| Mirror job: `non-fast-forward` | Someone pushed to the school repo | `16` §6 — never force |
+| A change pushed to the school repo disappeared | The mirror force-pushes `main` (`16` §3) | Never push there: go through a PR on the private repo |
 | pre-commit: markdownlint fails to install (`libatomic.so.1`) | Minimal image without libatomic | `apt-get install libatomic1` (present on Ubuntu and GitHub runners) |

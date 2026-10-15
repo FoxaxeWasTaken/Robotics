@@ -96,7 +96,7 @@ flowchart LR
 | 11 | `/sim/randomize` (cube **and** box) in the driver, **without modifying `sim/`**; ground truth only for the bench | Decided | C-42, C-06 |
 | 12 | Layered safety; **PARK before cutting torque**; webcam in **MJPG** | Decided | [MES-17]; LeRobot code review |
 | 13 | Quality: **ruff + pre-commit + markdownlint + conventional commits**; **GitHub Actions CI inside our Docker images** (parity), opt-in; project-rule guards; 50-episode nightly | Decided | Tooling executed, 13/13 hooks green [MES-23]; CI would have caught C-11 [MES-22] |
-| 14 | Repository: **private team repo + `upstream` without push + school mirror** (`main` + tags, deploy key, never forced); squash merge, SemVer tags per milestone; no LFS; English everywhere; license to decide | Decided / open | `git remote -v`; ADR-027 to 033 |
+| 14 | Repository: **private team repo + `upstream` without push + school mirror** (`main` + tags, forced exact copy, key in a `main`-only environment); squash merge, SemVer tags per milestone; no LFS; English everywhere; license to decide | Decided / open | `git remote -v`; ADR-027 to 033 |
 | 15 | **Phase 2: Connect Four against the robot** (validated by the staff): store-bought grid placed edge-on, the arm on a riser, depth guide, tokens handed over, drop poses with the wrist roll locked, wrist camera if needed, `PickPlace` action in the brain | Decided | [MES-27] to [MES-29], [MES-31], [MES-32]; ADR-034 to 038 |
 | 16 | **Starting code: the course stubs**; the bootstrap prototype stays outside the repository, as a reference (every line goes through a reviewed PR, C-50) | Decided | ADR-039; [MES-24] for what the prototype proved |
 

@@ -32,3 +32,8 @@ actionlint 1.7.12: 0 error. To validate for real with a `workflow_dispatch` (`16
 ## Reconsider if
 
 The school offers pull mirroring, or imposes another submission mode (GitHub Classroom).
+
+## Update (2026-10-15)
+
+- **Forced push**: nobody pushes to the school repository, so `mirror.yml` now force-pushes `main` and the tags; the school side is an exact copy of the reviewed private `main` (team decision). The private `main` itself still forbids force-pushes (ruleset).
+- **Key**: the team has push but not admin rights on the school repository, so no deploy key there: the public key is on the member's account and the secret lives in the `school-mirror` environment, restricted to `main` (`16` §5). For the same reason the workflow no longer runs on tag pushes: tags go with the next `main` push or a manual run.

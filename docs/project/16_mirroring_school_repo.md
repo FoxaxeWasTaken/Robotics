@@ -16,7 +16,7 @@ flowchart LR
     M --> CI["CI / nightly<br/>(CI_ENABLED=true)"]
     M --> MW["mirror.yml"]
   end
-  MW -- "push main + v* tags<br/>deploy key, never forced" --> S[("School repository<br/>mirror, read-only for the team")]
+  MW -- "force-push main + tags<br/>exact copy" --> S[("School repository<br/>mirror, read-only for the team")]
   DEV["Members"] -- "push branches" --> PR
 ```
 
@@ -34,10 +34,10 @@ flowchart LR
 
 | Rule | Why |
 | --- | --- |
-| Only **`main` and `v*` tags** are pushed to the school | Submission = reviewed, tested state; no work branches |
-| **Never `--force`**: if the school repository diverged, the job fails | Loud signal that someone modified the school repository by hand (forbidden) |
+| Only **`main` and the tags** (`v*` by convention) are pushed to the school | Submission = reviewed, tested state; no work branches |
+| **Forced push** (`--force`, since 2026-10-15): the school repository is an exact copy of the private `main` | Nobody pushes there, so a force only overwrites accidental changes; the submission always equals the reviewed state |
 | **Nobody commits to the school repository** | It is only a mirror |
-| No history rewrite on `main` (no force-push) | Otherwise the mirror fails and the C-07 history would be altered |
+| No history rewrite on the private `main` (no force-push, ruleset) | The mirror would copy the rewrite, and the C-07 history would be altered |
 | Commit authors are kept (squash merge = PR author, plus `Co-authored-by`) | C-07: each member's history stays visible on the school side |
 | No secret in the code: everything in `main` becomes visible on the school side | Secrets live in the private repository's GitHub Secrets |
 
@@ -74,7 +74,7 @@ git ls-remote origin refs/heads/main ; git ls-remote <school-url> refs/heads/mai
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| `rejected (fetch first)` / `non-fast-forward` | Someone pushed/committed on the school side | Bring that commit back into the private repository through a PR, or have it reverted on the school side; **do not force** |
+| A change made on the school side disappeared | The mirror force-pushes `main` | Never push to the school repository: make the change through a PR on the private one |
 | `Permission denied (publickey)` | Key not added or without write access | §5 step 1 |
 | `Host key verification failed` | Wrong `SCHOOL_GIT_HOST` | Fix the variable |
 | CI runs on the school repository | `CI_ENABLED` defined there | Remove the variable on the school side |

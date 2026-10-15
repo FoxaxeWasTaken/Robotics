@@ -1,5 +1,5 @@
 # Mirror of the private repo (CI, PRs) to the school repo (submission).
-# Pushes main and v* tags, never with force. Details: docs/project/16_mirroring_school_repo.md
+# Force-pushes main and the tags: the school repo is an exact copy, nobody pushes there. Details: docs/project/16_mirroring_school_repo.md
 # The key lives in the "school-mirror" environment, restricted to main: only reviewed code can read it.
 # No tag trigger (a tag can point at unreviewed code): tags go with the next main push or a manual run.
 name: Mirror
@@ -37,8 +37,8 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -t ed25519 "$GIT_HOST" >> ~/.ssh/known_hosts
           git remote add school "${{ vars.SCHOOL_REPO_SSH_URL }}"
-      - name: Push main (fast-forward only)
+      - name: Push main (forced, exact copy)
         if: ${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}
-        run: git push school origin/main:refs/heads/main
-      - name: Push tags
-        run: git push school --tags
+        run: git push --force school origin/main:refs/heads/main
+      - name: Push tags (forced)
+        run: git push --force school --tags
