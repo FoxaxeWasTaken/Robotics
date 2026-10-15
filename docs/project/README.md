@@ -122,5 +122,5 @@ Phase-2 questions (riser, webcam and wrist camera, real-arm sessions): `phase2/P
 - **Upstream pull on 2026-10-08** (fast-forward to `bc00df7`): slides versioned in `docs/`, `_connect_arm` **provided** in the driver stub (PR #1). Sim, Docker, URDF, brain and perception unchanged: **every measurement in this folder remains valid**. `driver_node.py` merged with the provided `_connect_arm` kept (ADR-032).
 - Environment validated (images, X11, DDS, usbipd, MJPG webcam).
 - **Bootstrap prototype** (outside the repository, ADR-039): `/joint_states` at **30 Hz** (9 Hz before the camera thread), tests 6/6, `/go_to_target` within 0.13 mm [MES-24]. Reference for steps 1.0, 1.2 and 2.1.
-- Quality tooling, CI, mirror and governance files: **in place in this repository** (`14`, `15`, `16`). Remaining: GitHub settings (`14` §10, `15` §12, `16` §5).
-- Next roadmap steps: **0.1 → 0.3** (GitHub side), then **1.0** (`09`).
+- Quality tooling, CI, mirror and governance files: **in place in this repository** (`14`, `15`, `16`); GitHub settings applied on 2026-10-15 (ruleset on `main`, squash only, `school-mirror` environment, variables). Remaining: CODEOWNERS handles (ticket 0.1d) and the GitHub Project (`15` §12).
+- Next roadmap steps: the GitHub Project and the backlog (end of **0.1**), then **0.3** and **1.0** (`09`).

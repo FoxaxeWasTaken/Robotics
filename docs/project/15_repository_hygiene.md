@@ -65,7 +65,7 @@ The school mirror is described in `16`.
 ├── AGENTS.md  CLAUDE.md         ← instructions for AI coding agents (CLAUDE.md imports AGENTS.md) [team]
 ├── LICENSE                      ← to be decided (ADR-031)                                     [OPEN]
 ├── pyproject.toml               ← ruff configuration                                          [team]
-├── .pre-commit-config.yaml  .markdownlint-cli2.yaml  .hadolint.yaml  .editorconfig  .gitattributes  .gitignore
+├── .pre-commit-config.yaml  .markdownlint-cli2.yaml  .hadolint.yaml  .lycheeignore  .editorconfig  .gitattributes  .gitignore
 ├── .git-blame-ignore-revs       ← purely mechanical commits (formatting)
 ├── .github/
 │   ├── workflows/ci.yml  pr-title.yml  nightly.yml  mirror.yml
@@ -215,7 +215,7 @@ Default proposal for **our** code: **Apache-2.0** (consistent with the rest, com
 
 ## 11. Putting the prepared tree in place (keeping the history)
 
-The prepared tree (the `repo/` folder delivered on 2026-10-08) contains the complete repository. To **keep the history** (course and team commits, C-07, upstream sync), do **not** `git init` inside it: copy its content into the existing clone.
+**Done on 2026-10-15** (PR #1 of `FoxaxeWasTaken/Robotics`); kept as the procedure. The prepared tree (the `repo/` folder delivered on 2026-10-08) contains the complete repository. To **keep the history** (course and team commits, C-07, upstream sync), do **not** `git init` inside it: copy its content into the existing clone.
 
 ⚠ `rsync --delete` makes the clone identical to `repo/`: anything changed in the clone **outside** `repo/` (work-in-progress fixes, scripts) is overwritten or deleted. Save what you want to keep **outside the clone** first (the bootstrap prototype was saved this way on 2026-10-15, ADR-039), and keep the files that must never be pushed outside the clone.
 

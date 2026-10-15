@@ -62,7 +62,7 @@ ssh-keygen -t ed25519 -N "" -C "mirror-ci" -f ~/.ssh/school_mirror   # dedicated
    - variable `SCHOOL_REPO_SSH_URL` = `git@github.com:<school-org>/<repo>.git`;
    - variable `SCHOOL_GIT_HOST` if the school is not on `github.com` (e.g. a GitLab instance);
    - variable `CI_ENABLED` = `true`.
-3. Actions → *Mirror* → **Run workflow** (first mirror), then check:
+3. First mirror: automatic at the first push to `main` (the merge of PR #1), or Actions → *Mirror* → **Run workflow**; then check:
 
 ```bash
 git ls-remote origin refs/heads/main ; git ls-remote <school-url> refs/heads/main   # same SHA expected

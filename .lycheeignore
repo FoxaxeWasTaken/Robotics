@@ -1,0 +1,3 @@
+# Links that lychee (nightly, unauthenticated) cannot check.
+# Private team repository: 404 without a login. Remove this line when the repository goes public (ticket 8.1c).
+^https://github\.com/FoxaxeWasTaken/Robotics

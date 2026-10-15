@@ -5,7 +5,7 @@ This guide is **the team's shared rulebook**. Details and rationale live in `doc
 ## 1. Setup (once)
 
 ```bash
-git clone git@github.com:<team>/<repo>.git && cd <repo>
+git clone git@github.com:FoxaxeWasTaken/Robotics.git && cd Robotics
 git remote add upstream git@github.com:JasonChmn/content-lerobot-bras-students.git
 git remote set-url --push upstream DISABLED          # never push to the course repo
 cp docker/.env.example docker/.env                   # team-specific ROS_DOMAIN_ID

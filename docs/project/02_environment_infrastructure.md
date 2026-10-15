@@ -163,7 +163,7 @@ The RViz configuration is versioned (C-52). **Today**: the course file (Grid and
 ## 10. New-member onboarding checklist
 
 ```bash
-git clone <repo> && cd <repo>
+git clone git@github.com:FoxaxeWasTaken/Robotics.git && cd Robotics
 cp docker/.env.example docker/.env                       # then pick ROS_DOMAIN_ID
 pip install pre-commit && pre-commit install --install-hooks -t pre-commit -t commit-msg
 cd docker && docker compose build                         # ~10 min the first time

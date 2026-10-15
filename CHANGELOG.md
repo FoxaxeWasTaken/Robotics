@@ -13,4 +13,6 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 ### Changed
 
 - Code: the repository starts from the course stubs (upstream `42737bf`), with a 3-line lint fix; the bootstrap prototype stays outside the repository (ADR-039).
-- CI: the control job passes when no package has tests yet.
+- CI: the control job passes when no package has tests yet; PR title checked as a conventional commit; actionlint, zizmor, shellcheck and hadolint in pre-commit, gitleaks on the whole history, `ament_xmllint`; actions pinned by SHA, runs on `main` never cancelled, checks also run on Dependabot PRs.
+- Mirror: force-pushes `main` and the tags (exact copy); key in the `main`-only `school-mirror` environment.
+- Contributing: naming rules for branches, commits and PR titles (CONTRIBUTING §2.1); AGENTS.md: safety, push, evidence and isolation rules.
