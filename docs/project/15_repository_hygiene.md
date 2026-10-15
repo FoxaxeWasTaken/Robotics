@@ -70,7 +70,7 @@ The school mirror is described in `16`.
 ├── .github/
 │   ├── workflows/ci.yml  nightly.yml  mirror.yml
 │   ├── CODEOWNERS  PULL_REQUEST_TEMPLATE.md  dependabot.yml
-│   └── ISSUE_TEMPLATE/task.yml  bug.yml  config.yml
+│   └── ISSUE_TEMPLATE.md
 ├── .vscode/extensions.json  settings.json   ← shared recommendations (everything else ignored)
 ├── tools/ci/guards.sh  check_mermaid.sh
 ├── docs/                        ← SUJET.md + PDF slides (versioned by the course)           [provided, untouched]
@@ -114,7 +114,7 @@ flowchart LR
 | `.git-blame-ignore-revs` | Hides formatting commits from `git blame` | root | — |
 | `CODEOWNERS` | Automatic reviewers per lane | `.github/` | — |
 | `PULL_REQUEST_TEMPLATE.md` | PR checklist (Definition of Done) — **a single global template**: with several PR templates GitHub shows no chooser and requires a `?template=` URL parameter | `.github/` | markdownlint |
-| `ISSUE_TEMPLATE/*.yml` | "Task / roadmap ticket" form (ticket anatomy of §12) and "bug" form (GitHub does show a chooser for issues) | `.github/ISSUE_TEMPLATE/` | valid YAML |
+| `ISSUE_TEMPLATE.md` | **A single issue template**: the ticket anatomy of §12, also used for bugs. "New issue" opens it directly: no template chooser, no `?template=` in the URL | `.github/` | markdownlint |
 | `dependabot.yml` | Monthly GitHub Actions updates | `.github/` | valid YAML |
 | `.vscode/*.json` | Shared extensions and settings (ruff on save, Mermaid) | `.vscode/` | — |
 

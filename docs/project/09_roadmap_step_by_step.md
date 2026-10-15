@@ -105,7 +105,7 @@ A proposal to adapt to everyone's preferences. **Rule**: nobody merges their own
 ### Step 0.3 — Common base and continuous integration
 
 - **Tasks**
-  - [x] Governance and CI files **in place at the repository root** (ruff, pre-commit, markdownlint, editorconfig, gitattributes, gitignore, CONTRIBUTING, README, CODEOWNERS, PR template, issue forms, CI/nightly/mirror workflows) — validated (`14`, [MES-23]).
+  - [x] Governance and CI files **in place at the repository root** (ruff, pre-commit, markdownlint, editorconfig, gitattributes, gitignore, CONTRIBUTING, README, CODEOWNERS, PR template, issue template, CI/nightly/mirror workflows) — validated (`14`, [MES-23]).
   - [ ] Replace the handles in `CODEOWNERS`; everyone runs `pre-commit install`.
   - [ ] `so101_common` package: `JOINT_NAMES`, `ARM_JOINTS`, `LIMITS`, `GRIPPER_RANGE_RAD`, `pct_to_rad`/`rad_to_pct`, frame names; test comparing `LIMITS` to the URDF.
   - [ ] `so101_bringup` package: `sim.launch.py` (driver + brain), `config/*.yaml`, `rviz/so101.rviz`.

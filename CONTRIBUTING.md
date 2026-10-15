@@ -82,7 +82,7 @@ All planned work lives in **one GitHub Project** (board + backlog) linked to thi
 - **Fields**: Lane (A, B, C, Shared, `docs/project/09` §1.2), Priority (P0 critical path · P1 needed for the final defense · P2 optional), Size (XS < 2 h · S ≤ ½ day · M ≤ 1 day · L ≤ 2–3 days). Dependencies use GitHub's native **blocked by** relationship, not labels.
 - **Labels**: `task`, `bug`, `epic`, `safety` (moves the real arm: [SAFE] review, sim first, `docs/project/07` §7), `staff-question`, and one or more `area:*`.
 
-**Anatomy of a ticket** (the *Task* issue form): Roadmap step · Goal · Scope · Out of scope · **Done when** · Files and interfaces · References · Review focus. Write it so that **a teammate or an AI agent can do it without asking**: exact paths, checkable criteria (a command, a test, a threshold), what not to touch.
+**Anatomy of a ticket** (the issue template, `.github/ISSUE_TEMPLATE.md`): Roadmap step · Goal · Scope · Out of scope · **Done when** · Files and interfaces · References · Review focus. Write it so that **a teammate or an AI agent can do it without asking**: exact paths, checkable criteria (a command, a test, a threshold), what not to touch.
 
 **Definition of Ready** (Backlog → Ready): every *blocked by* ticket is Done; *Done when* is checkable; files and interface impact are named; open questions answered or listed in the ticket.
 
