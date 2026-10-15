@@ -18,7 +18,7 @@ Full environment (WSL2, usbipd, RViz): `docs/project/02`.
 ## 2. Workflow
 
 1. On the **GitHub Project** board, take a ticket from **Ready** (highest priority first, in your lane), assign it to yourself and move it to **In progress** (§8).
-2. Create a branch named after the issue: `git switch -c feat/<issue#>-<topic>` (types: `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`).
+2. Create a branch named after the issue: `git switch -c feat/<issue#>-<topic>` (naming rules: §2.1).
 3. Code **inside the containers** (`docker compose exec control bash`) — never run `colcon build` on the host.
 4. Test locally:
 
@@ -28,9 +28,25 @@ Full environment (WSL2, usbipd, RViz): `docs/project/02`.
    bash tools/ci/guards.sh                              # from the repo root, on the host (needs the git repo)
    ```
 
-5. Commit with a **conventional message**: `feat(driver): publish camera_info` (the hook rejects anything else).
+5. Commit with a **conventional message**: `feat(driver): publish camera_info` (§2.1; the hook rejects anything else).
 6. Open a PR with `Closes #<issue#>`, fill in the checklist; CODEOWNERS requests the review and the ticket moves to **In review**.
-7. **Squash merge** once CI is green and the PR is approved. The squash commit takes the **PR title**, so it must be conventional too (`feat(driver): …`), CI checks it: the ticket closes and moves to **Done**, the branch is deleted.
+7. **Squash merge** once CI is green and the PR is approved. The squash commit takes the **PR title**, so it must be conventional too (§2.1), CI checks it: the ticket closes and moves to **Done**, the branch is deleted.
+
+### 2.1 Naming: branches, commits, PR titles
+
+| What | Format | Example | Checked by |
+| --- | --- | --- | --- |
+| Branch | `<type>/<issue#>-<short-topic>` (lowercase, hyphens) | `feat/12-driver-camera-info` | review |
+| Commit | `<type>(<scope>): <description>` | `fix(driver): reject NaN commands` | `commit-msg` hook (local) |
+| PR title | same format: it becomes the squash commit on `main` | `feat(brain): add min-jerk trajectories` | CI `PR title (conventional commit)` |
+
+- **Types**: `feat` new behavior · `fix` bug fix · `docs` · `test` · `refactor` no behavior change · `perf` · `build` Docker, dependencies, packaging · `ci` workflows, hooks · `chore` housekeeping · `revert`.
+- **Scope** (optional, lowercase): the package or area: `driver`, `brain`, `perception`, `common`, `bringup`, `interfaces`, `connect4`, `docker`, `docs`, `ci`.
+- **Description**: imperative ("add", not "added"), lowercase start, no final period, at most 72 characters.
+- **Breaking change** of the interface contract (`docs/project/01` §3): `!` after the type or scope (`feat(interfaces)!: rename /object_position`), explained in the PR body.
+- **Body** (optional): why, not how; `Co-authored-by:` trailer when pairing (C-07).
+
+The hook and the CI check the type, the lowercase scope and the `: description` part; the imperative form and the 72 characters are checked in review.
 
 ## 3. Non-negotiable rules (from the project brief)
 
