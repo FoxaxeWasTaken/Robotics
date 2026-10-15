@@ -1,0 +1,123 @@
+# CI for every PR and main: lint → project-rule guards → build + tests inside the project image.
+# Details and rationale: docs/project/14_quality_pipeline_ci.md
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    if: ${{ vars.CI_ENABLED == 'true' }}   # opt-in: nothing runs on the school mirror
+    name: Lint (pre-commit)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+      - run: pip install pre-commit
+      - run: pre-commit run --all-files --show-diff-on-failure
+
+  guards:
+    if: ${{ vars.CI_ENABLED == 'true' }}   # opt-in: nothing runs on the school mirror
+    name: Project rules (C-05, C-06, C-23)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - run: bash tools/ci/guards.sh
+
+  control:
+    if: ${{ vars.CI_ENABLED == 'true' }}   # opt-in: nothing runs on the school mirror
+    name: Build + tests (control image)
+    runs-on: ubuntu-24.04
+    needs: [lint, guards]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build tek5/control (GitHub Actions cache)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile.control
+          tags: tek5/control:ci
+          load: true
+          cache-from: type=gha,scope=control
+          cache-to: type=gha,mode=max,scope=control
+      - name: colcon build + test (sim headless, OSMesa)
+        run: |
+          docker run --rm -e MUJOCO_GL=osmesa -v "$PWD/ros2_ws:/ros2_ws" tek5/control:ci bash -lc '
+            source /opt/ros/jazzy/setup.bash && cd /ros2_ws &&
+            colcon build --symlink-install --packages-skip so101_perception --event-handlers console_cohesion+ &&
+            # Only packages with a test/ folder: since Python 3.12 an empty package fails ("NO TESTS RAN").
+            pkgs=$(ls -d src/*/test 2>/dev/null | cut -d/ -f2) &&
+            if [ -z "$pkgs" ]; then echo "No test folder yet: nothing to test."; else
+              colcon test --packages-select $pkgs --event-handlers console_cohesion+ && colcon test-result --verbose; fi'
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: test-results-control
+          path: ros2_ws/build/*/pytest.xml
+          if-no-files-found: ignore
+
+  perception:
+    if: ${{ vars.CI_ENABLED == 'true' }}   # opt-in: nothing runs on the school mirror
+    name: Build + tests (perception image)
+    runs-on: ubuntu-24.04
+    needs: [lint, guards]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile.perception
+          tags: tek5/perception:ci
+          load: true
+          cache-from: type=gha,scope=perception
+          cache-to: type=gha,mode=max,scope=perception
+      - name: colcon build + test (perception packages)
+        # The provided package carries a COLCON_IGNORE until the team activates it (step 3.1).
+        if: ${{ hashFiles('ros2_ws/src/so101_perception/COLCON_IGNORE') == '' }}
+        run: |
+          docker run --rm -v "$PWD/ros2_ws:/ros2_ws" tek5/perception:ci bash -lc '
+            source /opt/ros/jazzy/setup.bash && cd /ros2_ws &&
+            colcon build --build-base build_perception --install-base install_perception --packages-up-to so101_perception &&
+            colcon test --build-base build_perception --install-base install_perception --packages-select so101_perception &&
+            colcon test-result --test-result-base build_perception --verbose'
+
+  e2e-smoke:
+    name: E2E sim (3 episodes)
+    # Enable at roadmap step 4.5: Settings → Variables → E2E_ENABLED = true
+    if: ${{ vars.CI_ENABLED == 'true' && vars.E2E_ENABLED == 'true' }}
+    runs-on: ubuntu-24.04
+    needs: [control, perception]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build images
+        run: docker compose -f docker/docker-compose.yml build
+      - name: Evaluation bench (N=3)
+        run: |
+          cp docker/.env.example docker/.env
+          docker compose -f docker/docker-compose.yml up -d control perception viz
+          docker compose -f docker/docker-compose.yml exec -T control bash -lc '
+            source /ros2_ws/install/setup.bash && ros2 run so101_bringup evaluate --episodes 3 --out /ros2_ws/eval.csv'
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: e2e-smoke
+          path: ros2_ws/eval.csv
+          if-no-files-found: ignore

@@ -1,0 +1,9 @@
+# Automatic updates of GitHub Actions (Docker images stay pinned by hand).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: ci

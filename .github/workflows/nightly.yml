@@ -1,0 +1,55 @@
+# Long-running jobs, off the PR path: full evaluation bench + documentation checks.
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 3 * * *"     # 03:00 UTC
+  workflow_dispatch:
+    inputs:
+      episodes:
+        description: Number of evaluation episodes
+        default: "50"
+
+permissions:
+  contents: read
+
+jobs:
+  docs:
+    name: Documentation (diagrams + links)
+    if: ${{ vars.CI_ENABLED == 'true' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Render every Mermaid diagram
+        run: bash tools/ci/check_mermaid.sh
+      - name: External links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --no-progress --exclude-path core --exclude-path sim "./**/*.md"
+          fail: true
+
+  evaluation:
+    name: Full evaluation bench
+    if: ${{ vars.CI_ENABLED == 'true' && vars.E2E_ENABLED == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker compose -f docker/docker-compose.yml build
+      - name: Bench (randomized cube + box)
+        env:
+          EPISODES: ${{ inputs.episodes || '50' }}
+        run: |
+          cp docker/.env.example docker/.env
+          docker compose -f docker/docker-compose.yml up -d control perception viz
+          docker compose -f docker/docker-compose.yml exec -T -e EPISODES control bash -lc '
+            source /ros2_ws/install/setup.bash &&
+            ros2 run so101_bringup evaluate --episodes "$EPISODES" --out /ros2_ws/eval.csv --bags /ros2_ws/bags'
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: evaluation-${{ github.run_number }}
+          path: |
+            ros2_ws/eval.csv
+            ros2_ws/bags/
+          retention-days: 14

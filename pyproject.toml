@@ -1,0 +1,34 @@
+# Python tooling configuration for the repository (no package is built from this file).
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+# Course-provided code (unmodified, see docs/project/15) and artifacts: never linted or formatted.
+extend-exclude = [
+    "core",
+    "sim",
+    "ros2_ws/build*",
+    "ros2_ws/install*",
+    "ros2_ws/log",
+    "ros2_ws/src/so101_description",
+    "docs",          # provided brief + project docs (spikes included): not production code
+    "*.md",          # ruff also formats Python blocks inside Markdown: doc snippets are deliberately compact
+    # Course-PROVIDED files still identical to upstream: excluded so they do not diverge
+    # (conflict-free upstream merges). Remove a file from this list once the team rewrites it.
+    "ros2_ws/src/so101_perception/so101_perception/perception_node.py",
+    "ros2_ws/src/*/launch/*.launch.py",
+    "ros2_ws/src/example_py_pkg",
+]
+
+[tool.ruff.lint]
+# E/W pycodestyle, F pyflakes, I isort, B bugbear, UP pyupgrade, N pep8-naming, SIM simplify, RUF ruff
+select = ["E", "W", "F", "I", "B", "UP", "N", "SIM", "RUF"]
+
+# Usual robotics notation: R, T, K, J, M in upper case (matrices).
+ignore = ["N803", "N806"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/test/**" = ["N802"]          # free test names (unittest: setUp, setUpClass)
+"**/launch/*.launch.py" = ["N999"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["so101_common", "so101_driver", "so101_brain", "so101_perception", "so101_interfaces"]

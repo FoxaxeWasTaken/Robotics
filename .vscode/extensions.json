@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "ms-python.python",
+    "charliermarsh.ruff",
+    "ms-vscode-remote.remote-containers",
+    "DavidAnson.vscode-markdownlint",
+    "bierner.markdown-mermaid",
+    "redhat.vscode-yaml",
+    "editorconfig.editorconfig"
+  ]
+}

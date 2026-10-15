@@ -1,0 +1,29 @@
+name: Bug
+description: Incorrect behavior (sim or real arm)
+labels: [bug]
+body:
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      options: [simulation, real arm]
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Exact commands, commit (git rev-parse --short HEAD), parameters
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected / observed
+    validations:
+      required: true
+  - type: textarea
+    id: traces
+    attributes:
+      label: Logs, rosbag, screenshots
+      render: text

@@ -1,0 +1,205 @@
+# 03 — `driver_node` design
+
+> Authors: [CTRL] Control & hardware · Reviewers: [ARC], [OPS], [QA]
+> Requirements: C-05, C-10 to C-15, C-51 · Decisions: ADR-006, ADR-007, ADR-016, ADR-018, ADR-023, ADR-032
+
+## 0. Code state (2026-10-15) and what to build
+
+`driver_node.py` = **the course stub** (provided `_connect_arm` and `destroy_node`, upstream PR #1 and #2, `TODO`s not filled): the repository starts from it (ADR-039). A **bootstrap prototype**, kept outside the repository, filled the `TODO`s during the bootstrap sessions and measured `/joint_states` at **30.0 Hz**, the image at **10.0 Hz**, a clean shutdown on SIGINT/SIGTERM and `/go_to_target` within **0.13 mm** [MES-24]. Use it as inspiration, not as code to paste.
+
+| Item | Repository | Bootstrap prototype | Roadmap step (`09`) |
+| --- | --- | --- | --- |
+| `use_sim` backend, provided `_connect_arm` (explicit failure on calibration mismatch) | ✅ provided | ✅ | — |
+| Upstream #2: `disable_torque()` right after connecting (limp arm, commands ignored) | Active, as the course ships it | Commented out | Comment it out when the driver starts commanding the real arm (ADR-032); uncomment to move the arm by hand (`07` §3.2, test 1) |
+| Partial commands by name; empty name list = `JOINT_NAMES` order | ❌ | ✅ | 1.0 |
+| Speed limiter (1.5 rad/s; gripper 200 %/s) | ❌ | ✅ | 1.0, then a parameter (1.1) |
+| `/joint_states` ≥ 20 Hz, gripper in rad | ❌ | ✅ 30.0 Hz (9 Hz before the camera fix) | 1.0 |
+| Sim camera: dedicated thread, render on a copy, backend lock | ❌ | ✅ (ADR-006) | 1.2 |
+| **Clamping to joint limits** (C-15): MuJoCo clamps via `ctrlrange` in sim, **nothing protects the real arm** | ❌ | ✅ in the working copy | 1.1 |
+| NaN/inf rejection | ❌ | ✅ in the working copy | 1.1 |
+| `effort` (grasp detection, ADR-016) | ❌ | ❌ | 1.3 |
+| `/external_cam/camera_info` (C-13); `frame_id` = optical frame (ADR-005) | ❌ | ❌ (`frame_id = "external_cam"`) | 1.3 |
+| Real-arm shutdown: `disconnect()` cuts the torque, the arm falls | ⚠ provided `destroy_node` | ⚠ | `PARK` first (§8, 6.1) |
+| Real camera, `/sim/randomize`, `max_relative_target` | ❌ | ❌ | Later stages (ADR-007, 018, 023) |
+
+## 1. Responsibilities
+
+| Does | Does not |
+| --- | --- |
+| Choose and connect the backend (`use_sim`) | Compute IK or trajectories |
+| Pace the control loop (50 Hz) | Interpolate smartly (the brain's job) |
+| Apply partial commands, clamp to limits, limit speed (safety) | Decide what to do |
+| Publish `/joint_states` (position, effort), the image and `camera_info` | Detect objects |
+| Provide **sim-only** services (`/sim/randomize`) | Expose ground truth to the pipeline (C-06) |
+| Shut the hardware down cleanly | — |
+
+## 2. Backend abstraction (C-10)
+
+> **2026-10-08 update (upstream pull, PR #1 `fix/connect_arm`)**: `_connect_arm` is now **provided by the course**. We **keep it as is** (ADR-032) and only add what is missing, **next to it**.
+>
+> **2026-10-09 update (upstream PR #2)**: the provided `_connect_arm` now ends with `robot.bus.disable_torque()` and a "Torque disabled" log, with the instruction "Comment out this line to control the robot". The team keeps these lines **commented out**, the only change to the provided function (ADR-032 update); uncomment them for a session where the arm must be moved by hand. `destroy_node` is provided too (§8).
+
+What the provided version does:
+
+| Mode | Provided `_connect_arm` |
+| --- | --- |
+| Sim | `SO101Sim()` then `connect()` |
+| Real | Checks that `CALIBRATION_FILE` (`/calibration/arm.json`) exists, else `RuntimeError`. Builds `SO101FollowerConfig(port, id=calib.stem, calibration_dir=calib.parent, use_radians=True)`, then `connect(calibrate=False)`. **If the motors do not match the file: `disconnect()` + `RuntimeError`** ("wrong file for this arm?"). Since #2, then `bus.disable_torque()`: commented out by the team (see above) |
+
+What the team adds, without touching the provided function (**planned** with ticket 6.1a, not in the code yet, §0):
+
+```python
+self._robot = self._connect_arm(port)                # provided by the course, unchanged
+if not self._use_sim:
+    # Hardware safety net (ADR-023): max delta per command, PER MOTOR
+    # (a scalar would also apply to the gripper, in %, and freeze it).
+    # send_action() re-reads config.max_relative_target on every call.
+    self._robot.config.max_relative_target = {**{j: 0.2 for j in ARM_JOINTS}, "gripper": 25.0}
+```
+
+Real-arm critical points:
+
+- `max_relative_target` triggers a `Present_Position` read at each `send_action` (a few ms on the bus), compatible with 50 Hz. The dict must contain **all 6 motors** (the driver always sends 6 targets).
+- ⚠ **By default `connect()` may call `calibrate()`, which waits for keyboard `input()`** — it would block the node in the container. The provided version calls `connect(calibrate=False)` and **fails explicitly** on mismatch: safer than writing offsets into the motors (a file from another arm would produce wrong motions). What to do: `07` §3.1.
+- Backend imports are **module-level** (provided code): harmless, since the driver only runs in the `control` image, which contains both `so101_sim` and `lerobot`.
+- **Do not** put the camera in `SO101FollowerConfig.cameras`: `get_observation()` would read the camera inside the control loop (§6).
+
+## 3. Execution model (ADR-006)
+
+Implemented and measured variant: **single-threaded executor** for the control timer, the `/joint_states` timer and the `/joint_command` subscription, plus **one dedicated Python thread** for the sim camera. A single lock protects the backend (MuJoCo and the serial bus are not thread-safe).
+
+```mermaid
+flowchart LR
+  subgraph EX["rclpy single-threaded executor"]
+    T1["control timer 50 Hz<br/>send_action + get_observation"]
+    T2["/joint_states timer 30 Hz"]
+    S1["/joint_command sub<br/>(stores the goal only)"]
+  end
+  subgraph TH["camera thread (sim)"]
+    C["copy state, render, publish 10 Hz"]
+  end
+  L[("backend lock")]
+  T1 --> L
+  C -->|"copy only (µs)"| L
+```
+
+Timeline of a control tick and a camera frame:
+
+```mermaid
+sequenceDiagram
+  participant T as Control timer 50 Hz
+  participant L as Backend lock
+  participant S as SO101Sim
+  participant C as Camera thread 10 Hz
+  participant P as Publishers
+  loop every 20 ms
+    T->>L: acquire
+    T->>S: send_action(limited setpoint), 10 ms of physics
+    T->>S: get_observation(), 10 ms of physics
+    T->>L: release
+  end
+  loop every 100 ms
+    C->>L: acquire
+    C->>S: mj_copyData into the private copy (a few µs)
+    C->>L: release
+    C->>C: OSMesa render of the copy (50 to 140 ms, GIL released)
+    C->>P: image_raw (and camera_info, same stamp)
+  end
+  Note over T,P: the 30 Hz timer publishes /joint_states from the last observation
+```
+
+- **Control tick (50 Hz)**, under the lock: (1) move the setpoint towards the goal through the speed limiter (§4); (2) `send_action(setpoint)` → +10 ms of physics; (3) `obs = get_observation()` → +10 ms. 2 calls per 20 ms tick ⇒ the sim runs **in real time** [MES-02].
+- **Camera thread (10 Hz, sim)**: under the lock, `mujoco.mj_copyData` into a private `MjData` (a few µs); **outside the lock**, render that copy with the thread's own `mujoco.Renderer` (OpenGL context bound to that thread), publish, then wait until the next period. Without this, `/joint_states` dropped to **9 Hz** (single thread busy rendering 50–140 ms) [MES-22]; with it: **30.0 Hz**, max period 44 ms [MES-24].
+- Shutdown: `destroy_node()` sets a stop event and joins the thread before `disconnect()`; the thread also exits if `rclpy.ok()` turns false (SIGINT), so no publish happens on a dead context.
+
+> Rendering a copy uses `sim.model`/`sim.data`: an internal access **confined to the driver's sim branch** — acceptable because camera rendering is sim-specific anyway (the real arm goes through OpenCV). The rest of the stack still ignores the backend.
+> Alternative considered: `MultiThreadedExecutor` + callback groups. Rejected for now: with a thread pool the OpenGL context could be used from different threads; a dedicated thread is simpler and was measured.
+
+## 4. `/joint_command` handling (C-14, C-15)
+
+```text
+on_joint_command(msg):
+    names = msg.name or JOINT_NAMES               # empty list = full ordered command
+    if len(names) != len(msg.position) → reject (throttled warning)
+    for (name, value):
+        unknown name → ignore
+        non-finite value (NaN/inf) → reject the whole message            [to add]
+        "gripper": value = clamp(value, 0, 100)                         # %
+        others:    value = clamp(value, lim_min[name], lim_max[name])  # rad, URDF limits   [to add]
+    goal.update(valid pairs)     # PARTIAL COMMAND: other joints keep their goal
+```
+
+- **Initialization**: goal = measured position at startup, so no joint jumps to 0.
+- **Speed limiter** (safety net, ADR-023): each tick, the setpoint moves towards the goal by at most `max_velocity × dt`. The brain's trajectories are already smooth, so the limiter is idle in nominal operation; it protects against a `ros2 topic pub` jumping a joint by 2 rad.
+- **Limits** come from `so101_common` (copy of the URDF limits, checked by a test against the URDF):
+
+| Joint | Min (rad) | Max (rad) | ≈ degrees |
+| --- | --- | --- | --- |
+| shoulder_pan | −1.91986 | 1.91986 | ±110° |
+| shoulder_lift | −1.74533 | 1.74533 | ±100° |
+| elbow_flex | −1.69 | 1.69 | ±96.8° |
+| wrist_flex | −1.65806 | 1.65806 | ±95° |
+| wrist_roll | −2.74385 | 2.84121 | −157° / +163° |
+| gripper | 0 % (−0.174533 rad) | 100 % (1.74533 rad) | −10° / +100° |
+
+## 5. `/joint_states` publication
+
+| Field | Content |
+| --- | --- |
+| `header.stamp` | Node clock at read time |
+| `name` | `[shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll, gripper]` (exact URDF names, otherwise RViz shows the arm "in pieces") |
+| `position` | rad; gripper converted % → rad: `rad = lo + pct/100·(hi − lo)`, `(lo, hi) = (−0.174533, 1.74533)` — what `robot_state_publisher` expects |
+| `velocity` | Optional (filtered finite difference) or empty |
+| `effort` | **Normalized load in [−1, 1]** (fraction of max torque). Sim: `actuator_force / forcerange`; real: `Present_Load / 1000`. Used for grasp detection (ADR-016). Deliberate deviation from REP-103 (N·m): hobby-servo load is not a calibrated torque |
+
+The brain recovers the gripper percentage with the inverse conversion from `so101_common`.
+
+## 6. Camera (ADR-007)
+
+| | Sim | Real |
+| --- | --- | --- |
+| Source | MuJoCo render of `external_cam` on a state copy (dedicated thread) | `OpenCVCamera(index_or_path=/dev/videoN, fps=30, width=640, height=480, fourcc="MJPG")` in its own thread (async read) |
+| K | `get_camera_intrinsics()` (fx = fy ≈ 246 px at 320×240, cx = 160, cy = 120) | YAML from the intrinsic calibration (ADR-014) |
+| D (distortion) | 0 | From calibration |
+| Publication | `Image` `rgb8` + `CameraInfo` with the **same `stamp`**, `frame_id = external_cam_optical_frame`, 10 Hz | Same |
+
+## 7. Sim-only services and test parameters
+
+- `/sim/randomize` (`std_srvs/Trigger`): under the lock, calls `randomize_object()` then moves the box by changing `model.body_pos` of the `drop_box` body within a reachable area not overlapping the cube, then `mj_forward`. Required for C-42 (ADR-018).
+- `expose_ground_truth` (**`false` by default**): when `true`, publishes `/sim/ground_truth/object` and `/sim/ground_truth/drop_box`. **Evaluation bench only**, never read by brain or perception (C-06, CI grep).
+- `scene_path`: loads one of our scenes (calibration scene with ArUco markers, ADR-013; Connect Four scene, ADR-036) without modifying `sim/`: right after the provided `_connect_arm`, the driver reconnects `SO101Sim` with that scene (ADR-036).
+
+## 8. Lifecycle and shutdown
+
+- **Sim**: stop the camera thread, then `disconnect()` (closes the renderer).
+- **Real**: ⚠ `disable_torque_on_disconnect=True` by default — **the arm falls** when torque is cut. `destroy_node()` is provided since upstream #2 (disconnect + log); the team stops the camera thread before it and will add a slow move to `PARK` before the disconnect (ticket 6.1a). Until then, keep a hand ready to hold the forearm when stopping the real arm (`07` §2). The entrypoint already sends SIGINT to the process group so that `destroy_node()` runs.
+- **Serial errors**: 3 retries, then stop publishing `/joint_states` and log a clear error; the brain detects missing data (freshness, ADR-017) and stops.
+
+## 9. Tests (see `08` and `14`)
+
+| Test | Type | Criterion |
+| --- | --- | --- |
+| Gripper %↔rad conversion and out-of-range clamping | Unit (`test_gripper_conversion.py`) | Error < 1e-9 — **implemented** |
+| `/joint_states` rate | `launch_testing` (`test_driver_launch.py`) | ≥ 20 Hz — to implement at step 1.0 (bootstrap prototype: 30 Hz measured) |
+| A partial `shoulder_pan` command only moves that joint | `launch_testing` | Other joints move < 5 mrad — **implemented** |
+| Clamp + NaN rejection on the command-merge function | Unit | Edge cases covered — to add with the clamp |
+| `so101_common` limits = URDF limits | Unit (parse URDF) | Equal within 1e-5 — to add |
+
+## 10. Structure of the implemented node
+
+```python
+class DriverNode(Node):
+    def __init__(self):
+        ...
+        self._robot = self._connect_arm(port)          # provided
+        self._obs = self._robot.get_observation()
+        self._target = {n: self._obs[f"{n}.pos"] for n in JOINT_NAMES}   # no jump at startup
+        self._goal = dict(self._target)
+        self._lock = threading.Lock()
+        # publishers, /joint_command subscription, control (50 Hz) and joint_states (30 Hz) timers
+        if self._use_sim:                               # camera thread, renders a state copy
+            self._camera = threading.Thread(target=self._camera_loop, daemon=True)
+            self._camera.start()
+```
+
+See `ros2_ws/src/so101_driver/so101_driver/driver_node.py` for the complete code.

@@ -1,0 +1,13 @@
+# LF everywhere: a bash script with CRLF breaks the Docker entrypoint (Windows clones).
+* text=auto eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+
+# Binaries: no text diff, no conversion
+*.stl binary
+*.png binary
+*.jpg binary
+*.pdf binary
+*.npz binary
+*.db3 binary
+*.mcap binary

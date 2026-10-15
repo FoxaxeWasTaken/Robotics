@@ -1,0 +1,41 @@
+# Install (once per clone):  pip install pre-commit && pre-commit install --install-hooks -t pre-commit -t commit-msg
+# Run on the whole repo:      pre-commit run --all-files
+# Content provided by the course: excluded (we never modify it, see docs/project/15).
+# docs/SUJET.md and the PDF slides are provided by the course (SUJET.md would raise 13 markdownlint issues).
+# docs/project/ (our documentation) is still checked.
+exclude: ^(core|sim|ros2_ws/src/so101_description)/|^docs/(SUJET\.md|[^/]*\.pdf)$
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^ros2_ws/\.gitignore$     # provided by the course, kept identical to upstream
+      - id: end-of-file-fixer
+        exclude: ^ros2_ws/\.gitignore$
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-yaml
+      - id: check-toml
+      - id: check-xml
+      - id: check-merge-conflict
+      - id: check-executables-have-shebangs
+        exclude: (^|/)__init__\.py$          # upstream ships __init__.py files with mode 755
+      - id: check-added-large-files
+        args: [--maxkb=1024]          # blocks rosbags, videos, PDFs; provided meshes are excluded
+      - id: detect-private-key
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.10
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.23.3
+    hooks:
+      - id: markdownlint-cli2
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [feat, fix, docs, test, refactor, perf, build, ci, chore, revert]
