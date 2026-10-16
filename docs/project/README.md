@@ -47,7 +47,7 @@ flowchart LR
 | [06_brain_state_machine.md](06_brain_state_machine.md) | State machine (diagram + table), non-blocking behavior, grasp detection, parameters |
 | [07_real_arm_safety_sim2real.md](07_real_arm_safety_sim2real.md) | Real-arm commissioning, layered safety, sim → real gaps, real camera, checklist |
 | [08_quality_tests.md](08_quality_tests.md) | Test pyramid, target metrics, evaluation bench, conventions, Git workflow (summary) |
-| [09_roadmap_step_by_step.md](09_roadmap_step_by_step.md) | **The step-by-step roadmap**: 9 stages (phase 2 of the brief = stage 7), 33 steps, each with "Done when…" |
+| [09_roadmap_step_by_step.md](09_roadmap_step_by_step.md) | **The step-by-step roadmap**: 9 stages (phase 2 of the brief = stage 7), 35 steps, each with "Done when…" |
 | [10_risks.md](10_risks.md) | Risk register (P × I) and mitigations |
 | [11_cross_review_and_measurements.md](11_cross_review_and_measurements.md) | **Cross-review log** (44 objections) and register of the 33 measurements |
 | [12_glossary_references.md](12_glossary_references.md) | Glossary and references |
@@ -100,20 +100,23 @@ flowchart LR
 | 15 | **Phase 2: Connect Four against the robot** (validated by the staff): store-bought grid placed edge-on, the arm on a riser, depth guide, tokens handed over, drop poses with the wrist roll locked, wrist camera if needed, `PickPlace` action in the brain | Decided | [MES-27] to [MES-29], [MES-31], [MES-32]; ADR-034 to 038 |
 | 16 | **Starting code: the course stubs**; the bootstrap prototype stays outside the repository, as a reference (every line goes through a reviewed PR, C-50) | Decided | ADR-039; [MES-24] for what the prototype proved |
 
-## Open questions for the teaching staff
+## Questions for the teaching staff (answered on 2026-10-16)
 
-1. **Field of view**: 21 % of the randomized cube positions are partially out of the image [MES-12]. Can the scene camera be moved or the area reduced? Are those cases evaluated?
-2. **`perception` service** missing from `docker-compose.yml` although the slides use it: is our addition (ADR-002) fine?
-3. **Robustness evaluation**: the brief no longer mentions randomized poses (update of 2026-10-08). How will "robust" be evaluated at S7, and is our randomized cube + box bench (`/sim/randomize`) the right measure?
-4. **Calibration scene**: may we load our own scene (provided scene + ArUco markers) for sim calibration? (Also needed for the phase-2 scene, ADR-036.)
-5. **Real arm**: calibration file for our arm, model and mount of the real camera provided?
-6. **License and visibility**: under which license may a repository containing the course kit be published (ADR-031)?
-7. **School repository**: does it accept a deploy key with write access for the mirror (`16`)?
+Sent on Teams on 2026-10-16 and answered the same day (ticket 0.1c). *Team* marks a question the team settled itself.
 
-Phase-2 questions (riser, webcam and wrist camera, real-arm sessions): `phase2/P2-03` §4.
+1. **Field of view** (21 % of the randomized cube positions partly out of the image [MES-12]): **the scene camera may be moved and its parameters changed**, for instance to match the real camera; the staff agrees the provided pose is misplaced and will post a general message. Recalibrate after moving it. The evaluation is not settled yet, but partial occlusions (by the robot) should be handled when possible (`05` §6–§7).
+2. **`perception` service**: expected. `Dockerfile.perception` is provided and the service was missing from the compose file; Docker files and nodes may be adapted freely (ADR-002).
+3. **Robustness evaluation**: a bench drawing random cube **and** box poses is what is expected; showing that it works on a few draws is enough. "Robust" means the five cases of [BOOT2 p12]: the object moves mid-action, the grasp fails, the object leaves the view, the target is out of reach, the lighting changes. Show a quick example of how each one is handled, or not (ADR-018).
+4. **Calibration scene**: our own scene is fine, and markers other than ArUco are allowed if they work better (ADR-013, ADR-036).
+5. **Real arm and cameras**: recalibrate the arm with the LeRobot (Hugging Face) calibration tools (`07` §3.1). Any USB webcam works as the scene camera and the grid webcam (a phone only as a stopgap: latency). The wrist camera is probably the WowRobo 2 MP USB module for SO-ARM100/101 (30 fps, 3 m cable), with a printable wrist mount (STL shared on Teams); whether each campus has one: the staff will confirm (ADR-038).
+6. **License** (*team*): not asked for now, the repository is private. ADR-031 stays OPEN until a public release (8.1c).
+7. **School repository** (*team*): question withdrawn. Without admin rights there, the mirror uses a key on a member's account and force-pushes `main` (ADR-033, `16`); Dependabot PRs that may appear there are closed by hand.
 
-## Project status on 2026-10-15
+Phase-2 questions and answers (riser, cameras, real-arm sessions, taught poses, 3D printer): `phase2/P2-03` §4.
 
+## Project status on 2026-10-16
+
+- **Teaching staff answers (2026-10-16)**: the sim camera may be moved, our own scenes and markers are allowed, the random cube + box bench is the expected measure and "robust" means the five cases of [BOOT2 p12] (questions above).
 - **Team repository created (2026-10-15)**, private. It starts from the **course stubs**: the bootstrap prototype (driver, FK/IK, RViz file, teleop) stays outside the repository as a reference, its measurements remain valid as feasibility evidence (ADR-039).
 - **Phase 2 validated by the teaching staff** (2026-10-09): Connect Four against the robot (ADR-034, [`phase2/`](phase2/README.md)). Own roadmap: `phase2/P2-04`; next: buy and measure a store-bought grid, then the drop spike (step P2.1). Kinematics checked by measurement before any build [MES-27 to MES-29].
 - **Real arm (2026-10-09)**: commissioning tests 1–3 of `07` §3.2 passed with the bootstrap prototype (clamp, NaN rejection and a reduced real-arm speed included). At rest the computed TCP is 2.9 cm below the table: check the calibration zero with a ruler first [MES-30].
@@ -122,5 +125,5 @@ Phase-2 questions (riser, webcam and wrist camera, real-arm sessions): `phase2/P
 - **Upstream pull on 2026-10-08** (fast-forward to `bc00df7`): slides versioned in `docs/`, `_connect_arm` **provided** in the driver stub (PR #1). Sim, Docker, URDF, brain and perception unchanged: **every measurement in this folder remains valid**. `driver_node.py` merged with the provided `_connect_arm` kept (ADR-032).
 - Environment validated (images, X11, DDS, usbipd, MJPG webcam).
 - **Bootstrap prototype** (outside the repository, ADR-039): `/joint_states` at **30 Hz** (9 Hz before the camera thread), tests 6/6, `/go_to_target` within 0.13 mm [MES-24]. Reference for steps 1.0, 1.2 and 2.1.
-- Quality tooling, CI, mirror and governance files: **in place in this repository** (`14`, `15`, `16`); GitHub settings applied on 2026-10-15 (ruleset on `main`, squash only, `school-mirror` environment, variables). Remaining: CODEOWNERS handles (ticket 0.1d) and the GitHub Project (`15` §12).
+- Quality tooling, CI, mirror and governance files: **in place in this repository** (`14`, `15`, `16`); GitHub settings applied on 2026-10-15 (ruleset on `main`, squash only, `school-mirror` environment, variables). Remaining: CODEOWNERS handles (ticket 0.1d); the GitHub Project exists since 2026-10-15 (`15` §12).
 - Next roadmap steps: the GitHub Project and the backlog (end of **0.1**), then **0.3** and **1.0** (`09`).

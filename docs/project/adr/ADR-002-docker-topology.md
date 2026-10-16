@@ -33,3 +33,7 @@ Inter-container communication checked with `talker` and a `tek5/perception` cont
 ## Reconsider if
 
 The teaching staff publishes an official compose file with `perception`: align with it.
+
+## Update (2026-10-16, teaching staff)
+
+The staff confirms the `perception` service is expected (the Dockerfile is provided, the service was missing from the compose file) and that the Docker files and the nodes may be adapted freely.

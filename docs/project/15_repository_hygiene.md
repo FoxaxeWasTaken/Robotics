@@ -261,7 +261,7 @@ git remote add origin git@github.com:<you>/<private-repo>.git && git push -u ori
 
 ```mermaid
 flowchart LR
-  R["Roadmap docs/project/09<br/>9 stages, 33 steps"] --> E["9 epics<br/>one per stage, label epic"]
+  R["Roadmap docs/project/09<br/>9 stages, 35 steps"] --> E["9 epics<br/>one per stage, label epic"]
   E --> T["Tickets as sub-issues<br/>one PR each, title starts with the step ID"]
   T --> B["Project board<br/>Status, Lane, Priority, Size"]
   T -->|"Closes #N in the PR"| P["Pull request"]

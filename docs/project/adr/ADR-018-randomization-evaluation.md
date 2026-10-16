@@ -32,3 +32,7 @@ Infrastructure review (`02` §2).
 ## Reconsider if
 
 The teaching staff provides its own randomization: use it.
+
+## Update (2026-10-16, teaching staff)
+
+Confirmed: random cube **and** box poses are what is expected, and showing that it works on a few draws is enough. "Robust" refers to the five cases of [BOOT2 p12] (the object moves mid-action, the grasp fails, the object leaves the view, the target is out of reach, the lighting changes): show a quick example of how each one is handled, or not.

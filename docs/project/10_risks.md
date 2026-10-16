@@ -12,7 +12,7 @@ quadrantChart
   quadrant-2 Contingency plan
   quadrant-3 Accept
   quadrant-4 Reduce
-  R-01 field of view: [0.88, 0.9]
+  R-01 field of view: [0.55, 0.9]
   R-02 lighting: [0.82, 0.55]
   R-06 driver rate: [0.12, 0.7]
   R-03 real calibration: [0.4, 0.86]
@@ -34,10 +34,10 @@ quadrantChart
 
 | ID | Risk | P | I | Crit. | Warning sign | Mitigation | Owner |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| R-01 | **21 % of the cube positions are truncated** by the simulated camera's field of view [MES-12]: the bench caps below 90 % | 3 | 3 | **9** | `WAIT_TARGET` failures clustered near the camera | Ask the teaching staff (OPEN); far-edge method; never publish a dubious detection | VIS |
+| R-01 | **21 % of the cube positions are truncated** by the simulated camera's field of view [MES-12]: the bench caps below 90 % | 2 | 3 | **6** | `WAIT_TARGET` failures clustered near the camera | Move the sim camera (allowed by the staff, 2026-10-16) and re-measure MES-12; far-edge method; never publish a dubious detection | VIS |
 | R-02 | Real lighting: unstable HSV thresholds, reflections on the PLA | 3 | 2 | 6 | Holes/noise in the mask on real images | Manual camera settings (exposure, WB); thresholds tuned on a real rosbag; diffuse lighting; YOLO as a last resort | VIS |
 | R-03 | Inaccurate real calibration (badly placed jig, camera moved) | 2 | 3 | 6 | > 1 cm error on the grid; reprojection self-check > 3 px | Spread markers (≥ 4), TCP touch probing, robot validation (`05` §10); rigid mount; startup self-check | VIS |
-| R-04 | Missing or wrong arm calibration file: blocking or inverted motions | 2 | 3 | 6 | Read-only test: RViz ≠ real | `connect(calibrate=False)` + **refusal to start on mismatch** (provided code, ADR-032); sign tests `07` §3.2; never "fix" a sign in code | CTRL |
+| R-04 | Missing or wrong arm calibration file: blocking or inverted motions | 2 | 3 | 6 | Read-only test: RViz ≠ real | `connect(calibrate=False)` + **refusal to start on mismatch** (provided code, ADR-032); sign tests `07` §3.2; never "fix" a sign in code; recalibrate with the LeRobot tools (staff, 2026-10-16), then check the zero [MES-30] | CTRL |
 | R-05 | Arm falling when torque is cut, or sudden motion: damage, injury | 2 | 3 | 6 | — | Defense in depth (ADR-023); PARK before `disconnect()`; safety checklist | CTRL |
 | R-06 | ~~Camera rendering blocks the driver's single thread: 9 Hz measured [MES-22]~~ **Fixed** in the bootstrap prototype: 30 Hz [MES-24]; keep the fix when rewriting the driver (step 1.2, ADR-039). Residual risk: regression if the camera moves back into the control thread | 1 | 3 | 3 | `ros2 topic hz /joint_states` below 20 Hz; component test red | Component test in CI; ADR-006 | CTRL |
 | R-07 | Sim → real accuracy gap (P = 16, gravity, backlash) | 2 | 2 | 4 | TCP error of a few mm to 1 cm | Grid measurement; slow unidirectional approach; setpoint correction if needed | KIN |
