@@ -1,4 +1,4 @@
-"""Component test (launch_testing): the driver in sim publishes /joint_states and applies partial commands."""
+"""Component test (launch_testing): sim driver publishes /joint_states and its camera, applies commands."""
 
 import time
 import unittest
@@ -7,9 +7,10 @@ from itertools import pairwise
 import launch
 import launch_ros.actions
 import launch_testing.actions
+import launch_testing.asserts
 import pytest
 import rclpy
-from sensor_msgs.msg import JointState
+from sensor_msgs.msg import Image, JointState
 
 STARTUP_TIMEOUT = 30.0  # s: MuJoCo loads the scene before the first message
 ARM = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")  # URDF order, by hand
@@ -21,7 +22,7 @@ def generate_test_description():
     driver = launch_ros.actions.Node(
         package="so101_driver", executable="driver", parameters=[{"use_sim": True}], output="screen"
     )
-    return launch.LaunchDescription([driver, launch_testing.actions.ReadyToTest()])
+    return launch.LaunchDescription([driver, launch_testing.actions.ReadyToTest()]), {"driver": driver}
 
 
 class TestDriver(unittest.TestCase):
@@ -31,6 +32,8 @@ class TestDriver(unittest.TestCase):
         cls.node = rclpy.create_node("test_driver")
         cls.msgs = []
         cls.node.create_subscription(JointState, "/joint_states", cls.msgs.append, 10)
+        cls.images = []
+        cls.node.create_subscription(Image, "/external_cam/image_raw", cls.images.append, 10)
         cls.pub = cls.node.create_publisher(JointState, "/joint_command", 10)
 
     @classmethod
@@ -105,3 +108,26 @@ class TestDriver(unittest.TestCase):
             self.spin_for(2.0)
             print(f"gripper {pct:.0f} % -> {self.latest()['gripper']:.4f} rad (URDF limit {rad})")
             self.assertAlmostEqual(self.latest()["gripper"], rad, delta=0.05)
+
+    def test_camera_publishes_rgb8_images(self):
+        self.wait_for_joint_states()
+        self.spin_for(3.0)  # the first frames render slower (OpenGL start-up) [MES-34]
+        start = len(self.images)
+        self.spin_for(3.0)
+        stamps = [m.header.stamp.sec + m.header.stamp.nanosec * 1e-9 for m in self.images[start:]]
+        self.assertGreater(len(stamps), 2, "no /external_cam/image_raw received")
+        rate = (len(stamps) - 1) / (stamps[-1] - stamps[0])
+        print(f"/external_cam/image_raw rate: {rate:.1f} Hz (target 10)")
+        last = self.images[-1]
+        self.assertEqual((last.encoding, last.width, last.height), ("rgb8", 320, 240))
+        self.assertEqual(len(last.data), 320 * 240 * 3)
+        # 10 Hz target; a render can take 140 ms on a loaded machine [MES-22].
+        self.assertGreaterEqual(rate, 5.0)
+
+
+@launch_testing.post_shutdown_test()
+class TestDriverShutdown(unittest.TestCase):
+    def test_sigint_stops_the_driver_without_traceback(self, proc_info, proc_output, driver):
+        launch_testing.asserts.assertExitCodes(proc_info, process=driver)
+        output = b"".join(io.text for io in proc_output[driver])
+        self.assertNotIn(b"Traceback", output)
