@@ -6,6 +6,7 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 .coverage
+.hypothesis/
 htmlcov/
 
 # --- ROS 2 build artifacts (including the perception container's separate build)

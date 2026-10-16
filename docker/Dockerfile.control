@@ -27,6 +27,14 @@ COPY sim /opt/so101/sim
 RUN pip install --break-system-packages --no-cache-dir \
     "numpy<2" "opencv-python-headless==4.10.*" /opt/so101/core /opt/so101/sim ikpy
 
+# Test tooling (ticket 0.3d): property tests, coverage, and one free ROS_DOMAIN_ID per colcon test job
+# (colcon-ros-domain-id-coordinator: tests never see a stack running on the team's domain).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-hypothesis \
+    python3-pytest-cov \
+    python3-colcon-ros-domain-id-coordinator \
+    && rm -rf /var/lib/apt/lists/*
+
 # ROS2 workspace mounted as a volume (see docker-compose.yml)
 WORKDIR /ros2_ws
 
