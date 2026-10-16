@@ -31,8 +31,9 @@ shutdown() {
   trap - TERM INT
   set +e  # wait returns the child status; errexit would abort the shutdown
   [ ${#pids[@]} -eq 0 ] && exit 0
-  # Signal the whole group, as Ctrl-C does: ros2 launch ignores a SIGINT sent to it alone.
-  for p in "${pids[@]}"; do kill -INT -"$p" 2>/dev/null; done
+  # SIGINT to ros2 launch only: it forwards one to each node. Signalling the whole group gave each
+  # node a second SIGINT that interrupted destroy_node() (KeyboardInterrupt traceback).
+  for p in "${pids[@]}"; do kill -INT "$p" 2>/dev/null; done
   ( sleep 5; for p in "${pids[@]}"; do kill -KILL -"$p" 2>/dev/null; done ) &
   for p in "${pids[@]}"; do wait "$p"; done
   exit 0
