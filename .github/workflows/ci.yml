@@ -15,10 +15,11 @@ permissions:
   contents: read
 
 # Dependabot PRs run like fork PRs: repository variables may not reach them, and a skipped required
-# check counts as passed. Hence the jobs also run when Dependabot is the author.
+# check counts as passed. Hence the jobs also run when Dependabot is the author, in this repository
+# only: the school copy mirrors dependabot.yml and must run nothing (docs/project/16 §4).
 jobs:
   lint:
-    if: ${{ vars.CI_ENABLED == 'true' || github.event.pull_request.user.login == 'dependabot[bot]' }}   # opt-in: nothing runs on the school mirror
+    if: ${{ vars.CI_ENABLED == 'true' || (github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'FoxaxeWasTaken/Robotics') }}   # opt-in: nothing runs on the school mirror
     name: Lint (pre-commit)
     runs-on: ubuntu-24.04
     steps:
@@ -40,7 +41,7 @@ jobs:
         run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact --verbose
 
   guards:
-    if: ${{ vars.CI_ENABLED == 'true' || github.event.pull_request.user.login == 'dependabot[bot]' }}   # opt-in: nothing runs on the school mirror
+    if: ${{ vars.CI_ENABLED == 'true' || (github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'FoxaxeWasTaken/Robotics') }}   # opt-in: nothing runs on the school mirror
     name: Project rules (C-05, C-06, C-23)
     runs-on: ubuntu-24.04
     steps:
@@ -50,7 +51,7 @@ jobs:
       - run: bash tools/ci/guards.sh
 
   control:
-    if: ${{ vars.CI_ENABLED == 'true' || github.event.pull_request.user.login == 'dependabot[bot]' }}   # opt-in: nothing runs on the school mirror
+    if: ${{ vars.CI_ENABLED == 'true' || (github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'FoxaxeWasTaken/Robotics') }}   # opt-in: nothing runs on the school mirror
     name: Build + tests (control image)
     runs-on: ubuntu-24.04
     needs: [lint, guards]
@@ -86,7 +87,7 @@ jobs:
           if-no-files-found: ignore
 
   perception:
-    if: ${{ vars.CI_ENABLED == 'true' || github.event.pull_request.user.login == 'dependabot[bot]' }}   # opt-in: nothing runs on the school mirror
+    if: ${{ vars.CI_ENABLED == 'true' || (github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'FoxaxeWasTaken/Robotics') }}   # opt-in: nothing runs on the school mirror
     name: Build + tests (perception image)
     runs-on: ubuntu-24.04
     needs: [lint, guards]

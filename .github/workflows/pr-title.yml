@@ -9,8 +9,8 @@ on:
 permissions: {}
 
 jobs:
-  title:
-    if: ${{ vars.CI_ENABLED == 'true' || github.event.pull_request.user.login == 'dependabot[bot]' }}
+  title:  # Dependabot exception limited to this repository: see ci.yml
+    if: ${{ vars.CI_ENABLED == 'true' || (github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'FoxaxeWasTaken/Robotics') }}
     name: PR title (conventional commit)
     runs-on: ubuntu-24.04
     steps:
