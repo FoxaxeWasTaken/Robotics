@@ -44,7 +44,7 @@ flowchart LR
 | `so101_perception` | ament_python | perception | `perception_node` + pure modules: `detection.py`, `geometry.py`, `calibration.py` (offline tool) | Stub (remove `COLCON_IGNORE`) |
 | `so101_interfaces` | ament_cmake | both | `.srv` (existing); phase 2 adds `Connect4Board.msg`, `DropToken.srv` and the `PickPlace` action (ADR-037) | Existing |
 | `so101_description` | ament_python | viz | URDF, meshes, `viz.launch.py`. **Do not modify** (C-08) | Provided |
-| **`so101_common`** | ament_python (pure Python, no dependency) | both | **Single source of truth**: joint names, limits, gripper %↔rad conversion, frame names | **New** (ADR-003) |
+| **`so101_common`** | ament_python (pure Python, no dependency) | both | **Single source of truth**: joint names, limits, gripper %↔rad conversion, frame names | **Exists** (ADR-003, step 0.3) |
 | **`so101_bringup`** | ament_python | control | Top-level launch files (`sim.launch.py`, `real.launch.py`), `config/*.yaml`, RViz config, tools (`evaluate`, calibration) | **New** (standard "bringup" practice) |
 | **`so101_connect4`** | ament_python | perception + control | Phase 2: pure `game.py` and `board.py`, `board_reader_node`, `game_node` | **Planned** (ADR-037) |
 

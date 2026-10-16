@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>so101_common</name>
+  <version>0.2.0</version>
+  <description>Single source of truth of the SO-ARM101: joint names, limits, gripper conversion, frame names (pure Python).</description>
+  <maintainer email="tek5@epitech.eu">Tek5 Robotics</maintainer>
+  <license>Apache-2.0</license>
+
+  <test_depend>ament_index_python</test_depend>
+  <test_depend>python3-pytest</test_depend>
+  <test_depend>so101_description</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

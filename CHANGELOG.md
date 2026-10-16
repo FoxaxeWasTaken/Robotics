@@ -6,6 +6,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Added
 
+- `so101_common`: joint names, joint limits, gripper %↔rad conversion and frame names defined once, tested against the URDF (ADR-003); the driver and brain stubs drop their local copies.
 - Repository architecture: CI (lint, guards, build, tests), nightly, school mirror, governance files, project documentation.
 - Planning conventions: GitHub Project (epics, PR-sized tickets, fields, automations), a single ticket-anatomy issue template, `Closes #` in the PR template; `AGENTS.md` (+ `CLAUDE.md` import) for AI coding agents.
 - Phase 2: Connect Four against the robot, validated by the teaching staff (`docs/project/phase2/`, ADR-034 to 038), with its own roadmap (`phase2/P2-04`) and its kinematics and camera measurements (MES-27 to 32); store-bought grid on a riser, depth guide, token handover, wrist camera (ADR-038); real-arm calibration-zero check (MES-30, `07` §4).

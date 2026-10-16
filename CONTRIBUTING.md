@@ -63,7 +63,7 @@ The first three rules are checked in CI by `tools/ci/guards.sh`; the others rely
 
 - Python: **ruff** (lint + format, config in `pyproject.toml`). Run `pre-commit run --all-files` before a large PR.
 - Non-trivial logic lives **outside ROS callbacks**, in pure modules covered by unit tests.
-- No magic numbers: constants in `so101_common`, tunables as ROS parameters (YAML in `so101_bringup`); both packages are planned at roadmap step 0.3.
+- No magic numbers: constants in `so101_common`, tunables as ROS parameters (YAML in `so101_bringup`, planned at roadmap step 0.3).
 - **Do not modify** `core/`, `sim/`, `ros2_ws/src/so101_description/` (course kit). Provided files you have not rewritten yet are excluded from lint so they stay identical to upstream; remove a file from the exclusion list in `pyproject.toml` when you rewrite it.
 
 ## 5. Tests

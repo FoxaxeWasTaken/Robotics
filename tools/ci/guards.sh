@@ -13,8 +13,8 @@ check() {  # check "<description>" <ERE pattern> -- <pathspecs...>
     echo "✅ $desc"
   fi
 }
-check "C-05  brain/perception never access the backend" \
-  "SO101Sim|SO101Follower|so101_sim|lerobot" -- ros2_ws/src/so101_brain ros2_ws/src/so101_perception
+check "C-05  brain/perception/common never access the backend" \
+  "SO101Sim|SO101Follower|so101_sim|lerobot" -- ros2_ws/src/so101_brain ros2_ws/src/so101_perception ros2_ws/src/so101_common
 check "C-06  no ground truth in brain/perception (outside tests)" \
   "get_object_position|get_drop_box_position|ground_truth" -- ros2_ws/src/so101_brain ros2_ws/src/so101_perception ':!**/test/**'
 check "C-06  no pipeline launch file enables ground truth" \
