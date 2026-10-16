@@ -19,5 +19,13 @@ RUN pip install --break-system-packages --no-cache-dir "opencv-python-headless==
 # RUN pip install --break-system-packages --no-cache-dir \
 #    ultralytics "numpy<2" "opencv-python==4.10.*"
 
+# Test tooling (ticket 0.3d): property tests, coverage, and one free ROS_DOMAIN_ID per colcon test job
+# (colcon-ros-domain-id-coordinator: tests never see a stack running on the team's domain).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-hypothesis \
+    python3-pytest-cov \
+    python3-colcon-ros-domain-id-coordinator \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /ros2_ws
 CMD ["bash", "-lc", "source /opt/ros/jazzy/setup.bash && bash"]

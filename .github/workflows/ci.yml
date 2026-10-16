@@ -78,13 +78,53 @@ jobs:
             # Only packages with a test/ folder: since Python 3.12 an empty package fails ("NO TESTS RAN").
             pkgs=$(ls -d src/*/test 2>/dev/null | cut -d/ -f2) &&
             if [ -z "$pkgs" ]; then echo "No test folder yet: nothing to test."; else
-              colcon test --packages-select $pkgs --event-handlers console_cohesion+ && colcon test-result --verbose; fi'
+              colcon test --packages-select $pkgs --pytest-with-coverage --event-handlers console_cohesion+ &&
+              colcon test-result --verbose; fi'
+      - name: Coverage data with repository-relative paths (for the PR comment)
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo tek5/control:ci bash -lc '
+            set -- ros2_ws/build/*/.coverage
+            if [ ! -e "$1" ]; then echo "No coverage data."; exit 0; fi
+            python3 -m coverage combine --keep --data-file=.coverage "$@" && python3 -m coverage report'
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage
+          path: .coverage
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 3
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: test-results-control
           path: ros2_ws/build/*/pytest.xml
           if-no-files-found: ignore
+
+  coverage:
+    # Comments the coverage of the PR on the PR (non-blocking, not a required check). Same-repository
+    # PRs only: fork and Dependabot PRs get a read-only token. The only job allowed to write (a comment).
+    if: >-
+      ${{ vars.CI_ENABLED == 'true' && github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]' }}
+    name: Coverage comment
+    runs-on: ubuntu-24.04
+    needs: control
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: coverage
+      - uses: py-cov-action/python-coverage-comment-action@e5fb2218463c3377f3504b0c5b5646ed53da7a2f # v4.5
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          MINIMUM_GREEN: 80
+          MINIMUM_ORANGE: 60
 
   perception:
     if: ${{ vars.CI_ENABLED == 'true' || (github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'FoxaxeWasTaken/Robotics') }}   # opt-in: nothing runs on the school mirror
