@@ -179,11 +179,11 @@ The brain recovers the gripper percentage with the inverse conversion from `so10
 
 | Test | Type | Criterion |
 | --- | --- | --- |
-| Gripper %↔rad conversion and out-of-range clamping | Unit (`test_gripper_conversion.py`) | Error < 1e-9 — **implemented** |
+| Gripper %↔rad conversion and out-of-range clamping | Unit (`so101_common/test/test_robot.py`) | Error < 1e-9 — **implemented** (step 0.3) |
 | `/joint_states` rate | `launch_testing` (`test_driver_launch.py`) | ≥ 20 Hz — to implement at step 1.0 (bootstrap prototype: 30 Hz measured) |
-| A partial `shoulder_pan` command only moves that joint | `launch_testing` | Other joints move < 5 mrad — **implemented** |
+| A partial `shoulder_pan` command only moves that joint | `launch_testing` | Other joints move < 5 mrad — to implement at step 1.0 (bootstrap prototype: passed) |
 | Clamp + NaN rejection on the command-merge function | Unit | Edge cases covered — to add with the clamp |
-| `so101_common` limits = URDF limits | Unit (parse URDF) | Equal within 1e-5 — to add |
+| `so101_common` names and limits = URDF | Unit (`so101_common/test/test_urdf.py`) | Limits equal within 1e-5, names in chain order — **implemented** (step 0.3) |
 
 ## 10. Structure of the implemented node
 
