@@ -1,0 +1,4 @@
+# ROS parameters of so101_driver. use_sim and port are launch arguments (see sim.launch.py).
+# The driver has no other parameter yet: the speed limits join at step 1.1.
+so101_driver:
+  ros__parameters: {}
