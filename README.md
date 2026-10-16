@@ -19,7 +19,7 @@ A camera spots a red cube, the SO-ARM101 arm grasps it and drops it into a box â
 
 | Done | Next (see [roadmap](docs/project/09_roadmap_step_by_step.md)) |
 | --- | --- |
-| Environment (Docker images, X11, DDS, usbipd); course stubs build and start; `so101_common` (joint names, limits, gripper conversion, checked against the URDF) | Driver: `/joint_states`, `/joint_command`, speed limiter, joint-limit clamp, camera, `camera_info` (stage 1) |
+| Environment (Docker images, X11, DDS, usbipd); `so101_common` (joint names, limits, gripper conversion, checked against the URDF); base driver in sim: `/joint_states` at 30 Hz, `/joint_command`, speed limiter | Driver: joint-limit clamp, parameters, camera, `camera_info` (stage 1) |
 | CI, hooks, governance files, full design docs with measured spikes | Brain: FK/IK, trajectories, grasp planner, state machine (stages 2 and 4) |
 | A bootstrap prototype proved the driver (30 Hz) and the IK (0.13 mm); it stays outside this repository ([ADR-039](docs/project/adr/ADR-039-start-from-course-stubs.md)) | Perception and our ArUco calibration (stage 3), then the real arm (stage 6) |
 | Phase 2 chosen and validated by the teaching staff: Connect Four ([docs/project/phase2](docs/project/phase2/README.md), [roadmap](docs/project/phase2/P2-04_roadmap.md)) | Phase 2: measure a store-bought grid, then the drop spike |
@@ -28,7 +28,7 @@ New here? Start with [docs/project/README.md](docs/project/README.md).
 
 ## Quickstart (simulation)
 
-Until the driver exists (roadmap step 1.0), this only checks the environment: both nodes start and stay idle.
+The driver moves the sim arm; the brain is still the course stub (stage 2).
 
 ```bash
 cp docker/.env.example docker/.env
@@ -40,7 +40,7 @@ docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && ros2
 docker compose down
 ```
 
-After step 1.0, a command moves the sim arm: `ros2 topic pub --once -w 1 --keep-alive 1 /joint_command sensor_msgs/msg/JointState '{name: [shoulder_pan], position: [0.5]}'`. Why `-w 1 --keep-alive 1`? A plain `--once` (as in the course slides) exits before DDS delivers the message: measured 0/8 applied, vs 8/8 with these options ([runbook](docs/project/13_runbook_troubleshooting.md)). After step 2.1, `/go_to_target` reaches a position; after step 4.2, `ros2 service call /brain/start std_srvs/srv/Trigger` runs a full pick & place.
+A command moves the sim arm: `ros2 topic pub --once -w 1 --keep-alive 1 /joint_command sensor_msgs/msg/JointState '{name: [shoulder_pan], position: [0.5]}'`. Why `-w 1 --keep-alive 1`? A plain `--once` (as in the course slides) exits before DDS delivers the message: measured 0/8 applied, vs 8/8 with these options ([runbook](docs/project/13_runbook_troubleshooting.md)). After step 2.1, `/go_to_target` reaches a position; after step 4.2, `ros2 service call /brain/start std_srvs/srv/Trigger` runs a full pick & place.
 
 Real arm: see [docs/project/07](docs/project/07_real_arm_safety_sim2real.md) â€” **read the safety checklist first**.
 

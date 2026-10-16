@@ -39,7 +39,7 @@ flowchart LR
 
 | Package | Type | Container | Content | Status |
 | --- | --- | --- | --- | --- |
-| `so101_driver` | ament_python | control | `driver_node`: sim/real backend, control loop, camera, sim services | Course stub with the provided `_connect_arm` (ADR-039); to implement from step 1.0 |
+| `so101_driver` | ament_python | control | `driver_node`: sim/real backend, control loop, camera, sim services | Base driver (step 1.0): `/joint_states`, `/joint_command`, speed limiter; provided `_connect_arm` unchanged (ADR-032) |
 | `so101_brain` | ament_python | control | `brain_node` + pure modules: `kinematics.py`, `grasp_planner.py`, `trajectory.py`, `fsm.py` | Course stub; FK/IK at step 2.1 |
 | `so101_perception` | ament_python | perception | `perception_node` + pure modules: `detection.py`, `geometry.py`, `calibration.py` (offline tool) | Stub (remove `COLCON_IGNORE`) |
 | `so101_interfaces` | ament_cmake | both | `.srv` (existing); phase 2 adds `Connect4Board.msg`, `DropToken.srv` and the `PickPlace` action (ADR-037) | Existing |
