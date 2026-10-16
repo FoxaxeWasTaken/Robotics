@@ -192,6 +192,10 @@ def main(args=None):
         rclpy.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
+    except Exception:
+        if rclpy.ok():
+            raise
+        # SIGINT/SIGTERM shut the context down while a callback was publishing: a normal stop.
     finally:
         node.destroy_node()
         if rclpy.ok():
