@@ -40,3 +40,7 @@ After the upstream pull, `docs/SUJET.md` (13 markdownlint issues) and the provid
 ## Update (2026-10-15)
 
 Added after a CI review: **actionlint**, **zizmor** (workflow security), **shellcheck** (warnings) and **hadolint** in pre-commit; **gitleaks** on the whole history in the lint job; a **PR-title** check, since squash merge writes the PR title on `main`. SonarQube Cloud is planned once coverage exists (`14` §4).
+
+## Update (2026-10-16, ticket 0.3d)
+
+Coverage joins the tooling: `colcon test --pytest-with-coverage` in the CI `control` job and a non-blocking comment on each PR (python-coverage-comment-action, no external service, `14` §4). Hypothesis is available for property tests (`08` §5).
