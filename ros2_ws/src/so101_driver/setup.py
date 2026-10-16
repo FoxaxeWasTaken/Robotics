@@ -14,6 +14,7 @@ setup(
         ("share/" + package_name + "/launch", glob("launch/*.launch.py")),
     ],
     zip_safe=True,
+    tests_require=["pytest"],
     description="ROS2 driver of the SO-ARM101 (MuJoCo sim or real arm).",
     license="Apache-2.0",
     entry_points={

@@ -3,17 +3,17 @@
 > Authors: [CTRL] Control & hardware · Reviewers: [ARC], [OPS], [QA]
 > Requirements: C-05, C-10 to C-15, C-51 · Decisions: ADR-006, ADR-007, ADR-016, ADR-018, ADR-023, ADR-032
 
-## 0. Code state (2026-10-15) and what to build
+## 0. Code state (2026-10-16) and what to build
 
-`driver_node.py` = **the course stub** (provided `_connect_arm` and `destroy_node`, upstream PR #1 and #2, `TODO`s not filled): the repository starts from it (ADR-039). A **bootstrap prototype**, kept outside the repository, filled the `TODO`s during the bootstrap sessions and measured `/joint_states` at **30.0 Hz**, the image at **10.0 Hz**, a clean shutdown on SIGINT/SIGTERM and `/go_to_target` within **0.13 mm** [MES-24]. Use it as inspiration, not as code to paste.
+`driver_node.py` started from **the course stub** (provided `_connect_arm` and `destroy_node`, upstream PR #1 and #2), as the repository did (ADR-039). Step 1.0 added `/joint_states`, `/joint_command` and the speed limiter; the provided functions are unchanged. A **bootstrap prototype**, kept outside the repository, filled the `TODO`s during the bootstrap sessions and measured `/joint_states` at **30.0 Hz**, the image at **10.0 Hz**, a clean shutdown on SIGINT/SIGTERM and `/go_to_target` within **0.13 mm** [MES-24]. Use it as inspiration, not as code to paste.
 
 | Item | Repository | Bootstrap prototype | Roadmap step (`09`) |
 | --- | --- | --- | --- |
 | `use_sim` backend, provided `_connect_arm` (explicit failure on calibration mismatch) | ✅ provided | ✅ | — |
-| Upstream #2: `disable_torque()` right after connecting (limp arm, commands ignored) | Active, as the course ships it | Commented out | Comment it out when the driver starts commanding the real arm (ADR-032); uncomment to move the arm by hand (`07` §3.2, test 1) |
-| Partial commands by name; empty name list = `JOINT_NAMES` order | ❌ | ✅ | 1.0 |
-| Speed limiter (1.5 rad/s; gripper 200 %/s) | ❌ | ✅ | 1.0, then a parameter (1.1) |
-| `/joint_states` ≥ 20 Hz, gripper in rad | ❌ | ✅ 30.0 Hz (9 Hz before the camera fix) | 1.0 |
+| Upstream #2: `disable_torque()` right after connecting (limp arm, commands ignored) | Active, as the course ships it: the real arm can be read, not moved | Commented out | Comment it out at 6.1a, once the clamp (1.1a) and the real-arm speed (1.1b) exist (ADR-032, `07` §2); uncomment to move the arm by hand (`07` §3.2, test 1) |
+| Partial commands by name; empty name list = `JOINT_NAMES` order | ✅ (step 1.0) | ✅ | 1.0 |
+| Speed limiter (1.5 rad/s; gripper 200 %/s) | ✅ constants (`limiter.py`) | ✅ | 1.0, then a parameter (1.1) |
+| `/joint_states` ≥ 20 Hz, gripper in rad, stamp = read time | ✅ 30.0 Hz (step 1.0) | ✅ 30.0 Hz (9 Hz before the camera fix) | 1.0 |
 | Sim camera: dedicated thread, render on a copy, backend lock | ❌ | ✅ (ADR-006) | 1.2 |
 | **Clamping to joint limits** (C-15): MuJoCo clamps via `ctrlrange` in sim, **nothing protects the real arm** | ❌ | ✅ in the working copy | 1.1 |
 | NaN/inf rejection | ❌ | ✅ in the working copy | 1.1 |
@@ -180,8 +180,10 @@ The brain recovers the gripper percentage with the inverse conversion from `so10
 | Test | Type | Criterion |
 | --- | --- | --- |
 | Gripper %↔rad conversion and out-of-range clamping | Unit (`so101_common/test/test_robot.py`) | Error < 1e-9 — **implemented** (step 0.3) |
-| `/joint_states` rate | `launch_testing` (`test_driver_launch.py`) | ≥ 20 Hz — to implement at step 1.0 (bootstrap prototype: 30 Hz measured) |
-| A partial `shoulder_pan` command only moves that joint | `launch_testing` | Other joints move < 5 mrad — to implement at step 1.0 (bootstrap prototype: passed) |
+| `/joint_states` rate | `launch_testing` (`test_driver_launch.py`) | ≥ 20 Hz — **implemented** (step 1.0: 30.0 Hz) |
+| A partial `shoulder_pan` command only moves that joint, at the limited speed | `launch_testing` | Target within 0.02 rad, other joints move < 5 mrad, mean speed over 20–80 % < 2.0 rad/s (limiter in the loop: 1.48 rad/s, without it 3.9 rad/s [MES-33]) — **implemented** (step 1.0: 0.5000 rad) |
+| An unnamed command follows `JOINT_NAMES` order; the gripper comes back in rad | `launch_testing` | 100 % → 1.745 rad, 0 % → −0.175 rad (± 0.05) — **implemented** (step 1.0) |
+| Speed limiter | Unit (`test_limiter.py`) | One step of `v_max·dt`, no overshoot, gripper in %/s — **implemented** (step 1.0) |
 | Clamp + NaN rejection on the command-merge function | Unit | Edge cases covered — to add with the clamp |
 | `so101_common` names and limits = URDF | Unit (`so101_common/test/test_urdf.py`) | Limits equal within 1e-5, names in chain order — **implemented** (step 0.3) |
 

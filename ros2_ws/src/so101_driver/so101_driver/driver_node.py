@@ -5,9 +5,8 @@ The only node that talks to the backend: SO101Sim (MuJoCo) or SO101Follower
 (real arm), chosen by the `use_sim` parameter. The rest of the stack never
 knows which one runs.
 
-TODO:
-  - Publish /joint_states in RADIANS (>= 20 Hz)
-  - Subscribe to /joint_command (radians, gripper 0-100 %)
+Publishes /joint_states (rad, 30 Hz) and applies /joint_command (rad, gripper in %)
+through a speed limiter at 50 Hz (docs/project/03 §3-§5).
 """
 
 from pathlib import Path
@@ -19,7 +18,8 @@ from rclpy.executors import ExternalShutdownException
 from sensor_msgs.msg import JointState
 from so101_sim import SO101Sim
 
-# Joint names, limits and the gripper % <-> rad conversion live in so101_common (ADR-003).
+from so101_common.robot import ARM_JOINT_NAMES, JOINT_NAMES, pct_to_rad
+from so101_driver.limiter import step_towards
 
 # Calibration file of the real arm, mounted by docker compose (CALIBRATION_FILE in docker/.env).
 CALIBRATION_FILE = Path("/calibration/arm.json")
@@ -27,6 +27,8 @@ DEFAULT_PORT = "/dev/ttyACM0"
 
 CONTROL_HZ = 50.0
 JOINT_STATE_HZ = 30.0
+MAX_JOINT_VELOCITY = 1.5  # rad/s, speed limiter (ADR-023); becomes a parameter at step 1.1
+MAX_GRIPPER_VELOCITY = 200.0  # %/s
 
 
 class DriverNode(rclpy.node.Node):
@@ -42,7 +44,15 @@ class DriverNode(rclpy.node.Node):
         self._robot = self._connect_arm(port)
         self.get_logger().info(f"Robot connected: {type(self._robot).__name__}")
 
-        # TODO: create the publishers, subscribers and timers.
+        self._obs = self._robot.get_observation()
+        self._obs_stamp = self.get_clock().now().to_msg()  # /joint_states stamp = read time (03 §5)
+        self._goal = {name: self._obs[f"{name}.pos"] for name in JOINT_NAMES}  # startup pose: no jump to 0
+        self._setpoint = dict(self._goal)
+
+        self._pub_joint_states = self.create_publisher(JointState, "/joint_states", 10)
+        self.create_subscription(JointState, "/joint_command", self._cb_joint_command, 10)
+        self.create_timer(1.0 / CONTROL_HZ, self._control_step)
+        self.create_timer(1.0 / JOINT_STATE_HZ, self._publish_joint_states)
 
         self.get_logger().info("Driver node ready.")
 
@@ -85,13 +95,37 @@ class DriverNode(rclpy.node.Node):
         super().destroy_node()
 
     def _cb_joint_command(self, msg: JointState):
-        raise NotImplementedError("TO DO")
+        """Stores the goal only (the control timer applies it). No name = JOINT_NAMES order."""
+        names = list(msg.name) or list(JOINT_NAMES)
+        if len(names) != len(msg.position):
+            self.get_logger().warning(
+                f"/joint_command ignored: {len(names)} names, {len(msg.position)} positions",
+                throttle_duration_sec=1.0,
+            )
+            return
+        for name, value in zip(names, msg.position, strict=True):
+            if name in self._goal:  # unknown names are ignored; other joints keep their goal
+                self._goal[name] = float(value)
 
     def _control_step(self):
-        raise NotImplementedError("TO DO")
+        """50 Hz: setpoint towards the goal (speed limiter), send it, read the state back."""
+        self._setpoint = step_towards(
+            self._setpoint, self._goal, 1.0 / CONTROL_HZ, MAX_JOINT_VELOCITY, MAX_GRIPPER_VELOCITY
+        )
+        self._robot.send_action({f"{name}.pos": value for name, value in self._setpoint.items()})
+        self._obs = self._robot.get_observation()
+        self._obs_stamp = self.get_clock().now().to_msg()
 
     def _publish_joint_states(self):
-        raise NotImplementedError("TO DO")
+        """30 Hz: last observation, arm in rad, gripper converted % -> rad (what RSP expects)."""
+        msg = JointState()
+        msg.header.stamp = self._obs_stamp
+        msg.name = list(JOINT_NAMES)
+        msg.position = [
+            *(self._obs[f"{name}.pos"] for name in ARM_JOINT_NAMES),
+            pct_to_rad(self._obs["gripper.pos"]),
+        ]
+        self._pub_joint_states.publish(msg)
 
 
 def main(args=None):

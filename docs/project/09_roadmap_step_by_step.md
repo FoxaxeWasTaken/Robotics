@@ -120,7 +120,7 @@ A proposal to adapt to everyone's preferences. **Rule**: nobody merges their own
 
 ### Step 1.0 — Base driver
 
-- **Tasks**: control loop (50 Hz) with the speed limiter; `/joint_states` (rad, gripper in rad, ≥ 20 Hz, target 30 Hz); `/joint_command` (partial commands by name, empty name list = `JOINT_NAMES` order, gripper in %); gripper %↔rad conversion; pytest declared in the package (AGENTS.md trap) and a first `launch_testing` test. On the real arm, comment out the provided `disable_torque()` lines (ADR-032).
+- **Tasks**: control loop (50 Hz) with the speed limiter; `/joint_states` (rad, gripper in rad, ≥ 20 Hz, target 30 Hz); `/joint_command` (partial commands by name, empty name list = `JOINT_NAMES` order, gripper in %); gripper %↔rad conversion; pytest declared in the package (AGENTS.md trap) and a first `launch_testing` test. The provided `disable_torque()` lines stay active: the real arm can be read, not moved, until 6.1a (`07` §2).
 - **Done when**: `test_driver_launch.py` is green in CI: `/joint_states` ≥ 20 Hz; a partial command moves only the named joint.
 
 ### Step 1.1 — Command compliance
