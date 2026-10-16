@@ -146,7 +146,7 @@ sequenceDiagram
 
 | Command | Effect |
 | --- | --- |
-| `docker compose up -d control perception viz` (target; today `control viz`, perception service added at step 0.3) | `control` builds the workspace then starts `so101_bringup sim.launch.py` (driver + brain); `perception` waits for its build then starts `perception_node`; `viz` starts RSP + static TF + marker |
+| `docker compose up -d control perception viz` | `control` builds the workspace then starts `so101_bringup sim.launch.py` (driver + brain); `perception` stays idle until step 3.1, then waits for its build and starts `perception_node`; `viz` starts RSP + static TF + marker |
 | `USE_SIM=false` in `docker/.env` | The same launch passes `use_sim:=false` to the driver, nothing else changes (C-10) |
 | `ros2 service call /brain/start std_srvs/srv/Trigger` | Starts a cycle (once the FSM exists, step 4.2) |
 

@@ -34,7 +34,7 @@ The driver moves the sim arm; the brain is still the course stub (stage 2).
 cp docker/.env.example docker/.env
 cd docker && docker compose build            # ~10 min the first time
 xhost +local:docker                          # X11 for RViz (Linux / WSLg)
-docker compose up -d control viz             # "perception" service: added at roadmap step 0.3
+docker compose up -d control perception viz  # perception stays idle until roadmap step 3.1
 docker compose logs -f control               # wait for "Driver node ready." and "Brain node ready." then Ctrl-C
 docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && ros2 node list --no-daemon --spin-time 3"  # /so101_brain /so101_driver
 docker compose down
