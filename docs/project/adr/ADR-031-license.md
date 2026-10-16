@@ -31,3 +31,7 @@ License inventory (`15` §9).
 ## Reconsider if
 
 The teaching staff answers.
+
+## Update (2026-10-16)
+
+Not asked for now (team decision): the repository is private, so no license is needed yet. Stays OPEN; to settle before any public release (8.1c).

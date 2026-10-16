@@ -167,7 +167,7 @@ With the provided camera at 320×240, over 2,000 positions drawn like `randomize
 
 **Mitigations, in order of preference**:
 
-1. **Ask the teaching staff** (status OPEN): can the scene camera be moved, or the randomization area reduced? Otherwise, are those 21 % evaluated?
+1. **Move the sim camera** (allowed by the teaching staff, 2026-10-16): place it like the real camera, with the whole randomization area in view with margin (ADR-021), on a copy of the scene edited with `mujoco.MjSpec` (ADR-036), never in `sim/`. Then recalibrate (step 3.4) and re-measure MES-12. The evaluation is not settled, but partial occlusions by the robot should be handled when possible (§7).
 2. **Far-edge** method for truncated detections: the top edge (opposite the camera) is still visible → back-project it on z = 5 cm, then step back 2.5 cm along the viewing direction projected on the floor. Less accurate; needs a dedicated test.
 3. A higher resolution (640×480) does **not** change the field of view, only accuracy.
 4. On the **real** arm: place the camera to cover the whole area **with margin** (ADR-021).

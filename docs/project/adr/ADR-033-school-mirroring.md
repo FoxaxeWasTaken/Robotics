@@ -37,3 +37,7 @@ The school offers pull mirroring, or imposes another submission mode (GitHub Cla
 
 - **Forced push**: nobody pushes to the school repository, so `mirror.yml` now force-pushes `main` and the tags; the school side is an exact copy of the reviewed private `main` (team decision). The private `main` itself still forbids force-pushes (ruleset).
 - **Key**: the team has push but not admin rights on the school repository, so no deploy key there: the public key is on the member's account and the secret lives in the `school-mirror` environment, restricted to `main` (`16` §5). For the same reason the workflow no longer runs on tag pushes: tags go with the next `main` push or a manual run.
+
+## Update (2026-10-16)
+
+The deploy-key question to the teaching staff is withdrawn (no admin rights there, see the update above). `dependabot.yml` is mirrored, so Dependabot may open PRs on the school copy: they are closed by hand.

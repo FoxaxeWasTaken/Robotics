@@ -14,6 +14,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Changed
 
+- Docs: the teaching-staff answers of 2026-10-16 are recorded (project README, `phase2/P2-03` §4) and applied to ADR-002, 013, 018, 031, 033, 036 and 038, `00`, `05` §6, `07` §3.1, `09`, `10` and `P2-02`.
 - Code: the repository starts from the course stubs (upstream `42737bf`), with a 3-line lint fix; the bootstrap prototype stays outside the repository (ADR-039).
 - CI: the control job passes when no package has tests yet; PR title checked as a conventional commit; actionlint, zizmor, shellcheck and hadolint in pre-commit, gitleaks on the whole history, `ament_xmllint`; actions pinned by SHA, runs on `main` never cancelled, checks also run on Dependabot PRs.
 - Mirror: force-pushes `main` and the tags (exact copy); key in the `main`-only `school-mirror` environment.

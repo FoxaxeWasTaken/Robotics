@@ -199,7 +199,7 @@ A proposal to adapt to everyone's preferences. **Rule**: nobody merges their own
 
 ### Step 3.5 — Robustness
 
-- **Tasks**: truncated detections (far-edge method or no publication); outlier rejection; publish only when valid; field-of-view question to the teaching staff (`05` §6).
+- **Tasks**: truncated detections (far-edge method or no publication); outlier rejection; publish only when valid; move the sim camera, allowed by the teaching staff on 2026-10-16 (`05` §6).
 - **Done when**: over 200 random positions, no publication is off by more than 2 cm (better to publish nothing).
 
 ---
