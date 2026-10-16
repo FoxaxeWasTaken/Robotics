@@ -19,18 +19,7 @@ from rclpy.executors import ExternalShutdownException
 from sensor_msgs.msg import JointState
 from so101_sim import SO101Sim
 
-JOINT_NAMES = [
-    "shoulder_pan",
-    "shoulder_lift",
-    "elbow_flex",
-    "wrist_flex",
-    "wrist_roll",
-    "gripper",
-]
-
-# Gripper joint limits in the URDF (rad).
-# LeRobot convention: 0 % = closed (lower), 100 % = open (upper).
-GRIPPER_RANGE_RAD = (-0.174533, 1.74533)
+# Joint names, limits and the gripper % <-> rad conversion live in so101_common (ADR-003).
 
 # Calibration file of the real arm, mounted by docker compose (CALIBRATION_FILE in docker/.env).
 CALIBRATION_FILE = Path("/calibration/arm.json")
@@ -38,10 +27,6 @@ DEFAULT_PORT = "/dev/ttyACM0"
 
 CONTROL_HZ = 50.0
 JOINT_STATE_HZ = 30.0
-
-
-def _gripper_pct_to_rad(pct: float) -> float:
-    raise NotImplementedError("TO DO")
 
 
 class DriverNode(rclpy.node.Node):

@@ -15,14 +15,7 @@ import rclpy.node
 from rclpy.executors import ExternalShutdownException
 from sensor_msgs.msg import JointState
 
-ARM_JOINT_NAMES = [
-    "shoulder_pan",
-    "shoulder_lift",
-    "elbow_flex",
-    "wrist_flex",
-    "wrist_roll",
-]
-JOINT_NAMES = [*ARM_JOINT_NAMES, "gripper"]
+# Joint names, limits and the gripper % <-> rad conversion live in so101_common (ADR-003).
 
 
 class BrainNode(rclpy.node.Node):
