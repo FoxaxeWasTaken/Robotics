@@ -38,7 +38,9 @@ known-first-party = ["so101_common", "so101_driver", "so101_brain", "so101_perce
 relative_files = true
 
 [tool.coverage.report]
-omit = ["*/test/*", "*/setup.py"]  # tests and packaging: only the package code counts
+# Tests and packaging: only the package code counts. The OpenCV loader (cv2, via cv_bridge) runs its
+# config.py and config-3.py under a bare file name, which coverage pins to the package root: phantom files.
+omit = ["*/test/*", "*/setup.py", "*/src/*/config.py", "*/src/*/config-3.py"]
 
 [tool.coverage.paths]
 # The tests run in the container, with the workspace mounted at /ros2_ws.

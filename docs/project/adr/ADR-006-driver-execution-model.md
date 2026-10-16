@@ -35,3 +35,7 @@ Single-threaded executor for the 50 Hz control timer (`send_action` + `get_obser
 ## Reconsider if
 
 GPU rendering (EGL) becomes available: rendering cost vanishes and a single thread is acceptable again.
+
+## Update (2026-10-16, step 1.2)
+
+Implemented as decided. Measured on the team driver [MES-34]: control period p99 20.4 ms with the camera at 10 Hz (20.2 ms without it), once OSMesa's render threads are limited to half the cores (`LP_NUM_THREADS`); with one render thread per core, p99 rose to 23.9–25.4 ms. Shutdown: 100/100 clean SIGINT/SIGTERM stops.

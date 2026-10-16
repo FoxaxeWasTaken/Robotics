@@ -8,6 +8,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 - `perception` service in `docker-compose.yml` (C-02), on the same DDS domain and transport as `control`; idle until step 3.1. `docker compose up -d control perception viz` now matches the brief, and the E2E and nightly jobs can start the stack.
 - `so101_bringup` (step 0.3): `sim.launch.py` starts the driver and the brain (`use_sim` and `port` forwarded), parameter files in `config/`, and the RViz file moved to `rviz/so101.rviz`; the control container starts it. A `launch_testing` test checks both nodes and the forwarded arguments.
+- Sim camera (step 1.2): `/external_cam/image_raw` (`rgb8`, 320×240, 10 Hz) rendered in a dedicated thread on a copy of the sim state, behind a backend lock; OSMesa render threads limited to half the cores so the control period keeps p99 20.4 ms (MES-34). `launch_testing` checks the image and a clean SIGINT stop.
 - Test tooling (0.3d): Hypothesis property tests, coverage with a comment on each PR (python-coverage-comment-action, non-blocking), and colcon-ros-domain-id-coordinator so `colcon test` never shares a DDS domain with a running stack or a parallel run; one 11.5 MB layer in both images.
 - Base driver (step 1.0): `/joint_states` at 30 Hz (gripper in rad, stamped at read time), `/joint_command` with partial and unnamed commands, a speed limiter (1.5 rad/s, gripper 200 %/s) in a pure `limiter.py`; unit and `launch_testing` tests. The real arm stays limp until 6.1a.
 - `so101_common`: joint names, joint limits, gripper %↔rad conversion and frame names defined once, tested against the URDF (ADR-003); the driver and brain stubs drop their local copies.
@@ -27,3 +28,4 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 ### Fixed
 
 - Control container shutdown: SIGINT goes to `ros2 launch` only, which forwards one to each node; signalling the whole process group gave each node a second SIGINT that interrupted `destroy_node()` (traceback on every `docker compose stop`).
+- Driver: SIGINT or SIGTERM while a timer callback publishes no longer ends in a traceback and exit code 1 (seen once in 40 SIGTERM stops).
