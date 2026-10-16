@@ -10,11 +10,22 @@ import launch_testing.actions
 import launch_testing.asserts
 import pytest
 import rclpy
+from rcl_interfaces.msg import ParameterType
+from rcl_interfaces.srv import GetParameters
 from sensor_msgs.msg import Image, JointState
 
 STARTUP_TIMEOUT = 30.0  # s: MuJoCo loads the scene before the first message
 ARM = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")  # URDF order, by hand
 CLOSED, OPEN = -0.174533, 1.74533  # URDF gripper limits (rad): 0 % and 100 %
+PARAMETER_DEFAULTS = {  # docs/project/01 §3.3
+    "control_rate_hz": 50.0,
+    "joint_state_rate_hz": 30.0,
+    "camera_rate_hz": 10.0,
+    "max_joint_velocity": 1.5,
+    "max_gripper_velocity": 200.0,
+    "camera_width": 320,
+    "camera_height": 240,
+}
 
 
 @pytest.mark.launch_test
@@ -62,6 +73,17 @@ class TestDriver(unittest.TestCase):
             if p0 < level <= p1:
                 return t0 + (level - p0) / (p1 - p0) * (t1 - t0)
         raise AssertionError(f"position {level:.3f} never reached")
+
+    def test_parameters_are_declared_with_their_defaults(self):
+        client = self.node.create_client(GetParameters, "/so101_driver/get_parameters")
+        self.assertTrue(client.wait_for_service(timeout_sec=STARTUP_TIMEOUT), "/so101_driver not started")
+        future = client.call_async(GetParameters.Request(names=list(PARAMETER_DEFAULTS)))
+        rclpy.spin_until_future_complete(self.node, future, timeout_sec=5.0)
+        values = {
+            name: v.integer_value if v.type == ParameterType.PARAMETER_INTEGER else v.double_value
+            for name, v in zip(PARAMETER_DEFAULTS, future.result().values, strict=True)
+        }
+        self.assertEqual(values, PARAMETER_DEFAULTS)
 
     def test_joint_states_rate_is_at_least_20_hz(self):
         self.wait_for_joint_states()

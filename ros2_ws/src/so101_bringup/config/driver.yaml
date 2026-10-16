@@ -1,4 +1,11 @@
-# ROS parameters of so101_driver. use_sim and port are launch arguments (see sim.launch.py).
-# The driver has no other parameter yet: the speed limits join at step 1.1.
+# ROS parameters of so101_driver (docs/project/01 §3.3), read at startup.
+# use_sim and port are launch arguments (see sim.launch.py).
 so101_driver:
-  ros__parameters: {}
+  ros__parameters:
+    control_rate_hz: 50.0       # 2 backend calls per tick: the sim runs in real time [MES-02]
+    joint_state_rate_hz: 30.0   # >= 20 Hz imposed (C-11)
+    camera_rate_hz: 10.0        # C-12
+    max_joint_velocity: 1.5     # rad/s, sim; 0.8 on the real arm (6.1a)
+    max_gripper_velocity: 200.0 # %/s
+    camera_width: 320           # 640 x 480 during calibration (ADR-013)
+    camera_height: 240
