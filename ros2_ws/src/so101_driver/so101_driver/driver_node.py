@@ -22,10 +22,10 @@ from cv_bridge import CvBridge
 from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig
 from rcl_interfaces.msg import FloatingPointRange, IntegerRange, ParameterDescriptor
 from rclpy.executors import ExternalShutdownException
-from sensor_msgs.msg import Image, JointState
+from sensor_msgs.msg import CameraInfo, Image, JointState
 from so101_sim import SO101Sim
 
-from so101_common.robot import ARM_JOINT_NAMES, JOINT_NAMES, pct_to_rad
+from so101_common.robot import ARM_JOINT_NAMES, CAMERA_FRAME, JOINT_NAMES, pct_to_rad
 from so101_driver.command import apply_command
 from so101_driver.limiter import step_towards
 
@@ -80,6 +80,7 @@ class DriverNode(rclpy.node.Node):
         self.create_timer(1.0 / self._p["joint_state_rate_hz"], self._publish_joint_states)
 
         self._pub_image = self.create_publisher(Image, "/external_cam/image_raw", 2)
+        self._pub_camera_info = self.create_publisher(CameraInfo, "/external_cam/camera_info", 2)
         self._stop_camera = threading.Event()
         self._camera_thread = None
         if self._use_sim:  # the real camera comes at 6.2a
@@ -182,6 +183,7 @@ class DriverNode(rclpy.node.Node):
         # Created here: its OpenGL context is bound to this thread.
         renderer = mujoco.Renderer(sim.model, height=sim.camera_height, width=sim.camera_width)
         bridge = CvBridge()
+        info = camera_info(sim.get_camera_intrinsics(), sim.camera_width, sim.camera_height)
         next_frame = time.monotonic()
         try:
             while not self._stop_camera.wait(max(0.0, next_frame - time.monotonic())):
@@ -193,14 +195,27 @@ class DriverNode(rclpy.node.Node):
                 renderer.update_scene(state, camera=sim.camera_name)
                 msg = bridge.cv2_to_imgmsg(renderer.render(), encoding="rgb8")
                 msg.header.stamp = stamp
+                msg.header.frame_id = CAMERA_FRAME
+                info.header = msg.header  # same stamp and frame_id: perception pairs them (C-13)
                 try:
                     self._pub_image.publish(msg)
+                    self._pub_camera_info.publish(info)
                 except Exception:
                     if rclpy.ok():
                         raise
                     break  # SIGINT/SIGTERM shut the context down during the render: stop quietly
         finally:
             renderer.close()
+
+
+def camera_info(K, width: int, height: int) -> CameraInfo:
+    """CameraInfo of an ideal pinhole camera (sim): K, no distortion, P = [K | 0] (docs/project/03 §6)."""
+    info = CameraInfo(width=width, height=height, distortion_model="plumb_bob")
+    info.k = [float(v) for v in K.flatten()]
+    info.d = [0.0] * 5
+    info.r = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+    info.p = [*info.k[0:3], 0.0, *info.k[3:6], 0.0, *info.k[6:9], 0.0]
+    return info
 
 
 def main(args=None):
