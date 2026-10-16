@@ -101,6 +101,9 @@ class TestDriver(unittest.TestCase):
         rate = (len(stamps) - 1) / (stamps[-1] - stamps[0])
         print(f"/joint_states rate: {rate:.1f} Hz")
         self.assertGreaterEqual(rate, 20.0)
+        effort = self.msgs[-1].effort  # normalized load, same order as name (03 §5)
+        self.assertEqual(len(effort), 6)
+        self.assertTrue(all(-1.0 <= e <= 1.0 for e in effort))
 
     def test_partial_command_moves_only_the_named_joint(self):
         self.wait_for_joint_states()

@@ -27,6 +27,7 @@ from so101_sim import SO101Sim
 
 from so101_common.robot import ARM_JOINT_NAMES, CAMERA_FRAME, JOINT_NAMES, pct_to_rad
 from so101_driver.command import apply_command
+from so101_driver.effort import normalized_effort
 from so101_driver.limiter import step_towards
 
 # Calibration file of the real arm, mounted by docker compose (CALIBRATION_FILE in docker/.env).
@@ -71,6 +72,7 @@ class DriverNode(rclpy.node.Node):
 
         self._obs = self._robot.get_observation()
         self._obs_stamp = self.get_clock().now().to_msg()  # /joint_states stamp = read time (03 §5)
+        self._effort = []  # normalized load per joint; empty on the real arm until 6.4a
         self._goal = {name: self._obs[f"{name}.pos"] for name in JOINT_NAMES}  # startup pose: no jump to 0
         self._setpoint = dict(self._goal)
 
@@ -160,6 +162,8 @@ class DriverNode(rclpy.node.Node):
         with self._backend_lock:
             self._robot.send_action({f"{name}.pos": value for name, value in self._setpoint.items()})
             self._obs = self._robot.get_observation()
+            if self._use_sim:
+                self._effort = normalized_effort(self._robot.model, self._robot.data, JOINT_NAMES)
         self._obs_stamp = self.get_clock().now().to_msg()
 
     def _publish_joint_states(self):
@@ -171,6 +175,7 @@ class DriverNode(rclpy.node.Node):
             *(self._obs[f"{name}.pos"] for name in ARM_JOINT_NAMES),
             pct_to_rad(self._obs["gripper.pos"]),
         ]
+        msg.effort = self._effort
         self._pub_joint_states.publish(msg)
 
     def _camera_loop(self):
