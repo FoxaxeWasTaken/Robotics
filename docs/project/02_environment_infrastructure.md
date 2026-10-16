@@ -56,7 +56,7 @@ Other possible hosts: native Linux (simplest, no usbipd), or a VM (USB passthrou
 
 ### 3.1 Add the missing `perception` service
 
-**Today** (step 0.3): the service exists but stays idle (`sleep infinity`), because `so101_perception` still has `COLCON_IGNORE` and its stub raises `NotImplementedError`; check C-04 with `ros2 topic pub` in `control` and `ros2 topic echo` in `perception` (the images have no demo nodes). **Step 3.1** switches to the command below.
+**Today** (step 0.3): the service exists but stays idle (`sleep infinity`), because `so101_perception` still has `COLCON_IGNORE` and its stub raises `NotImplementedError`; check C-04 with the course's `ros2 run example_py_pkg talker` in `control` and `ros2 topic echo /chatter` in `perception`. **Step 3.1** switches to the command below.
 
 The current compose file forbids two concurrent `colcon build` on the same volume, so `perception` builds **into its own folders** (`build_perception/`, `install_perception/`) and **only the packages it needs**:
 
