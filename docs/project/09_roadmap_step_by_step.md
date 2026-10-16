@@ -247,6 +247,16 @@ A proposal to adapt to everyone's preferences. **Rule**: nobody merges their own
 - **Tasks**: session where **everyone explains a block they did not write** (driver, perception, IK, FSM, calibration); fix the docs wherever the explanation gets stuck.
 - **Done when**: every member presented at least two blocks that are not theirs.
 
+### Step 5.3 — Release v1.0.0
+
+- **Tasks**: close the simulation milestone as `15` §6 describes: CHANGELOG, bench report in `results/`, tag `v1.0.0`, GitHub Release.
+- **Done when**: the release is published and the tag is on the school repository (mirror).
+
+### Step 5.4 — Robustness demo ([BOOT2 p12])
+
+- **Tasks**: one reproducible sim scenario per robustness case of [BOOT2 p12] (the object moves, the grasp fails, the object leaves the view, out of reach, lighting), reusing the fault scenarios of 4.4; outcome of each in `results/robustness_demo.md`, handled or not, with a short clip. Asked by the teaching staff on 2026-10-16.
+- **Done when**: the five cases run from documented commands and their outcome is recorded; `06` §10 points to them.
+
 ---
 
 ## Stage 6 — Real arm

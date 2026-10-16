@@ -47,7 +47,7 @@ flowchart LR
 | [06_brain_state_machine.md](06_brain_state_machine.md) | State machine (diagram + table), non-blocking behavior, grasp detection, parameters |
 | [07_real_arm_safety_sim2real.md](07_real_arm_safety_sim2real.md) | Real-arm commissioning, layered safety, sim → real gaps, real camera, checklist |
 | [08_quality_tests.md](08_quality_tests.md) | Test pyramid, target metrics, evaluation bench, conventions, Git workflow (summary) |
-| [09_roadmap_step_by_step.md](09_roadmap_step_by_step.md) | **The step-by-step roadmap**: 9 stages (phase 2 of the brief = stage 7), 33 steps, each with "Done when…" |
+| [09_roadmap_step_by_step.md](09_roadmap_step_by_step.md) | **The step-by-step roadmap**: 9 stages (phase 2 of the brief = stage 7), 35 steps, each with "Done when…" |
 | [10_risks.md](10_risks.md) | Risk register (P × I) and mitigations |
 | [11_cross_review_and_measurements.md](11_cross_review_and_measurements.md) | **Cross-review log** (44 objections) and register of the 33 measurements |
 | [12_glossary_references.md](12_glossary_references.md) | Glossary and references |
