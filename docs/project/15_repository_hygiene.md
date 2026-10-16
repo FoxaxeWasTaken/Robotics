@@ -80,14 +80,13 @@ The school mirror is described in `16`.
 ├── core/                        ← real-arm driver extracted from LeRobot                      [provided, untouched]
 ├── sim/                         ← SO101Sim + MuJoCo scenes                                    [provided, untouched]
 └── ros2_ws/
-    ├── so101.rviz
     └── src/
         ├── so101_description/   ← URDF + meshes                                               [provided, untouched]
         ├── so101_interfaces/    ← .srv / .msg                                                 [provided → extended]
         ├── so101_common/        ← constants, conversions                                       [team]
         ├── so101_driver/  so101_brain/  so101_perception/   (+ test/ in each)                 [team]
         ├── so101_connect4/      ← phase 2: engine, board reader, game node (planned, ADR-037)  [team]
-        └── so101_bringup/       ← launch, YAML config, RViz, tools (evaluate, calibration)     [team, planned]
+        └── so101_bringup/       ← launch, YAML config, RViz; later: evaluate, calibration     [team]
 ```
 
 ### 3.1 Three zones, three rules

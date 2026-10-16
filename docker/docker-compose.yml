@@ -5,7 +5,7 @@
 #
 # RViz runs INSIDE the control container (X11 forwarded), so on the internal
 # DDS network - no need for --network host:
-#   docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && rviz2 -d /ros2_ws/so101.rviz"
+#   docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz"
 #
 # ROS_DOMAIN_ID (set in .env) isolates groups sharing a machine.
 

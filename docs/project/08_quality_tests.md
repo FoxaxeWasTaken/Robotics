@@ -75,6 +75,7 @@ print success rate, p50/p95 duration, failure-cause breakdown
 - No magic numbers: constants in `so101_common`, tunables as **ROS parameters** (declared with descriptor and range).
 - Logs: `self.get_logger()`, `throttle_duration_sec` in loops, no `print`.
 - All non-trivial logic **outside ROS callbacks**, in pure testable modules (`fsm.py`, `kinematics.py`, `geometry.py`, `detection.py`).
+- **Property tests** (Hypothesis) when a rule must hold for every input: `@given(st.floats(...))`, then assert the rule, not one value. Example: `so101_common/test/test_robot.py` (round trip, range for any input). Hypothesis tries edge cases first and shrinks a failure to a minimal example; declare `<test_depend>python3-hypothesis</test_depend>` in the package. Its `.hypothesis/` cache is ignored by Git.
 - Short docstrings: what, units, frame.
 
 ## 6. Git workflow (ADR-020, ADR-028)

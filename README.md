@@ -19,7 +19,7 @@ A camera spots a red cube, the SO-ARM101 arm grasps it and drops it into a box â
 
 | Done | Next (see [roadmap](docs/project/09_roadmap_step_by_step.md)) |
 | --- | --- |
-| Environment (Docker images, X11, DDS, usbipd); `so101_common` (joint names, limits, gripper conversion, checked against the URDF); base driver in sim: `/joint_states` at 30 Hz, `/joint_command`, speed limiter | Driver: joint-limit clamp, parameters, camera, `camera_info` (stage 1) |
+| Environment (Docker images, X11, DDS, usbipd); `so101_common` (joint names, limits, gripper conversion, checked against the URDF); `so101_bringup` (`sim.launch.py`, parameter files, RViz file); base driver in sim: `/joint_states` at 30 Hz, `/joint_command`, speed limiter | Driver: joint-limit clamp, parameters, camera, `camera_info` (stage 1) |
 | CI, hooks, governance files, full design docs with measured spikes | Brain: FK/IK, trajectories, grasp planner, state machine (stages 2 and 4) |
 | A bootstrap prototype proved the driver (30 Hz) and the IK (0.13 mm); it stays outside this repository ([ADR-039](docs/project/adr/ADR-039-start-from-course-stubs.md)) | Perception and our ArUco calibration (stage 3), then the real arm (stage 6) |
 | Phase 2 chosen and validated by the teaching staff: Connect Four ([docs/project/phase2](docs/project/phase2/README.md), [roadmap](docs/project/phase2/P2-04_roadmap.md)) | Phase 2: measure a store-bought grid, then the drop spike |
@@ -70,7 +70,7 @@ Reports: [`results/`](results/).
 
 | Folder | Content |
 | --- | --- |
-| `ros2_ws/src/` | ROS 2 packages: `so101_driver`, `so101_perception`, `so101_brain`, `so101_common` (+ planned `so101_bringup`) |
+| `ros2_ws/src/` | ROS 2 packages: `so101_driver`, `so101_perception`, `so101_brain`, `so101_common`, `so101_bringup` (launch, parameters, RViz file) |
 | `docker/` | Images and compose (`control`, `perception`, `viz`) |
 | `docs/project/` | Design, decisions (ADRs), roadmap, measurements |
 | `core/`, `sim/`, `so101_description/` | Course kit (unmodified) |

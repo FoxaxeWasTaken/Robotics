@@ -142,10 +142,10 @@ Then in WSL: `ls /dev/ttyACM*`. Another USB port means another BUSID, so `bind` 
 
 ```bash
 xhost +local:docker   # once per session (native Linux; WSLg accepts it too)
-docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && rviz2 -d /ros2_ws/so101.rviz"
+docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz"
 ```
 
-The RViz configuration is versioned (C-52). **Today**: the course file (Grid and TF only). Step 1.5 adds RobotModel, Image (`/external_cam/image_raw`) and an Axes display on the end-effector frame (the bootstrap prototype's file had them). **Target** (ADR-022, each added with its topic): Image `/perception/debug_image`, Markers `/drop_box_marker` and `/brain/markers`, Pose `/object_position`. ⚠ Unchecking a Pose display while it receives messages crashes RViz (`13`).
+The RViz configuration is versioned (C-52) in `so101_bringup/rviz/so101.rviz`; with `--symlink-install`, saving it from RViz writes the versioned file. **Today**: the course file, a Grid display only (its `rviz_default_plugins/TF` entry is the frame transformer, not a display): the arm appears with step 1.5 (RobotModel, TF). Step 1.5 adds RobotModel, Image (`/external_cam/image_raw`) and an Axes display on the end-effector frame (the bootstrap prototype's file had them). **Target** (ADR-022, each added with its topic): Image `/perception/debug_image`, Markers `/drop_box_marker` and `/brain/markers`, Pose `/object_position`. ⚠ Unchecking a Pose display while it receives messages crashes RViz (`13`).
 
 ## 8. Performance facts [MES-02], [MES-03], [MES-20]
 
@@ -177,5 +177,5 @@ source /ros2_ws/install/setup.bash
 ros2 node list                                            # driver, brain, perception, robot_state_publisher…
 ros2 topic hz /joint_states                               # ≥ 20 Hz, once step 1.0 is done
 ros2 topic pub --once -w 1 --keep-alive 1 /joint_command sensor_msgs/msg/JointState '{name: [shoulder_pan], position: [0.5]}'
-rviz2 -d /ros2_ws/so101.rviz                              # the arm turned
+rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz  # grid only; the arm appears at step 1.5
 ```

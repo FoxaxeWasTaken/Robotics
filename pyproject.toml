@@ -32,3 +32,14 @@ ignore = ["N803", "N806"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["so101_common", "so101_driver", "so101_brain", "so101_perception", "so101_interfaces"]
+
+[tool.coverage.run]
+# Paths stored relative to the repository root, so the PR comment (CI job `coverage`) finds the sources.
+relative_files = true
+
+[tool.coverage.report]
+omit = ["*/test/*", "*/setup.py"]  # tests and packaging: only the package code counts
+
+[tool.coverage.paths]
+# The tests run in the container, with the workspace mounted at /ros2_ws.
+source = ["ros2_ws/src", "/ros2_ws/src"]

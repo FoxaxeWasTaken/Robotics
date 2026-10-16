@@ -45,7 +45,7 @@ flowchart LR
 | `so101_interfaces` | ament_cmake | both | `.srv` (existing); phase 2 adds `Connect4Board.msg`, `DropToken.srv` and the `PickPlace` action (ADR-037) | Existing |
 | `so101_description` | ament_python | viz | URDF, meshes, `viz.launch.py`. **Do not modify** (C-08) | Provided |
 | **`so101_common`** | ament_python (pure Python, no dependency) | both | **Single source of truth**: joint names, limits, gripper %↔rad conversion, frame names | **Exists** (ADR-003, step 0.3) |
-| **`so101_bringup`** | ament_python | control | Top-level launch files (`sim.launch.py`, `real.launch.py`), `config/*.yaml`, RViz config, tools (`evaluate`, calibration) | **New** (standard "bringup" practice) |
+| **`so101_bringup`** | ament_python | control | Top-level launch files (`sim.launch.py`, `real.launch.py`), `config/*.yaml`, RViz config, tools (`evaluate`, calibration) | **Exists** (step 0.3): `sim.launch.py`, `config/driver.yaml` and `brain.yaml`, `rviz/so101.rviz`; the rest later |
 | **`so101_connect4`** | ament_python | perception + control | Phase 2: pure `game.py` and `board.py`, `board_reader_node`, `game_node` | **Planned** (ADR-037) |
 
 > **Why `so101_common`?** Without it, the gripper 0–100 % ↔ rad mapping, the limits and the joint names would be duplicated in the driver, the brain and the tests — the number-one source of silent bugs in robotics (a joint clamped differently on each side).
@@ -82,7 +82,7 @@ This table is **the contract** between team members. Any change goes through a P
 
 ### 3.3 Main parameters
 
-Declared with descriptors in each node, loaded from `so101_bringup/config/*.yaml`. **Target**: today the driver only declares `use_sim` and `port`; the other values are constants in the code until steps 0.3 and 5.1.
+Declared with descriptors in each node, loaded from `so101_bringup/config/*.yaml`. **Target**: today the driver only declares `use_sim` and `port`; the other values are constants in the code until steps 1.1 and 5.1.
 
 | Node | Parameter | Default | Note |
 | --- | --- | --- | --- |
@@ -146,11 +146,11 @@ sequenceDiagram
 
 | Command | Effect |
 | --- | --- |
-| `docker compose up -d control perception viz` | `control` builds the workspace then starts driver + brain (later `so101_bringup sim.launch.py`); `perception` stays idle until step 3.1, then waits for its build and starts `perception_node`; `viz` starts RSP + static TF + marker |
+| `docker compose up -d control perception viz` | `control` builds the workspace then starts `so101_bringup sim.launch.py` (driver + brain); `perception` stays idle until step 3.1, then waits for its build and starts `perception_node`; `viz` starts RSP + static TF + marker |
 | `USE_SIM=false` in `docker/.env` | The same launch passes `use_sim:=false` to the driver, nothing else changes (C-10) |
 | `ros2 service call /brain/start std_srvs/srv/Trigger` | Starts a cycle (once the FSM exists, step 4.2) |
 
-The current entrypoint (`docker/control_entrypoint.sh`) starts `driver.launch.py` and `brain.launch.py` separately; keep it, then switch to `so101_bringup` once it exists.
+The entrypoint (`docker/control_entrypoint.sh`) starts `so101_bringup sim.launch.py` and forwards `USE_SIM` and `REAL_ROBOT_PORT` (`docker/.env`) as `use_sim:=` and `port:=`. The course's `driver.launch.py` and `brain.launch.py` stay, to start one node alone.
 
 ## 7. Rejected architecture options
 
