@@ -6,6 +6,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Added
 
+- `perception` service in `docker-compose.yml` (C-02), on the same DDS domain and transport as `control`; idle until step 3.1. `docker compose up -d control perception viz` now matches the brief, and the E2E and nightly jobs can start the stack.
 - Base driver (step 1.0): `/joint_states` at 30 Hz (gripper in rad, stamped at read time), `/joint_command` with partial and unnamed commands, a speed limiter (1.5 rad/s, gripper 200 %/s) in a pure `limiter.py`; unit and `launch_testing` tests. The real arm stays limp until 6.1a.
 - `so101_common`: joint names, joint limits, gripper %↔rad conversion and frame names defined once, tested against the URDF (ADR-003); the driver and brain stubs drop their local copies.
 - Repository architecture: CI (lint, guards, build, tests), nightly, school mirror, governance files, project documentation.

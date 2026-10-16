@@ -109,7 +109,7 @@ A proposal to adapt to everyone's preferences. **Rule**: nobody merges their own
   - [ ] Replace the handles in `CODEOWNERS`; everyone runs `pre-commit install`.
   - [x] `so101_common` package: `JOINT_NAMES`, `ARM_JOINT_NAMES`, `JOINT_LIMITS`, `GRIPPER_RANGE_RAD`, `pct_to_rad`/`rad_to_pct`, frame names; tests comparing names and limits to the URDF.
   - [ ] `so101_bringup` package: `sim.launch.py` (driver + brain), `config/*.yaml`, `rviz/so101.rviz`.
-  - [ ] `perception` service in `docker-compose.yml`, with a separate build (`02` §3.1).
+  - [x] `perception` service in `docker-compose.yml` (idle; its separate build comes with step 3.1, `02` §3.1).
 - **Done when**: CI is green on `main`; `docker compose up -d control perception viz` starts all three services.
 
 ---

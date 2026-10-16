@@ -6,7 +6,7 @@
 
 ```bash
 # Start / stop
-cd docker && docker compose up -d control viz          # + perception once the service exists (step 0.3)
+cd docker && docker compose up -d control perception viz   # perception idle until step 3.1
 docker compose logs -f control            # wait for "Brain node ready."
 docker compose restart control            # reload Python code changes (symlink-install)
 docker compose down                       # SIGINT → destroy_node() → clean stop
