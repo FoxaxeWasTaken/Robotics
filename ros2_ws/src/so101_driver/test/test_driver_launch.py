@@ -121,8 +121,9 @@ class TestDriver(unittest.TestCase):
         last = self.images[-1]
         self.assertEqual((last.encoding, last.width, last.height), ("rgb8", 320, 240))
         self.assertEqual(len(last.data), 320 * 240 * 3)
-        # 10 Hz target; a render can take 140 ms on a loaded machine [MES-22].
-        self.assertGreaterEqual(rate, 5.0)
+        # Alive and periodic, not a performance check: 10 Hz on a developer machine, 4.9 Hz on the
+        # 4-vCPU CI runner (2 render threads, coverage on) [MES-34]; a period bug would give 1 Hz.
+        self.assertGreaterEqual(rate, 3.0)
 
 
 @launch_testing.post_shutdown_test()
