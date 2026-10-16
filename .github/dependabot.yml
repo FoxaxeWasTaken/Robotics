@@ -1,0 +1,11 @@
+# Automatic updates of GitHub Actions (Docker images stay pinned by hand).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7      # let a new release settle a week before proposing it
+    commit-message:
+      prefix: ci

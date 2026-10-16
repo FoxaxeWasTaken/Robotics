@@ -1,0 +1,3 @@
+# Purely mechanical commits (formatting, mass renames), hidden from `git blame`.
+# Local: git config blame.ignoreRevsFile .git-blame-ignore-revs   (GitHub reads this file automatically)
+# Add here the full SHA of any future "style: ruff format" commit (docs/project/14 §9).

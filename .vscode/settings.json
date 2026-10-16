@@ -1,0 +1,10 @@
+{
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": { "source.organizeImports": "explicit", "source.fixAll": "explicit" }
+  },
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.exclude": { "ros2_ws/build*": true, "ros2_ws/install*": true, "ros2_ws/log": true }
+}

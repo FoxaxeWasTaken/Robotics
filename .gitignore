@@ -1,4 +1,41 @@
+# --- Python
 __pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
 
+# --- ROS 2 build artifacts (including the perception container's separate build)
+ros2_ws/build*/
+ros2_ws/install*/
+ros2_ws/log/
+
+# --- Secrets and local settings
 .env
 !.env.example
+
+# --- Heavy data: never in Git (CI artifacts, GitHub Releases or external storage)
+*.db3
+*.mcap
+results/bags/
+*.mp4
+*.mov
+*.webm
+
+# --- Course slides are versioned by the course in docs/; any copy at the root is a duplicate
+/*.pdf
+
+# --- Editors / OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code: personal files (the shared instructions are CLAUDE.md -> AGENTS.md)
+CLAUDE.local.md
+.claude/settings.local.json

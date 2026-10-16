@@ -9,6 +9,7 @@ TODO:
   - Inverse kinematics: reach an XYZ target (ikpy and pinocchio are installed)
   - Later: pick & place state machine
 """
+
 import rclpy
 import rclpy.node
 from rclpy.executors import ExternalShutdownException
@@ -21,7 +22,7 @@ ARM_JOINT_NAMES = [
     "wrist_flex",
     "wrist_roll",
 ]
-JOINT_NAMES = ARM_JOINT_NAMES + ["gripper"]
+JOINT_NAMES = [*ARM_JOINT_NAMES, "gripper"]
 
 
 class BrainNode(rclpy.node.Node):
