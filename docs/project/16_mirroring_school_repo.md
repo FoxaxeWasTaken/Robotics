@@ -47,7 +47,7 @@ The `.github/workflows/*` files are copied to the school repository too. To keep
 
 | Workflow | Condition | Private repository | School repository |
 | --- | --- | --- | --- |
-| `ci.yml`, `nightly.yml` | `vars.CI_ENABLED == 'true'` | Variable set → runs | Variable missing → jobs skipped |
+| `ci.yml`, `pr-title.yml`, `nightly.yml` | `vars.CI_ENABLED == 'true'`; Dependabot PRs also run, in this repository only (`github.repository`) | Variable set → runs | Variable missing → jobs skipped, Dependabot PRs included |
 | `mirror.yml` | `vars.SCHOOL_REPO_SSH_URL != ''` | Variable set → pushes | Variable missing → skipped (no loop) |
 
 ## 5. Setup (once)
@@ -78,3 +78,4 @@ git ls-remote origin refs/heads/main ; git ls-remote <school-url> refs/heads/mai
 | `Permission denied (publickey)` | Key not added or without write access | §5 step 1 |
 | `Host key verification failed` | Wrong `SCHOOL_GIT_HOST` | Fix the variable |
 | CI runs on the school repository | `CI_ENABLED` defined there | Remove the variable on the school side |
+| "Dependabot Updates" run, or a Dependabot PR, on the school repository | `dependabot.yml` is mirrored; Dependabot needs admin rights to be turned off there | Harmless: its PRs skip every job; close them by hand (ADR-033) |

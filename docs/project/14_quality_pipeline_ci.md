@@ -121,7 +121,7 @@ flowchart LR
 - **Headless**: `MUJOCO_GL=osmesa`: sim and rendering run on CPU, no GPU or X11 [MES-02], [MES-03].
 - **`concurrency`**: a new push cancels the previous run of the same PR; runs on `main` are never cancelled (each merged commit gets its full CI).
 - **Supply chain**: every action pinned by commit SHA (version in a comment), updated by Dependabot after a 7-day cooldown; `persist-credentials: false` on every checkout (zizmor).
-- **Dependabot PRs**: GitHub runs them like fork PRs, and repository variables may not reach them; a skipped required check would count as passed. The jobs therefore also run when the PR author (`github.event.pull_request.user.login`, not the spoofable `github.actor`) is `dependabot[bot]`.
+- **Dependabot PRs**: GitHub runs them like fork PRs, and repository variables may not reach them; a skipped required check would count as passed. The jobs therefore also run when the PR author (`github.event.pull_request.user.login`, not the spoofable `github.actor`) is `dependabot[bot]`, **in this repository only** (`github.repository`): the school copy mirrors `dependabot.yml`, and Dependabot ran there on 2026-10-16 (`16` §4).
 - **Minimal permissions**: `contents: read`.
 - Validated by **actionlint 1.7.12: 0 error** on `ci.yml`, `nightly.yml`, `mirror.yml` [MES-23].
 
