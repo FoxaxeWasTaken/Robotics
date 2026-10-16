@@ -19,6 +19,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Changed
 
+- Contributing: a PR may group related tickets (same files or same roadmap step), with one commit and one `Closes #` line per ticket; WIP limit raised from 2 to 5 tickets In progress per person (AGENTS.md, CONTRIBUTING, PR template, `15` §12).
 - CI: nothing runs on the school copy, Dependabot PRs included: the Dependabot exception of `ci.yml` and `pr-title.yml` is limited to this repository.
 - Docs: the teaching-staff answers of 2026-10-16 are recorded (project README, `phase2/P2-03` §4) and applied to ADR-002, 013, 018, 031, 033, 036 and 038, `00`, `05` §6, `07` §3.1, `09`, `10` and `P2-02`; roadmap steps 5.3 (release v1.0.0) and 5.4 (robustness demo of the five [BOOT2 p12] cases, asked by the staff).
 - Code: the repository starts from the course stubs (upstream `42737bf`), with a 3-line lint fix; the bootstrap prototype stays outside the repository (ADR-039).

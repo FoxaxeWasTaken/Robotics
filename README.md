@@ -77,7 +77,7 @@ Reports: [`results/`](results/).
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Planned work and progress: the team's GitHub Project (one ticket per PR, [conventions](docs/project/15_repository_hygiene.md#12-planning-the-github-project)).
+See [CONTRIBUTING.md](CONTRIBUTING.md). Planned work and progress: the team's GitHub Project (PR-sized tickets, [conventions](docs/project/15_repository_hygiene.md#12-planning-the-github-project)).
 
 ## Team
 
