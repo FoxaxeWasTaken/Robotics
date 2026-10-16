@@ -28,5 +28,6 @@ Produced images (camera views, masks, ArUco) are written to `/tmp/exp_out`.
 | `exp_perception_calib.py` | Field of view, HSV detection, pixel → 3D error, yaw, box, ArUco calibration | MES-12 to 16 | ~2 min |
 | `exp_calibration_methods.py` | 1 ArUco (demo) vs several, with detection noise | MES-25 | ~2 min |
 | `exp_connect4_kinematics.py` | Phase 2: can the arm drop a token into a vertical grid? Edge-on vs facing, clearance (with and without a riser), drop-pose method, cell size in the image | MES-27 to 29, 31, 32 | ~3 min |
+| `exp_driver_speed.py` | How fast does a joint move behind the driver's speed limiter (sim time, with and without it)? | MES-33 | < 1 min |
 | `exp_calibration_zero.py` | Real arm: is LeRobot's zero the URDF zero? FK of the rest pose under both hypotheses | MES-30 | < 1 min |
 | `exp_webcam_formats.py` | Which webcam formats go through usbipd? (run with `--device /dev/video0`) | MES-17 | < 1 min |

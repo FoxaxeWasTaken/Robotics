@@ -127,6 +127,7 @@ docker run --rm -e MUJOCO_GL=osmesa \
 | MES-30 | Real arm: LeRobot zero (middle of the recorded range) vs the pose held during calibration | Offsets 2.0, −22.9, −8.6, −3.2, 0° (pan to roll); rest-pose TCP z = −2.9 cm as reported, +2.7 cm if the URDF zero is the held pose; each hypothesis puts one joint slightly outside its URDF limit: **to settle with a ruler** | `exp_calibration_zero.py` |
 | MES-31 | Size of a Connect Four cell in the image (pitch 24 mm) | Phase-1 camera: 7.7 × 6.3 px at 320×240, 15.4 × 12.5 px at 640×480; camera 45 cm in front of the grid: 13.0 px at 320×240, 26 px at 640×480; whole grid in view in both cases | `exp_connect4_kinematics.py` |
 | MES-32 | Arm clearance above a store-bought grid with the arm on a riser | Same model as MES-28 (pitch 37 mm, top 25 cm above the table), arm on 8 cm, columns at r = 0.14–0.36 m: all 7 reachable; 10.5, 9.9, 7.9, 6.3 cm above the 4 far columns (link thickness not included); without the 2 cm shift, the nearest column is out of reach | `exp_connect4_kinematics.py` |
+| MES-33 | Sim joint speed behind the driver's speed limiter (0.5 rad step on `shoulder_pan`, exact sim time) | Limiter at 1.5 rad/s: mean 1.48 rad/s over 20–80 % of the move, but the `sts3215` position actuator oscillates around the ramp (peaks 2.49 rad/s, −0.35 rad/s overshoot at the end); without the limiter: 3.95 rad/s. The limiter bounds the **setpoint**, not the measured speed; the launch test checks < 2.0 rad/s (step 1.0) | `exp_driver_speed.py` |
 
 ## 5. "Inline" measurements (short scripts)
 

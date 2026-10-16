@@ -2,6 +2,7 @@
 
 import time
 import unittest
+from itertools import pairwise
 
 import launch
 import launch_ros.actions
@@ -51,6 +52,14 @@ class TestDriver(unittest.TestCase):
     def latest(self):
         return dict(zip(self.msgs[-1].name, self.msgs[-1].position, strict=True))
 
+    @staticmethod
+    def crossing(samples, level):
+        """Time at which the (t, position) samples first reach `level`, interpolated between two samples."""
+        for (t0, p0), (t1, p1) in pairwise(samples):
+            if p0 < level <= p1:
+                return t0 + (level - p0) / (p1 - p0) * (t1 - t0)
+        raise AssertionError(f"position {level:.3f} never reached")
+
     def test_joint_states_rate_is_at_least_20_hz(self):
         self.wait_for_joint_states()
         start = len(self.msgs)
@@ -73,15 +82,17 @@ class TestDriver(unittest.TestCase):
         self.spin_for(2.0)  # 0.5 rad at 1.5 rad/s: 0.33 s, plus settling
         after = self.latest()
         pan = [(m.header.stamp.sec + m.header.stamp.nanosec * 1e-9, m.position[0]) for m in self.msgs[start:]]
-        t10 = next(t for t, p in pan if p - before["shoulder_pan"] >= 0.05)  # 10 % of the move
-        t90 = next(t for t, p in pan if p - before["shoulder_pan"] >= 0.45)  # 90 %
-        speed = 0.4 / (t90 - t10)
+        # 20 % and 80 % of the move: always between two samples taken while moving (30 Hz, ~0.05 rad apart).
+        t20, t80 = (self.crossing(pan, before["shoulder_pan"] + d) for d in (0.10, 0.40))
+        speed = 0.3 / (t80 - t20)
         print(
             f"shoulder_pan {before['shoulder_pan']:.4f} -> {after['shoulder_pan']:.4f} (target {target:.4f})"
         )
-        print(f"shoulder_pan mean speed {speed:.2f} rad/s (limiter: 1.5)")
+        print(f"shoulder_pan mean speed 20-80 %: {speed:.2f} rad/s (limiter: 1.5)")
         self.assertAlmostEqual(after["shoulder_pan"], target, delta=0.02)
-        self.assertLess(speed, 1.5 * 1.1)  # mean speed over 10-90 % of the move
+        # The limiter bounds the setpoint at 1.5 rad/s; the sim joint oscillates around that ramp
+        # (peaks 2.5 rad/s, mean 1.48 over 20-80 %) and moves at 3.9 rad/s without the limiter [MES-33].
+        self.assertLess(speed, 2.0)
         for name in before.keys() - {"shoulder_pan"}:
             self.assertLess(abs(after[name] - before[name]), 0.005, name)
 

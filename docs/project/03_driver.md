@@ -181,7 +181,7 @@ The brain recovers the gripper percentage with the inverse conversion from `so10
 | --- | --- | --- |
 | Gripper %↔rad conversion and out-of-range clamping | Unit (`so101_common/test/test_robot.py`) | Error < 1e-9 — **implemented** (step 0.3) |
 | `/joint_states` rate | `launch_testing` (`test_driver_launch.py`) | ≥ 20 Hz — **implemented** (step 1.0: 30.0 Hz) |
-| A partial `shoulder_pan` command only moves that joint, at the limited speed | `launch_testing` | Target within 0.02 rad, other joints move < 5 mrad, mean speed < 1.65 rad/s — **implemented** (step 1.0: 0.5000 rad, 1.53 rad/s) |
+| A partial `shoulder_pan` command only moves that joint, at the limited speed | `launch_testing` | Target within 0.02 rad, other joints move < 5 mrad, mean speed over 20–80 % < 2.0 rad/s (limiter in the loop: 1.48 rad/s, without it 3.9 rad/s [MES-33]) — **implemented** (step 1.0: 0.5000 rad) |
 | An unnamed command follows `JOINT_NAMES` order; the gripper comes back in rad | `launch_testing` | 100 % → 1.745 rad, 0 % → −0.175 rad (± 0.05) — **implemented** (step 1.0) |
 | Speed limiter | Unit (`test_limiter.py`) | One step of `v_max·dt`, no overshoot, gripper in %/s — **implemented** (step 1.0) |
 | Clamp + NaN rejection on the command-merge function | Unit | Edge cases covered — to add with the clamp |
