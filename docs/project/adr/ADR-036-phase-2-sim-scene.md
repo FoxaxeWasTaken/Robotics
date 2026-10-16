@@ -40,3 +40,7 @@ The course adds a `scene_path` argument to the provided connection, or `SO101Sim
 ## Update (2026-10-09, ADR-038)
 
 The arm sits on a riser and gets a wrist camera, two changes inside the provided robot model, which an `include` cannot make. The phase-2 scene is therefore **generated** from a copy of the provided scene with `mujoco.MjSpec` (`spec.body("base").pos[2] += riser`, `spec.body("gripper").add_camera(...)`, then our objects), written with `to_xml()` into the temporary folder and loaded as before. Checked with MuJoCo 3.15: the model compiles and the wrist camera renders [CODE]. The provided files stay untouched.
+
+## Update (2026-10-16, teaching staff)
+
+The staff allows changing the scene: our own scenes (calibration markers, phase-2 grid) and the pose and parameters of the scene camera, for instance to match the real camera. The rule stays: edit a copy with `mujoco.MjSpec`, never `sim/`.

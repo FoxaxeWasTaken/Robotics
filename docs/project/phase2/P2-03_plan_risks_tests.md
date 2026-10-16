@@ -43,8 +43,10 @@ Every result enters the register of `../11_cross_review_and_measurements.md` as 
 
 ## 4. Questions for the teaching staff
 
-1. For phase 2 the arm sits on a clamped riser of about 8 cm: fine with the real-arm setup rules?
-2. May we add a webcam facing the grid and a wrist camera (your suggestion) on the real setup? Can the school lend them?
-3. Real-arm sessions: how many, and when? The drop bench needs about an hour.
-4. If computed poses are not accurate enough on the real arm, is the taught-poses fallback (`P2-02` §2.4) acceptable as "using phase 1"?
-5. Is a 3D printer available (depth guide, wrist-camera mount, jaw pads)?
+Answered on 2026-10-16, with the questions of `../README.md`. *Team* marks what the team settled itself.
+
+1. **Riser** (*team*): the arm may be placed as the team wants, riser included; on the riser it goes through the `07` §3 commissioning again (`P2-02` §2.4).
+2. **Cameras** (*team* and staff): a grid webcam and a wrist camera are both fine, lent by the school. Any USB webcam works for the grid; the wrist camera is probably the WowRobo 2 MP USB module, with a printable mount (STL on Teams); availability per campus: the staff will confirm (ADR-038 update).
+3. **Real-arm sessions** (*team*): access whenever needed.
+4. **Taught poses** (staff): reuse phase 1 as much as possible; the fallback is accepted if the PR and the defense explain why and show that the computed poses were tried and fixed first (`P2-02` §2.4).
+5. **3D printer** (*team*): available on request.

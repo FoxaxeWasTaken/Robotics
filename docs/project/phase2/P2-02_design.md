@@ -17,7 +17,7 @@ The grid is placed **edge-on**: its plane contains the vertical axis of `shoulde
 | Tokens | The game's: red for the human, yellow for the robot | HSV-distinct from the blue grid |
 | Token supply (v1) | **Handover**: the robot waits in a `HANDOVER` pose with the gripper open; the human puts a yellow token between the jaws and says "token given"; the gripper closes (§5) | Nothing to build. A dispenser or a rack comes later (§9) |
 | ArUco markers | 4 printed markers (`DICT_4X4_50`) stuck on the grid frame corners | Grid pose by perception (§3) |
-| Wrist camera | 32×32 UVC module on the optional mount of the SO-ARM100 repository (step P2.8) | Close-up on the token and the slot (§3.1), staff suggestion |
+| Wrist camera | Probably the WowRobo 2 MP USB module for SO-ARM100/101 (30 fps, 3 m cable) on the printable wrist mount, as the staff indicates (2026-10-16, availability to confirm); otherwise a 32×32 UVC module on the optional SO-ARM100 mount (step P2.8) | Close-up on the token and the slot (§3.1), staff suggestion |
 
 ## 2. Kinematics (ADR-035)
 
@@ -53,7 +53,7 @@ drop_ik(p, n):                          # p = TCP target, n = grid normal
 
 - **Calibration zero**: LeRobot's zero is the middle of the recorded range. For this arm it is 22.9° away from the held calibration pose on `shoulder_lift` [MES-30]. If the URDF zero is that held pose, the real TCP is off by centimeters: check it **before** any drop test (`07` §4).
 - **Riser**: the table is 8 cm lower in `base_link`; phase-1 demos run without the riser. Arm and riser are clamped, and the arm on the riser goes through the `07` §3 commissioning again.
-- **Fallback, taught poses**: torque off (uncomment the provided `disable_torque()` lines for that session only), move the arm by hand above each column, record `/joint_states`, check with FK. It bypasses model and calibration errors, but it stays a fallback: the plan is computed poses (phase-1 IK).
+- **Fallback, taught poses**: torque off (uncomment the provided `disable_torque()` lines for that session only), move the arm by hand above each column, record `/joint_states`, check with FK. It bypasses model and calibration errors, but it stays a fallback: the plan is computed poses (phase-1 IK). The staff accepts it (2026-10-16) if the PR and the defense explain why and show that the computed poses were tried and fixed first.
 
 ## 3. Perception: reading the grid
 

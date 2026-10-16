@@ -43,3 +43,7 @@ ADR-035 chose a small custom grid with one funnel per column and a token magazin
 ## Reconsider if
 
 The measured grid does not fit (far column out of reach, or clearance below 3 cm once link thickness is counted): travel-size grid or custom grid (ADR-035). The spike's along-grid capture is smaller than the arm error plus the handover offset: wrist camera before the real arm, or printed jaw pads with a recess that centers the token. The camera alone reaches ≥ 90 % in the real guide-vs-camera comparison (`phase2/P2-04` step P2.8): remove the depth guide. The camera is not expected to win: across the grid the slot leaves 1 to 2 mm per side, and one servo step moves the TCP by about 0.46 mm at 30 cm (4096 steps per turn), before gear backlash and sag. The guide also absorbs the kick the token gets when the jaws open.
+
+## Update (2026-10-16, teaching staff)
+
+Wrist camera: probably the WowRobo 2 MP USB module for SO-ARM100/101 (30 fps, 3 m cable), on a printable wrist mount (STL shared on Teams); some users fix a webcam directly. Availability per campus: the staff will confirm. The grid webcam can be any USB webcam (a phone only as a stopgap: latency).

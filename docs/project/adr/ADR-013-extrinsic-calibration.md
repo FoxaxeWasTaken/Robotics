@@ -39,3 +39,7 @@ The camera becomes mobile (mounted on the arm): hand-eye calibration.
 ## Update (2026-10-09)
 
 The provided `_connect_arm` builds `SO101Sim()` with the default scene: `scene_path` is applied by reconnecting right after it, without modifying it (ADR-036, same loading code as the phase-2 scene).
+
+## Update (2026-10-16, teaching staff)
+
+Our own calibration scene is allowed, and so are markers other than ArUco if they work better. The sim camera may be moved (`05` §6): recalibrate after any move.

@@ -161,7 +161,7 @@ sequenceDiagram
 
 ## 10. The course's robustness questions and our answers (C-36)
 
-The day-2 slides ask "is your code robust?" with five situations [BOOT2 p12]. Each one maps to a design element and a test:
+The day-2 slides ask "is your code robust?" with five situations [BOOT2 p12]. Each one maps to a design element and a test; the teaching staff wants a quick demo of each (2026-10-16), planned at step 5.4 (`results/robustness_demo.md`):
 
 | Situation [BOOT2 p12] | Our answer | Where | Test |
 | --- | --- | --- | --- |
@@ -169,4 +169,4 @@ The day-2 slides ask "is your code robust?" with five situations [BOOT2 p12]. Ea
 | The grasp fails: how do you know, what do you do? | Normalized gripper effort below threshold → `RETRY` (max 3), then `ERROR:grasp_failed`; the drop is checked by `VERIFY` | §3.1–§3.2, ADR-016 | Unit (FSM) + fault injection |
 | The object leaves the view: what does perception publish, is there a memory? | Perception publishes **nothing** when invalid; the brain keeps the last value with its age and only needs fresh data in `WAIT_TARGET` and `VERIFY` | §4, `05` §7, ADR-017 | Perception stopped during `TRANSPORT` → cycle completes |
 | Target out of reach: what does IK return, does the arm move anyway? | The planner returns `None` with a reason → `ERROR:unreachable`; **never** "move anyway" | `04` §5 and §8, ADR-009 | Target at r = 0.5 m → no command |
-| Lighting changes: does the color threshold hold? | Camera in manual exposure/white balance, runtime-tunable HSV thresholds, debug image to see the mask; YOLO-seg as fallback | `05` §2, `07` §4–§5, ADR-011 | Real image set under varied lighting (step 6.4) |
+| Lighting changes: does the color threshold hold? | Camera in manual exposure/white balance, runtime-tunable HSV thresholds, debug image to see the mask; YOLO-seg as fallback | `05` §2, `07` §4–§5, ADR-011 | Dimmed scene copy in sim (step 5.4), then a real image set under varied lighting (step 6.4) |
