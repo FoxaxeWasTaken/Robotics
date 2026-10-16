@@ -6,6 +6,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Added
 
+- Sim camera (step 1.2): `/external_cam/image_raw` (`rgb8`, 320×240, 10 Hz) rendered in a dedicated thread on a copy of the sim state, behind a backend lock; OSMesa render threads limited to half the cores so the control period keeps p99 20.4 ms (MES-34). `launch_testing` checks the image and a clean SIGINT stop.
 - Base driver (step 1.0): `/joint_states` at 30 Hz (gripper in rad, stamped at read time), `/joint_command` with partial and unnamed commands, a speed limiter (1.5 rad/s, gripper 200 %/s) in a pure `limiter.py`; unit and `launch_testing` tests. The real arm stays limp until 6.1a.
 - `so101_common`: joint names, joint limits, gripper %↔rad conversion and frame names defined once, tested against the URDF (ADR-003); the driver and brain stubs drop their local copies.
 - Repository architecture: CI (lint, guards, build, tests), nightly, school mirror, governance files, project documentation.
@@ -20,3 +21,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 - CI: the control job passes when no package has tests yet; PR title checked as a conventional commit; actionlint, zizmor, shellcheck and hadolint in pre-commit, gitleaks on the whole history, `ament_xmllint`; actions pinned by SHA, runs on `main` never cancelled, checks also run on Dependabot PRs.
 - Mirror: force-pushes `main` and the tags (exact copy); key in the `main`-only `school-mirror` environment.
 - Contributing: naming rules for branches, commits and PR titles (CONTRIBUTING §2.1); AGENTS.md: safety, push, evidence and isolation rules.
+
+### Fixed
+
+- Driver: SIGINT or SIGTERM while a timer callback publishes no longer ends in a traceback and exit code 1 (seen once in 40 SIGTERM stops).

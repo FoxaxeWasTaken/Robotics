@@ -5,7 +5,7 @@
 
 ## 0. Code state (2026-10-16) and what to build
 
-`driver_node.py` started from **the course stub** (provided `_connect_arm` and `destroy_node`, upstream PR #1 and #2), as the repository did (ADR-039). Step 1.0 added `/joint_states`, `/joint_command` and the speed limiter; the provided functions are unchanged. A **bootstrap prototype**, kept outside the repository, filled the `TODO`s during the bootstrap sessions and measured `/joint_states` at **30.0 Hz**, the image at **10.0 Hz**, a clean shutdown on SIGINT/SIGTERM and `/go_to_target` within **0.13 mm** [MES-24]. Use it as inspiration, not as code to paste.
+`driver_node.py` started from **the course stub** (provided `_connect_arm` and `destroy_node`, upstream PR #1 and #2), as the repository did (ADR-039). Step 1.0 added `/joint_states`, `/joint_command` and the speed limiter, step 1.2 the sim camera thread; the provided `_connect_arm` is unchanged, `destroy_node` first stops the camera thread. A **bootstrap prototype**, kept outside the repository, filled the `TODO`s during the bootstrap sessions and measured `/joint_states` at **30.0 Hz**, the image at **10.0 Hz**, a clean shutdown on SIGINT/SIGTERM and `/go_to_target` within **0.13 mm** [MES-24]. Use it as inspiration, not as code to paste.
 
 | Item | Repository | Bootstrap prototype | Roadmap step (`09`) |
 | --- | --- | --- | --- |
@@ -14,7 +14,7 @@
 | Partial commands by name; empty name list = `JOINT_NAMES` order | ✅ (step 1.0) | ✅ | 1.0 |
 | Speed limiter (1.5 rad/s; gripper 200 %/s) | ✅ constants (`limiter.py`) | ✅ | 1.0, then a parameter (1.1) |
 | `/joint_states` ≥ 20 Hz, gripper in rad, stamp = read time | ✅ 30.0 Hz (step 1.0) | ✅ 30.0 Hz (9 Hz before the camera fix) | 1.0 |
-| Sim camera: dedicated thread, render on a copy, backend lock | ❌ | ✅ (ADR-006) | 1.2 |
+| Sim camera: dedicated thread, render on a copy, backend lock | ✅ (step 1.2): 10 Hz, control p99 20.4 ms [MES-34] | ✅ (ADR-006) | 1.2 |
 | **Clamping to joint limits** (C-15): MuJoCo clamps via `ctrlrange` in sim, **nothing protects the real arm** | ❌ | ✅ in the working copy | 1.1 |
 | NaN/inf rejection | ❌ | ✅ in the working copy | 1.1 |
 | `effort` (grasp detection, ADR-016) | ❌ | ❌ | 1.3 |
@@ -110,7 +110,8 @@ sequenceDiagram
 
 - **Control tick (50 Hz)**, under the lock: (1) move the setpoint towards the goal through the speed limiter (§4); (2) `send_action(setpoint)` → +10 ms of physics; (3) `obs = get_observation()` → +10 ms. 2 calls per 20 ms tick ⇒ the sim runs **in real time** [MES-02].
 - **Camera thread (10 Hz, sim)**: under the lock, `mujoco.mj_copyData` into a private `MjData` (a few µs); **outside the lock**, render that copy with the thread's own `mujoco.Renderer` (OpenGL context bound to that thread), publish, then wait until the next period. Without this, `/joint_states` dropped to **9 Hz** (single thread busy rendering 50–140 ms) [MES-22]; with it: **30.0 Hz**, max period 44 ms [MES-24].
-- Shutdown: `destroy_node()` sets a stop event and joins the thread before `disconnect()`; the thread also exits if `rclpy.ok()` turns false (SIGINT), so no publish happens on a dead context.
+- **Render threads**: OSMesa's llvmpipe renders with one thread per core by default; they starve the control tick (p99 24–25 ms). The driver sets `LP_NUM_THREADS` to half the cores at import, a value set in the environment wins: p99 20.4 ms, image 10 Hz [MES-34].
+- Shutdown: `destroy_node()` sets a stop event and joins the thread before `disconnect()`. SIGINT/SIGTERM shut the context down from rclpy's signal thread: a publish caught at that moment (camera thread, or a timer callback in `main()`) fails, and is ignored only once `rclpy.ok()` is false [MES-34].
 
 > Rendering a copy uses `sim.model`/`sim.data`: an internal access **confined to the driver's sim branch** — acceptable because camera rendering is sim-specific anyway (the real arm goes through OpenCV). The rest of the stack still ignores the backend.
 > Alternative considered: `MultiThreadedExecutor` + callback groups. Rejected for now: with a thread pool the OpenGL context could be used from different threads; a dedicated thread is simpler and was measured.
