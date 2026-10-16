@@ -24,7 +24,7 @@ ros2 topic info -v /external_cam/image_raw     # QoS of publishers and subscribe
 ros2 topic echo --once /object_position
 ros2 service call /brain/start std_srvs/srv/Trigger    # once the FSM exists (step 4.2)
 ros2 service call /sim/randomize std_srvs/srv/Trigger  # once implemented (step 1.4)
-rviz2 -d /ros2_ws/so101.rviz
+rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz
 
 # Manual commands
 ros2 topic pub --once -w 1 --keep-alive 1 /joint_command sensor_msgs/msg/JointState '{name: [shoulder_pan], position: [0.5]}'
@@ -87,7 +87,7 @@ Per-symptom details:
 | The cube bounces out of the box | Released too high | `grasp.drop_tcp_z_m` ≈ 0.09 + `VERIFY` state |
 | RViz crashes (segfault, no log) when a **Pose** display is unchecked | Upstream rviz2 bug (14.1.24): the display frees its handler while messages keep arriving | Do not uncheck it: remove the display or close RViz |
 | `/end_effector_pose` hard to see in RViz | Pose display drawn as a 1.3 m arrow by default | Shape `Axes`, length 0.05 m; check the topic name with `ros2 topic list` |
-| RViz: "Frame [map] does not exist", no arm | RViz started without the project configuration | `rviz2 -d /ros2_ws/so101.rviz` (Fixed Frame `world`) |
+| RViz: "Frame [map] does not exist", no arm | RViz started without the project configuration | `rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz` (Fixed Frame `world`) |
 | Real driver: "could not open port /dev/ttyACM0" after replugging the arm | Windows took the USB device back | `usbipd attach --wsl --busid <X-Y>` again, or `--auto-attach` (`02` §5.1) |
 | Brain dies with "x0 is infeasible" on `/go_to_target` | IK seed (measured joints) slightly outside the URDF bounds | Clip the seed into the bounds before ikpy (`04` §8) |
 | The whole sim arm freezes after a manual command | A NaN in `/joint_command` reached MuJoCo, which then resets every step | Driver rejects non-finite values (step 1.1); never publish NaN |

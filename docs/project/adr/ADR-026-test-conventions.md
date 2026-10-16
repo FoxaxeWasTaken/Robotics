@@ -31,3 +31,7 @@ ADR-019 sets the test pyramid. Concrete rules are needed: location, colcon decla
 ## Reconsider if
 
 Component tests make CI too slow: mark them `slow` and run them nightly only.
+
+## Update (2026-10-16, ticket 0.3d)
+
+DDS isolation of tests: the images include colcon-ros-domain-id-coordinator, so `colcon test` gives each package a free `ROS_DOMAIN_ID`, never the current one. Measured: two parallel runs next to a stack on domain 42 got domains 18 and 59 and stayed green; without it they received 82 Hz of mixed `/joint_states` and one failed (`14` §4).
