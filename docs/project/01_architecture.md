@@ -58,7 +58,7 @@ This table is **the contract** between team members. Any change goes through a P
 
 | Topic | Type | Producer → consumers | Rate | Units and content | Frame (`frame_id`) | Publisher QoS |
 | --- | --- | --- | --- | --- | --- | --- |
-| `/joint_states` | `sensor_msgs/JointState` | driver → brain, RSP | **30 Hz** target (≥ 20 imposed; the bootstrap prototype measured 30 Hz) | `name` = 6 joints; `position` in **rad**, gripper included (converted % → rad for RSP); `effort` = normalized load in [-1, 1] (ADR-016) | — | Reliable, depth 10 |
+| `/joint_states` | `sensor_msgs/JointState` | driver → brain, RSP | **30 Hz** target (≥ 20 imposed; the bootstrap prototype measured 30 Hz) | `name` = 6 joints; `position` in **rad**, gripper included (converted % → rad for RSP); `effort` = normalized load in [-1, 1] (ADR-016): positive towards larger angles, except the gripper, positive when squeezing (03 §5) | — | Reliable, depth 10 |
 | `/joint_command` | `sensor_msgs/JointState` | brain (or human) → driver | Event-driven; 50 Hz during trajectories | `name` = subset of the 6 joints; `position` in **rad**, **gripper in % (0–100)** | — | Reliable, depth 10 |
 | `/external_cam/image_raw` | `sensor_msgs/Image` (`rgb8`) | driver → perception, RViz | **10 Hz** | Raw image (320×240 in sim) | `external_cam_optical_frame` | **Reliable**, depth 2 |
 | `/external_cam/camera_info` | `sensor_msgs/CameraInfo` | driver → perception | 10 Hz, **same `stamp`** as the image | K, D, P, size | `external_cam_optical_frame` | Reliable, depth 2 |
@@ -82,7 +82,7 @@ This table is **the contract** between team members. Any change goes through a P
 
 ### 3.3 Main parameters
 
-Declared with descriptors in each node, loaded from `so101_bringup/config/*.yaml`. **Target**: today the driver only declares `use_sim` and `port`; the other values are constants in the code until steps 1.1 and 5.1.
+Declared with descriptors (description, range, read-only: read at startup) in each node, loaded from `so101_bringup/config/*.yaml`. The driver declares `use_sim`, `port` and, since step 1.1, the rates, speed limits and image size; `calibration_file`, `scene_path` and `expose_ground_truth` come with steps 1.4 and 5.1.
 
 | Node | Parameter | Default | Note |
 | --- | --- | --- | --- |
@@ -90,9 +90,11 @@ Declared with descriptors in each node, loaded from `so101_bringup/config/*.yaml
 | driver | `port` | `/dev/ttyACM0` | Real arm |
 | driver | `calibration_file` | `/calibration/arm.json` | Real arm, mounted by compose |
 | driver | `control_rate_hz` | 50 | 2 backend calls per tick → the sim runs in real time [MES-02] |
+| driver | `joint_state_rate_hz` | 30 | ≥ 20 imposed (C-11): the range starts at 20 |
 | driver | `camera_rate_hz` | 10 | C-12 |
-| driver | `camera_width/height` | 320/240 | 640/480 during calibration (ADR-013) |
+| driver | `camera_width/height` | 320/240 | 640/480 during calibration (ADR-013); at most 1280/720, the scene's offscreen buffer; K follows |
 | driver | `max_joint_velocity` | 1.5 rad/s (sim), 0.8 (real) | Safety limiter (ADR-023) |
+| driver | `max_gripper_velocity` | 200 %/s | Safety limiter (ADR-023) |
 | driver | `scene_path` | provided scene | Scene with ArUco markers for calibration (ADR-013) |
 | driver | `expose_ground_truth` | **`false`** | Tests only (C-06) |
 | perception | `extrinsics_file` | `config/camera_extrinsics.yaml` | Produced by calibration |

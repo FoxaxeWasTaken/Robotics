@@ -6,6 +6,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Added
 
+- Driver, rest of stage 1: `/joint_command` clamped to the joint limits and rejected whole on a size mismatch or a NaN/inf, in a pure `command.py` with property tests (1.1a); rates, speed limits and image size as read-only ROS parameters with ranges, values in `so101_bringup/config/driver.yaml` (1.1b); `/external_cam/camera_info` with the image's header, `frame_id` = `external_cam_optical_frame` (1.3a); normalized effort in `/joint_states`, gripper positive when squeezing (1.3b, MES-35).
 - `perception` service in `docker-compose.yml` (C-02), on the same DDS domain and transport as `control`; idle until step 3.1. `docker compose up -d control perception viz` now matches the brief, and the E2E and nightly jobs can start the stack.
 - `so101_bringup` (step 0.3): `sim.launch.py` starts the driver and the brain (`use_sim` and `port` forwarded), parameter files in `config/`, and the RViz file moved to `rviz/so101.rviz`; the control container starts it. A `launch_testing` test checks both nodes and the forwarded arguments.
 - Sim camera (step 1.2): `/external_cam/image_raw` (`rgb8`, 320×240, 10 Hz) rendered in a dedicated thread on a copy of the sim state, behind a backend lock; OSMesa render threads limited to half the cores so the control period keeps p99 20.4 ms (MES-34). `launch_testing` checks the image and a clean SIGINT stop.
