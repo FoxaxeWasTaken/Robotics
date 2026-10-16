@@ -25,6 +25,7 @@ from sensor_msgs.msg import Image, JointState
 from so101_sim import SO101Sim
 
 from so101_common.robot import ARM_JOINT_NAMES, JOINT_NAMES, pct_to_rad
+from so101_driver.command import apply_command
 from so101_driver.limiter import step_towards
 
 # Calibration file of the real arm, mounted by docker compose (CALIBRATION_FILE in docker/.env).
@@ -121,17 +122,10 @@ class DriverNode(rclpy.node.Node):
         super().destroy_node()
 
     def _cb_joint_command(self, msg: JointState):
-        """Stores the goal only (the control timer applies it). No name = JOINT_NAMES order."""
-        names = list(msg.name) or list(JOINT_NAMES)
-        if len(names) != len(msg.position):
-            self.get_logger().warning(
-                f"/joint_command ignored: {len(names)} names, {len(msg.position)} positions",
-                throttle_duration_sec=1.0,
-            )
-            return
-        for name, value in zip(names, msg.position, strict=True):
-            if name in self._goal:  # unknown names are ignored; other joints keep their goal
-                self._goal[name] = float(value)
+        """Stores the goal only (the control timer applies it): clamped, or unchanged if rejected (03 §4)."""
+        self._goal, reason = apply_command(self._goal, msg.name, msg.position)
+        if reason:
+            self.get_logger().warning(f"/joint_command rejected: {reason}", throttle_duration_sec=1.0)
 
     def _control_step(self):
         """50 Hz: setpoint towards the goal (speed limiter), send it, read the state back."""
