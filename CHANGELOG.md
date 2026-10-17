@@ -20,6 +20,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 ### Changed
 
 - CI: nothing runs on the school copy, Dependabot PRs included: the Dependabot exception of `ci.yml` and `pr-title.yml` is limited to this repository.
+- CI: the control job tests the packages one at a time (`--executor sequential`); in parallel, CPU-heavy unit tests starved the driver's camera rate test.
 - Docs: the teaching-staff answers of 2026-10-16 are recorded (project README, `phase2/P2-03` §4) and applied to ADR-002, 013, 018, 031, 033, 036 and 038, `00`, `05` §6, `07` §3.1, `09`, `10` and `P2-02`; roadmap steps 5.3 (release v1.0.0) and 5.4 (robustness demo of the five [BOOT2 p12] cases, asked by the staff).
 - Code: the repository starts from the course stubs (upstream `42737bf`), with a 3-line lint fix; the bootstrap prototype stays outside the repository (ADR-039).
 - CI: the control job passes when no package has tests yet; PR title checked as a conventional commit; actionlint, zizmor, shellcheck and hadolint in pre-commit, gitleaks on the whole history, `ament_xmllint`; actions pinned by SHA, runs on `main` never cancelled, checks also run on Dependabot PRs.
