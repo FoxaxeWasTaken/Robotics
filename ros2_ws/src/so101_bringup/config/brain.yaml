@@ -1,3 +1,6 @@
-# ROS parameters of so101_brain. None yet: they join with the FK/IK and the state machine (stages 2 and 4).
+# ROS parameters of so101_brain (docs/project/06 §6), read at startup.
 so101_brain:
-  ros__parameters: {}
+  ros__parameters:
+    motion:
+      v_max_rad_s: 1.0     # peak arm joint speed of a motion; 0.5 on the real arm to start (06 §5)
+      reach_tol_rad: 0.01  # target reached when every arm joint is this close (04 §6)
