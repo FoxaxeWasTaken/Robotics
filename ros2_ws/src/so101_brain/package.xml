@@ -13,8 +13,13 @@
   <depend>sensor_msgs</depend>
   <depend>so101_interfaces</depend>
   <exec_depend>so101_common</exec_depend>
+  <exec_depend>so101_description</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-scipy</exec_depend>
+  <!-- ikpy: pip, installed by docker/Dockerfile.control (no rosdep key) -->
 
+  <test_depend>ament_index_python</test_depend>
   <test_depend>python3-hypothesis</test_depend>
   <test_depend>python3-pytest</test_depend>
 
