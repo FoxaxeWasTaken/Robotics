@@ -1,5 +1,7 @@
-"""Component test (launch_testing): sim driver publishes /joint_states and its camera, applies commands."""
+"""Component test (launch_testing): sim driver publishes /joint_states and its camera, applies commands,
+clamps them to the joint limits and rejects invalid ones (03 §4)."""
 
+import math
 import time
 import unittest
 from itertools import pairwise
@@ -10,13 +12,14 @@ import launch_testing.actions
 import launch_testing.asserts
 import pytest
 import rclpy
-from rcl_interfaces.msg import ParameterType
+from rcl_interfaces.msg import Log, ParameterType
 from rcl_interfaces.srv import GetParameters
 from sensor_msgs.msg import CameraInfo, Image, JointState
 
 STARTUP_TIMEOUT = 30.0  # s: MuJoCo loads the scene before the first message
 ARM = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")  # URDF order, by hand
 CLOSED, OPEN = -0.174533, 1.74533  # URDF gripper limits (rad): 0 % and 100 %
+PAN_MAX = 1.91986  # URDF upper limit of shoulder_pan (rad)
 CAMERA_FRAME = "external_cam_optical_frame"  # so101_common, by hand
 K_320X240 = [246.036, 0.0, 160.0, 0.0, 246.036, 120.0, 0.0, 0.0, 1.0]  # fovy of external_cam in the scene
 PARAMETER_DEFAULTS = {  # docs/project/01 §3.3
@@ -53,6 +56,8 @@ class TestDriver(unittest.TestCase):
         cls.node.create_subscription(Image, "/external_cam/image_raw", cls.images.append, 10)
         cls.infos = []
         cls.node.create_subscription(CameraInfo, "/external_cam/camera_info", cls.infos.append, 10)
+        cls.logs = []
+        cls.node.create_subscription(Log, "/rosout", cls.logs.append, 100)
         cls.pub = cls.node.create_publisher(JointState, "/joint_command", 10)
 
     @classmethod
@@ -70,6 +75,38 @@ class TestDriver(unittest.TestCase):
         while not self.msgs and time.monotonic() < end:
             rclpy.spin_once(self.node, timeout_sec=0.1)
         self.assertTrue(self.msgs, "no /joint_states received")
+
+    def wait_until(self, condition, timeout, message):
+        end = time.monotonic() + timeout
+        while not condition() and time.monotonic() < end:
+            rclpy.spin_once(self.node, timeout_sec=0.05)
+        self.assertTrue(condition(), message)
+
+    def wait_for_command_subscriber(self):
+        self.wait_until(lambda: self.pub.get_subscription_count() > 0, 5.0, "/joint_command not subscribed")
+
+    def send_until_rejected(self, msg, reason):
+        """Publishes msg until the driver logs its rejection: the warning is throttled to one per second."""
+        start = len(self.logs)
+        end = time.monotonic() + 5.0
+        while time.monotonic() < end:
+            self.pub.publish(msg)
+            self.spin_for(0.3)
+            if any(f"/joint_command rejected: {reason}" in log.msg for log in self.logs[start:]):
+                return
+        self.fail(f"no rejection logged for {reason!r}")
+
+    def watch(self, count=30):
+        """The next `count` /joint_states (1 s at 30 Hz). Counted, not timed: when the system clock steps
+        back (WSL2 time sync), the driver's timers pause and a timed window can stay empty."""
+        start = len(self.msgs)
+        self.wait_until(lambda: len(self.msgs) - start >= count, 10.0, "no /joint_states while watching")
+        return self.msgs[start:]
+
+    def assert_no_motion(self, before):
+        moved = max(abs(p - before[n]) for m in self.watch() for n, p in zip(m.name, m.position, strict=True))
+        print(f"largest joint motion after the rejected command: {moved * 1000:.2f} mrad")
+        self.assertLess(moved, 0.005)
 
     def latest(self):
         return dict(zip(self.msgs[-1].name, self.msgs[-1].position, strict=True))
@@ -109,13 +146,14 @@ class TestDriver(unittest.TestCase):
         self.wait_for_joint_states()
         self.spin_for(1.0)  # let the arm settle on its startup pose
         before = self.latest()
-        end = time.monotonic() + 5.0
-        while self.pub.get_subscription_count() == 0 and time.monotonic() < end:
-            self.spin_for(0.1)
+        self.wait_for_command_subscriber()
         target = before["shoulder_pan"] + 0.5
         start = len(self.msgs)
         self.pub.publish(JointState(name=["shoulder_pan"], position=[target]))
-        self.spin_for(2.0)  # 0.5 rad at 1.5 rad/s: 0.33 s, plus settling
+        # 0.5 rad at 1.5 rad/s: 0.33 s, then settling
+        self.wait_until(
+            lambda: abs(self.latest()["shoulder_pan"] - target) < 0.005, 5.0, "target not reached"
+        )
         after = self.latest()
         pan = [(m.header.stamp.sec + m.header.stamp.nanosec * 1e-9, m.position[0]) for m in self.msgs[start:]]
         # 20 % and 80 % of the move: always between two samples taken while moving (30 Hz, ~0.05 rad apart).
@@ -138,9 +176,47 @@ class TestDriver(unittest.TestCase):
         arm = [self.latest()[n] for n in ARM]
         for pct, rad in ((100.0, OPEN), (0.0, CLOSED)):
             self.pub.publish(JointState(position=[*arm, pct]))  # no names: JOINT_NAMES order, gripper in %
-            self.spin_for(2.0)
+            self.wait_until(lambda r=rad: abs(self.latest()["gripper"] - r) < 0.05, 5.0, "gripper not there")
             print(f"gripper {pct:.0f} % -> {self.latest()['gripper']:.4f} rad (URDF limit {rad})")
             self.assertAlmostEqual(self.latest()["gripper"], rad, delta=0.05)
+
+    def test_out_of_range_command_stops_at_the_limit_without_winding_up(self):
+        self.wait_for_joint_states()
+        self.wait_for_command_subscriber()
+        start_pan = self.latest()["shoulder_pan"]
+        self.pub.publish(JointState(name=["shoulder_pan"], position=[5.0]))
+        self.wait_until(lambda: self.latest()["shoulder_pan"] > PAN_MAX - 0.01, 5.0, "limit never reached")
+        pan = [m.position[0] for m in self.watch()]  # holds at the limit
+        print(f"shoulder_pan at the limit: {min(pan):.4f} to {max(pan):.4f} (URDF {PAN_MAX})")
+        self.assertLess(max(abs(p - PAN_MAX) for p in pan), 0.01)
+        # The sim's ctrlrange would stop the joint there too; the driver's clamp is what keeps the setpoint at
+        # the limit: commanded back, the joint leaves at once instead of waiting for a setpoint at 5 rad.
+        sent = self.node.get_clock().now().nanoseconds * 1e-9
+        start = len(self.msgs)
+        self.pub.publish(JointState(name=["shoulder_pan"], position=[start_pan]))
+        self.wait_until(lambda: self.latest()["shoulder_pan"] < PAN_MAX - 0.05, 5.0, "never left the limit")
+        left = next(m for m in self.msgs[start:] if m.position[0] < PAN_MAX - 0.05)
+        delay = left.header.stamp.sec + left.header.stamp.nanosec * 1e-9 - sent
+        print(f"commanded back: 0.05 rad away from the limit after {delay * 1000:.0f} ms")
+        self.assertLess(delay, 0.3)  # 0.05 rad at 1.5 rad/s: 33 ms, plus the sim lag
+        self.wait_until(lambda: abs(self.latest()["shoulder_pan"] - start_pan) < 0.01, 5.0, "start pose lost")
+
+    def test_nan_command_is_rejected_whole(self):
+        self.wait_for_joint_states()
+        self.wait_for_command_subscriber()
+        before = self.latest()
+        command = JointState(name=["shoulder_pan", "elbow_flex"], position=[math.nan, 0.3])
+        self.send_until_rejected(command, "non-finite position")
+        self.assert_no_motion(before)
+
+    def test_size_mismatch_command_is_rejected(self):
+        self.wait_for_joint_states()
+        self.wait_for_command_subscriber()
+        before = self.latest()
+        self.send_until_rejected(
+            JointState(name=["shoulder_pan", "elbow_flex"], position=[0.3]), "2 names, 1"
+        )
+        self.assert_no_motion(before)
 
     def test_camera_publishes_rgb8_images(self):
         self.wait_for_joint_states()
