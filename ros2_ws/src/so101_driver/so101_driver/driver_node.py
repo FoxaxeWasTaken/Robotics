@@ -7,7 +7,7 @@ knows which one runs.
 
 Publishes /joint_states (rad, 30 Hz) and applies /joint_command (rad, gripper in %)
 through a speed limiter at 50 Hz; in sim, publishes the camera at 10 Hz from a dedicated
-thread (docs/project/03 §3-§5) and publishes the ground truth for the evaluation bench (03 §7).
+thread (docs/project/03 §3-§5) and serves the evaluation tools: /sim/randomize, ground truth (03 §7).
 """
 
 import os
@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 
 import mujoco
+import numpy as np
 import rclpy
 import rclpy.node
 from cv_bridge import CvBridge
@@ -25,11 +26,13 @@ from rcl_interfaces.msg import FloatingPointRange, IntegerRange, ParameterDescri
 from rclpy.executors import ExternalShutdownException
 from sensor_msgs.msg import CameraInfo, Image, JointState
 from so101_sim import SO101Sim
+from std_srvs.srv import Trigger
 
 from so101_common.robot import ARM_JOINT_NAMES, BASE_FRAME, CAMERA_FRAME, JOINT_NAMES, pct_to_rad
 from so101_driver.command import apply_command
 from so101_driver.effort import normalized_effort
 from so101_driver.limiter import step_towards
+from so101_driver.randomize import sample_box_xy
 
 # Calibration file of the real arm, mounted by docker compose (CALIBRATION_FILE in docker/.env).
 CALIBRATION_FILE = Path("/calibration/arm.json")
@@ -45,9 +48,11 @@ PARAMETERS = {
     "max_gripper_velocity": (200.0, "Speed limiter, gripper, %/s (ADR-023)", 10.0, 1000.0),
     "camera_width": (320, "Sim camera width, px (640 for calibration, ADR-013)", 16, 1280),
     "camera_height": (240, "Sim camera height, px (480 for calibration, ADR-013)", 16, 720),
+    "seed": (0, "Seed of /sim/randomize: cube and box positions (sim)", 0, 2**31 - 1),
 }
 GROUND_TRUTH_RATE_HZ = 10.0
 GROUND_TRUTH_BODIES = {"object": "pickup_object", "drop_box": "drop_box"}  # /sim/ground_truth/<key>: body
+PARKED_BOX_XY = (2.0, 0.0)  # m: the box waits there while the randomized cube settles
 
 # OSMesa's llvmpipe renders with one thread per core by default; they starve the 50 Hz control tick
 # (p99 up to 25.4 ms). Half the cores keep it at 20.4 ms with the image at 10 Hz [MES-34]. A value set in the
@@ -75,9 +80,15 @@ class DriverNode(rclpy.node.Node):
 
         self._robot = self._connect_arm(port)
         self.get_logger().info(f"Robot connected: {type(self._robot).__name__}")
-        if self._use_sim:  # SO101Sim is built by the provided _connect_arm (ADR-032): image size set here
+        # SO101Sim is built by the provided _connect_arm (ADR-032): image size and seed are set here.
+        if self._use_sim:
             self._robot.camera_width = self._p["camera_width"]
             self._robot.camera_height = self._p["camera_height"]
+            # Two independent streams from one seed: the provided randomize_object() and the box sampler.
+            # SO101Sim only takes a seed in its constructor, which _connect_arm calls without one.
+            sim_seed, box_seed = np.random.SeedSequence(self._p["seed"]).spawn(2)
+            self._robot._rng = np.random.default_rng(sim_seed)
+            self._box_rng = np.random.default_rng(box_seed)
         self._backend_lock = threading.Lock()  # MuJoCo and the serial bus are not thread-safe (ADR-006)
 
         self._obs = self._robot.get_observation()
@@ -99,12 +110,14 @@ class DriverNode(rclpy.node.Node):
             self._camera_thread = threading.Thread(target=self._camera_loop, name="sim_camera", daemon=True)
             self._camera_thread.start()
 
-        if self._use_sim and expose_ground_truth:  # evaluation bench only (ADR-018)
-            self._pub_ground_truth = {
-                key: self.create_publisher(PoseStamped, f"/sim/ground_truth/{key}", 10)
-                for key in GROUND_TRUTH_BODIES
-            }
-            self.create_timer(1.0 / GROUND_TRUTH_RATE_HZ, self._publish_ground_truth)
+        if self._use_sim:  # evaluation tools (ADR-018)
+            self.create_service(Trigger, "/sim/randomize", self._srv_randomize)
+            if expose_ground_truth:
+                self._pub_ground_truth = {
+                    key: self.create_publisher(PoseStamped, f"/sim/ground_truth/{key}", 10)
+                    for key in GROUND_TRUTH_BODIES
+                }
+                self.create_timer(1.0 / GROUND_TRUTH_RATE_HZ, self._publish_ground_truth)
 
         self.get_logger().info("Driver node ready.")
 
@@ -194,6 +207,21 @@ class DriverNode(rclpy.node.Node):
         ]
         msg.effort = self._effort
         self._pub_joint_states.publish(msg)
+
+    def _srv_randomize(self, request, response):
+        """Sim only: new cube pose (provided randomize_object), then a new box position (03 §7).
+
+        The answer carries no pose: ground truth stays out of the pipeline (C-06).
+        """
+        sim = self._robot
+        box = sim.model.body("drop_box").id
+        with self._backend_lock:
+            sim.model.body_pos[box, :2] = PARKED_BOX_XY  # else the cube may settle on a wall
+            sim.randomize_object()
+            sim.model.body_pos[box, :2] = sample_box_xy(self._box_rng, sim.data.body("pickup_object").xpos)
+            mujoco.mj_forward(sim.model, sim.data)
+        response.success, response.message = True, "cube and box moved"
+        return response
 
     def _publish_ground_truth(self):
         """10 Hz, expose_ground_truth only: true cube and box poses, for the evaluation bench (ADR-018)."""

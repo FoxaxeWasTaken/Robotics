@@ -30,6 +30,7 @@ PARAMETER_DEFAULTS = {  # docs/project/01 §3.3
     "max_gripper_velocity": 200.0,
     "camera_width": 320,
     "camera_height": 240,
+    "seed": 0,
     "expose_ground_truth": False,  # tests and bench only (C-06)
 }
 VALUE_FIELD = {
@@ -136,12 +137,19 @@ class TestDriver(unittest.TestCase):
         }
         self.assertEqual(values, PARAMETER_DEFAULTS)
 
-    def test_no_ground_truth_by_default(self):
-        def topics():
-            return [name for name, _ in self.node.get_topic_names_and_types()]
+    def test_sim_tools_by_default_randomize_but_no_ground_truth(self):
+        def names(listing):
+            return [name for name, _ in listing()]
 
-        self.wait_until(lambda: "/external_cam/camera_info" in topics(), STARTUP_TIMEOUT, "not discovered")
-        self.assertFalse([t for t in topics() if "ground_truth" in t])
+        self.wait_until(
+            lambda: (
+                "/sim/randomize" in names(self.node.get_service_names_and_types)
+                and "/external_cam/camera_info" in names(self.node.get_topic_names_and_types)
+            ),
+            STARTUP_TIMEOUT,
+            "driver service and topics not discovered",
+        )
+        self.assertFalse([t for t in names(self.node.get_topic_names_and_types) if "ground_truth" in t])
 
     def test_joint_states_rate_is_at_least_20_hz(self):
         self.wait_for_joint_states()

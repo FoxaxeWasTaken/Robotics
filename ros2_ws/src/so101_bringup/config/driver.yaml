@@ -9,4 +9,5 @@ so101_driver:
     max_gripper_velocity: 200.0 # %/s
     camera_width: 320           # 640 x 480 during calibration (ADR-013)
     camera_height: 240
+    seed: 0                     # /sim/randomize: same seed, same cube and box sequence
     expose_ground_truth: false  # true for the evaluation bench only (C-06)
