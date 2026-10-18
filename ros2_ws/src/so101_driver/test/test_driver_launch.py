@@ -30,6 +30,12 @@ PARAMETER_DEFAULTS = {  # docs/project/01 §3.3
     "max_gripper_velocity": 200.0,
     "camera_width": 320,
     "camera_height": 240,
+    "expose_ground_truth": False,  # tests and bench only (C-06)
+}
+VALUE_FIELD = {
+    ParameterType.PARAMETER_BOOL: "bool_value",
+    ParameterType.PARAMETER_INTEGER: "integer_value",
+    ParameterType.PARAMETER_DOUBLE: "double_value",
 }
 
 
@@ -125,10 +131,17 @@ class TestDriver(unittest.TestCase):
         future = client.call_async(GetParameters.Request(names=list(PARAMETER_DEFAULTS)))
         rclpy.spin_until_future_complete(self.node, future, timeout_sec=5.0)
         values = {
-            name: v.integer_value if v.type == ParameterType.PARAMETER_INTEGER else v.double_value
+            name: getattr(v, VALUE_FIELD[v.type])
             for name, v in zip(PARAMETER_DEFAULTS, future.result().values, strict=True)
         }
         self.assertEqual(values, PARAMETER_DEFAULTS)
+
+    def test_no_ground_truth_by_default(self):
+        def topics():
+            return [name for name, _ in self.node.get_topic_names_and_types()]
+
+        self.wait_until(lambda: "/external_cam/camera_info" in topics(), STARTUP_TIMEOUT, "not discovered")
+        self.assertFalse([t for t in topics() if "ground_truth" in t])
 
     def test_joint_states_rate_is_at_least_20_hz(self):
         self.wait_for_joint_states()
