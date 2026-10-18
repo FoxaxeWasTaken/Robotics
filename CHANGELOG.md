@@ -6,6 +6,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Added
 
+- IK accuracy measured in sim (step 2.3, C-41): `so101_bringup/test/test_ik_accuracy.py`, 20 seeded targets through `/go_to_target`, true TCP from MuJoCo's FK of the measured joints, cube and box placed by a seeded `/sim/randomize` and avoided; mean 0.17 mm, max 0.25 mm (`results/ik_accuracy_sim_2026-10-18.md`); gripper within 3 % at 0/50/100 %.
 - Driver sim tools (step 1.4): `/sim/randomize` moves the cube (provided `randomize_object()`) and the box, drawn by a pure `randomize.py` in a reachable area fully in the camera view, 0.15 m from the cube; `seed` parameter (same seed, same sequence); `expose_ground_truth` (false by default) publishes `/sim/ground_truth/object` and `drop_box` at 10 Hz for the bench. Launch tests for the joint-limit clamp, NaN and size-mismatch commands (1.5a).
 - Driver, rest of stage 1: `/joint_command` clamped to the joint limits and rejected whole on a size mismatch or a NaN/inf, in a pure `command.py` with property tests (1.1a); rates, speed limits and image size as read-only ROS parameters with ranges, values in `so101_bringup/config/driver.yaml` (1.1b); `/external_cam/camera_info` with the image's header, `frame_id` = `external_cam_optical_frame` (1.3a); normalized effort in `/joint_states`, gripper positive when squeezing (1.3b, MES-35).
 - `perception` service in `docker-compose.yml` (C-02), on the same DDS domain and transport as `control`; idle until step 3.1. `docker compose up -d control perception viz` now matches the brief, and the E2E and nightly jobs can start the stack.
@@ -32,5 +33,6 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Fixed
 
+- Driver and brain: timers and motion time on the steady clock. On WSL2 the system clock steps back ~2.6 s every 30 s: `/joint_states` stopped and motions froze for 2.6 s at each step; largest `/joint_states` gap now 37 ms [MES-37].
 - Control container shutdown: SIGINT goes to `ros2 launch` only, which forwards one to each node; signalling the whole process group gave each node a second SIGINT that interrupted `destroy_node()` (traceback on every `docker compose stop`).
 - Driver: SIGINT or SIGTERM while a timer callback publishes no longer ends in a traceback and exit code 1 (seen once in 40 SIGTERM stops).
