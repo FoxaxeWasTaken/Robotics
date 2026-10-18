@@ -93,8 +93,8 @@ git fetch upstream && git switch -c chore/sync-upstream && git merge upstream/ma
 
 All planned work lives in **one GitHub Project** (board + backlog) linked to this repository. Setup, fields, views and automations: `docs/project/15` §12.
 
-- **One ticket = one PR** (a few hours to two days). Bigger? Split it. Tickets are grouped under one **epic per roadmap stage** (sub-issues; *phase 1 / phase 2* are the brief's parts, `docs/project/12`) and carry the roadmap step in their title: `[1.3a] Publish camera_info and use the optical frame`.
-- **Statuses**: Backlog → **Ready** → In progress → In review → Done. At most **two tickets In progress per person**.
+- **One ticket = a few hours to two days of work**. Bigger? Split it. A PR closes one ticket or a **group of related tickets** (same files or same roadmap step: fewer conflicts and re-reviews), with one commit and one `Closes #<n>` line per ticket. Tickets are grouped under one **epic per roadmap stage** (sub-issues; *phase 1 / phase 2* are the brief's parts, `docs/project/12`) and carry the roadmap step in their title: `[1.3a] Publish camera_info and use the optical frame`.
+- **Statuses**: Backlog → **Ready** → In progress → In review → Done. At most **five tickets In progress per person**.
 - **Fields**: Lane (A, B, C, Shared, `docs/project/09` §1.2), Priority (P0 critical path · P1 needed for the final defense · P2 optional), Size (XS < 2 h · S ≤ ½ day · M ≤ 1 day · L ≤ 2–3 days). Dependencies use GitHub's native **blocked by** relationship, not labels.
 - **Labels**: `task`, `bug`, `epic`, `safety` (moves the real arm: [SAFE] review, sim first, `docs/project/07` §7), `staff-question`, and one or more `area:*`.
 

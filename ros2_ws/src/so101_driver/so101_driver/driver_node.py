@@ -20,27 +20,36 @@ import rclpy
 import rclpy.node
 from cv_bridge import CvBridge
 from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig
+from rcl_interfaces.msg import FloatingPointRange, IntegerRange, ParameterDescriptor
 from rclpy.executors import ExternalShutdownException
-from sensor_msgs.msg import Image, JointState
+from sensor_msgs.msg import CameraInfo, Image, JointState
 from so101_sim import SO101Sim
 
-from so101_common.robot import ARM_JOINT_NAMES, JOINT_NAMES, pct_to_rad
+from so101_common.robot import ARM_JOINT_NAMES, CAMERA_FRAME, JOINT_NAMES, pct_to_rad
+from so101_driver.command import apply_command
+from so101_driver.effort import normalized_effort
 from so101_driver.limiter import step_towards
 
 # Calibration file of the real arm, mounted by docker compose (CALIBRATION_FILE in docker/.env).
 CALIBRATION_FILE = Path("/calibration/arm.json")
 DEFAULT_PORT = "/dev/ttyACM0"
 
-CONTROL_HZ = 50.0
-JOINT_STATE_HZ = 30.0
-CAMERA_HZ = 10.0
+# Startup-only parameters (docs/project/01 §3.3), values in so101_bringup/config/driver.yaml:
+# name: (default, description, min, max). The image size is bounded by the scene's offscreen buffer.
+PARAMETERS = {
+    "control_rate_hz": (50.0, "Control tick: speed limiter, send_action, get_observation", 10.0, 100.0),
+    "joint_state_rate_hz": (30.0, "/joint_states publication (>= 20 Hz imposed, C-11)", 20.0, 100.0),
+    "camera_rate_hz": (10.0, "Sim camera /external_cam/image_raw", 1.0, 30.0),
+    "max_joint_velocity": (1.5, "Speed limiter, arm joints, rad/s (ADR-023)", 0.05, 3.0),
+    "max_gripper_velocity": (200.0, "Speed limiter, gripper, %/s (ADR-023)", 10.0, 1000.0),
+    "camera_width": (320, "Sim camera width, px (640 for calibration, ADR-013)", 16, 1280),
+    "camera_height": (240, "Sim camera height, px (480 for calibration, ADR-013)", 16, 720),
+}
 
 # OSMesa's llvmpipe renders with one thread per core by default; they starve the 50 Hz control tick
 # (p99 up to 25.4 ms). Half the cores keep it at 20.4 ms with the image at 10 Hz [MES-34]. A value set in the
 # environment wins. Set at import, before any thread exists: setenv is not thread-safe.
 os.environ.setdefault("LP_NUM_THREADS", str(max(1, (os.cpu_count() or 2) // 2)))
-MAX_JOINT_VELOCITY = 1.5  # rad/s, speed limiter (ADR-023); becomes a parameter at step 1.1
-MAX_GRIPPER_VELOCITY = 200.0  # %/s
 
 
 class DriverNode(rclpy.node.Node):
@@ -52,22 +61,28 @@ class DriverNode(rclpy.node.Node):
         port: str = self.declare_parameter("port", DEFAULT_PORT).value
         mode = "simulation" if self._use_sim else "hardware"
         self.get_logger().info(f"Mode: {mode} (port={port})")
+        self._p = {name: self._declare(name, *spec) for name, spec in PARAMETERS.items()}
 
         self._robot = self._connect_arm(port)
         self.get_logger().info(f"Robot connected: {type(self._robot).__name__}")
+        if self._use_sim:  # SO101Sim is built by the provided _connect_arm (ADR-032): image size set here
+            self._robot.camera_width = self._p["camera_width"]
+            self._robot.camera_height = self._p["camera_height"]
         self._backend_lock = threading.Lock()  # MuJoCo and the serial bus are not thread-safe (ADR-006)
 
         self._obs = self._robot.get_observation()
         self._obs_stamp = self.get_clock().now().to_msg()  # /joint_states stamp = read time (03 §5)
+        self._effort = []  # normalized load per joint; empty on the real arm until 6.4a
         self._goal = {name: self._obs[f"{name}.pos"] for name in JOINT_NAMES}  # startup pose: no jump to 0
         self._setpoint = dict(self._goal)
 
         self._pub_joint_states = self.create_publisher(JointState, "/joint_states", 10)
         self.create_subscription(JointState, "/joint_command", self._cb_joint_command, 10)
-        self.create_timer(1.0 / CONTROL_HZ, self._control_step)
-        self.create_timer(1.0 / JOINT_STATE_HZ, self._publish_joint_states)
+        self.create_timer(1.0 / self._p["control_rate_hz"], self._control_step)
+        self.create_timer(1.0 / self._p["joint_state_rate_hz"], self._publish_joint_states)
 
         self._pub_image = self.create_publisher(Image, "/external_cam/image_raw", 2)
+        self._pub_camera_info = self.create_publisher(CameraInfo, "/external_cam/camera_info", 2)
         self._stop_camera = threading.Event()
         self._camera_thread = None
         if self._use_sim:  # the real camera comes at 6.2a
@@ -75,6 +90,15 @@ class DriverNode(rclpy.node.Node):
             self._camera_thread.start()
 
         self.get_logger().info("Driver node ready.")
+
+    def _declare(self, name, default, description, low, high):
+        """Declares a read-only parameter with its range; an out-of-range value stops the node at startup."""
+        if isinstance(default, int):
+            limits = {"integer_range": [IntegerRange(from_value=low, to_value=high, step=1)]}
+        else:
+            limits = {"floating_point_range": [FloatingPointRange(from_value=low, to_value=high)]}
+        descriptor = ParameterDescriptor(description=description, read_only=True, **limits)
+        return self.declare_parameter(name, default, descriptor).value
 
     def _connect_arm(self, port: str = DEFAULT_PORT) -> SO101Sim | SO101Follower:
         """Creates and connects the backend chosen by use_sim (provided)."""
@@ -121,26 +145,25 @@ class DriverNode(rclpy.node.Node):
         super().destroy_node()
 
     def _cb_joint_command(self, msg: JointState):
-        """Stores the goal only (the control timer applies it). No name = JOINT_NAMES order."""
-        names = list(msg.name) or list(JOINT_NAMES)
-        if len(names) != len(msg.position):
-            self.get_logger().warning(
-                f"/joint_command ignored: {len(names)} names, {len(msg.position)} positions",
-                throttle_duration_sec=1.0,
-            )
-            return
-        for name, value in zip(names, msg.position, strict=True):
-            if name in self._goal:  # unknown names are ignored; other joints keep their goal
-                self._goal[name] = float(value)
+        """Stores the goal only (the control timer applies it): clamped, or unchanged if rejected (03 §4)."""
+        self._goal, reason = apply_command(self._goal, msg.name, msg.position)
+        if reason:
+            self.get_logger().warning(f"/joint_command rejected: {reason}", throttle_duration_sec=1.0)
 
     def _control_step(self):
         """50 Hz: setpoint towards the goal (speed limiter), send it, read the state back."""
         self._setpoint = step_towards(
-            self._setpoint, self._goal, 1.0 / CONTROL_HZ, MAX_JOINT_VELOCITY, MAX_GRIPPER_VELOCITY
+            self._setpoint,
+            self._goal,
+            1.0 / self._p["control_rate_hz"],
+            self._p["max_joint_velocity"],
+            self._p["max_gripper_velocity"],
         )
         with self._backend_lock:
             self._robot.send_action({f"{name}.pos": value for name, value in self._setpoint.items()})
             self._obs = self._robot.get_observation()
+            if self._use_sim:
+                self._effort = normalized_effort(self._robot.model, self._robot.data, JOINT_NAMES)
         self._obs_stamp = self.get_clock().now().to_msg()
 
     def _publish_joint_states(self):
@@ -152,6 +175,7 @@ class DriverNode(rclpy.node.Node):
             *(self._obs[f"{name}.pos"] for name in ARM_JOINT_NAMES),
             pct_to_rad(self._obs["gripper.pos"]),
         ]
+        msg.effort = self._effort
         self._pub_joint_states.publish(msg)
 
     def _camera_loop(self):
@@ -164,25 +188,39 @@ class DriverNode(rclpy.node.Node):
         # Created here: its OpenGL context is bound to this thread.
         renderer = mujoco.Renderer(sim.model, height=sim.camera_height, width=sim.camera_width)
         bridge = CvBridge()
+        info = camera_info(sim.get_camera_intrinsics(), sim.camera_width, sim.camera_height)
         next_frame = time.monotonic()
         try:
             while not self._stop_camera.wait(max(0.0, next_frame - time.monotonic())):
                 # A late frame shifts the schedule: no catch-up burst.
-                next_frame = max(next_frame + 1.0 / CAMERA_HZ, time.monotonic())
+                next_frame = max(next_frame + 1.0 / self._p["camera_rate_hz"], time.monotonic())
                 with self._backend_lock:
                     mujoco.mj_copyData(state, sim.model, sim.data)
                 stamp = self.get_clock().now().to_msg()  # image stamp = copy time, like /joint_states
                 renderer.update_scene(state, camera=sim.camera_name)
                 msg = bridge.cv2_to_imgmsg(renderer.render(), encoding="rgb8")
                 msg.header.stamp = stamp
+                msg.header.frame_id = CAMERA_FRAME
+                info.header = msg.header  # same stamp and frame_id: perception pairs them (C-13)
                 try:
                     self._pub_image.publish(msg)
+                    self._pub_camera_info.publish(info)
                 except Exception:
                     if rclpy.ok():
                         raise
                     break  # SIGINT/SIGTERM shut the context down during the render: stop quietly
         finally:
             renderer.close()
+
+
+def camera_info(K, width: int, height: int) -> CameraInfo:
+    """CameraInfo of an ideal pinhole camera (sim): K, no distortion, P = [K | 0] (docs/project/03 §6)."""
+    info = CameraInfo(width=width, height=height, distortion_model="plumb_bob")
+    info.k = [float(v) for v in K.flatten()]
+    info.d = [0.0] * 5
+    info.r = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+    info.p = [*info.k[0:3], 0.0, *info.k[3:6], 0.0, *info.k[6:9], 0.0]
+    return info
 
 
 def main(args=None):

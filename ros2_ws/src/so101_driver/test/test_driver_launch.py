@@ -10,11 +10,28 @@ import launch_testing.actions
 import launch_testing.asserts
 import pytest
 import rclpy
-from sensor_msgs.msg import Image, JointState
+from rcl_interfaces.msg import ParameterType
+from rcl_interfaces.srv import GetParameters
+from sensor_msgs.msg import CameraInfo, Image, JointState
 
 STARTUP_TIMEOUT = 30.0  # s: MuJoCo loads the scene before the first message
 ARM = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")  # URDF order, by hand
 CLOSED, OPEN = -0.174533, 1.74533  # URDF gripper limits (rad): 0 % and 100 %
+CAMERA_FRAME = "external_cam_optical_frame"  # so101_common, by hand
+K_320X240 = [246.036, 0.0, 160.0, 0.0, 246.036, 120.0, 0.0, 0.0, 1.0]  # fovy of external_cam in the scene
+PARAMETER_DEFAULTS = {  # docs/project/01 §3.3
+    "control_rate_hz": 50.0,
+    "joint_state_rate_hz": 30.0,
+    "camera_rate_hz": 10.0,
+    "max_joint_velocity": 1.5,
+    "max_gripper_velocity": 200.0,
+    "camera_width": 320,
+    "camera_height": 240,
+}
+
+
+def header_key(msg):
+    return msg.header.stamp.sec, msg.header.stamp.nanosec, msg.header.frame_id
 
 
 @pytest.mark.launch_test
@@ -34,6 +51,8 @@ class TestDriver(unittest.TestCase):
         cls.node.create_subscription(JointState, "/joint_states", cls.msgs.append, 10)
         cls.images = []
         cls.node.create_subscription(Image, "/external_cam/image_raw", cls.images.append, 10)
+        cls.infos = []
+        cls.node.create_subscription(CameraInfo, "/external_cam/camera_info", cls.infos.append, 10)
         cls.pub = cls.node.create_publisher(JointState, "/joint_command", 10)
 
     @classmethod
@@ -63,6 +82,17 @@ class TestDriver(unittest.TestCase):
                 return t0 + (level - p0) / (p1 - p0) * (t1 - t0)
         raise AssertionError(f"position {level:.3f} never reached")
 
+    def test_parameters_are_declared_with_their_defaults(self):
+        client = self.node.create_client(GetParameters, "/so101_driver/get_parameters")
+        self.assertTrue(client.wait_for_service(timeout_sec=STARTUP_TIMEOUT), "/so101_driver not started")
+        future = client.call_async(GetParameters.Request(names=list(PARAMETER_DEFAULTS)))
+        rclpy.spin_until_future_complete(self.node, future, timeout_sec=5.0)
+        values = {
+            name: v.integer_value if v.type == ParameterType.PARAMETER_INTEGER else v.double_value
+            for name, v in zip(PARAMETER_DEFAULTS, future.result().values, strict=True)
+        }
+        self.assertEqual(values, PARAMETER_DEFAULTS)
+
     def test_joint_states_rate_is_at_least_20_hz(self):
         self.wait_for_joint_states()
         start = len(self.msgs)
@@ -71,6 +101,9 @@ class TestDriver(unittest.TestCase):
         rate = (len(stamps) - 1) / (stamps[-1] - stamps[0])
         print(f"/joint_states rate: {rate:.1f} Hz")
         self.assertGreaterEqual(rate, 20.0)
+        effort = self.msgs[-1].effort  # normalized load, same order as name (03 §5)
+        self.assertEqual(len(effort), 6)
+        self.assertTrue(all(-1.0 <= e <= 1.0 for e in effort))
 
     def test_partial_command_moves_only_the_named_joint(self):
         self.wait_for_joint_states()
@@ -120,10 +153,31 @@ class TestDriver(unittest.TestCase):
         print(f"/external_cam/image_raw rate: {rate:.1f} Hz (target 10)")
         last = self.images[-1]
         self.assertEqual((last.encoding, last.width, last.height), ("rgb8", 320, 240))
+        self.assertEqual(last.header.frame_id, CAMERA_FRAME)
         self.assertEqual(len(last.data), 320 * 240 * 3)
         # Alive and periodic, not a performance check: 10 Hz on a developer machine, 4.9 Hz on the
         # 4-vCPU CI runner (2 render threads, coverage on) [MES-34]; a period bug would give 1 Hz.
         self.assertGreaterEqual(rate, 3.0)
+
+    def test_camera_info_shares_the_header_of_each_image(self):
+        self.wait_for_joint_states()
+        self.spin_for(3.0)  # the first frames render slower (OpenGL start-up) [MES-34]
+        start = len(self.infos)
+        self.spin_for(3.0)
+        infos = self.infos[start:]
+        self.assertGreater(len(infos), 2, "no /external_cam/camera_info received")
+        image_headers = {header_key(m) for m in self.images}
+        for info in infos[:-1]:  # the image of the last one may still be in flight
+            self.assertIn(header_key(info), image_headers)
+        info = infos[-1]
+        self.assertEqual(info.header.frame_id, CAMERA_FRAME)
+        self.assertEqual((info.width, info.height, info.distortion_model), (320, 240, "plumb_bob"))
+        for got, expected in zip(info.k, K_320X240, strict=True):
+            self.assertAlmostEqual(got, expected, delta=0.01)
+        self.assertEqual(list(info.d), [0.0] * 5)
+        self.assertEqual(list(info.r), [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0])
+        k = list(info.k)
+        self.assertEqual(list(info.p), [*k[0:3], 0.0, *k[3:6], 0.0, *k[6:9], 0.0])
 
 
 @launch_testing.post_shutdown_test()

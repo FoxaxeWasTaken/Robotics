@@ -6,6 +6,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Added
 
+- Driver, rest of stage 1: `/joint_command` clamped to the joint limits and rejected whole on a size mismatch or a NaN/inf, in a pure `command.py` with property tests (1.1a); rates, speed limits and image size as read-only ROS parameters with ranges, values in `so101_bringup/config/driver.yaml` (1.1b); `/external_cam/camera_info` with the image's header, `frame_id` = `external_cam_optical_frame` (1.3a); normalized effort in `/joint_states`, gripper positive when squeezing (1.3b, MES-35).
 - `perception` service in `docker-compose.yml` (C-02), on the same DDS domain and transport as `control`; idle until step 3.1. `docker compose up -d control perception viz` now matches the brief, and the E2E and nightly jobs can start the stack.
 - Brain motion (stage 2): FK/IK in a pure `kinematics.py` (ikpy behind a façade, seeds clipped into the bounds, fallback seeds for targets past the pan range, MES-36), `/end_effector_pose` at 30 Hz, min-jerk `trajectory.py`, and `/go_to_target` answering at once then streaming the trajectory at 50 Hz (`motion.*` parameters in `brain.yaml`); FK checked against MuJoCo (0.0033 mm).
 - `so101_bringup` (step 0.3): `sim.launch.py` starts the driver and the brain (`use_sim` and `port` forwarded), parameter files in `config/`, and the RViz file moved to `rviz/so101.rviz`; the control container starts it. A `launch_testing` test checks both nodes and the forwarded arguments.
@@ -19,6 +20,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Changed
 
+- Contributing: a PR may group related tickets (same files or same roadmap step), with one commit and one `Closes #` line per ticket; WIP limit raised from 2 to 5 tickets In progress per person (AGENTS.md, CONTRIBUTING, PR template, `15` §12).
 - CI: nothing runs on the school copy, Dependabot PRs included: the Dependabot exception of `ci.yml` and `pr-title.yml` is limited to this repository.
 - CI: the control job tests the packages one at a time (`--executor sequential`); in parallel, CPU-heavy unit tests starved the driver's camera rate test.
 - Docs: the teaching-staff answers of 2026-10-16 are recorded (project README, `phase2/P2-03` §4) and applied to ADR-002, 013, 018, 031, 033, 036 and 038, `00`, `05` §6, `07` §3.1, `09`, `10` and `P2-02`; roadmap steps 5.3 (release v1.0.0) and 5.4 (robustness demo of the five [BOOT2 p12] cases, asked by the staff).

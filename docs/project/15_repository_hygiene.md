@@ -261,7 +261,7 @@ git remote add origin git@github.com:<you>/<private-repo>.git && git push -u ori
 ```mermaid
 flowchart LR
   R["Roadmap docs/project/09<br/>9 stages, 35 steps"] --> E["9 epics<br/>one per stage, label epic"]
-  E --> T["Tickets as sub-issues<br/>one PR each, title starts with the step ID"]
+  E --> T["Tickets as sub-issues<br/>closed by a PR, alone or grouped<br/>title starts with the step ID"]
   T --> B["Project board<br/>Status, Lane, Priority, Size"]
   T -->|"Closes #N in the PR"| P["Pull request"]
   P -->|"squash merge"| D["Ticket Done"]
@@ -271,7 +271,7 @@ flowchart LR
 | Item | Convention |
 | --- | --- |
 | Epic | One issue per roadmap stage (label `epic`); tickets are its **sub-issues** (automatic progress bar) |
-| Ticket | One PR, ≤ L; title `[<step><letter>] <imperative summary>`, e.g. `[3.4b] Extrinsic calibration tool`; body = *Task* form (CONTRIBUTING §8) |
+| Ticket | ≤ L; closed by a PR, alone or grouped with related tickets (one commit and one `Closes #` each); title `[<step><letter>] <imperative summary>`, e.g. `[3.4b] Extrinsic calibration tool`; body = *Task* form (CONTRIBUTING §8) |
 | Dependencies | Native **blocked by** relationship (Issue → Relationships), never a label |
 | Milestones | The functional SemVer versions of §6 (`v0.1.0 — Foundations and driver` … `v2.0.0 — Phase 2 and final defense`), **no due date** (the plan follows logic, not dates, `09`) |
 | Labels | `task`, `bug`, `epic`, `safety`, `staff-question`, `area:infra` `area:ci` `area:bringup` `area:driver` `area:kinematics` `area:perception` `area:brain` `area:eval` `area:docs` |
@@ -287,7 +287,7 @@ flowchart LR
 
 | View | Layout | Setup |
 | --- | --- | --- |
-| Board | Board by Status | Filter `-label:epic`; WIP limit 2 per person, checked in the sync |
+| Board | Board by Status | Filter `-label:epic`; WIP limit 5 per person, checked in the sync |
 | Backlog | Table grouped by **Parent issue** | Sorted by Priority; columns Lane, Size, Milestone, Assignees |
 | My work | Board | Filter `assignee:@me -status:Done` |
 | Lanes | Board by Lane | Filter `-status:Done`: who is blocked, who is overloaded |
