@@ -23,7 +23,7 @@ ros2 node list ; ros2 topic list ; ros2 topic hz /joint_states
 ros2 topic info -v /external_cam/image_raw     # QoS of publishers and subscribers
 ros2 topic echo --once /object_position
 ros2 service call /brain/start std_srvs/srv/Trigger    # once the FSM exists (step 4.2)
-ros2 service call /sim/randomize std_srvs/srv/Trigger  # once implemented (step 1.4)
+ros2 service call /sim/randomize std_srvs/srv/Trigger  # sim: new cube and box positions
 rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz
 
 # Manual commands
