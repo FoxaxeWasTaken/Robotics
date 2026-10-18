@@ -12,13 +12,13 @@
 | `use_sim` backend, provided `_connect_arm` (explicit failure on calibration mismatch) | ✅ provided | ✅ | — |
 | Upstream #2: `disable_torque()` right after connecting (limp arm, commands ignored) | Active, as the course ships it: the real arm can be read, not moved | Commented out | Comment it out at 6.1a, once the clamp (1.1a) and the real-arm speed (1.1b) exist (ADR-032, `07` §2); uncomment to move the arm by hand (`07` §3.2, test 1) |
 | Partial commands by name; empty name list = `JOINT_NAMES` order | ✅ (step 1.0) | ✅ | 1.0 |
-| Speed limiter (1.5 rad/s; gripper 200 %/s) | ✅ constants (`limiter.py`) | ✅ | 1.0, then a parameter (1.1) |
+| Speed limiter (1.5 rad/s; gripper 200 %/s) | ✅ `limiter.py`; parameters since step 1.1 | ✅ | 1.0, 1.1 |
 | `/joint_states` ≥ 20 Hz, gripper in rad, stamp = read time | ✅ 30.0 Hz (step 1.0) | ✅ 30.0 Hz (9 Hz before the camera fix) | 1.0 |
 | Sim camera: dedicated thread, render on a copy, backend lock | ✅ (step 1.2): 10 Hz, control p99 20.4 ms [MES-34] | ✅ (ADR-006) | 1.2 |
-| **Clamping to joint limits** (C-15): MuJoCo clamps via `ctrlrange` in sim, **nothing protects the real arm** | ❌ | ✅ in the working copy | 1.1 |
-| NaN/inf rejection | ❌ | ✅ in the working copy | 1.1 |
-| `effort` (grasp detection, ADR-016) | ❌ | ❌ | 1.3 |
-| `/external_cam/camera_info` (C-13); `frame_id` = optical frame (ADR-005) | ❌ | ❌ (`frame_id = "external_cam"`) | 1.3 |
+| **Clamping to joint limits** (C-15): MuJoCo clamps via `ctrlrange` in sim, nothing else would protect the real arm | ✅ `command.py` (step 1.1) | ✅ in the working copy | 1.1 |
+| NaN/inf rejection | ✅ `command.py` (step 1.1) | ✅ in the working copy | 1.1 |
+| `effort` (grasp detection, ADR-016) | ✅ sim, `effort.py` (step 1.3); real: empty until 6.4a | ❌ | 1.3 |
+| `/external_cam/camera_info` (C-13); `frame_id` = optical frame (ADR-005) | ✅ (step 1.3) | ❌ (`frame_id = "external_cam"`) | 1.3 |
 | Real-arm shutdown: `disconnect()` cuts the torque, the arm falls | ⚠ provided `destroy_node` | ⚠ | `PARK` first (§8, 6.1) |
 | Real camera, `/sim/randomize`, `max_relative_target` | ❌ | ❌ | Later stages (ADR-007, 018, 023) |
 
@@ -124,9 +124,9 @@ on_joint_command(msg):
     if len(names) != len(msg.position) → reject (throttled warning)
     for (name, value):
         unknown name → ignore
-        non-finite value (NaN/inf) → reject the whole message            [to add]
+        non-finite value (NaN/inf) → reject the whole message
         "gripper": value = clamp(value, 0, 100)                         # %
-        others:    value = clamp(value, lim_min[name], lim_max[name])  # rad, URDF limits   [to add]
+        others:    value = clamp(value, lim_min[name], lim_max[name])  # rad, URDF limits
     goal.update(valid pairs)     # PARTIAL COMMAND: other joints keep their goal
 ```
 
@@ -151,7 +151,7 @@ on_joint_command(msg):
 | `name` | `[shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll, gripper]` (exact URDF names, otherwise RViz shows the arm "in pieces") |
 | `position` | rad; gripper converted % → rad: `rad = lo + pct/100·(hi − lo)`, `(lo, hi) = (−0.174533, 1.74533)` — what `robot_state_publisher` expects |
 | `velocity` | Optional (filtered finite difference) or empty |
-| `effort` | **Normalized load in [−1, 1]** (fraction of max torque). Sim: `actuator_force / forcerange`; real: `Present_Load / 1000`. Used for grasp detection (ADR-016). Deliberate deviation from REP-103 (N·m): hobby-servo load is not a calibrated torque |
+| `effort` | **Normalized load in [−1, 1]** (fraction of max torque). Sim: `actuator_force / forcerange` (`effort.py`); real: `Present_Load / 1000` (6.4a, empty until then). Sign: positive towards larger angles, except the **gripper: positive = squeezing** (it closes towards smaller angles), so holding the cube reads 0.18 and an empty grasp 0 [MES-35]. Used for grasp detection (ADR-016). Deliberate deviation from REP-103 (N·m): hobby-servo load is not a calibrated torque |
 
 The brain recovers the gripper percentage with the inverse conversion from `so101_common`.
 

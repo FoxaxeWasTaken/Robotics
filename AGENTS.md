@@ -31,7 +31,7 @@ bash tools/ci/guards.sh           # host, repo root (needs the git repo): projec
 
 ## Conventions
 
-- Conventional commits `feat(driver): …`, PR title in the same format (it becomes the squash commit); branch `<type>/<issue#>-<topic>`; types and scopes: CONTRIBUTING §2.1. PR body `Closes #<issue#>`; one PR per ticket.
+- Conventional commits `feat(driver): …`, PR title in the same format (it becomes the squash commit); branch `<type>/<issue#>-<topic>`; types and scopes: CONTRIBUTING §2.1. PR body: one `Closes #<issue#>` line per ticket; a PR may group related tickets (same files or same roadmap step), one commit per ticket.
 - Units: rad everywhere; gripper in % (0–100) only in `/joint_command`.
 - Logic in pure modules with pytest tests; ROS callbacks only store messages, no `sleep` inside.
 - Interface contract (topics, QoS, frames): `docs/project/01` §3. Changing it needs both owners' approval.

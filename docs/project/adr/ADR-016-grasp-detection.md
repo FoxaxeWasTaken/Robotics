@@ -32,3 +32,7 @@ The driver publishes the **normalized effort** in `JointState.effort` ([−1, 1]
 ## Reconsider if
 
 The real signal does not separate the cases: rely on visual verification only, or add a sensor.
+
+## Update (2026-10-17, step 1.3)
+
+Sign convention: the driver reports the gripper effort as its **closing force** (MuJoCo's raw value is negative when squeezing), so the brain keeps `effort > grasp.effort_threshold`. Measured in the team driver [MES-35]: 0.184 holding the cube, −0.001 empty; with the cube not turned to its tunnel, only 0.053, below the 0.06 threshold: the grasp planner must align the jaws with a tunnel.

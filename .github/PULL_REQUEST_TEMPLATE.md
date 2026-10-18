@@ -1,6 +1,6 @@
 ## What and why
 
-<!-- One to three sentences. Keep the line below: it links the PR to its ticket and moves it to Done on merge. -->
+<!-- One to three sentences. Keep one line below per ticket (a PR may group related tickets): it links the PR to the ticket and moves it to Done on merge. -->
 
 Closes #
 
