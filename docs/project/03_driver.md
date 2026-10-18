@@ -166,8 +166,12 @@ The brain recovers the gripper percentage with the inverse conversion from `so10
 
 ## 7. Sim-only services and test parameters
 
-- `/sim/randomize` (`std_srvs/Trigger`): under the lock, calls `randomize_object()` then moves the box by changing `model.body_pos` of the `drop_box` body within a reachable area not overlapping the cube, then `mj_forward`. Required for C-42 (ADR-018).
-- `expose_ground_truth` (**`false` by default**): when `true`, publishes `/sim/ground_truth/object` and `/sim/ground_truth/drop_box`. **Evaluation bench only**, never read by brain or perception (C-06, CI grep).
+- `/sim/randomize` (`std_srvs/Trigger`, step 1.4): under the lock, parks the box out of the way, calls `randomize_object()` (the cube settles for 200 steps, it could otherwise land on a wall), then moves the box by changing `model.body_pos` of the `drop_box` body, then `mj_forward`. The answer carries **no pose**. Required for C-42 (ADR-018). The box center is drawn by `randomize.py`:
+  - in r = 0.18–0.30 m from the `base_link` origin, azimuth −90° to −10°: reachable at drop height (`04` §4) and the **whole box in the camera view** with a 5 px margin. Positive azimuths lie close to the camera, where the bottom edge of the image cuts the box. `test_sim_tools.py` projects the box corners with the scene's camera: moving the sim camera (`05` §6) means re-checking this area;
+  - at least **0.15 m** from the cube center: box half-diagonal 7.4 cm + cube half-diagonal 3.5 cm + 4 cm for the open jaw grasping the cube next to a wall;
+  - position only: the box stays axis-aligned (it is square).
+- `seed` (int, default `0`): one seed, two independent streams (`numpy.random.SeedSequence`): the provided `randomize_object()` (set on `SO101Sim` after `_connect_arm`, which takes no seed) and the box sampler. Same seed, same sequence of `/sim/randomize` calls. The cube pose at startup stays unseeded (drawn inside `connect()`).
+- `expose_ground_truth` (**`false` by default**): when `true`, publishes `/sim/ground_truth/object` and `/sim/ground_truth/drop_box` (`PoseStamped`, 10 Hz, `base_link`, stamped at read time). The MuJoCo world is `base_link`: the robot base sits at the scene origin with no rotation (`test_sim_tools.py`). **Evaluation bench only**, never read by brain or perception (C-06, CI grep).
 - `scene_path`: loads one of our scenes (calibration scene with ArUco markers, ADR-013; Connect Four scene, ADR-036) without modifying `sim/`: right after the provided `_connect_arm`, the driver reconnects `SO101Sim` with that scene (ADR-036).
 
 ## 8. Lifecycle and shutdown

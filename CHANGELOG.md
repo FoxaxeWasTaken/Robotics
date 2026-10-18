@@ -6,6 +6,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Added
 
+- Driver sim tools (step 1.4): `/sim/randomize` moves the cube (provided `randomize_object()`) and the box, drawn by a pure `randomize.py` in a reachable area fully in the camera view, 0.15 m from the cube; `seed` parameter (same seed, same sequence); `expose_ground_truth` (false by default) publishes `/sim/ground_truth/object` and `drop_box` at 10 Hz for the bench. Launch tests for the joint-limit clamp, NaN and size-mismatch commands (1.5a).
 - Driver, rest of stage 1: `/joint_command` clamped to the joint limits and rejected whole on a size mismatch or a NaN/inf, in a pure `command.py` with property tests (1.1a); rates, speed limits and image size as read-only ROS parameters with ranges, values in `so101_bringup/config/driver.yaml` (1.1b); `/external_cam/camera_info` with the image's header, `frame_id` = `external_cam_optical_frame` (1.3a); normalized effort in `/joint_states`, gripper positive when squeezing (1.3b, MES-35).
 - `perception` service in `docker-compose.yml` (C-02), on the same DDS domain and transport as `control`; idle until step 3.1. `docker compose up -d control perception viz` now matches the brief, and the E2E and nightly jobs can start the stack.
 - `so101_bringup` (step 0.3): `sim.launch.py` starts the driver and the brain (`use_sim` and `port` forwarded), parameter files in `config/`, and the RViz file moved to `rviz/so101.rviz`; the control container starts it. A `launch_testing` test checks both nodes and the forwarded arguments.
