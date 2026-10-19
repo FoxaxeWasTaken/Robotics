@@ -20,4 +20,4 @@ def test_every_timer_runs_on_the_steady_clock():
             node.destroy_node()
     finally:
         rclpy.shutdown()
-    assert clocks == [ClockType.STEADY_TIME] * 2  # /end_effector_pose, trajectory stream
+    assert clocks == [ClockType.STEADY_TIME] * 3  # /end_effector_pose, FSM tick and stream, /brain_state

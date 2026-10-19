@@ -17,6 +17,7 @@ from ament_index_python.packages import get_package_share_directory
 from so101_sim import SO101Sim
 
 from so101_brain.brain_node import MIN_MOTION_DURATION, TIMEOUT_MARGIN
+from so101_brain.fsm import Params
 from so101_brain.grasp_planner import GraspPlanner
 from so101_brain.kinematics import Kinematics
 from so101_brain.trajectory import min_jerk
@@ -92,6 +93,26 @@ def reset(sim, box_rng):
 def cube_yaw(sim):
     w, x, y, z = sim.data.body("pickup_object").xquat
     return float(np.arctan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z)))
+
+
+def arm_self_contacts(sim):
+    """Pairs of arm bodies touching each other (the base included)."""
+    arm = {
+        sim.model.body(name).id for name in ("base", "shoulder", "upper_arm", "lower_arm", "wrist", "gripper")
+    }
+    bodies = [sim.model.geom_bodyid[[c.geom1, c.geom2]] for c in sim.data.contact[: sim.data.ncon]]
+    return {tuple(sorted(sim.model.body(b).name for b in pair)) for pair in bodies if set(pair) <= arm}
+
+
+def test_the_park_pose_is_reached_without_self_contact():
+    """WAIT_TARGET and HOME end in PARK (06 §3.1): reached within reach_tol, the arm not pushing on itself."""
+    park = BRAIN["fsm"]["park_pose"]
+    assert tuple(park) == Params().park_pose  # the node's default is the deployed value
+    sim = SO101Sim()
+    sim.connect()
+    arm = Arm(sim)
+    assert arm.move(np.array(park)), f"PARK not reached: {np.round(arm.q() - park, 4)}"
+    assert not arm_self_contacts(sim)
 
 
 def test_40_seeded_episodes_put_the_cube_in_the_box():
