@@ -12,7 +12,12 @@ setup(
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
         ("share/" + package_name + "/launch", glob("launch/*.launch.py")),
+        ("share/" + package_name + "/config", glob("config/*.yaml")),
     ],
+    zip_safe=True,
+    tests_require=["pytest"],
+    description="Cube and drop-box detection in the external camera, pixel -> 3D in base_link.",
+    license="Apache-2.0",
     entry_points={
         "console_scripts": [
             "perception = so101_perception.perception_node:main",

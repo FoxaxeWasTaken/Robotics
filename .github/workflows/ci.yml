@@ -76,7 +76,8 @@ jobs:
             colcon build --symlink-install --packages-skip so101_perception --event-handlers console_cohesion+ &&
             ament_xmllint src/*/package.xml &&   # package.xml against the ROS schema (check-xml only checks syntax)
             # Only packages with a test/ folder: since Python 3.12 an empty package fails ("NO TESTS RAN").
-            pkgs=$(ls -d src/*/test 2>/dev/null | cut -d/ -f2) &&
+            # so101_perception is built and tested in its own image (perception job).
+            pkgs=$(ls -d src/*/test 2>/dev/null | cut -d/ -f2 | grep -vx so101_perception) &&
             if [ -z "$pkgs" ]; then echo "No test folder yet: nothing to test."; else
               # One package at a time: run in parallel, the brain IK property tests starved the camera of the
               # driver launch test on the 4-vCPU runner (2.7 Hz). The rate tests need the CPU.

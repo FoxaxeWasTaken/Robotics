@@ -14,7 +14,6 @@ extend-exclude = [
     "*.md",          # ruff also formats Python blocks inside Markdown: doc snippets are deliberately compact
     # Course-PROVIDED files still identical to upstream: excluded so they do not diverge
     # (conflict-free upstream merges). Remove a file from this list once the team rewrites it.
-    "ros2_ws/src/so101_perception/so101_perception/perception_node.py",
     "ros2_ws/src/*/launch/*.launch.py",
     "ros2_ws/src/example_py_pkg",
 ]
