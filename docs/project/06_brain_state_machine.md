@@ -9,6 +9,7 @@
 - **Outputs**: `/joint_command` (only channel to the motors, C-05), `/brain_state`, `/end_effector_pose`, `/brain/markers`.
 - **Phase 2** adds the `/brain/pick_place` action, served by the same motion code (ADR-037), and `/brain/set_gripper` for the token handover (ADR-038, `phase2/P2-02` §6).
 - **Starting point**: the course stub (ADR-039). The bootstrap prototype (outside the repository) had ikpy FK + `/end_effector_pose`, `/go_to_target` (position IK, rejected if error > 1 cm), the command sent **in one go** (the driver's speed limiter smoothed it): enough for C-41, not for pick & place, which needs trajectories (§5); target reached within 0.13 mm [MES-24].
+- **Today** (step 4.2a): `fsm.py` (§3) driven by the node's 50 Hz tick, `/brain/start`, `/brain/stop`, `/brain_state`. No planning worker yet (4.2b): a locked target ends in `ERROR:timeout:PLAN`.
 
 ## 2. Code organization
 
@@ -56,20 +57,32 @@ stateDiagram-v2
 
 | State | Entry action | Exit condition | Timeout → |
 | --- | --- | --- | --- |
-| `IDLE` | Nothing (the arm keeps its target) | `/brain/start` | — |
-| `WAIT_TARGET` | Go to `PARK` (arm out of the camera view); clear the detection history | 5 detections of the object **and** the box, spread < 5 mm, age < 0.5 s | 10 s → `ERROR` |
-| `PLAN` | Start `grasp_planner.plan()` in a **worker thread** (future); checked every tick | Future done: valid plan or `None` | 2 s → `ERROR` |
-| `APPROACH` | Min-jerk trajectory to the pre-grasp, gripper **open (100 %)** | `max(abs(q − q_target)) < 0.01 rad` | T + 1 s → `ERROR` |
-| `DESCEND` | Trajectory to the grasp (4 cm back-off; Cartesian recommended on the real arm) | Reached | T + 1 s → `ERROR` |
-| `GRASP` | Gripper → **0 %**, wait 0.8 s | Normalized gripper effort **> 0.06** → `LIFT`, otherwise `RETRY` | 1.5 s |
-| `LIFT` | Back to the pre-grasp, then +10 cm (position IK) | Reached **and** effort > threshold | T + 1 s |
-| `TRANSPORT` | Trajectory to the drop point (position IK, TCP ≈ 9 cm above the box floor) | Reached | T + 1 s |
+| `IDLE` | Nothing (the arm keeps its target); `/go_to_target` is served in this state only | `/brain/start` (without fresh `/joint_states`: `ERROR:no_joint_states`) | — |
+| `WAIT_TARGET` | Go to `PARK` (arm out of the camera view); the detection history restarts once `PARK` is reached | 5 detections of the object **and** the box received since `PARK`, within 5 mm of each other, the newest younger than 0.5 s; target = their mean, yaw = the newest | `PARK` not reached at T + 1 s → `ERROR:timeout:WAIT_TARGET`; 10 s after `PARK` → `ERROR:object_lost` |
+| `PLAN` | Start `grasp_planner.plan()` in a **worker thread** (future); checked every tick | Future done: valid plan → `APPROACH`; `None` → `ERROR:<reason>` (`unreachable`, `lift_unreachable`, `drop_unreachable`) | 2 s → `ERROR:timeout:PLAN` |
+| `APPROACH` | Min-jerk trajectory to the pre-grasp, gripper **open (100 %)** | `max(abs(q − q_target)) < 0.01 rad` | T + 1 s → `ERROR:timeout:APPROACH` |
+| `DESCEND` | Trajectory to the grasp (4 cm back-off; Cartesian recommended on the real arm) | Reached | T + 1 s → `ERROR:timeout:DESCEND` |
+| `GRASP` | Gripper → **0 %**, wait 0.8 s | From 0.8 s, normalized gripper effort **> 0.06** → `LIFT` | Still below at 1.5 s → `RETRY` (empty gripper) |
+| `LIFT` | Back to the pre-grasp, then +10 cm (position IK) | Reached: effort > threshold → `TRANSPORT`, otherwise → `RETRY` (judged once lifted, not on one sample) | T + 1 s per motion → `ERROR:timeout:LIFT` |
+| `TRANSPORT` | Trajectory to the drop point (position IK, TCP ≈ 9 cm above the box floor) | Reached | T + 1 s → `ERROR:timeout:TRANSPORT` |
 | `RELEASE` | Gripper → 100 %, wait 0.5 s | Elapsed | — |
-| `HOME` | Back to `PARK` | Reached | T + 1 s |
-| `VERIFY` | Read fresh detections (arm out of view) | Cube within the box footprint or gone from the table → `DONE`; still on the table → `RETRY` | 2 s → `DONE` with a warning |
-| `RETRY` | Open the gripper, increment the counter | → `HOME_RETRY` | — |
+| `HOME` | Back to `PARK` | Reached | T + 1 s → `ERROR:timeout:HOME` |
+| `VERIFY` | Read the detections received since `VERIFY` (arm in `PARK`, out of view) | Cube center within ±5 cm of the locked box center (`08` §3) → `DONE`; elsewhere → `RETRY` | 2 s without a detection → `DONE` with a warning (gone from the table) |
+| `RETRY` | Open the gripper, count the failed attempt | → `HOME_RETRY` | — |
+| `HOME_RETRY` | Back to `PARK` | Reached: fewer than `fsm.max_retries` failed attempts → `WAIT_TARGET` (a new lock), otherwise → `ERROR:grasp_failed` | T + 1 s → `ERROR:timeout:HOME_RETRY` |
+| `DONE` | Nothing | → `IDLE` | — |
 | `STOPPED` | Freeze: publish the **measured** position as the target | Immediately → `IDLE`; the next `/brain/start` starts a new cycle (`01` §3.2) | — |
-| `ERROR` | Freeze, log the cause, publish `/brain_state = ERROR:<cause>` | `/brain/start` (re-arm) | — |
+| `ERROR` | Freeze if a motion was running (none out of `PLAN` or `WAIT_TARGET`'s lock: no command at all), log the cause, publish `/brain_state = ERROR:<cause>` | `/brain/start` (re-arm → `IDLE`) | — |
+
+**In every state of a cycle** (all but `IDLE`, `DONE`, `STOPPED`, `ERROR`), `/joint_states` older than 0.5 s → `ERROR:no_joint_states`, and the commands stop (no freeze from stale joints). `/brain/stop` wins over everything, from every state. At most one transition per tick: `DONE`, `RETRY` and `STOPPED` last one tick (20 ms), each one still published on `/brain_state`.
+
+**Settled by the implementation** (`so101_brain/fsm.py`, step 4.1; `test_fsm.py`: one test per row, `/brain/stop` from every state, a timeout per motion state):
+
+- **Lock age on the newest detection**: perception publishes valid detections only, so a dropped frame must not reset the lock; the 5 mm spread already rejects a cube that moved. Detections taken while the arm parks do not count (it crosses the view).
+- **Failed attempts**: `fsm.max_retries` = 3 counts failed attempts, so 3 attempts in all (the diagram's "3 attempts reached"); `/brain/start` resets the count.
+- **`HOME_RETRY`** had no row: it parks before the next lock (or the error), so the arm is never left low near the cube.
+- **`ERROR` freezes only a running motion**: `ERROR:unreachable` sends no command at all (§8, §10).
+- **Clock**: `Fsm.step(now, inputs)`, `now` from the node's steady clock; ages from the reception time on the same clock, never `time.time()` [MES-37].
 
 **Effort threshold**: in sim, the normalized gripper load is **0.12–0.19** when holding the cube vs **0** when empty [MES-10] → threshold 0.06 (×2 margin). It is a parameter, **to recalibrate on the real arm**.
 
@@ -106,7 +119,7 @@ sequenceDiagram
 | No `sleep`, no `spin_until_future_complete` in a callback | The FSM runs in a **50 Hz timer**; waits are timestamp comparisons |
 | Subscription callbacks only store | `self._last_object = (msg, stamp)` |
 | Long computations (planning) never block the tick | `concurrent.futures.ThreadPoolExecutor(max_workers=1)`; `PLAN` polls `future.done()` |
-| Perception missing or late | Use **the last known value** with its age; only request fresh data in `WAIT_TARGET` and `VERIFY` |
+| Perception missing or late | Use **the last known value** with its age (from its reception, steady clock [MES-37]); only request fresh data in `WAIT_TARGET` and `VERIFY` |
 | `/joint_states` missing for > 0.5 s | `ERROR:no_joint_states`, stop sending commands |
 | Services | Immediate answer (`success`/`message`); the effect is asynchronous, visible on `/brain_state` |
 
@@ -118,6 +131,8 @@ sequenceDiagram
 - Speeds: `v_max` = 1.0 rad/s (sim), 0.5 rad/s (real) to start with — parameter.
 
 ## 6. Parameters (YAML `so101_bringup/config/brain.yaml`)
+
+Declared by `brain_node` (read-only, with ranges): `motion.*` since step 2.2; `grasp.effort_threshold`, `grasp.open_pct`, `grasp.close_pct` and `fsm.*` since step 4.2a (`fsm.park_pose` checked against the URDF limits at startup); the planner's `grasp.*` with step 4.2b. The timeouts of §3.1 are constants (`fsm.Params`).
 
 | Parameter | Default | Origin |
 | --- | --- | --- |
@@ -132,7 +147,7 @@ sequenceDiagram
 | `fsm.target_lock_n` | 5 | — |
 | `fsm.target_lock_spread_m` | 0.005 | — |
 | `fsm.max_retries` | 3 | — |
-| `fsm.park_pose` | [1.9, -1.7, 1.6, 0.7, 0.0] | Out of the camera view (verified); **to validate mechanically on the real arm** |
+| `fsm.park_pose` | [1.9, -1.7, 1.5, 0.7, 0.0] | Off the workspace view: the cube never hidden, the box at worst 9 % hidden; elbow 1.6 pressed the lower arm on the shoulder, 0.01 rad short [MES-39]; **to validate mechanically on the real arm** |
 
 ## 7. Observability
 

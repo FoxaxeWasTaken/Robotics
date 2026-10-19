@@ -40,8 +40,8 @@ flowchart LR
 | Package | Type | Container | Content | Status |
 | --- | --- | --- | --- | --- |
 | `so101_driver` | ament_python | control | `driver_node`: sim/real backend, control loop, camera, sim services | Base driver (step 1.0): `/joint_states`, `/joint_command`, speed limiter; sim camera thread (step 1.2); clamp, parameters, `camera_info`, effort (1.1, 1.3); `/sim/randomize`, `seed`, ground truth (1.4); provided `_connect_arm` unchanged (ADR-032) |
-| `so101_brain` | ament_python | control | `brain_node` + pure modules: `kinematics.py`, `grasp_planner.py`, `trajectory.py`, `fsm.py` | FK/IK in `kinematics.py` (step 2.1), min-jerk `trajectory.py` (2.2); `/end_effector_pose`, `/go_to_target` streaming a trajectory |
-| `so101_perception` | ament_python | perception | `perception_node` + pure modules: `detection.py`, `geometry.py`, `calibration.py` (offline tool) | Stub (remove `COLCON_IGNORE`) |
+| `so101_brain` | ament_python | control | `brain_node` + pure modules: `kinematics.py`, `grasp_planner.py`, `trajectory.py`, `fsm.py` | FK/IK in `kinematics.py` (step 2.1), min-jerk `trajectory.py` (2.2); `/end_effector_pose`, `/go_to_target` streaming a trajectory; orientation IK (2.1b), `grasp_planner.py` validated in closed loop (2.4); pure `fsm.py` (4.1) driven by a 50 Hz tick, `/brain/start`, `/brain/stop`, `/brain_state` (4.2a) |
+| `so101_perception` | ament_python | perception | `perception_node` + pure modules: `detection.py`, `geometry.py`, `calibration.py` (offline tool) | Skeleton (step 3.1): `/perception/debug_image` = each image with its status, `debug.py`; reference images with labels in `test/data/` (3.2a) |
 | `so101_interfaces` | ament_cmake | both | `.srv` (existing); phase 2 adds `Connect4Board.msg`, `DropToken.srv` and the `PickPlace` action (ADR-037) | Existing |
 | `so101_description` | ament_python | viz | URDF, meshes, `viz.launch.py`. **Do not modify** (C-08) | Provided |
 | **`so101_common`** | ament_python (pure Python, no dependency) | both | **Single source of truth**: joint names, limits, gripper %↔rad conversion, frame names | **Exists** (ADR-003, step 0.3) |
@@ -75,9 +75,9 @@ This table is **the contract** between team members. Any change goes through a P
 
 | Service | Type | Server | Role |
 | --- | --- | --- | --- |
-| `/brain/start` | `std_srvs/Trigger` | brain | Starts a pick & place cycle. Rejected if not in `IDLE` (C-35) |
-| `/brain/stop` | `std_srvs/Trigger` | brain | Aborts the cycle: the arm freezes at its current position, state → `IDLE` |
-| `/go_to_target` | `so101_interfaces/GoToTarget` (existing) | brain | Moves to a target position by IK (IK tests, C-41): position IK seeded with the measured joints, rejected if FK misses by more than 1 mm; answers at once (`moving for T s`), then streams a min-jerk trajectory on `/joint_command` at 50 Hz; a new goal preempts (steps 2.1, 2.2) |
+| `/brain/start` | `std_srvs/Trigger` | brain | Starts a pick & place cycle. Rejected if not in `IDLE` (C-35); in `ERROR` it re-arms (→ `IDLE`, `06` §3.1) |
+| `/brain/stop` | `std_srvs/Trigger` | brain | Aborts the cycle, from any state: the arm freezes at its current position, state → `STOPPED` → `IDLE` |
+| `/go_to_target` | `so101_interfaces/GoToTarget` (existing) | brain | Moves to a target position by IK (IK tests, C-41): position IK seeded with the measured joints, rejected if FK misses by more than 1 mm; answers at once (`moving for T s`), then streams a min-jerk trajectory on `/joint_command` at 50 Hz; a new goal preempts (steps 2.1, 2.2); served in `IDLE` only (4.2a) |
 | `/sim/randomize` | `std_srvs/Trigger` | driver (**sim only**) | Randomizes the cube **and** the box (C-42, ADR-018) |
 
 ### 3.3 Main parameters
@@ -151,7 +151,7 @@ sequenceDiagram
 | --- | --- |
 | `docker compose up -d control perception viz` | `control` builds the workspace then starts `so101_bringup sim.launch.py` (driver + brain); `perception` stays idle until step 3.1, then waits for its build and starts `perception_node`; `viz` starts RSP + static TF + marker |
 | `USE_SIM=false` in `docker/.env` | The same launch passes `use_sim:=false` to the driver, nothing else changes (C-10) |
-| `ros2 service call /brain/start std_srvs/srv/Trigger` | Starts a cycle (once the FSM exists, step 4.2) |
+| `ros2 service call /brain/start std_srvs/srv/Trigger` | Starts a cycle: the arm parks and waits for its target (step 4.2a); the full cycle once perception (3.3) and the planning worker (4.2b) are in |
 
 The entrypoint (`docker/control_entrypoint.sh`) starts `so101_bringup sim.launch.py` and forwards `USE_SIM` and `REAL_ROBOT_PORT` (`docker/.env`) as `use_sim:=` and `port:=`. The course's `driver.launch.py` and `brain.launch.py` stay, to start one node alone.
 

@@ -46,9 +46,8 @@ services:
     # viz waits for install/ to be ready.
     command: ["/opt/so101/entrypoint.sh"]
 
-  # Second container of the brief (C-02). Idle until step 3.1: so101_perception still has
-  # COLCON_IGNORE and its stub raises NotImplementedError. Step 3.1 command (own build folders,
-  # then perception.launch.py): docs/project/02 §3.1.
+  # Second container of the brief (C-02). Builds only up to so101_perception, into its own
+  # folders: two colcon builds on the same folders conflict (docs/project/02 §3.1).
   perception:
     build:
       context: ..
@@ -60,7 +59,12 @@ services:
     volumes:
       - ../ros2_ws:/ros2_ws
     networks: [rosnet]
-    command: bash -lc "source /opt/ros/jazzy/setup.bash && exec sleep infinity"
+    command: >
+      bash -lc "source /opt/ros/jazzy/setup.bash && cd /ros2_ws &&
+      colcon build --symlink-install --build-base build_perception --install-base install_perception
+      --packages-up-to so101_perception &&
+      source install_perception/setup.bash &&
+      ros2 launch so101_perception perception.launch.py"
 
   # robot_state_publisher: publishes /robot_description and the TFs from
   # /joint_states (provided by your driver_node). Visualization is done

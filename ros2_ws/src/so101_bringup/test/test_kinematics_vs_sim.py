@@ -28,3 +28,22 @@ def test_fk_matches_the_mujoco_gripperframe_site():
         worst = max(worst, float(np.linalg.norm(kin.fk(q)[:3, 3] - sim.data.site("gripperframe").xpos)))
     print(f"worst FK vs MuJoCo gripperframe over 50 configurations: {worst * 1000:.4f} mm")
     assert worst < 1e-5  # 0.01 mm (MES-04: 0.004 mm)
+
+
+def test_the_jaws_close_along_the_tcp_x_axis():
+    """kinematics.py's convention, URDF frame: the jaw hinge lies along the TCP y axis, so the jaws close
+    along x and approach along z. MuJoCo's hinge axis checks it (its gripperframe site is rotated by 90°)."""
+    sim = SO101Sim()
+    sim.connect()
+    kin = Kinematics(str(URDF))
+    rng = np.random.default_rng(1)
+    hinge = sim.model.joint("gripper").id
+    worst = 0.0
+    for _ in range(20):
+        q = np.array([rng.uniform(*JOINT_LIMITS[name]) for name in ARM_JOINT_NAMES])
+        for name, value in zip(ARM_JOINT_NAMES, q, strict=True):
+            sim.data.qpos[sim.model.joint(name).qposadr[0]] = value
+        mujoco.mj_forward(sim.model, sim.data)
+        worst = max(worst, float(np.degrees(np.arccos(abs(sim.data.xaxis[hinge] @ kin.fk(q)[:3, 1])))))
+    print(f"worst angle between the MuJoCo jaw hinge and the URDF TCP y axis: {worst:.4f}°")
+    assert worst < 0.1

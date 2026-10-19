@@ -30,4 +30,5 @@ Produced images (camera views, masks, ArUco) are written to `/tmp/exp_out`.
 | `exp_connect4_kinematics.py` | Phase 2: can the arm drop a token into a vertical grid? Edge-on vs facing, clearance (with and without a riser), drop-pose method, cell size in the image | MES-27 to 29, 31, 32 | ~3 min |
 | `exp_driver_speed.py` | How fast does a joint move behind the driver's speed limiter (sim time, with and without it)? | MES-33 | < 1 min |
 | `exp_calibration_zero.py` | Real arm: is LeRobot's zero the URDF zero? FK of the rest pose under both hypotheses | MES-30 | < 1 min |
+| `exp_park_pose.py` | Is PARK reached within 0.01 rad through the actuators? Does the parked arm hide the cube or the box? | MES-39 | < 1 min |
 | `exp_webcam_formats.py` | Which webcam formats go through usbipd? (run with `--device /dev/video0`) | MES-17 | < 1 min |
