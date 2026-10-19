@@ -59,7 +59,7 @@ stateDiagram-v2
 | --- | --- | --- | --- |
 | `IDLE` | Nothing (the arm keeps its target); `/go_to_target` is served in this state only | `/brain/start` (without fresh `/joint_states`: `ERROR:no_joint_states`) | — |
 | `WAIT_TARGET` | Go to `PARK` (arm out of the camera view); the detection history restarts once `PARK` is reached | 5 detections of the object **and** the box received since `PARK`, within 5 mm of each other, the newest younger than 0.5 s; target = their mean, yaw = the newest | `PARK` not reached at T + 1 s → `ERROR:timeout:WAIT_TARGET`; 10 s after `PARK` → `ERROR:object_lost` |
-| `PLAN` | Start `grasp_planner.plan()` in a **worker process** (future); checked every tick | Future done: valid plan → `APPROACH`; `None` → `ERROR:<reason>` (`unreachable`, `lift_unreachable`, `drop_unreachable`) | 4 s → `ERROR:timeout:PLAN` |
+| `PLAN` | Start `grasp_planner.plan()` in a **worker process** (future); checked every tick | Future done: valid plan → `APPROACH`; `None` → `ERROR:<reason>` (`unreachable`, `lift_unreachable`, `drop_unreachable`) | 6 s → `ERROR:timeout:PLAN` |
 | `APPROACH` | Min-jerk trajectory to the pre-grasp, gripper **open (100 %)** | `max(abs(q − q_target)) < 0.01 rad` **and** the measured gripper within 3 % of open | T + 1 s → `ERROR:timeout:APPROACH` |
 | `DESCEND` | Trajectory to the grasp (4 cm back-off; Cartesian recommended on the real arm) | Reached | T + 1 s → `ERROR:timeout:DESCEND` |
 | `GRASP` | Gripper → **0 %**, wait 0.8 s | From 0.8 s, normalized gripper effort **> 0.06** → `LIFT` | Still below at 1.5 s → `RETRY` (empty gripper) |
@@ -83,7 +83,7 @@ stateDiagram-v2
 - **`HOME_RETRY`** had no row: it parks before the next lock (or the error), so the arm is never left low near the cube.
 - **`ERROR` freezes only a running motion**: `ERROR:unreachable` sends no command at all (§8, §10).
 - **Clock**: `Fsm.step(now, inputs)`, `now` from the node's steady clock; ages from the reception time on the same clock, never `time.time()` [MES-37].
-- **`PLAN` timeout 4 s** (step 4.2b; 2 s before): the planner's slowest answer, a cube out of reach, takes 1.7 s to fail (2.0 s while the planner ran in a worker thread); with 2 s it showed as `ERROR:timeout:PLAN` instead of `ERROR:unreachable` [MES-40]. The arm is parked during `PLAN`, so a hung planner costs nothing more. `test_grasp_planner.py` keeps that failure under half the timeout.
+- **`PLAN` timeout 6 s** (step 4.2b; 2 s before): the planner's slowest answer, a cube out of reach, takes 1.7 s to fail, 2.4 s on the CI runner (2.0 s locally while the planner ran in a worker thread); with 2 s it showed as `ERROR:timeout:PLAN` instead of `ERROR:unreachable` [MES-40]. The arm is parked during `PLAN`, so a hung planner costs nothing more. `test_grasp_planner.py` keeps that failure under half the timeout.
 - **`APPROACH` waits for the open gripper** (step 4.2b): `DESCEND` must not bring closed jaws onto the cube. The other motions do not wait for it: in `TRANSPORT` the cube keeps the jaws from closing to 0 %.
 
 **Effort threshold**: in sim, the normalized gripper load is **0.12–0.19** when holding the cube vs **0** when empty [MES-10] → threshold 0.06 (×2 margin). It is a parameter, **to recalibrate on the real arm**.

@@ -65,7 +65,7 @@ class Params:
     max_joint_state_age_s: float = 0.5
     max_retries: int = 3  # failed attempts before ERROR:grasp_failed
     wait_target_s: float = 10.0  # from PARK reached
-    plan_timeout_s: float = 4.0  # the slowest answer, a cube out of reach, takes 1.7 s: 2x margin [MES-40]
+    plan_timeout_s: float = 6.0  # slowest answer, a cube out of reach: 1.7 s, 2.4 s on CI [MES-40]
     grasp_wait_s: float = 0.8
     grasp_timeout_s: float = 1.5
     release_wait_s: float = 0.5

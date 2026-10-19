@@ -322,7 +322,9 @@ class TestBrain(unittest.TestCase):
         try:
             self.assertTrue(self.trigger(self.start).success)
             planning = self.wait_for_state("PLAN", timeout=10.0)
-            self.wait_for_state("ERROR:unreachable", timeout=4.0)
+            self.wait_for_state(
+                "ERROR:unreachable", timeout=7.0
+            )  # the planner answers within the 6 s timeout
         finally:
             type(self).cube_frame, type(self).cube_at = None, CUBE
         self.assertFalse([a for a in self.arrivals if a > planning], "a command after PLAN")

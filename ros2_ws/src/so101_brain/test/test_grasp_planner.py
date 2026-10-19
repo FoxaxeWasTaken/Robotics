@@ -97,8 +97,8 @@ def test_a_cube_out_of_reach_gives_no_plan_and_the_reason(planner):
 
 
 def test_a_cube_out_of_reach_fails_within_half_the_plan_timeout(planner):
-    """The slowest answer: every tilt and face fails (1.7 s). Within PLAN's timeout with a 2x margin, else the
-    brain would report ERROR:timeout:PLAN instead of ERROR:unreachable (06 §3.1)."""
+    """The slowest answer: every tilt and face fails (1.7 s, 2.4 s on the CI runner). Within PLAN's
+    timeout with a 2x margin, else the brain reports ERROR:timeout:PLAN, not ERROR:unreachable (06 §3.1)."""
     park = np.array(Params().park_pose)  # q_current in PLAN
     start = time.perf_counter()
     assert planner.plan(np.array([0.5, 0.0, 0.025]), 0.3, BOX, park) == (None, "unreachable")
