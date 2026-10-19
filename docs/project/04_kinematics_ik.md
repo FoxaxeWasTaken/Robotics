@@ -81,7 +81,7 @@ Three tasks, from most to least constrained:
 
 - Pointing error: `e_rot = −(z_TCP × a)`, Jacobian `J_r = −[a]ₓ · (−[z]ₓ · J_ω)` in `LOCAL_WORLD_ALIGNED`.
 - **Seeds (multi-start)**: `[−az, −0.3, 0.3, 1.2, 0]`, `[−az, 0.5, −0.5, 1.5, 0]`, `[−az, −1.0, 1.0, 0.5, 0]`, plus the current configuration, with `az = atan2(y, x − 0.0388)` = azimuth seen from the pan axis. If they all fail (target past the pan range, |azimuth| > 1.92 rad, or a folded arm), a fallback grid tries both pan families (facing the target, or turned by π and reaching back) with the shoulder and elbow both ways: 0 misses in 2000 random configurations instead of 307, same median time [MES-36].
-- **Time**: 6–14 ms per solve with ikpy, 0.3–5 ms with Pinocchio [MES-11], [MES-21]. A full plan (grasp + pre-grasp + transport, tilt and seed sweep) can take a few hundred ms: it runs in a **worker thread** so the brain never blocks (`06`).
+- **Time**: 6–14 ms per solve with ikpy, 0.3–5 ms with Pinocchio [MES-11], [MES-21]. A full plan (grasp + pre-grasp + transport, tilt and seed sweep) can take a few hundred ms: it runs in a **worker process** so the brain never blocks (`06` §4; a thread shared the GIL with the tick [MES-40]).
 
 ### 3.2 Why not "strictly vertical IK everywhere"?
 
