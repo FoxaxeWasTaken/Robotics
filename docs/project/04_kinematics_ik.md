@@ -158,7 +158,7 @@ transport: ik_pos(p_box + (0, 0, h_drop))      free orientation: the cube falls
 - **Duration** from the most constrained joint: `T = max(T_min, max_j |Δq_j| · 1.875 / v_max)` (1.875 = normalized peak velocity of the quintic), `v_max` = 1.0 rad/s in sim, 0.5 rad/s on the real arm to start with.
 - **Streaming**: the brain publishes `/joint_command` at **50 Hz** during the motion; the driver just follows (its limiter only kicks in on anomalies).
 - **Descent/lift**: short segment (4 cm); joint interpolation is nearly straight in sim. Recommended for the real arm: **Cartesian interpolation** with 5–10 IK waypoints along the approach axis, to guarantee a straight descent.
-- **Implemented** (step 2.2): `/go_to_target` streams the trajectory from the measured joints; `motion.v_max_rad_s` and `motion.reach_tol_rad` in `brain.yaml`. Commanded peak 1.00 rad/s for `v_max` = 1.0; measured joints peak at 1.19 rad/s, the sim actuator oscillating around the ramp as behind the driver limiter [MES-33]. 0.10 mm from the IK solution at the end.
+- **Implemented** (step 2.2): `/go_to_target` streams the trajectory from the measured joints; `motion.v_max_rad_s` and `motion.reach_tol_rad` in `brain.yaml`. Commanded peak 1.00 rad/s for `v_max` = 1.0; measured joints peak at 1.19 rad/s, the sim actuator oscillating around the ramp as behind the driver limiter [MES-33]. 0.10 mm from the IK solution at the end. Timers and motion time run on the steady clock: a step back of the system clock neither pauses nor rewinds a motion [MES-37].
 - **End of motion**: target reached when `max_j |q_meas − q_target| < 0.01 rad` (gripper: < 3 %), or a `T + 1 s` timeout → error.
 
 ## 7. Accuracy measurement protocol (C-41: "< 1 cm, measured")
@@ -169,6 +169,8 @@ transport: ik_pos(p_box + (0, 0, h_drop))      free orientation: the cube falls
 2. Call the `/go_to_target` service (`so101_interfaces/GoToTarget`, implemented) and wait for settling.
 3. Measure the `gripperframe` site position (ground truth, allowed in tests) → error.
 4. Report mean, p95, max. Expected < 1 mm (driver + brain smoke test: 0.13 mm [MES-24]).
+
+**Implemented** (step 2.3): `so101_bringup/test/test_ik_accuracy.py` (sim-backed, so in `so101_bringup`: C-05 guard). The true TCP is MuJoCo's FK of the **measured** joints, independent of the ikpy/URDF model. Targets: r 0.16–0.30 m, azimuth −90° to 60°, z 3–12 cm, seeded. At these heights the cube and the box are obstacles (a target over the box missed by 56 mm, the arm resting on a wall): a seeded `/sim/randomize` puts them at known places, read from the ground truth, and targets closer than 8 cm (cube) or 12 cm (box) are drawn again. Result: **mean 0.17 mm, p95 0.23 mm, max 0.25 mm** (`results/ik_accuracy_sim_2026-10-18.md`, max 0.22–0.25 mm over 4 runs); gripper at 0/50/100 % within 1.8 %. Some motions last up to 9.5 s: the position-only IK leaves `wrist_roll` free and sometimes turns it by more than 4 rad, which sets the min-jerk duration (2.1b fixes the roll).
 
 **On the real arm**:
 

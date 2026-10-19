@@ -14,6 +14,7 @@ import rclpy.node
 from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import PoseStamped
 from rcl_interfaces.msg import FloatingPointRange, ParameterDescriptor
+from rclpy.clock import Clock, ClockType
 from rclpy.executors import ExternalShutdownException
 from scipy.spatial.transform import Rotation
 from sensor_msgs.msg import JointState
@@ -49,8 +50,11 @@ class BrainNode(rclpy.node.Node):
         self.create_subscription(JointState, "/joint_states", self._cb_joint_states, 10)
         self._pub_pose = self.create_publisher(PoseStamped, "/end_effector_pose", 10)
         self._pub_command = self.create_publisher(JointState, "/joint_command", 10)
-        self.create_timer(1.0 / END_EFFECTOR_POSE_HZ, self._publish_end_effector_pose)
-        self.create_timer(1.0 / STREAM_HZ, self._stream_motion)
+        # Timers and motion time on the steady clock: a step back of the system clock (WSL2: ~2 s every 30 s
+        # [MES-37]) would pause the timers and rewind the trajectory. Stamps stay on the ROS clock.
+        self._steady = Clock(clock_type=ClockType.STEADY_TIME)
+        self.create_timer(1.0 / END_EFFECTOR_POSE_HZ, self._publish_end_effector_pose, clock=self._steady)
+        self.create_timer(1.0 / STREAM_HZ, self._stream_motion, clock=self._steady)
         self.create_service(GoToTarget, "/go_to_target", self._srv_go_to_target)
 
         self.get_logger().info("Brain node ready.")
@@ -139,7 +143,8 @@ class BrainNode(rclpy.node.Node):
         self._pub_command.publish(msg)
 
     def _now(self) -> float:
-        return self.get_clock().now().nanoseconds * 1e-9
+        """Motion time, s: steady, never steps back."""
+        return self._steady.now().nanoseconds * 1e-9
 
 
 def main(args=None):

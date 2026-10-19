@@ -23,6 +23,7 @@ from cv_bridge import CvBridge
 from geometry_msgs.msg import PoseStamped
 from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig
 from rcl_interfaces.msg import FloatingPointRange, IntegerRange, ParameterDescriptor
+from rclpy.clock import Clock, ClockType
 from rclpy.executors import ExternalShutdownException
 from sensor_msgs.msg import CameraInfo, Image, JointState
 from so101_sim import SO101Sim
@@ -99,8 +100,13 @@ class DriverNode(rclpy.node.Node):
 
         self._pub_joint_states = self.create_publisher(JointState, "/joint_states", 10)
         self.create_subscription(JointState, "/joint_command", self._cb_joint_command, 10)
-        self.create_timer(1.0 / self._p["control_rate_hz"], self._control_step)
-        self.create_timer(1.0 / self._p["joint_state_rate_hz"], self._publish_joint_states)
+        # Timers on the steady clock: the system clock can step back (WSL2: ~2 s every 30 s [MES-37]) and
+        # would pause them. Stamps stay on the ROS clock.
+        self._steady = Clock(clock_type=ClockType.STEADY_TIME)
+        self.create_timer(1.0 / self._p["control_rate_hz"], self._control_step, clock=self._steady)
+        self.create_timer(
+            1.0 / self._p["joint_state_rate_hz"], self._publish_joint_states, clock=self._steady
+        )
 
         self._pub_image = self.create_publisher(Image, "/external_cam/image_raw", 2)
         self._pub_camera_info = self.create_publisher(CameraInfo, "/external_cam/camera_info", 2)
@@ -117,7 +123,7 @@ class DriverNode(rclpy.node.Node):
                     key: self.create_publisher(PoseStamped, f"/sim/ground_truth/{key}", 10)
                     for key in GROUND_TRUTH_BODIES
                 }
-                self.create_timer(1.0 / GROUND_TRUTH_RATE_HZ, self._publish_ground_truth)
+                self.create_timer(1.0 / GROUND_TRUTH_RATE_HZ, self._publish_ground_truth, clock=self._steady)
 
         self.get_logger().info("Driver node ready.")
 
