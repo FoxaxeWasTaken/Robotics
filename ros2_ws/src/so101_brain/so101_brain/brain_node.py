@@ -4,14 +4,17 @@
 Never talks to the backend: reads /joint_states, commands through /joint_command. ROS glue only (06 §2):
 callbacks store the last message with its reception time, a 50 Hz tick feeds them to fsm.Fsm.step and sends
 what it returns; the services answer at once, their effect shows on /brain_state (06 §4, ADR-017). PLAN runs
-the grasp planner in a worker thread, which never touches a ROS object; the tick polls it.
+the grasp planner in a worker process, which never touches a ROS object; the tick polls it.
 Publishes the TCP pose from forward kinematics. In IDLE, /go_to_target solves a position IK and returns at
 once, the tick streams the min-jerk trajectory (04 §6).
 """
 
 import inspect
+import multiprocessing
+import os
+import signal
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -44,10 +47,34 @@ TIMEOUT_MARGIN = 1.0  # s: not reached at T + this margin -> warning, motion dro
 MARKERS = (("pre_grasp", (1.0, 1.0, 0.0)), ("grasp", (0.0, 1.0, 0.0)), ("drop", (0.0, 0.0, 1.0)))  # 06 §7
 
 
-def timed_plan(planner, *request):
-    """Worker thread: the planner's answer, (GraspPlan | None, reason), and its duration in s."""
+_PLANNER = None  # in the worker process (start_worker)
+
+
+def planner_pool(urdf, params):
+    """The planning worker, started now: one process with its own GraspPlanner(**params).
+
+    A process, not a thread: the planner holds the GIL, and a worker thread delayed the 50 Hz tick to 27-29 ms
+    at p99 during PLAN [MES-40]. forkserver, not fork: the node is multithreaded (DDS)."""
+    pool = ProcessPoolExecutor(
+        max_workers=1,
+        mp_context=multiprocessing.get_context("forkserver"),
+        initializer=start_worker,
+        initargs=(urdf, params),
+    )
+    pool.submit(os.getpid).result()  # the first PLAN does not wait for the start
+    return pool
+
+
+def start_worker(urdf, params):
+    global _PLANNER
+    signal.signal(signal.SIGINT, signal.SIG_IGN)  # Ctrl-C stops the node, and the node the worker
+    _PLANNER = GraspPlanner(Kinematics(urdf), **params)
+
+
+def timed_plan(*request):
+    """In the worker: the planner's answer, (GraspPlan | None, reason), and its duration in s."""
     start = time.monotonic()
-    return planner.plan(*request), time.monotonic() - start
+    return _PLANNER.plan(*request), time.monotonic() - start
 
 
 class BrainNode(rclpy.node.Node):
@@ -109,9 +136,7 @@ class BrainNode(rclpy.node.Node):
             )
         )
 
-        # The worker gets its own Kinematics: nothing shared with the tick thread (06 §4).
-        self._planner = self._declare_planner(str(urdf))
-        self._worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="planner")
+        self._worker = planner_pool(str(urdf), self._declare_planner())  # its own process (06 §4)
         self._planning = None  # the worker's future of the last PLAN
         self._plan_ticks = []  # tick periods while in PLAN, s (C-33: planning never blocks the tick)
         self._last_tick = None
@@ -160,16 +185,15 @@ class BrainNode(rclpy.node.Node):
             raise ValueError(f"fsm.park_pose {park}: {description}")
         return park
 
-    def _declare_planner(self, urdf):
-        """The grasp planner with the grasp.* parameters (06 §6); their defaults are the planner's own."""
+    def _declare_planner(self):
+        """The planner's grasp.* parameters (06 §6), as GraspPlanner kwargs; the defaults are its own."""
         d = {name: p.default for name, p in inspect.signature(GraspPlanner).parameters.items()}
         description = "Approach tilts from vertical, tried in order, deg, each in [0, 90)"
         descriptor = ParameterDescriptor(description=description, read_only=True)
         tilts = list(self.declare_parameter("grasp.tilts_deg", list(d["tilts_deg"]), descriptor).value)
         if not tilts or not all(0.0 <= t < 90.0 for t in tilts):
             raise ValueError(f"grasp.tilts_deg {tilts}: {description}")
-        return GraspPlanner(
-            Kinematics(urdf),
+        return dict(
             tilts_deg=tilts,
             pregrasp_backoff_m=self._declare(
                 "grasp.pregrasp_backoff_m",
@@ -327,7 +351,7 @@ class BrainNode(rclpy.node.Node):
             if self._fsm.state is State.APPROACH:
                 self._publish_markers(answer[0])
         if request is not None:
-            self._planning = self._worker.submit(timed_plan, self._planner, *request)
+            self._planning = self._worker.submit(timed_plan, *request)
 
     def _end_plan(self, seconds):
         """Out of PLAN: the planner's time and the tick periods meanwhile. A late answer is never read: PLAN
@@ -404,7 +428,7 @@ class BrainNode(rclpy.node.Node):
         return self._steady.now().nanoseconds * 1e-9
 
     def destroy_node(self):
-        self._worker.shutdown(wait=False, cancel_futures=True)  # a running plan ends on its own
+        self._worker.shutdown(wait=False, cancel_futures=True)  # a running plan ends, then the process
         super().destroy_node()
 
 
