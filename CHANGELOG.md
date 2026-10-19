@@ -6,6 +6,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Added
 
+- RViz configuration for the demo (step 1.5b): `base_link` fixed frame, the arm model, TF, the camera and perception debug images (best effort), the TCP, cube and box poses, the drop-box marker and the brain's markers; displays of topics still to come are already in the file.
 - IK accuracy measured in sim (step 2.3, C-41): `so101_bringup/test/test_ik_accuracy.py`, 20 seeded targets through `/go_to_target`, true TCP from MuJoCo's FK of the measured joints, cube and box placed by a seeded `/sim/randomize` and avoided; mean 0.17 mm, max 0.25 mm (`results/ik_accuracy_sim_2026-10-18.md`); gripper within 3 % at 0/50/100 %.
 - Driver sim tools (step 1.4): `/sim/randomize` moves the cube (provided `randomize_object()`) and the box, drawn by a pure `randomize.py` in a reachable area fully in the camera view, 0.15 m from the cube; `seed` parameter (same seed, same sequence); `expose_ground_truth` (false by default) publishes `/sim/ground_truth/object` and `drop_box` at 10 Hz for the bench. Launch tests for the joint-limit clamp, NaN and size-mismatch commands (1.5a).
 - Driver, rest of stage 1: `/joint_command` clamped to the joint limits and rejected whole on a size mismatch or a NaN/inf, in a pure `command.py` with property tests (1.1a); rates, speed limits and image size as read-only ROS parameters with ranges, values in `so101_bringup/config/driver.yaml` (1.1b); `/external_cam/camera_info` with the image's header, `frame_id` = `external_cam_optical_frame` (1.3a); normalized effort in `/joint_states`, gripper positive when squeezing (1.3b, MES-35).
@@ -22,6 +23,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Changed
 
+- Images: every pip package, dependencies included, pinned in `docker/constraints.txt` (`pip install -c`, both images) at the versions the measurements used (mujoco 3.15.0, ikpy 4.1.0); hadolint DL3013 re-enabled (0.3e).
 - Contributing: a PR may group related tickets (same files or same roadmap step), with one commit and one `Closes #` line per ticket; WIP limit raised from 2 to 5 tickets In progress per person (AGENTS.md, CONTRIBUTING, PR template, `15` §12).
 - CI: nothing runs on the school copy, Dependabot PRs included: the Dependabot exception of `ci.yml` and `pr-title.yml` is limited to this repository.
 - CI: the control job tests the packages one at a time (`--executor sequential`); in parallel, CPU-heavy unit tests starved the driver's camera rate test.
