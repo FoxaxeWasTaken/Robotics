@@ -183,15 +183,32 @@ With the provided camera at 320×240, over 2,000 positions drawn like `randomize
 | Test | Type | Criterion |
 | --- | --- | --- |
 | Projection round trip 3D → pixel → 3D (FLIP convention) | Unit | < 1e-9 m |
-| Detection on reference images (sim renders + ground truth saved as `.npz`/PNG) | Unit | 100 % detected when not truncated, error < 5 mm |
+| Detection on reference images (sim renders + labels, below) | Unit | 100 % detected when not truncated, error < 5 mm |
 | HSV thresholds: no floor/robot pixel in the mask | Unit | 0 false positive |
 | ArUco calibration on the calibration scene | Sim integration | Pose error < 5 mm / 0.3° |
 | Publication rate | `launch_testing` | 5–10 Hz when the object is visible |
 | Pipeline without `get_camera_extrinsics` / `get_object_position` | CI grep | 0 occurrence outside `test/` (C-06, C-23) |
 
+**Reference images** (step 3.2a), in `so101_perception/test/data/`:
+
+- **Content**: 44 PNG at 320×240 (32 whole cubes, 8 cut by the border, 4 out of view; 2.2 MB, ADR-029) and `labels.json`.
+  - Per image: cube center and yaw (in [0, π/2)), box floor center, all in `base_link`; `cube_view` = `full`, `truncated` or `out_of_view` (the 8 projected cube corners against the image bounds); the fractions of the cube and of the box that the arm leaves visible.
+  - Once: K, the camera pose in the OpenCV optical frame, the arm joints and the seed.
+- **Scenes**: drawn as `/sim/randomize` draws them, with the arm at `PARK` (06 §6), where the brain locks its target. The arm never hides the cube there; it hides part of the box in 8 images (85 % visible at worst), from MuJoCo segmentation against the same scene with the arm lifted out of the picture.
+- **Generator**: `so101_bringup/tools/make_perception_dataset.py`. It lives in `so101_bringup`, since `so101_perception` may not touch the sim (C-05). The labels come from the sim state, so they belong in test data only (C-06).
+- **Tests**:
+  - `so101_bringup` regenerates the committed seed and must find the same labels and images. Change the generator, the scene or the camera (§6), and the data must be regenerated:
+
+    ```bash
+    docker compose exec -u "$(id -u):$(id -g)" control bash -lc "source /ros2_ws/install/setup.bash && \
+      ros2 run so101_bringup make_perception_dataset --out /ros2_ws/src/so101_perception/test/data"
+    ```
+
+  - `so101_perception` checks the size budget, and that the labels agree with the pixels: no red pixel when out of view, red on the border exactly when truncated, blob centroid within 3 px of the projected center.
+
 ## 9. Visualization (C-24)
 
-- `/perception/debug_image`: image with colored masks (cube in green, box in blue), centroids, "OK / TRUNCATED / LOST" text.
+- `/perception/debug_image`: image with colored masks (cube in green, box in blue), centroids, "OK / TRUNCATED / LOST" text. Today (step 3.1): the input image with "NO DETECTION", same header, Best effort.
 - RViz: `Pose` display on `/object_position` and `/drop_box_position`, plus the box `Marker` (provided).
 - RViz `Camera` display (optional): overlays the 3D model on the image through the camera TF — an **excellent visual check** of the extrinsic calibration.
 
