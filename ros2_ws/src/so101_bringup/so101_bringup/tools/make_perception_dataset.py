@@ -17,10 +17,11 @@ import mujoco
 import numpy as np
 from so101_sim import SO101Sim
 
+from so101_brain.fsm import Params
 from so101_common.robot import ARM_JOINT_NAMES
 from so101_driver.randomize import sample_box_xy
 
-PARK = (1.9, -1.7, 1.5, 0.7, 0.0)  # rad, ARM_JOINT_NAMES order: the brain's PARK pose (06 §6)
+PARK = Params().park_pose  # rad, ARM_JOINT_NAMES order: the brain's PARK (06 §6), as in brain.yaml
 PARKED_BOX_XY = (2.0, 0.0)  # m: as /sim/randomize, the box waits there while the cube settles
 CORNERS = 0.025 * np.array([[x, y, z] for x in (-1, 1) for y in (-1, 1) for z in (-1, 1)])  # 5 cm cube
 FLIP = np.diag([1.0, -1.0, -1.0])  # MuJoCo camera (y up, looks along -z) -> OpenCV optical (05 §3.1)

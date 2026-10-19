@@ -197,7 +197,7 @@ With the provided camera at 320×240, over 2,000 positions drawn like `randomize
 - **Scenes**: drawn as `/sim/randomize` draws them, with the arm at `PARK` (06 §6), where the brain locks its target. The arm never hides the cube there; it hides part of the box in 8 images (85 % visible at worst), from MuJoCo segmentation against the same scene with the arm lifted out of the picture.
 - **Generator**: `so101_bringup/tools/make_perception_dataset.py`. It lives in `so101_bringup`, since `so101_perception` may not touch the sim (C-05). The labels come from the sim state, so they belong in test data only (C-06).
 - **Tests**:
-  - `so101_bringup` regenerates the committed seed and must find the same labels and images. Change the generator, the scene or the camera (§6), and the data must be regenerated:
+  - `so101_bringup` regenerates the committed seed and must find the same labels and images. Change the generator, the scene, the camera (§6) or the brain's `PARK` (the generator reads it), and this test fails until the data is regenerated:
 
     ```bash
     docker compose exec -u "$(id -u):$(id -g)" control bash -lc "source /ros2_ws/install/setup.bash && \
