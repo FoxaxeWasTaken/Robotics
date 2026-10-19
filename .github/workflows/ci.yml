@@ -78,7 +78,9 @@ jobs:
             # Only packages with a test/ folder: since Python 3.12 an empty package fails ("NO TESTS RAN").
             pkgs=$(ls -d src/*/test 2>/dev/null | cut -d/ -f2) &&
             if [ -z "$pkgs" ]; then echo "No test folder yet: nothing to test."; else
-              colcon test --packages-select $pkgs --pytest-with-coverage --event-handlers console_cohesion+ &&
+              # One package at a time: run in parallel, the brain IK property tests starved the camera of the
+              # driver launch test on the 4-vCPU runner (2.7 Hz). The rate tests need the CPU.
+              colcon test --executor sequential --packages-select $pkgs --pytest-with-coverage --event-handlers console_cohesion+ &&
               colcon test-result --verbose; fi'
       - name: Coverage data with repository-relative paths (for the PR comment)
         run: |

@@ -112,7 +112,7 @@ flowchart LR
 | `lint` | A ruff, markdownlint, actionlint, zizmor, shellcheck or hadolint rule is violated, a file is not formatted, a YAML is invalid, a file exceeds 1 MB, gitleaks finds a secret in the history | Diff shown (`--show-diff-on-failure`) |
 | `PR title` (`pr-title.yml`) | The PR title is not `type(scope): description` | — |
 | `guards` | brain or perception imports the backend; ground truth or provided extrinsics appear in the pipeline | Offending lines |
-| `control` | `colcon build` fails or a test fails (`colcon test-result --verbose`); only packages with a `test/` folder are tested | Each package's `pytest.xml` |
+| `control` | `colcon build` fails or a test fails (`colcon test-result --verbose`); only packages with a `test/` folder are tested, one at a time (`--executor sequential`): in parallel, the brain's IK property tests starved the driver's camera test (2.7 Hz on the 4-vCPU runner) | Each package's `pytest.xml` |
 | `perception` | Same for the perception packages (separate build, ADR-002); **skipped until `COLCON_IGNORE` is removed** (step 3.1) | — |
 | `e2e-smoke` | Fewer than 3 successful episodes out of 3 | `eval.csv` |
 

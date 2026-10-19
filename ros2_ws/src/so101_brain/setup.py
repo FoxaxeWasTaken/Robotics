@@ -14,6 +14,7 @@ setup(
         ("share/" + package_name + "/launch", glob("launch/*.launch.py")),
     ],
     zip_safe=True,
+    tests_require=["pytest"],
     description="IK + pick & place loop of the SO-ARM101.",
     license="Apache-2.0",
     entry_points={

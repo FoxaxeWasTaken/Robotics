@@ -37,8 +37,8 @@ flowchart LR
 ## 2. Forward kinematics (FK)
 
 - ikpy `forward_kinematics` (or Pinocchio `framesForwardKinematics`): negligible cost.
-- The brain publishes `/end_effector_pose` (`PoseStamped`, `base_link`) from `/joint_states` [BOOT milestone 6] — **implemented**.
-- **Test**: FK = MuJoCo site within 0.01 mm (sim integration test; ground truth allowed in tests).
+- The brain publishes `/end_effector_pose` (`PoseStamped`, `base_link`) from `/joint_states` at 30 Hz, stamped with their read time — implemented at step 2.1.
+- **Test**: FK = MuJoCo site within 0.01 mm: `so101_bringup/test/test_kinematics_vs_sim.py`, worst 0.0033 mm over 50 random configurations. Sim-backed, so in `so101_bringup`: no `so101_sim` under `so101_brain`, tests included (C-05).
 
 ## 3. Inverse kinematics (ADR-008)
 
@@ -80,7 +80,7 @@ Three tasks, from most to least constrained:
 | `ik_pos(p)` | Position only (3D) | default | Lift, transport, drop, `/go_to_target` | **100 %** (< 1 mm) over r ∈ [0.18, 0.30] m, z ∈ [2, 12] cm [MES-07], [MES-21] |
 
 - Pointing error: `e_rot = −(z_TCP × a)`, Jacobian `J_r = −[a]ₓ · (−[z]ₓ · J_ω)` in `LOCAL_WORLD_ALIGNED`.
-- **Seeds (multi-start)**: `[−az, −0.3, 0.3, 1.2, 0]`, `[−az, 0.5, −0.5, 1.5, 0]`, `[−az, −1.0, 1.0, 0.5, 0]`, plus the current configuration, with `az = atan2(y, x − 0.0388)` = azimuth seen from the pan axis.
+- **Seeds (multi-start)**: `[−az, −0.3, 0.3, 1.2, 0]`, `[−az, 0.5, −0.5, 1.5, 0]`, `[−az, −1.0, 1.0, 0.5, 0]`, plus the current configuration, with `az = atan2(y, x − 0.0388)` = azimuth seen from the pan axis. If they all fail (target past the pan range, |azimuth| > 1.92 rad, or a folded arm), a fallback grid tries both pan families (facing the target, or turned by π and reaching back) with the shoulder and elbow both ways: 0 misses in 2000 random configurations instead of 307, same median time [MES-36].
 - **Time**: 6–14 ms per solve with ikpy, 0.3–5 ms with Pinocchio [MES-11], [MES-21]. A full plan (grasp + pre-grasp + transport, tilt and seed sweep) can take a few hundred ms: it runs in a **worker thread** so the brain never blocks (`06`).
 
 ### 3.2 Why not "strictly vertical IK everywhere"?
@@ -158,6 +158,7 @@ transport: ik_pos(p_box + (0, 0, h_drop))      free orientation: the cube falls
 - **Duration** from the most constrained joint: `T = max(T_min, max_j |Δq_j| · 1.875 / v_max)` (1.875 = normalized peak velocity of the quintic), `v_max` = 1.0 rad/s in sim, 0.5 rad/s on the real arm to start with.
 - **Streaming**: the brain publishes `/joint_command` at **50 Hz** during the motion; the driver just follows (its limiter only kicks in on anomalies).
 - **Descent/lift**: short segment (4 cm); joint interpolation is nearly straight in sim. Recommended for the real arm: **Cartesian interpolation** with 5–10 IK waypoints along the approach axis, to guarantee a straight descent.
+- **Implemented** (step 2.2): `/go_to_target` streams the trajectory from the measured joints; `motion.v_max_rad_s` and `motion.reach_tol_rad` in `brain.yaml`. Commanded peak 1.00 rad/s for `v_max` = 1.0; measured joints peak at 1.19 rad/s, the sim actuator oscillating around the ramp as behind the driver limiter [MES-33]. 0.10 mm from the IK solution at the end.
 - **End of motion**: target reached when `max_j |q_meas − q_target| < 0.01 rad` (gripper: < 3 %), or a `T + 1 s` timeout → error.
 
 ## 7. Accuracy measurement protocol (C-41: "< 1 cm, measured")
@@ -205,6 +206,8 @@ class Kinematics:                                    # façade: ikpy inside, Pin
 class GraspPlanner:
     def plan(self, cube_pose, box_pose, q_current) -> GraspPlan | None: ...   # grasp, pre-grasp, lift, drop
 ```
+
+Implemented at step 2.1: `fk`, `ik_pos`, `arm_azimuth`. The orientation tasks come with the grasp planner (2.1b, 4.x).
 
 ## 10. State of the art and evolution paths
 
