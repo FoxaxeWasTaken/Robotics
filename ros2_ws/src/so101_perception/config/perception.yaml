@@ -1,0 +1,4 @@
+# ROS parameters of so101_perception (docs/project/05), read at startup.
+so101_perception:
+  ros__parameters:
+    process_rate_hz: 20.0  # checks for a new image; above the camera's 10 Hz, each image is processed once
