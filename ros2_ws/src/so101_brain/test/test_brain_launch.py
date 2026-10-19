@@ -132,6 +132,14 @@ class TestBrain(unittest.TestCase):
         self.assertIsNotNone(future.result(), f"no answer from {client.srv_name}")
         return future.result()
 
+    def wait_for_fresh_joint_states(self):
+        """Until a /end_effector_pose comes from /joint_states sent from now on: the brain sees the fake
+        driver again (a start before that is rightly refused, see test_7)."""
+        sent, end = len(self.sent), time.monotonic() + STARTUP_TIMEOUT
+        while not any(pose.header.stamp in self.sent[sent:] for pose in self.poses[-3:]):
+            self.assertLess(time.monotonic(), end, "the brain does not see /joint_states")
+            rclpy.spin_once(self.node, timeout_sec=0.01)
+
     def wait_for_state(self, data, timeout=5.0):
         """Arrival time of the first /brain_state `data` received from now on."""
         seen, end = len(self.states), time.monotonic() + timeout
@@ -244,6 +252,7 @@ class TestBrain(unittest.TestCase):
                 rclpy.spin_once(self.node, timeout_sec=0.01)
             self.fail(f"no {pattern!r} in the brain's output")
 
+        self.wait_for_fresh_joint_states()  # test_7 stopped the fake driver
         type(self).cube_frame = "world"  # out of the contract: ignored
         try:
             self.assertTrue(self.trigger(self.start).success)
