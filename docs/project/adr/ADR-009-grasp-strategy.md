@@ -33,3 +33,11 @@ Grasp: TCP at the cube center, approach **as vertical as possible** (0, 10, 20, 
 ## Reconsider if
 
 On the real arm misaligned grasps often fail: make alignment mandatory and reduce the reachable area, or add a pre-positioning step.
+
+## Update (2026-10-19, steps 2.1b, 2.4a, 2.4b)
+
+Implemented in `so101_brain/grasp_planner.py` and validated in closed loop by the repository code (`so101_bringup/test/test_grasp_closed_loop.py`): 40/40 on 3 seeds, cube **and** box randomized [MES-38]. Two points of the decision change, and one is added:
+
+- **Drop**: the gripper as vertical as reachable (the grasp tilts, 0 to 30°), instead of a free orientation. With a free orientation, 2/40 cubes stayed hooked on a jaw inside one of their tunnels, the gripper tilted 62–68°. Position only stays the last resort.
+- **Lift and drop keep the wrist roll** of the previous pose: left free, the position-only IK spun it 2.3–4.1 rad for a 6 cm lift, seconds of motion. `/go_to_target` keeps the free roll (`04` §7).
+- **Of the 4 face candidates**, the one with the shortest first motion, not the first found.
