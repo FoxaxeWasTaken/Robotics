@@ -2,16 +2,22 @@
 <package format="3">
   <name>so101_perception</name>
   <version>0.1.0</version>
-  <description>Golden ball detection and 3D camera-&gt;world registration.</description>
+  <description>Cube and drop-box detection in the external camera, pixel -&gt; 3D in base_link.</description>
   <maintainer email="tek5@epitech.eu">Tek5 Robotics</maintainer>
   <license>Apache-2.0</license>
 
   <depend>rclpy</depend>
-  <depend>std_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>cv_bridge</depend>
-  <depend>message_filters</depend>
+  <depend>so101_common</depend>
+
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <test_depend>launch_testing_ros</test_depend>
+  <test_depend>python3-pytest</test_depend>
 
   <export>
     <build_type>ament_python</build_type>

@@ -12,7 +12,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-jazzy-image-transport \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --break-system-packages --no-cache-dir "opencv-python-headless==4.10.*"
+# Versions: docker/constraints.txt (ticket 0.3e), shared with the control image.
+COPY docker/constraints.txt /opt/constraints.txt
+RUN pip install --break-system-packages --no-cache-dir -c /opt/constraints.txt "opencv-python-headless==4.10.*"
 
 # To extend this image:
 # FROM tek5/perception

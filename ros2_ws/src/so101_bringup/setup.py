@@ -7,7 +7,7 @@ package_name = "so101_bringup"
 setup(
     name=package_name,
     version="0.2.0",
-    packages=[],
+    packages=[package_name, package_name + ".tools"],
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
@@ -17,6 +17,11 @@ setup(
     ],
     zip_safe=True,
     tests_require=["pytest"],
-    description="Top-level launch files, ROS parameters and RViz configuration of the SO-ARM101 stack.",
+    description="Launch files, ROS parameters, RViz configuration and sim tools of the SO-ARM101 stack.",
     license="Apache-2.0",
+    entry_points={
+        "console_scripts": [
+            "make_perception_dataset = so101_bringup.tools.make_perception_dataset:main",
+        ],
+    },
 )
