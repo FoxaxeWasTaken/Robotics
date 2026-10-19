@@ -39,7 +39,7 @@ flowchart LR
 
 | Package | Type | Container | Content | Status |
 | --- | --- | --- | --- | --- |
-| `so101_driver` | ament_python | control | `driver_node`: sim/real backend, control loop, camera, sim services | Base driver (step 1.0): `/joint_states`, `/joint_command`, speed limiter; sim camera thread (step 1.2); provided `_connect_arm` unchanged (ADR-032) |
+| `so101_driver` | ament_python | control | `driver_node`: sim/real backend, control loop, camera, sim services | Base driver (step 1.0): `/joint_states`, `/joint_command`, speed limiter; sim camera thread (step 1.2); clamp, parameters, `camera_info`, effort (1.1, 1.3); `/sim/randomize`, `seed`, ground truth (1.4); provided `_connect_arm` unchanged (ADR-032) |
 | `so101_brain` | ament_python | control | `brain_node` + pure modules: `kinematics.py`, `grasp_planner.py`, `trajectory.py`, `fsm.py` | FK/IK in `kinematics.py` (step 2.1), min-jerk `trajectory.py` (2.2); `/end_effector_pose`, `/go_to_target` streaming a trajectory |
 | `so101_perception` | ament_python | perception | `perception_node` + pure modules: `detection.py`, `geometry.py`, `calibration.py` (offline tool) | Stub (remove `COLCON_IGNORE`) |
 | `so101_interfaces` | ament_cmake | both | `.srv` (existing); phase 2 adds `Connect4Board.msg`, `DropToken.srv` and the `PickPlace` action (ADR-037) | Existing |
@@ -82,7 +82,7 @@ This table is **the contract** between team members. Any change goes through a P
 
 ### 3.3 Main parameters
 
-Declared with descriptors (description, range, read-only: read at startup) in each node, loaded from `so101_bringup/config/*.yaml`. The driver declares `use_sim`, `port` and, since step 1.1, the rates, speed limits and image size; `calibration_file`, `scene_path` and `expose_ground_truth` come with steps 1.4 and 5.1.
+Declared with descriptors (description, range, read-only: read at startup) in each node, loaded from `so101_bringup/config/*.yaml`. The driver declares `use_sim`, `port` and, since step 1.1, the rates, speed limits and image size, since step 1.4 `seed` and `expose_ground_truth`; `calibration_file` and `scene_path` come with step 5.1.
 
 | Node | Parameter | Default | Note |
 | --- | --- | --- | --- |
@@ -96,7 +96,8 @@ Declared with descriptors (description, range, read-only: read at startup) in ea
 | driver | `max_joint_velocity` | 1.5 rad/s (sim), 0.8 (real) | Safety limiter (ADR-023) |
 | driver | `max_gripper_velocity` | 200 %/s | Safety limiter (ADR-023) |
 | driver | `scene_path` | provided scene | Scene with ArUco markers for calibration (ADR-013) |
-| driver | `expose_ground_truth` | **`false`** | Tests only (C-06) |
+| driver | `seed` | 0 | `/sim/randomize`: same seed, same cube and box sequence (`03` §7) |
+| driver | `expose_ground_truth` | **`false`** | Tests and evaluation bench only (C-06) |
 | perception | `extrinsics_file` | `config/camera_extrinsics.yaml` | Produced by calibration |
 | perception | `hsv_*` | see `05` | Tunable at runtime |
 | brain | `grasp.*`, `motion.*`, `fsm.*` | see `06` | Heights, speeds, thresholds, timeouts |
