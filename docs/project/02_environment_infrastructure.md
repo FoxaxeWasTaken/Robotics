@@ -37,8 +37,8 @@ flowchart TB
 | --- | --- | --- |
 | Host | Windows + **WSL2** Ubuntu 24.04, kernel `6.6.87.2-microsoft-standard-WSL2` | `uname -r` |
 | Docker | Docker Desktop 29.8 (WSL integration), Compose v5.5 | `docker info` |
-| `tek5/control` image | 4.2 GB — ROS 2 Jazzy, numpy 1.26.4, mujoco 3.15.0, opencv-headless 4.10, ikpy 4.1.0, pinocchio 4.1.0, feetech-servo-sdk 1.0.0, pyserial 3.5 | [MES-01] |
-| `tek5/perception` image | 2.9 GB — ROS 2 Jazzy, opencv-headless 4.10, numpy 1.26.4, `cv2.aruco` available | [MES-01], [MES-16] |
+| `tek5/control` image | 4.2 GB — ROS 2 Jazzy, numpy 1.26.4, mujoco 3.15.0, opencv-headless 4.10.0.84, ikpy 4.1.0, pinocchio 4.1.0, feetech-servo-sdk 1.0.0, pyserial 3.5; pip versions pinned in `docker/constraints.txt` (0.3e) | [MES-01] |
+| `tek5/perception` image | 2.9 GB — ROS 2 Jazzy, opencv-headless 4.10.0.84, numpy 1.26.4, `cv2.aruco` available; same constraints file | [MES-01], [MES-16] |
 | Display | WSLg (X11 `:0`) → RViz OpenGL 4.5 in the container | [MES-18] |
 | USB | usbipd-win 5.3; the WSL kernel ships `cdc-acm` (arm) and `uvcvideo` (webcam) | [MES-17] |
 | Native ROS 2 in WSL | Present, **not used** for this project (see §6) | — |
@@ -49,6 +49,7 @@ Other possible hosts: native Linux (simplest, no usbipd), or a VM (USB passthrou
 
 - **Never `pip install` in a running container** without adding it to the Dockerfile: the change vanishes on the next `up` and does not exist for teammates.
 - Add dependencies **in a dedicated layer with pinned versions**, at the end of the Dockerfile to benefit from the cache.
+- **Python versions**: every package pip installs, dependencies included, is pinned in `docker/constraints.txt`, passed to `pip install -c` in both images (hadolint DL3013 rejects an unpinned `pip install`). The pins are the versions the measurements used (MES-01; ikpy 4.1.0 for MES-21, MES-29). Without them a cache miss in CI could install a new MuJoCo or ikpy silently. Upgrading one: change it there, rebuild with `--no-cache`, rerun the kinematics and sim tests, and say so in the PR. apt versions stay unpinned (DL3008: the mirrors drop old versions).
 - `numpy<2` is pinned in `control` because Jazzy apt packages (Pinocchio, cv_bridge) are built against numpy 1.26. **Do not touch it.**
 - ⚠ `so101-core` and `so101-sim` are installed with a **non-editable** `pip install` in the image. The `../sim:/opt/so101/sim` volume only serves the **assets** (hard-coded scene path). **Editing Python code in `sim/` or `core/` has no effect without a rebuild.** Decision: we modify neither `sim/` nor `core/`; specific needs (box randomization, calibration scene, phase-2 scene) are handled in the driver (ADR-018, ADR-013, ADR-036).
 
@@ -145,7 +146,7 @@ xhost +local:docker   # once per session (native Linux; WSLg accepts it too)
 docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz"
 ```
 
-The RViz configuration is versioned (C-52) in `so101_bringup/rviz/so101.rviz`; with `--symlink-install`, saving it from RViz writes the versioned file. **Today**: the course file, a Grid display only (its `rviz_default_plugins/TF` entry is the frame transformer, not a display): the arm appears with step 1.5 (RobotModel, TF). Step 1.5 adds RobotModel, Image (`/external_cam/image_raw`) and an Axes display on the end-effector frame (the bootstrap prototype's file had them). **Target** (ADR-022, each added with its topic): Image `/perception/debug_image`, Markers `/drop_box_marker` and `/brain/markers`, Pose `/object_position`. ⚠ Unchecking a Pose display while it receives messages crashes RViz (`13`).
+The RViz configuration is versioned (C-52) in `so101_bringup/rviz/so101.rviz`; with `--symlink-install`, saving it from RViz writes the versioned file. **Since step 1.5b**: Fixed Frame `base_link`; Grid, RobotModel (`/robot_description`, transient local, so RViz started after `viz` still gets it), TF, Pose `/end_effector_pose`, Pose `/object_position` and `/drop_box_position`, Marker `/drop_box_marker` (the course's `drop_box_marker_pub`, fed by `/drop_box_position`), MarkerArray `/brain/markers`, Image `/external_cam/image_raw` and `/perception/debug_image`. Both images are subscribed **Best effort, depth 1**: compatible with the Reliable camera publisher, and required by the best-effort debug stream (`01` §3.1). A display whose topic does not exist yet (the perception poses, the brain's markers) shows a "no messages" warning until its step; the perception debug image is published since step 3.1. ⚠ Unchecking a Pose display while it receives messages crashes RViz (`13`).
 
 ## 8. Performance facts [MES-02], [MES-03], [MES-20]
 
@@ -177,5 +178,5 @@ source /ros2_ws/install/setup.bash
 ros2 node list                                            # driver, brain, perception, robot_state_publisher…
 ros2 topic hz /joint_states                               # ≥ 20 Hz, once step 1.0 is done
 ros2 topic pub --once -w 1 --keep-alive 1 /joint_command sensor_msgs/msg/JointState '{name: [shoulder_pan], position: [0.5]}'
-rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz  # grid only; the arm appears at step 1.5
+rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz  # arm, TF, camera image, poses, markers
 ```

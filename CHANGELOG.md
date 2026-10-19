@@ -6,6 +6,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Added
 
+- RViz configuration for the demo (step 1.5b): `base_link` fixed frame, the arm model, TF, the camera and perception debug images (best effort), the TCP, cube and box poses, the drop-box marker and the brain's markers; displays of topics still to come are already in the file.
 - Perception skeleton (step 3.1): `so101_perception` builds (no more `COLCON_IGNORE`) and runs in the perception container, which builds up to it into `build_perception/`. Each camera image (subscribed Best effort, depth 1) comes back once on `/perception/debug_image` with a "NO DETECTION" status; `perception.launch.py`, `perception.yaml`; the CI perception job runs. A `launch_testing` test feeds it a fake 10 Hz camera.
 - Reference images for the perception tests (step 3.2a): 44 seeded sim renders in `so101_perception/test/data/` (32 whole cubes, 8 truncated, 4 out of view, arm at `PARK`, 2.2 MB) with `labels.json` (cube center and yaw, box floor center, view, visible fractions, K, camera pose). The generator `ros2 run so101_bringup make_perception_dataset` is in `so101_bringup`; its test regenerates the committed set.
 - Brain state machine (stage 4): pure `fsm.py` with the states of `06` §3 (ADR-015), `step(now, inputs)` on an injected steady clock, target lock, retries, timeouts and error causes, one test per transition and `/brain/stop` from every state (4.1); `brain_node` runs it in a 50 Hz tick, with `/brain/start` and `/brain/stop` answering at once, `/brain_state` latched (transient_local) on each transition and at 1 Hz, `ERROR:no_joint_states` when `/joint_states` stops for 0.5 s, `/go_to_target` in `IDLE` only, and the `grasp.*`/`fsm.*` parameters in `brain.yaml` (4.2a). `fsm.park_pose` moves to elbow 1.5 rad: at 1.6 the lower arm pressed on the shoulder and stayed 0.01 rad short of the reach tolerance, so the cycle never left `WAIT_TARGET` in sim [MES-39].
@@ -26,6 +27,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Changed
 
+- Images: every pip package, dependencies included, pinned in `docker/constraints.txt` (`pip install -c`, both images) at the versions the measurements used (mujoco 3.15.0, ikpy 4.1.0); hadolint DL3013 re-enabled (0.3e).
 - Contributing: a PR may group related tickets (same files or same roadmap step), with one commit and one `Closes #` line per ticket; WIP limit raised from 2 to 5 tickets In progress per person (AGENTS.md, CONTRIBUTING, PR template, `15` §12).
 - CI: nothing runs on the school copy, Dependabot PRs included: the Dependabot exception of `ci.yml` and `pr-title.yml` is limited to this repository.
 - CI: the control job tests the packages one at a time (`--executor sequential`); in parallel, CPU-heavy unit tests starved the driver's camera rate test.

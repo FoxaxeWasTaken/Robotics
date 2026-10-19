@@ -1,4 +1,3 @@
 # Dockerfile lint (hadolint). The Dockerfiles come from the course; the team adds its layers at the end.
 ignored:
   - DL3008   # apt versions not pinned: Ubuntu mirrors drop old versions, pinning would break rebuilds
-  - DL3013   # pip versions not pinned (ikpy, mujoco through sim/): pinning is a backlog ticket; re-enable it then
