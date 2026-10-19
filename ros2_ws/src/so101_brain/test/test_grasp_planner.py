@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 from ament_index_python.packages import get_package_share_directory
 
+from so101_brain.fsm import Params
 from so101_brain.grasp_planner import GraspPlanner, aligned_orientation
 from so101_brain.kinematics import Kinematics
 
@@ -93,6 +94,15 @@ def test_plans_98_percent_of_200_scenes_under_1_s_p95(kin, planner):
 
 def test_a_cube_out_of_reach_gives_no_plan_and_the_reason(planner):
     assert planner.plan(np.array([0.5, 0.0, 0.025]), 0.0, BOX, REST) == (None, "unreachable")
+
+
+def test_a_cube_out_of_reach_fails_within_half_the_plan_timeout(planner):
+    """The slowest answer: every tilt and face fails (1.7 s). Within PLAN's timeout with a 2x margin, else the
+    brain would report ERROR:timeout:PLAN instead of ERROR:unreachable (06 §3.1)."""
+    park = np.array(Params().park_pose)  # q_current in PLAN
+    start = time.perf_counter()
+    assert planner.plan(np.array([0.5, 0.0, 0.025]), 0.3, BOX, park) == (None, "unreachable")
+    assert time.perf_counter() - start < Params().plan_timeout_s / 2
 
 
 def test_a_box_out_of_reach_gives_no_plan_and_the_reason(planner):

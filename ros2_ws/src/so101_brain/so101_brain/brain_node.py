@@ -3,18 +3,22 @@
 
 Never talks to the backend: reads /joint_states, commands through /joint_command. ROS glue only (06 §2):
 callbacks store the last message with its reception time, a 50 Hz tick feeds them to fsm.Fsm.step and sends
-what it returns; the services answer at once, their effect shows on /brain_state (06 §4, ADR-017).
+what it returns; the services answer at once, their effect shows on /brain_state (06 §4, ADR-017). PLAN runs
+the grasp planner in a worker thread, which never touches a ROS object; the tick polls it.
 Publishes the TCP pose from forward kinematics. In IDLE, /go_to_target solves a position IK and returns at
 once, the tick streams the min-jerk trajectory (04 §6).
 """
 
+import inspect
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
 import rclpy
 import rclpy.node
 from ament_index_python.packages import get_package_share_directory
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import Point, PoseStamped
 from rcl_interfaces.msg import FloatingPointRange, IntegerRange, ParameterDescriptor
 from rclpy.clock import Clock, ClockType
 from rclpy.executors import ExternalShutdownException
@@ -23,11 +27,13 @@ from scipy.spatial.transform import Rotation
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
+from visualization_msgs.msg import Marker, MarkerArray
 
 from so101_brain.fsm import Detection, Fsm, Inputs, Params, State
+from so101_brain.grasp_planner import GraspPlanner
 from so101_brain.kinematics import Kinematics
 from so101_brain.trajectory import min_jerk
-from so101_common.robot import ARM_JOINT_NAMES, BASE_FRAME, JOINT_LIMITS
+from so101_common.robot import ARM_JOINT_NAMES, BASE_FRAME, JOINT_LIMITS, rad_to_pct
 from so101_interfaces.srv import GoToTarget
 
 END_EFFECTOR_POSE_HZ = 30.0  # docs/project/01 §3.1
@@ -35,6 +41,13 @@ STREAM_HZ = 50.0  # the FSM tick, /joint_command during a motion (04 §6, 06 §4
 STATE_HZ = 1.0  # /brain_state, also on each transition (01 §3.1)
 MIN_MOTION_DURATION = 0.5  # s: T_min of the min-jerk duration (04 §6)
 TIMEOUT_MARGIN = 1.0  # s: not reached at T + this margin -> warning, motion dropped (04 §6)
+MARKERS = (("pre_grasp", (1.0, 1.0, 0.0)), ("grasp", (0.0, 1.0, 0.0)), ("drop", (0.0, 0.0, 1.0)))  # 06 §7
+
+
+def timed_plan(planner, *request):
+    """Worker thread: the planner's answer, (GraspPlan | None, reason), and its duration in s."""
+    start = time.monotonic()
+    return planner.plan(*request), time.monotonic() - start
 
 
 class BrainNode(rclpy.node.Node):
@@ -44,7 +57,8 @@ class BrainNode(rclpy.node.Node):
         super().__init__("so101_brain")
         urdf = Path(get_package_share_directory("so101_description")) / "urdf" / "so101.urdf"
         self._kin = Kinematics(str(urdf))
-        # Last /joint_states: (arm joints in ARM_JOINT_NAMES order, stamp, reception time, gripper effort).
+        # Last /joint_states: (arm joints in ARM_JOINT_NAMES order, stamp, reception time, gripper effort,
+        # gripper opening in % or None).
         self._joints = None
         self._cube = self._box = None  # last /object_position, /drop_box_position (fsm.Detection)
         self._start = self._stop = False  # service requests, for the next tick
@@ -95,11 +109,19 @@ class BrainNode(rclpy.node.Node):
             )
         )
 
+        # The worker gets its own Kinematics: nothing shared with the tick thread (06 §4).
+        self._planner = self._declare_planner(str(urdf))
+        self._worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="planner")
+        self._planning = None  # the worker's future of the last PLAN
+        self._plan_ticks = []  # tick periods while in PLAN, s (C-33: planning never blocks the tick)
+        self._last_tick = None
+
         self.create_subscription(JointState, "/joint_states", self._cb_joint_states, 10)
         self.create_subscription(PoseStamped, "/object_position", self._cb_object, 10)
         self.create_subscription(PoseStamped, "/drop_box_position", self._cb_box, 10)
         self._pub_pose = self.create_publisher(PoseStamped, "/end_effector_pose", 10)
         self._pub_command = self.create_publisher(JointState, "/joint_command", 10)
+        self._pub_markers = self.create_publisher(MarkerArray, "/brain/markers", 1)  # 01 §3.1
         latched = QoSProfile(
             depth=1, reliability=ReliabilityPolicy.RELIABLE, durability=DurabilityPolicy.TRANSIENT_LOCAL
         )
@@ -138,13 +160,41 @@ class BrainNode(rclpy.node.Node):
             raise ValueError(f"fsm.park_pose {park}: {description}")
         return park
 
+    def _declare_planner(self, urdf):
+        """The grasp planner with the grasp.* parameters (06 §6); their defaults are the planner's own."""
+        d = {name: p.default for name, p in inspect.signature(GraspPlanner).parameters.items()}
+        description = "Approach tilts from vertical, tried in order, deg, each in [0, 90)"
+        descriptor = ParameterDescriptor(description=description, read_only=True)
+        tilts = list(self.declare_parameter("grasp.tilts_deg", list(d["tilts_deg"]), descriptor).value)
+        if not tilts or not all(0.0 <= t < 90.0 for t in tilts):
+            raise ValueError(f"grasp.tilts_deg {tilts}: {description}")
+        return GraspPlanner(
+            Kinematics(urdf),
+            tilts_deg=tilts,
+            pregrasp_backoff_m=self._declare(
+                "grasp.pregrasp_backoff_m",
+                d["pregrasp_backoff_m"],
+                "Pre-grasp back-off along the approach, m",
+                0.01,
+                0.1,
+            ),
+            lift_dz_m=self._declare(
+                "grasp.lift_dz_m", d["lift_dz_m"], "Lift: TCP above the cube center, m", 0.05, 0.2
+            ),
+            drop_tcp_z_m=self._declare(
+                "grasp.drop_tcp_z_m", d["drop_tcp_z_m"], "Drop: TCP above the box floor, m", 0.05, 0.2
+            ),
+        )
+
     def _cb_joint_states(self, msg: JointState):
-        """Stores the arm joints, the stamp, the reception time and the gripper effort (0 if not given)."""
+        """Stores the arm joints, the stamp, the reception time, the gripper effort (0 if not given) and the
+        gripper opening (None if not given)."""
         positions = dict(zip(msg.name, msg.position, strict=True))
         if all(name in positions for name in ARM_JOINT_NAMES):
             efforts = dict(zip(msg.name, msg.effort, strict=False))  # effort is empty on the real arm (6.4a)
             q = np.array([positions[name] for name in ARM_JOINT_NAMES])
-            self._joints = (q, msg.header.stamp, self._now(), float(efforts.get("gripper", 0.0)))
+            gripper = rad_to_pct(positions["gripper"]) if "gripper" in positions else None
+            self._joints = (q, msg.header.stamp, self._now(), float(efforts.get("gripper", 0.0)), gripper)
 
     def _cb_object(self, msg: PoseStamped):
         """Stores the cube detection; orientation = the cube yaw about z (01 §3.1)."""
@@ -226,20 +276,30 @@ class BrainNode(rclpy.node.Node):
         return response
 
     def _tick(self):
-        """50 Hz: one FSM step on the stored messages, then what it commands; in IDLE, /go_to_target's motion.
-
-        The planning worker comes with step 4.2b: until then nothing answers out.plan_request, and PLAN
-        ends in ERROR:timeout:PLAN."""
-        q, _, received, effort = self._joints or (None, None, -np.inf, 0.0)
-        inputs = Inputs(q, received, effort, self._cube, self._box, self._start, self._stop)
+        """50 Hz: one FSM step on the stored messages and the planner's answer, then what it commands;
+        in IDLE, /go_to_target's motion."""
+        now, planning = self._now(), self._fsm.state is State.PLAN
+        if planning and self._last_tick is not None:
+            self._plan_ticks.append(now - self._last_tick)
+        self._last_tick = now
+        answer, seconds = self._planning.result() if planning and self._planning.done() else (None, None)
+        q, _, received, effort, gripper = self._joints or (None, None, -np.inf, 0.0, None)
+        inputs = Inputs(
+            q=q,
+            joints_received=received,
+            effort=effort,
+            cube=self._cube,
+            box=self._box,
+            start=self._start,
+            stop=self._stop,
+            plan=answer,
+            gripper=gripper,
+        )
         self._start = self._stop = False
-        out = self._fsm.step(self._now(), inputs)
+        out = self._fsm.step(now, inputs)
         if out.transition is not None:
-            if self._fsm.state is State.ERROR or "warning:" in out.transition:
-                self.get_logger().warning(out.transition)
-            else:
-                self.get_logger().info(out.transition)
-            self._publish_state()
+            self._log_transition(out.transition)
+        self._follow_planning(planning, answer, seconds, out.plan_request)
         if self._fsm.state is not State.IDLE:
             self._motion = None  # the cycle commands the arm: a /go_to_target motion ends
         elif self._motion is not None:
@@ -249,6 +309,62 @@ class BrainNode(rclpy.node.Node):
 
     def _publish_state(self):
         self._pub_state.publish(String(data=self._fsm.label))
+
+    def _log_transition(self, text):
+        """The FSM's transition line (a warning for an ERROR or a warning), then /brain_state.
+
+        Two call sites: rclpy fixes the severity of each one ("Logger severity cannot be changed")."""
+        if self._fsm.state is State.ERROR or "warning:" in text:
+            self.get_logger().warning(text)
+        else:
+            self.get_logger().info(text)
+        self._publish_state()
+
+    def _follow_planning(self, planning, answer, seconds, request):
+        """Out of PLAN: its log line and the markers of the plan followed; on a request: the worker."""
+        if planning and self._fsm.state is not State.PLAN:
+            self._end_plan(seconds)
+            if self._fsm.state is State.APPROACH:
+                self._publish_markers(answer[0])
+        if request is not None:
+            self._planning = self._worker.submit(timed_plan, self._planner, *request)
+
+    def _end_plan(self, seconds):
+        """Out of PLAN: the planner's time and the tick periods meanwhile. A late answer is never read: PLAN
+        is only entered with a new request, submitted on the same tick."""
+        answered = "no answer" if seconds is None else f"planner answered in {seconds:.2f} s"
+        longest = max(self._plan_ticks, default=0.0) * 1000
+        self.get_logger().info(
+            f"PLAN: {answered}; longest tick period {longest:.1f} ms over {len(self._plan_ticks)} ticks"
+        )
+        self._plan_ticks = []
+
+    def _publish_markers(self, plan):
+        """/brain/markers of the plan the cycle follows (06 §7), at the TCP of its configurations."""
+        stamp = self.get_clock().now().to_msg()
+        tcp = {}
+        for name, _ in MARKERS:
+            x, y, z = (float(v) for v in self._kin.fk(getattr(plan, name))[:3, 3])
+            tcp[name] = Point(x=x, y=y, z=z)
+
+        def marker(ns, kind, rgb):
+            m = Marker(ns=ns, type=kind, action=Marker.ADD)
+            m.header.frame_id, m.header.stamp = BASE_FRAME, stamp
+            m.pose.orientation.w = 1.0
+            m.color.r, m.color.g, m.color.b, m.color.a = (*rgb, 1.0)
+            return m
+
+        markers = []
+        for name, rgb in MARKERS:
+            sphere = marker(name, Marker.SPHERE, rgb)
+            sphere.pose.position = tcp[name]
+            sphere.scale.x = sphere.scale.y = sphere.scale.z = 0.02
+            markers.append(sphere)
+        arrow = marker("approach", Marker.ARROW, MARKERS[0][1])
+        arrow.points = [tcp["pre_grasp"], tcp["grasp"]]
+        arrow.scale.x, arrow.scale.y, arrow.scale.z = 0.004, 0.008, 0.01  # shaft, head diameters, head length
+        markers.append(arrow)
+        self._pub_markers.publish(MarkerArray(markers=markers))
 
     def _stream_motion(self):
         """Next sample of the running /go_to_target trajectory; reached or timed out ends it."""
@@ -286,6 +402,10 @@ class BrainNode(rclpy.node.Node):
     def _now(self) -> float:
         """Motion time, s: steady, never steps back."""
         return self._steady.now().nanoseconds * 1e-9
+
+    def destroy_node(self):
+        self._worker.shutdown(wait=False, cancel_futures=True)  # a running plan ends on its own
+        super().destroy_node()
 
 
 def main(args=None):
