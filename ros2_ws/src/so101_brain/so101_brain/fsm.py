@@ -276,8 +276,11 @@ class Fsm:
         target = self._lock()
         if target is not None:
             self._target = target
-            cube, _, box = target
-            self._go(State.PLAN, f"target locked: cube {np.round(cube, 3)}, box {np.round(box, 3)}")
+            cube, yaw, box = target
+            yaw = "unknown" if yaw is None else f"{yaw:.2f} rad"
+            self._go(
+                State.PLAN, f"target locked: cube {np.round(cube, 3)}, yaw {yaw}, box {np.round(box, 3)}"
+            )
         elif self._now - self._parked_at > self.p.wait_target_s:
             self._go(State.ERROR, f"no target locked {self.p.wait_target_s:g} s after PARK", "object_lost")
 
