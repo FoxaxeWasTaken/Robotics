@@ -174,7 +174,7 @@ With the provided camera at 320×240, over 2,000 positions drawn like `randomize
 
 ## 7. Arm occlusions and freshness
 
-- When the arm is above the cube, perception may lose it or see it truncated. **The brain locks the target** while the arm is in the `PARK` pose, out of view (`[1.9, −1.7, 1.6, 0.7, 0]`, visually verified), and then no longer depends on perception until the final verification (C-33, ADR-017).
+- When the arm is above the cube, perception may lose it or see it truncated. **The brain locks the target** while the arm is in the `PARK` pose, off the workspace (`[1.9, −1.7, 1.5, 0.7, 0]`: the cube never hidden, the box at worst 9 % hidden over 50 scenes [MES-39]), and then no longer depends on perception until the final verification (C-33, ADR-017).
 - Perception **publishes nothing** when the detection is invalid (absent, truncated, outlier): freshness is carried by `header.stamp`, the brain judges its age.
 - Temporal filter: rolling median of 5; a measurement more than 2 cm away from the median is rejected (unless it persists 5 times = the object really moved).
 

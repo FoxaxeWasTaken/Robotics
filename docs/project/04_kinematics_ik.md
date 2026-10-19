@@ -75,9 +75,9 @@ Three tasks, from most to least constrained:
 
 | Task | Constraints | ikpy equivalent | Use | Measured success in the workspace |
 | --- | --- | --- | --- | --- |
-| `ik_pose(p, R)` | Position + 6D orientation | `orientation_mode="all"` | Grasp with jaws aligned to the faces | Height-dependent (see §4) |
-| `ik_point(p, a, roll=None)` | Position + **approach direction** `a` | `orientation_mode="Z"`, `target_orientation=a` | Grasp when the 6D alignment fails | ikpy: 97 % for vertical `a`, z ≤ 6 cm [MES-21] |
-| `ik_pos(p)` | Position only (3D) | default | Lift, transport, drop, `/go_to_target` | **100 %** (< 1 mm) over r ∈ [0.18, 0.30] m, z ∈ [2, 12] cm [MES-07], [MES-21] |
+| `ik_pose(p, R)` | Position + 6D orientation | `orientation_mode="all"` | Grasp with jaws aligned to the faces | Height-dependent (see §4); aligned and vertical in the cube area: 76 % [MES-38] |
+| `ik_point(p, a, roll=None)` | Position + **approach direction** `a` | `orientation_mode="Z"`, `target_orientation=a` | Grasp when the 6D alignment fails | ikpy: 97 % for vertical `a`, z ≤ 6 cm [MES-21]; `kinematics.py`: 100 % of the targets of the cube area that have a vertical solution (188/200; none for the 12 others, from 100 more seeds), p95 70 ms |
+| `ik_pos(p, roll=None)` | Position only (3D); `roll` fixes wrist_roll | default | Lift (roll kept), `/go_to_target`, drop as a last resort | **100 %** (< 1 mm) over r ∈ [0.18, 0.30] m, z ∈ [2, 12] cm [MES-07], [MES-21] |
 
 - Pointing error: `e_rot = −(z_TCP × a)`, Jacobian `J_r = −[a]ₓ · (−[z]ₓ · J_ω)` in `LOCAL_WORLD_ALIGNED`.
 - **Seeds (multi-start)**: `[−az, −0.3, 0.3, 1.2, 0]`, `[−az, 0.5, −0.5, 1.5, 0]`, `[−az, −1.0, 1.0, 0.5, 0]`, plus the current configuration, with `az = atan2(y, x − 0.0388)` = azimuth seen from the pan axis. If they all fail (target past the pan range, |azimuth| > 1.92 rad, or a folded arm), a fallback grid tries both pan families (facing the target, or turned by π and reaching back) with the shoulder and elbow both ways: 0 misses in 2000 random configurations instead of 307, same median time [MES-36].
@@ -128,8 +128,9 @@ plan_grasp(p_cube, yaw_cube):
       if grasp and pre-grasp both solved: return
   failure: unreachable target, report it (never "move anyway")
 
-lift     : ik_pos(p_cube + 10 cm in z)
-transport: ik_pos(p_box + (0, 0, h_drop))      free orientation: the cube falls
+lift     : ik_pos(p_cube + 10 cm in z, roll of the pre-grasp)
+drop     : ik_point(p_box + (0, 0, h_drop), a(θ) in the arm's plane, roll of the lift), θ = 0, 10, 20, 30°
+           gripper as vertical as reachable (update of 2.4b, below); position only as a last resort
 ```
 
 **Results in sim, using ground truth to isolate kinematics from perception** [MES-09]:
@@ -142,6 +143,13 @@ transport: ik_pos(p_box + (0, 0, h_drop))      free orientation: the cube falls
 | Robustness to jaw misalignment | Grasp succeeds up to **44°** of misalignment w.r.t. the faces (the cube's tunnels help) |
 | Single failure | Released 11 cm above the box: the cube bounced out. Fix: **release lower** (TCP ≈ 9 cm) and **verify the drop** |
 
+**Implemented** (steps 2.1b, 2.4a, 2.4b) [MES-38]:
+
+- `grasp_planner.py`: 200 random scenes (cube and box areas of `/sim/randomize`) all planned, every configuration verified by FK: 170 aligned, 154 vertical and 46 at 10°, p95 0.37 s.
+- Closed loop, `so101_bringup/test/test_grasp_closed_loop.py`: the repository's planner and trajectories behind the driver's tick and limiter, cube and box randomized: **40/40** in the box on 3 seeds, 15 s per run.
+- Of the 4 faces, the planner takes the one with the shortest first motion, not the first found (median wrist turn 61° instead of 100°). The lift and the drop keep the roll: left free, it spun 2.3–4.1 rad for a 6 cm lift. Motion time per episode: median 13.6 → 7.2 s.
+- The drop points the gripper down (sweep of the grasp tilts): with a free orientation, 2/40 cubes stayed hooked on a jaw inside a tunnel, the gripper tilted 62–68° (the successful ones: ≤ 32°). ADR-009, update.
+
 **Chosen parameters** (brain defaults):
 
 | Parameter | Value | Rationale |
@@ -151,6 +159,7 @@ transport: ik_pos(p_box + (0, 0, h_drop))      free orientation: the cube falls
 | Lift height | +10 cm | Clears the box walls (5 cm) |
 | Drop height (TCP) | ≈ 9 cm above the box floor | Avoids the bounce seen at 11 cm |
 | Tilts tried | 0, 10, 20, 30° | Covers the whole randomization area |
+| Drop orientation | As vertical as reachable (same tilts), roll of the lift | Tilted 62–68°, the cube stayed hooked on a jaw inside a tunnel [MES-38] |
 
 ## 6. Trajectory generation (ADR-010)
 
@@ -170,7 +179,7 @@ transport: ik_pos(p_box + (0, 0, h_drop))      free orientation: the cube falls
 3. Measure the `gripperframe` site position (ground truth, allowed in tests) → error.
 4. Report mean, p95, max. Expected < 1 mm (driver + brain smoke test: 0.13 mm [MES-24]).
 
-**Implemented** (step 2.3): `so101_bringup/test/test_ik_accuracy.py` (sim-backed, so in `so101_bringup`: C-05 guard). The true TCP is MuJoCo's FK of the **measured** joints, independent of the ikpy/URDF model. Targets: r 0.16–0.30 m, azimuth −90° to 60°, z 3–12 cm, seeded. At these heights the cube and the box are obstacles (a target over the box missed by 56 mm, the arm resting on a wall): a seeded `/sim/randomize` puts them at known places, read from the ground truth, and targets closer than 8 cm (cube) or 12 cm (box) are drawn again. Result: **mean 0.17 mm, p95 0.23 mm, max 0.25 mm** (`results/ik_accuracy_sim_2026-10-18.md`, max 0.22–0.25 mm over 4 runs); gripper at 0/50/100 % within 1.8 %. Some motions last up to 9.5 s: the position-only IK leaves `wrist_roll` free and sometimes turns it by more than 4 rad, which sets the min-jerk duration (2.1b fixes the roll).
+**Implemented** (step 2.3): `so101_bringup/test/test_ik_accuracy.py` (sim-backed, so in `so101_bringup`: C-05 guard). The true TCP is MuJoCo's FK of the **measured** joints, independent of the ikpy/URDF model. Targets: r 0.16–0.30 m, azimuth −90° to 60°, z 3–12 cm, seeded. At these heights the cube and the box are obstacles (a target over the box missed by 56 mm, the arm resting on a wall): a seeded `/sim/randomize` puts them at known places, read from the ground truth, and targets closer than 8 cm (cube) or 12 cm (box) are drawn again. Result: **mean 0.17 mm, p95 0.23 mm, max 0.25 mm** (`results/ik_accuracy_sim_2026-10-18.md`, max 0.22–0.25 mm over 4 runs); gripper at 0/50/100 % within 1.8 %. Some motions last up to 9.5 s: the position-only IK leaves `wrist_roll` free and sometimes turns it by more than 4 rad, which sets the min-jerk duration. Keeping the measured roll would shorten them (median 2.1 s, max 5.3 s), but one target 3.9 cm above the floor then stayed blocked 20 mm above it ("target not reached"; probably the gripper on the floor, not checked) [MES-38]: `/go_to_target` keeps the free roll, the planner keeps the roll for its lift and drop only (§5).
 
 **On the real arm**:
 
@@ -189,7 +198,9 @@ transport: ik_pos(p_box + (0, 0, h_drop))      free orientation: the cube falls
 - [ ] Units: rad everywhere, gripper in % only in `/joint_command`.
 - [ ] ikpy builds the chain by following the **first** child joint in URDF order (`gripper_link` has two children): assert that the last link is `gripper_frame_joint`.
 - [ ] Clip the seed into the joint bounds before calling ikpy: measured joints can sit slightly past a URDF limit (sim overshoot, real arm at rest), and scipy then raises "x0 is infeasible", which kills the node.
-- [ ] Position-only IK leaves the orientation free (approach tilt up to 90° measured from the real rest pose): use `ik_point` or `ik_pose` for grasps.
+- [ ] Position-only IK leaves the orientation free (approach tilt up to 90° measured from the real rest pose): use `ik_point` or `ik_pose` for grasps. It also spins the roll (up to 4 rad for a 6 cm lift): pass `roll` when it should stay.
+- [ ] With the roll fixed, the approach can only tilt in the arm's own plane (azimuth −pan), not the target's: the TCP sits 8 mm off the roll axis.
+- [ ] Aligned grasp tilted by θ: the jaw axis (TCP x) is the face normal projected perpendicular to the approach. The cube's 90° symmetry hides a jaw axis off by 90°: test the convention itself.
 
 ## 9. Proposed API (`so101_brain/kinematics.py`, ROS-free, testable)
 
@@ -206,10 +217,10 @@ class Kinematics:                                    # façade: ikpy inside, Pin
     def arm_azimuth(self, p) -> float: ...           # from the pan axis
 
 class GraspPlanner:
-    def plan(self, cube_pose, box_pose, q_current) -> GraspPlan | None: ...   # grasp, pre-grasp, lift, drop
+    def plan(self, cube_position, cube_yaw, box_position, q_current): ...   # (GraspPlan, None) | (None, reason)
 ```
 
-Implemented at step 2.1: `fk`, `ik_pos`, `arm_azimuth`. The orientation tasks come with the grasp planner (2.1b, 4.x).
+Implemented: `fk`, `ik_pos`, `arm_azimuth` (step 2.1); `ik_point`, `ik_pose`, `ik_pos(roll=…)` (2.1b); `GraspPlanner` in `grasp_planner.py` (2.4a). `cube_yaw=None` (unknown) plans a free grasp only; the failure reasons, usable as FSM error causes, are `unreachable`, `lift_unreachable` and `drop_unreachable`. `ik_jaw_normal` comes with phase 2.
 
 ## 10. State of the art and evolution paths
 

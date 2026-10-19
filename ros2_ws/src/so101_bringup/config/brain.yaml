@@ -4,3 +4,12 @@ so101_brain:
     motion:
       v_max_rad_s: 1.0     # peak arm joint speed of a motion; 0.5 on the real arm to start (06 §5)
       reach_tol_rad: 0.01  # target reached when every arm joint is this close (04 §6)
+    grasp:
+      effort_threshold: 0.06  # normalized gripper closing force: held above it; recalibrate on the real arm
+      open_pct: 100.0
+      close_pct: 0.0
+    fsm:
+      target_lock_n: 5             # consistent detections that lock the target (06 §3.1)
+      target_lock_spread_m: 0.005  # ... within this distance of each other
+      max_retries: 3               # failed attempts before ERROR:grasp_failed
+      park_pose: [1.9, -1.7, 1.5, 0.7, 0.0]  # off the workspace view, no self-contact [MES-39]; check on the real arm
