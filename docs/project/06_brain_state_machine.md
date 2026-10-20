@@ -9,7 +9,7 @@
 - **Outputs**: `/joint_command` (only channel to the motors, C-05), `/brain_state`, `/end_effector_pose`, `/brain/markers`.
 - **Phase 2** adds the `/brain/pick_place` action, served by the same motion code (ADR-037), and `/brain/set_gripper` for the token handover (ADR-038, `phase2/P2-02` §6).
 - **Starting point**: the course stub (ADR-039). The bootstrap prototype (outside the repository) had ikpy FK + `/end_effector_pose`, `/go_to_target` (position IK, rejected if error > 1 cm), the command sent **in one go** (the driver's speed limiter smoothed it): enough for C-41, not for pick & place, which needs trajectories (§5); target reached within 0.13 mm [MES-24].
-- **Today** (step 4.2a): `fsm.py` (§3) driven by the node's 50 Hz tick, `/brain/start`, `/brain/stop`, `/brain_state`. No planning worker yet (4.2b): a locked target ends in `ERROR:timeout:PLAN`.
+- **Today** (step 4.2b): the full sequence runs in sim. `fsm.py` (§3) is driven by the node's 50 Hz tick, with `/brain/start`, `/brain/stop` and `/brain_state`; `PLAN` runs the planner in a worker process (§4) and the plan shows on `/brain/markers` (§7). Until perception (stage 3), the development stack `so101_bringup/test/gt_stub.launch.py` feeds the brain the ground truth (4.2c, C-06).
 
 ## 2. Code organization
 
@@ -59,8 +59,8 @@ stateDiagram-v2
 | --- | --- | --- | --- |
 | `IDLE` | Nothing (the arm keeps its target); `/go_to_target` is served in this state only | `/brain/start` (without fresh `/joint_states`: `ERROR:no_joint_states`) | — |
 | `WAIT_TARGET` | Go to `PARK` (arm out of the camera view); the detection history restarts once `PARK` is reached | 5 detections of the object **and** the box received since `PARK`, within 5 mm of each other, the newest younger than 0.5 s; target = their mean, yaw = the newest | `PARK` not reached at T + 1 s → `ERROR:timeout:WAIT_TARGET`; 10 s after `PARK` → `ERROR:object_lost` |
-| `PLAN` | Start `grasp_planner.plan()` in a **worker thread** (future); checked every tick | Future done: valid plan → `APPROACH`; `None` → `ERROR:<reason>` (`unreachable`, `lift_unreachable`, `drop_unreachable`) | 2 s → `ERROR:timeout:PLAN` |
-| `APPROACH` | Min-jerk trajectory to the pre-grasp, gripper **open (100 %)** | `max(abs(q − q_target)) < 0.01 rad` | T + 1 s → `ERROR:timeout:APPROACH` |
+| `PLAN` | Start `grasp_planner.plan()` in a **worker process** (future); checked every tick | Future done: valid plan → `APPROACH`; `None` → `ERROR:<reason>` (`unreachable`, `lift_unreachable`, `drop_unreachable`) | 6 s → `ERROR:timeout:PLAN` |
+| `APPROACH` | Min-jerk trajectory to the pre-grasp, gripper **open (100 %)** | `max(abs(q − q_target)) < 0.01 rad` **and** the measured gripper within 3 % of open | T + 1 s → `ERROR:timeout:APPROACH` |
 | `DESCEND` | Trajectory to the grasp (4 cm back-off; Cartesian recommended on the real arm) | Reached | T + 1 s → `ERROR:timeout:DESCEND` |
 | `GRASP` | Gripper → **0 %**, wait 0.8 s | From 0.8 s, normalized gripper effort **> 0.06** → `LIFT` | Still below at 1.5 s → `RETRY` (empty gripper) |
 | `LIFT` | Back to the pre-grasp, then +10 cm (position IK) | Reached: effort > threshold → `TRANSPORT`, otherwise → `RETRY` (judged once lifted, not on one sample) | T + 1 s per motion → `ERROR:timeout:LIFT` |
@@ -83,6 +83,8 @@ stateDiagram-v2
 - **`HOME_RETRY`** had no row: it parks before the next lock (or the error), so the arm is never left low near the cube.
 - **`ERROR` freezes only a running motion**: `ERROR:unreachable` sends no command at all (§8, §10).
 - **Clock**: `Fsm.step(now, inputs)`, `now` from the node's steady clock; ages from the reception time on the same clock, never `time.time()` [MES-37].
+- **`PLAN` timeout 6 s** (step 4.2b; 2 s before): the planner's slowest answer, a cube out of reach, takes 1.7 s to fail, 2.4 s on the CI runner (2.0 s locally while the planner ran in a worker thread); with 2 s it showed as `ERROR:timeout:PLAN` instead of `ERROR:unreachable` [MES-40]. The arm is parked during `PLAN`, so a hung planner costs nothing more. `test_grasp_planner.py` keeps that failure under half the timeout.
+- **`APPROACH` waits for the open gripper** (step 4.2b): `DESCEND` must not bring closed jaws onto the cube. The other motions do not wait for it: in `TRANSPORT` the cube keeps the jaws from closing to 0 %.
 
 **Effort threshold**: in sim, the normalized gripper load is **0.12–0.19** when holding the cube vs **0** when empty [MES-10] → threshold 0.06 (×2 margin). It is a parameter, **to recalibrate on the real arm**.
 
@@ -97,7 +99,7 @@ sequenceDiagram
   participant P as /object_position
   participant CB as Callback
   participant T as FSM tick 50 Hz
-  participant W as Worker thread
+  participant W as Worker process
   participant D as /joint_command
   P->>CB: PoseStamped (10 Hz)
   CB->>CB: last_object = (msg, stamp)
@@ -118,7 +120,7 @@ sequenceDiagram
 | --- | --- |
 | No `sleep`, no `spin_until_future_complete` in a callback | The FSM runs in a **50 Hz timer**; waits are timestamp comparisons |
 | Subscription callbacks only store | `self._last_object = (msg, stamp)` |
-| Long computations (planning) never block the tick | `concurrent.futures.ThreadPoolExecutor(max_workers=1)`; `PLAN` polls `future.done()` |
+| Long computations (planning) never block the tick | `concurrent.futures.ProcessPoolExecutor(max_workers=1)`, started with the node (forkserver: the node is multithreaded); `PLAN` polls `future.done()`. A process, not a thread: the planner holds the GIL, and a worker thread delayed the tick to 27–29 ms at p99 during `PLAN` [MES-40] |
 | Perception missing or late | Use **the last known value** with its age (from its reception, steady clock [MES-37]); only request fresh data in `WAIT_TARGET` and `VERIFY` |
 | `/joint_states` missing for > 0.5 s | `ERROR:no_joint_states`, stop sending commands |
 | Services | Immediate answer (`success`/`message`); the effect is asynchronous, visible on `/brain_state` |
@@ -132,7 +134,7 @@ sequenceDiagram
 
 ## 6. Parameters (YAML `so101_bringup/config/brain.yaml`)
 
-Declared by `brain_node` (read-only, with ranges): `motion.*` since step 2.2; `grasp.effort_threshold`, `grasp.open_pct`, `grasp.close_pct` and `fsm.*` since step 4.2a (`fsm.park_pose` checked against the URDF limits at startup); the planner's `grasp.*` with step 4.2b. The timeouts of §3.1 are constants (`fsm.Params`).
+Declared by `brain_node` (read-only, with ranges): `motion.*` since step 2.2; `grasp.effort_threshold`, `grasp.open_pct`, `grasp.close_pct` and `fsm.*` since step 4.2a (`fsm.park_pose` checked against the URDF limits at startup); the planner's `grasp.tilts_deg`, `grasp.pregrasp_backoff_m`, `grasp.lift_dz_m` and `grasp.drop_tcp_z_m` since step 4.2b (defaults: the planner's own). The timeouts of §3.1 are constants (`fsm.Params`).
 
 | Parameter | Default | Origin |
 | --- | --- | --- |
@@ -153,7 +155,8 @@ Declared by `brain_node` (read-only, with ranges): `motion.*` since step 2.2; `g
 
 - `/brain_state` (transient_local): the current state is always visible, even for late subscribers.
 - Log on every transition: `old → new (reason, time spent in state)`.
-- `/brain/markers`: pre-grasp (yellow sphere), grasp (green), drop (blue), approach (arrow).
+- Log when leaving `PLAN` (step 4.2b): the planner's time and the longest tick period meanwhile, `PLAN: planner answered in 0.23 s; longest tick period 20.6 ms over 12 ticks` (C-33, MES-40).
+- `/brain/markers`: pre-grasp (yellow sphere), grasp (green), drop (blue), approach (arrow from the pre-grasp to the grasp). Since step 4.2b: published when the cycle follows a plan, at the TCP of each of its configurations.
 - rosbag2 recording of demo episodes (`ros2 bag record /joint_states /joint_command /object_position /drop_box_position /brain_state`) to replay and analyze failures.
 
 ## 8. Tests
@@ -163,7 +166,8 @@ Declared by `brain_node` (read-only, with ranges): `motion.*` since step 2.2; `g
 | Every transition of table §3.1 (simulated inputs, fake clock) | Unit `fsm.py` |
 | `/brain/stop` from every state → `STOPPED` | Unit |
 | Perception silent during `TRANSPORT` → the cycle still completes | Integration (launch_testing) |
-| Unreachable target (r = 0.5 m) → `ERROR:unreachable`, **no** command sent | Integration |
+| Unreachable target (r = 0.5 m) → `ERROR:unreachable`, **no** command sent | Integration (`test_brain_launch.py`, test_9) |
+| A full cycle with the ground-truth stub: `DONE`, the cube in the box | System, sim (`so101_bringup/test/test_pick_place_gt_launch.py`) |
 | 50-episode evaluation bench (randomized cube and box) | System (`08`) |
 
 ## 9. Alternatives to the hand-written FSM

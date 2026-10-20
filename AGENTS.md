@@ -54,6 +54,8 @@ bash tools/ci/guards.sh           # host, repo root (needs the git repo): projec
 - On WSL2 the system clock steps back ~2 s every 30 s: timers on the steady clock (`create_timer(..., clock=Clock(clock_type=ClockType.STEADY_TIME))`), durations with `time.monotonic()`, stamps on the ROS clock; tests count messages, never fixed windows [MES-37].
 - A package's first test needs `tests_require=["pytest"]` in `setup.py` and `<test_depend>python3-pytest</test_depend>` in `package.xml`; otherwise `colcon test` falls back to unittest and fails with exit 5 ("NO TESTS RAN").
 - A MuJoCo `include` cannot change an included body (raise the base, add a camera): edit a copy with `mujoco.MjSpec`, never `sim/` (ADR-036 update).
+- A CPU-bound worker thread (ikpy, scipy) delays the node's timers through the GIL: run it in a `ProcessPoolExecutor` with the `forkserver` context, never `fork` in a multithreaded node [MES-40].
+- rclpy fixes the severity of each logging call site: `(log.warning if bad else log.info)(text)` raises `ValueError: Logger severity cannot be changed between calls` the first time the other severity comes; write two calls.
 - In a fresh `docker compose exec`, `ros2 node list` or `ros2 topic echo` may show nothing at first (DDS discovery): use `--no-daemon --spin-time 3`, or retry.
 - Files written in the containers (`build/`, `install/`, `log/`, `__pycache__`) belong to root: delete them from inside a container.
 - `pyproject.toml` excludes course files still identical to upstream: remove a file from `extend-exclude` when you rewrite it, or it is never linted.

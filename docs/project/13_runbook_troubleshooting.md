@@ -6,7 +6,7 @@
 
 ```bash
 # Start / stop
-cd docker && docker compose up -d control perception viz   # perception idle until step 3.1
+cd docker && docker compose up -d control perception viz   # perception builds its packages, then starts
 docker compose logs -f control            # wait for "Brain node ready."
 docker compose restart control            # reload Python code changes (symlink-install)
 docker compose down                       # SIGINT → destroy_node() → clean stop
@@ -22,7 +22,7 @@ cd /ros2_ws && colcon build --symlink-install && source install/setup.bash
 ros2 node list ; ros2 topic list ; ros2 topic hz /joint_states
 ros2 topic info -v /external_cam/image_raw     # QoS of publishers and subscribers
 ros2 topic echo --once /object_position
-ros2 service call /brain/start std_srvs/srv/Trigger    # parks, then WAIT_TARGET (full cycle: 3.3 + 4.2b)
+ros2 service call /brain/start std_srvs/srv/Trigger    # parks, then WAIT_TARGET (full cycle: perception, or the stub below)
 ros2 service call /sim/randomize std_srvs/srv/Trigger  # sim: new cube and box positions
 rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz
 
@@ -31,6 +31,13 @@ ros2 topic pub --once -w 1 --keep-alive 1 /joint_command sensor_msgs/msg/JointSt
 ros2 topic pub --once -w 1 --keep-alive 1 /joint_command sensor_msgs/msg/JointState '{name: [gripper], position: [100.0]}'
 ros2 service call /go_to_target so101_interfaces/srv/GoToTarget \
   '{target_pose: {header: {frame_id: base_link}, pose: {position: {x: 0.22, y: 0.0, z: 0.08}}}}'
+
+# Development only (step 4.2c): a full cycle before perception, the ground truth standing in for it (C-06).
+# Its own driver and brain: on another ROS_DOMAIN_ID than the running stack. Then RViz on the same domain.
+docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && export ROS_DOMAIN_ID=77 && \
+  (ros2 launch so101_description viz.launch.py &) && ros2 launch /ros2_ws/src/so101_bringup/test/gt_stub.launch.py"
+docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && export ROS_DOMAIN_ID=77 && \
+  ros2 service call /sim/randomize std_srvs/srv/Trigger && ros2 service call /brain/start std_srvs/srv/Trigger"
 
 # Record an episode
 ros2 bag record -o ep_$(date +%H%M%S) /joint_states /joint_command /object_position /drop_box_position /brain_state
