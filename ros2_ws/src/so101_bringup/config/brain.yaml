@@ -5,6 +5,10 @@ so101_brain:
       v_max_rad_s: 1.0     # peak arm joint speed of a motion; 0.5 on the real arm to start (06 §5)
       reach_tol_rad: 0.01  # target reached when every arm joint is this close (04 §6)
     grasp:
+      tilts_deg: [0.0, 10.0, 20.0, 30.0]  # approach tilts from vertical, tried in order [MES-08]; floats
+      pregrasp_backoff_m: 0.04  # back along the approach axis [MES-09]
+      lift_dz_m: 0.10           # TCP above the cube center: 5 cm walls + margin
+      drop_tcp_z_m: 0.09        # TCP above the box floor; failure observed at 0.11 [MES-09]
       effort_threshold: 0.06  # normalized gripper closing force: held above it; recalibrate on the real arm
       open_pct: 100.0
       close_pct: 0.0

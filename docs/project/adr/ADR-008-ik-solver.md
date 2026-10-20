@@ -39,3 +39,7 @@ Planning exceeds 1 s, or extra constraints appear (avoidance, task priorities): 
 - [MES-21] reproduced identically.
 - Pinocchio 4.1.0 comes from `ros-jazzy-pinocchio`: import it after `source /opt/ros/jazzy/setup.bash`.
 - Phase 2 needs a jaw-axis constraint: wrist roll locked at ±90° + position IK solves every reachable target, ikpy `orientation_mode="X"` only 11 % [MES-29] (ADR-035). ikpy stays the solver.
+
+## Update (2026-10-20, step 4.2b)
+
+- Planning runs in a worker **process**, not the worker thread of the consequences above: with ikpy the planner holds the GIL, and a thread delayed the brain's 50 Hz tick to 27–29 ms at p99 during `PLAN` [MES-40] (`06` §4). The planner's p95 stays under 1 s, so ikpy stays the solver.
