@@ -161,7 +161,7 @@ The brain recovers the gripper percentage with the inverse conversion from `so10
 | | Sim | Real |
 | --- | --- | --- |
 | Source | MuJoCo render of `external_cam` on a state copy (dedicated thread) | `OpenCVCamera(index_or_path=/dev/videoN, fps=30, width=640, height=480, fourcc="MJPG")` in its own thread (async read) |
-| K | `get_camera_intrinsics()` (fx = fy ≈ 246 px at 320×240, cx = 160, cy = 120) | YAML from the intrinsic calibration (ADR-014) |
+| K | `get_camera_intrinsics()` (fx = fy ≈ 246 px at 320×240), principal point moved to OpenCV pixel centers: cx = 159.5, cy = 119.5 (`camera.py`, [MES-41]) | YAML from the intrinsic calibration (ADR-014) |
 | D (distortion) | 0 | From calibration |
 | Publication | `Image` `rgb8` + `CameraInfo` with the **same `stamp`**, `frame_id = external_cam_optical_frame`, 10 Hz | Same |
 

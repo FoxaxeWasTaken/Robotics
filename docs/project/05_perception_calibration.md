@@ -80,7 +80,8 @@ Without this FLIP, positions are completely wrong (mirrored, behind the camera) 
 
 ### 3.2 Intrinsics
 
-- Sim: `K = [[fx, 0, W/2], [0, fy, H/2], [0, 0, 1]]`, `fy = H / (2·tan(fovy/2))`, fovy = 52° → **fx = fy ≈ 246 px at 320×240** (≈ 492 at 640×480). No distortion.
+- Sim: `fy = H / (2·tan(fovy/2))`, fovy = 52° → **fx = fy ≈ 246 px at 320×240** (≈ 492 at 640×480). No distortion.
+- **Principal point, half a pixel**: the provided `get_camera_intrinsics()` gives `cx = W/2`, `cy = H/2`, the OpenGL convention, where pixel *edges* sit on integers. `CameraInfo` and OpenCV put pixel *centers* on integers, so the driver publishes **`cx = (W − 1)/2`, `cy = (H − 1)/2`** (`so101_driver/camera.py`), 159.5 and 119.5 at 320×240. With `W/2`, every OpenCV centroid reads 0.5 px off in u and v: 2.6 mm instead of 0.5 mm on the cube [MES-41].
 - Real: from the intrinsic calibration (ADR-014), with distortion → `cv2.undistortPoints` before back-projection.
 - Perception reads K **only** from `/external_cam/camera_info`, never from the backend (C-05).
 
@@ -99,7 +100,7 @@ def pixel_to_world(u, v, K, R_wc, t_wc, z0):
 | --- | --- |
 | Mean XY error | **2.7 mm** |
 | p95 / max | 4.1 mm / 4.5 mm |
-| Mean bias | (+0.5, −2.6) mm: the centroid of the visible surface (top + two faces) is not the projection of the center |
+| Mean bias | (+0.5, −2.6) mm. Mostly the half pixel of §3.2, not the side faces: with the OpenCV principal point, mean **0.50 mm**, max 1.00 mm over 50 scenes [MES-41] |
 | After removing the constant bias | mean **0.8 mm**, max 1.9 mm |
 | Box (centroid, plane z = 2.5 cm) | mean 2.9 mm, max 5.4 mm [MES-15] |
 

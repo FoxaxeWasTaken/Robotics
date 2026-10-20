@@ -39,6 +39,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Fixed
 
+- Sim `camera_info`: the principal point is now in OpenCV pixel coordinates, (159.5, 119.5) at 320×240 instead of the provided (160, 120), which put pixel edges on integers. Every OpenCV centroid was half a pixel off: cube error 2.63 → 0.50 mm mean over 50 scenes (MES-41, #122). The reference images' `labels.json` carries the same K; the images are unchanged.
 - Driver and brain: timers and motion time on the steady clock. On WSL2 the system clock steps back ~2.6 s every 30 s: `/joint_states` stopped and motions froze for 2.6 s at each step; largest `/joint_states` gap now 37 ms [MES-37].
 - Control container shutdown: SIGINT goes to `ros2 launch` only, which forwards one to each node; signalling the whole process group gave each node a second SIGINT that interrupted `destroy_node()` (traceback on every `docker compose stop`).
 - Driver: SIGINT or SIGTERM while a timer callback publishes no longer ends in a traceback and exit code 1 (seen once in 40 SIGTERM stops).
