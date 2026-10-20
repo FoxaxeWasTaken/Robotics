@@ -89,10 +89,11 @@ Without this FLIP, positions are completely wrong (mirrored, behind the camera) 
 Chosen assumption: **the object rests on the table**, so its center lies at a known height `z₀ = 0.025 m` (half edge) — the "assumption of its own" required by C-22.
 
 ```python
-def pixel_to_world(u, v, K, R_wc, t_wc, z0):
+def pixel_to_world(u, v, K, R_wc, t_wc, z0):        # so101_perception/geometry.py
     d = R_wc @ np.linalg.solve(K, [u, v, 1.0])     # ray direction in the world
-    s = (z0 - t_wc[2]) / d[2]                       # intersection with the plane z = z0
-    return t_wc + s * d
+    if d[2] * (z0 - t_wc[2]) <= 0.0:                # parallel to the plane, or the plane behind the camera
+        return None
+    return t_wc + (z0 - t_wc[2]) / d[2] * d         # intersection with the plane z = z0
 ```
 
 | Measurement (sim, exact camera pose, 68 non-truncated detections) | Value [MES-13] |
@@ -102,6 +103,8 @@ def pixel_to_world(u, v, K, R_wc, t_wc, z0):
 | Mean bias | (+0.5, −2.6) mm: the centroid of the visible surface (top + two faces) is not the projection of the center |
 | After removing the constant bias | mean **0.8 mm**, max 1.9 mm |
 | Box (centroid, plane z = 2.5 cm) | mean 2.9 mm, max 5.4 mm [MES-15] |
+
+On the reference images (`test_geometry.py`, exact camera pose of the labels): cube mean **2.4 mm**, max 3.9 mm over the 32 whole cubes; box floor center mean **3.1 mm**, max 11.5 mm over 44, the worst where the arm hides 15 % of the box.
 
 **Cube yaw** (to align the jaws): back-project the contour points onto the top-face plane (z = 5 cm), then `cv2.minAreaRect` in metric coordinates → median error **1.3°**, p90 8.3° [MES-14] (modulo 90°, cube symmetry).
 
@@ -131,6 +134,8 @@ flowchart TD
 4. `cv2.solvePnP(..., flags=SOLVEPNP_SQPNP)` then `cv2.solvePnPRefineLM` → `T_cam←world` → inverted into `T_base←cam`.
 5. Quality check: mean reprojection error < 1 px (sim) / < 2 px (real), otherwise reject.
 6. Write `config/camera_extrinsics.yaml`; perception loads it and publishes the **static TF** `base_link → external_cam_optical_frame`.
+
+**The file** (`geometry.save_extrinsics` and `load_extrinsics`): `T_base_cam`, the 4×4 transform from the camera's OpenCV optical frame to `base_link`; `parent_frame: base_link`; `child_frame: external_cam_optical_frame`; `method`; `date`; `reprojection_error_px` (`null` without a calibration). `load_extrinsics` refuses other frames and a transform that is not rigid. Until step 3.4, the file holds the provided camera pose through `geometry.from_mujoco` (FLIP, §3.1), with `method: provisional (provided pose), replaced at step 3.4`.
 
 ### 5.2 Measured results in sim [MES-16]
 
@@ -206,6 +211,7 @@ With the provided camera at 320×240, over 2,000 positions drawn like `randomize
 
   - `so101_perception` checks the size budget, and that the labels agree with the pixels: no red pixel when out of view, red on the border exactly when truncated, blob centroid within 3 px of the projected center.
   - `test_detection.py` runs `detection.py` on every image: each whole cube within 2 px of its projected center (1.1 px at worst), each truncated cube flagged, no red pixel out of view, the box within 4 px (3.1 px with 15 % hidden by the arm). Synthetic scenes cover the red on both sides of H = 0, the box limits, the guards and the four borders. Median 0.6 ms per frame.
+  - `test_geometry.py`: the FLIP on a MuJoCo camera of known pose, the round trip over the workspace (< 1e-9 m), no point for a ray that misses the table, the cube and box errors of §4, the extrinsics file (round trip, refused files), and the committed file within 5 mm / 0.3° of the labels' camera pose: still true once 3.4 replaces it.
 
 ## 9. Visualization (C-24)
 
