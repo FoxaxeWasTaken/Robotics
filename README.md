@@ -15,13 +15,13 @@ A camera spots a red cube, the SO-ARM101 arm grasps it and drops it into a box �
 - **Sim ↔ real**: a single parameter, `use_sim`.
 - **Phase 2**: play Connect Four against the arm: it reads the grid with its camera and drops its own tokens ([design](docs/project/phase2/README.md)).
 
-## Status (2026-10-19)
+## Status (2026-10-20)
 
 | Done | Next (see [roadmap](docs/project/09_roadmap_step_by_step.md)) |
 | --- | --- |
-| Environment (Docker images, X11, DDS, usbipd); `so101_common` (joint names, limits, gripper conversion, checked against the URDF); `so101_bringup` (`sim.launch.py`, parameter files, RViz file); base driver in sim: `/joint_states` at 30 Hz, `/joint_command`, speed limiter, camera at 10 Hz in its own thread, `camera_info`, joint-limit clamp and NaN rejection, parameters, normalized effort, `/sim/randomize` (cube and box, seeded), ground truth for the bench; perception container: node skeleton with its debug image, reference images for its tests | RViz configuration (end of stage 1) |
-| CI, hooks, governance files, full design docs with measured spikes; brain: FK/IK, `/end_effector_pose`, `/go_to_target` streaming min-jerk trajectories, IK accuracy measured in sim (max 0.25 mm, C-41), orientation IK, grasp planner (closed loop in sim: 40/40 cubes in the box); state machine with `/brain/start`, `/brain/stop`, `/brain_state` | Brain: planning worker and grasp motions (4.2b), then the first pick & place with perception (4.3) |
-| A bootstrap prototype proved the driver (30 Hz) and the IK (0.13 mm); it stays outside this repository ([ADR-039](docs/project/adr/ADR-039-start-from-course-stubs.md)) | Perception: detection, pixel → 3D and our ArUco calibration (stage 3), then the real arm (stage 6) |
+| Environment (Docker images, X11, DDS, usbipd); `so101_common` (joint names, limits, gripper conversion, checked against the URDF); `so101_bringup` (`sim.launch.py`, parameter files, RViz file); base driver in sim: `/joint_states` at 30 Hz, `/joint_command`, speed limiter, camera at 10 Hz in its own thread, `camera_info`, joint-limit clamp and NaN rejection, parameters, normalized effort, `/sim/randomize` (cube and box, seeded), ground truth for the bench; perception container: node skeleton with its debug image, reference images for its tests, HSV detection and pixel → 3D (pure modules, provisional camera pose: cube 0.8 mm, box 3.4 mm) | RViz configuration (end of stage 1) |
+| CI, hooks, governance files, full design docs with measured spikes; brain: FK/IK, `/end_effector_pose`, `/go_to_target` streaming min-jerk trajectories, IK accuracy measured in sim (max 0.25 mm, C-41), orientation IK, grasp planner (closed loop in sim: 40/40 cubes in the box); state machine with `/brain/start`, `/brain/stop`, `/brain_state`; planning in a worker process, plan markers, a full pick & place cycle in sim with a ground-truth stub (20/20) | Brain: the first pick & place with perception (4.3), grasp verification and retries (4.4) |
+| A bootstrap prototype proved the driver (30 Hz) and the IK (0.13 mm); it stays outside this repository ([ADR-039](docs/project/adr/ADR-039-start-from-course-stubs.md)) | Perception: publishing the poses (3.3b), the cube yaw (3.3c), our ArUco calibration (3.4), then the real arm (stage 6) |
 | Phase 2 chosen and validated by the teaching staff: Connect Four ([docs/project/phase2](docs/project/phase2/README.md), [roadmap](docs/project/phase2/P2-04_roadmap.md)) | Phase 2: measure a store-bought grid, then the drop spike |
 
 New here? Start with [docs/project/README.md](docs/project/README.md).

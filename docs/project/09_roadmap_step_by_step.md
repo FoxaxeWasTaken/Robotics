@@ -213,10 +213,10 @@ A proposal to adapt to everyone's preferences. **Rule**: nobody merges their own
 
 ### Step 4.2 — ROS integration of the brain
 
-- **Tasks**: 50 Hz timer, `/brain/start`, `/brain/stop`, `/brain_state` (transient_local), `/brain/markers`, planning in a worker thread, freshness handling.
+- **Tasks**: 50 Hz timer, `/brain/start`, `/brain/stop`, `/brain_state` (transient_local), `/brain/markers`, planning in a worker process (not a thread: the GIL, MES-40), freshness handling.
 - **Done when**: `ros2 service call /brain/start …` moves `/brain_state` to `WAIT_TARGET`, and the node never blocks (the tick keeps running during planning).
 
-> **Optional accelerator**: to develop the brain before perception is finished, a small **test** node (`so101_bringup/gt_perception_stub.py`) can republish `/sim/ground_truth/*` on `/object_position` / `/drop_box_position`. ⚠ It **never** appears in a final pipeline launch file (CI guard, C-06).
+> **Optional accelerator**: to develop the brain before perception is finished, a small **test** node (`so101_bringup/test/gt_perception_stub.py`, started by `test/gt_stub.launch.py`, step 4.2c) republishes `/sim/ground_truth/*` on `/object_position` / `/drop_box_position`. ⚠ It **never** appears in a final pipeline launch file (CI guard, C-06).
 
 ### Step 4.3 — First end-to-end pick & place (vertical slice)
 

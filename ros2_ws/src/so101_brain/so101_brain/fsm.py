@@ -54,6 +54,7 @@ class Params:
     v_max: float = 1.0  # rad/s
     min_motion_s: float = 0.5  # 04 §6
     reach_tol: float = 0.01  # rad, every arm joint
+    gripper_tol_pct: float = 3.0  # APPROACH also waits for the gripper this close to open_pct
     motion_margin_s: float = 1.0  # not reached at T + margin -> ERROR:timeout:<state>
     open_pct: float = 100.0
     close_pct: float = 0.0
@@ -64,7 +65,7 @@ class Params:
     max_joint_state_age_s: float = 0.5
     max_retries: int = 3  # failed attempts before ERROR:grasp_failed
     wait_target_s: float = 10.0  # from PARK reached
-    plan_timeout_s: float = 2.0
+    plan_timeout_s: float = 6.0  # slowest answer, a cube out of reach: 1.7 s, 2.4 s on CI [MES-40]
     grasp_wait_s: float = 0.8
     grasp_timeout_s: float = 1.5
     release_wait_s: float = 0.5
@@ -89,6 +90,7 @@ class Inputs:
     start: bool = False  # /brain/start since the last step
     stop: bool = False  # /brain/stop since the last step
     plan: tuple | None = None  # the planner's (GraspPlan | None, reason) once done, else None
+    gripper: float | None = None  # measured gripper opening, %; None if /joint_states has none
 
 
 @dataclass(frozen=True)
@@ -245,18 +247,24 @@ class Fsm:
         self._out["command"] = trajectory.sample(0.0)
 
     def _follow(self) -> bool:
-        """Streams the state's motions; True once the last is reached. Not reached at T + margin: ERROR."""
+        """Streams the state's motions; True once the last is reached. Not reached at T + margin: ERROR.
+
+        APPROACH also waits for the open gripper: DESCEND must not bring closed jaws onto the cube."""
         trajectory, start = self._motion
         t = self._now - start
         self._out["command"] = trajectory.sample(t)
         error = float(np.max(np.abs(self._in.q - trajectory.q_goal)))
-        if t >= trajectory.duration and error < self.p.reach_tol:
+        gripper = self._in.gripper if self.state is State.APPROACH else None
+        opened = gripper is None or abs(gripper - self.p.open_pct) <= self.p.gripper_tol_pct
+        if t >= trajectory.duration and error < self.p.reach_tol and opened:
             if not self._goals:
                 self._motion = None
                 return True
             self._start_motion(self._goals.pop(0))
         elif t > trajectory.duration + self.p.motion_margin_s:
             reason = f"not reached at T + {self.p.motion_margin_s:g} s: joint error {error:.3f} rad"
+            if not opened:
+                reason += f", gripper {gripper:.0f} %"
             self._go(State.ERROR, reason, f"timeout:{self.state}")
         return False
 

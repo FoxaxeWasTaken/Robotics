@@ -1,6 +1,6 @@
 """Component test (launch_testing): brain_node alone. A fake arm in the test echoes /joint_command into
 /joint_states, so no driver and no sim are needed (the sim-backed version is in so101_bringup).
-No perception either: a started cycle waits for its target in WAIT_TARGET."""
+No perception either: a fake one publishes the cube and the box when a test asks; the real planner runs."""
 
 import re
 import time
@@ -20,13 +20,16 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
+from visualization_msgs.msg import Marker, MarkerArray
 
+from so101_common.robot import pct_to_rad
 from so101_interfaces.srv import GoToTarget
 
 STARTUP_TIMEOUT = 20.0  # s
 JOINTS = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"]
 V_MAX = 1.0  # rad/s: default of motion.v_max_rad_s
 PARK = [1.9, -1.7, 1.5, 0.7, 0.0]  # default of fsm.park_pose
+CUBE, BOX = (0.22, 0.05, 0.025), (0.05, -0.25, 0.0)  # where the fake perception sees them by default
 LATCHED = QoSProfile(
     depth=10, reliability=ReliabilityPolicy.RELIABLE, durability=DurabilityPolicy.TRANSIENT_LOCAL
 )
@@ -49,11 +52,12 @@ class TestBrain(unittest.TestCase):
         cls.node = rclpy.create_node("test_brain")
         cls.q = dict.fromkeys(JOINTS, 0.0)  # the fake arm: at q = 0, follows every command at once
         cls.alive = True  # the fake driver publishes /joint_states
-        cls.commands, cls.arrivals, cls.poses, cls.sent = [], [], [], []
+        cls.commands, cls.arrivals, cls.poses, cls.sent, cls.markers = [], [], [], [], []
         cls.states = []  # /brain_state as (arrival, monotonic s; data)
         cls.pub_states = cls.node.create_publisher(JointState, "/joint_states", 10)
         cls.node.create_subscription(JointState, "/joint_command", cls.on_command, 100)
         cls.node.create_subscription(PoseStamped, "/end_effector_pose", cls.poses.append, 10)
+        cls.node.create_subscription(MarkerArray, "/brain/markers", cls.markers.append, 10)
         cls.node.create_subscription(
             String, "/brain_state", lambda m: cls.states.append((time.monotonic(), m.data)), LATCHED
         )
@@ -62,7 +66,10 @@ class TestBrain(unittest.TestCase):
         cls.client = cls.node.create_client(GoToTarget, "/go_to_target")
         cls.pub_cube = cls.node.create_publisher(PoseStamped, "/object_position", 1)
         cls.pub_box = cls.node.create_publisher(PoseStamped, "/drop_box_position", 1)
-        cls.cube_frame = None  # the fake perception: publishes at 10 Hz once set
+        cls.cube_frame, cls.cube_at = (
+            None,
+            CUBE,
+        )  # the fake perception: publishes at 10 Hz once a frame is set
         cls.node.create_timer(0.1, cls.publish_detections, clock=Clock(clock_type=ClockType.STEADY_TIME))
         cls.start = cls.node.create_client(Trigger, "/brain/start")
         cls.stop = cls.node.create_client(Trigger, "/brain/stop")
@@ -76,15 +83,18 @@ class TestBrain(unittest.TestCase):
     def on_command(cls, msg):
         cls.commands.append(msg)
         cls.arrivals.append(time.monotonic())
-        cls.q.update(zip(msg.name, msg.position, strict=True))
+        positions = dict(zip(msg.name, msg.position, strict=True))
+        if "gripper" in positions:  # % in /joint_command, rad in /joint_states, as the driver (01 §3.1)
+            positions["gripper"] = pct_to_rad(positions["gripper"])
+        cls.q.update(positions)
 
     @classmethod
     def publish_detections(cls):
         if cls.cube_frame is None:
             return
         for pub, frame, xyz, yaw in (
-            (cls.pub_cube, cls.cube_frame, (0.22, 0.05, 0.025), 0.3),
-            (cls.pub_box, "base_link", (0.05, -0.25, 0.0), 0.0),
+            (cls.pub_cube, cls.cube_frame, cls.cube_at, 0.3),
+            (cls.pub_box, "base_link", BOX, 0.0),
         ):
             msg = PoseStamped()
             msg.header.frame_id = frame
@@ -265,10 +275,60 @@ class TestBrain(unittest.TestCase):
             type(self).cube_frame = "base_link"
             self.wait_for_state("PLAN", timeout=2.0)
             wait_for_log(r"target locked: cube \[0\.22\s+0\.05\s+0\.025\], yaw 0\.30 rad, box \[\s*0\.05")
-            self.wait_for_state("ERROR:timeout:PLAN", timeout=3.0)  # no planning worker before 4.2b
+            self.wait_for_state("APPROACH", timeout=4.0)  # planned off the tick
+            wait_for_log(
+                r"PLAN: planner answered in \d+\.\d\d s; longest tick period \d+\.\d ms over \d+ ticks"
+            )
         finally:
             type(self).cube_frame = None
-        self.assertTrue(self.trigger(self.start).success)
+        self.check_markers()
+        streamed = len(self.commands)
+        self.spin_for(0.5)
+        self.assertGreater(len(self.commands) - streamed, 15, "APPROACH streams at 50 Hz")
+        self.wait_for_state("DESCEND", timeout=8.0)  # the arm at the pre-grasp and the gripper read open
+        self.assertTrue(self.trigger(self.stop).success)
+        self.wait_for_state("IDLE")
+
+    def check_markers(self):
+        """/brain/markers of the plan (06 §7): pre-grasp yellow, grasp green, drop blue spheres, approach
+        arrow, at the TCP positions of the plan's configurations (IK checked by FK within 1 mm)."""
+        end = time.monotonic() + 2.0
+        while not self.markers and time.monotonic() < end:
+            rclpy.spin_once(self.node, timeout_sec=0.05)
+        self.assertTrue(self.markers, "no /brain/markers")
+        markers = {m.ns: m for m in self.markers[-1].markers}
+        self.assertEqual(sorted(markers), ["approach", "drop", "grasp", "pre_grasp"])
+        self.assertEqual({m.header.frame_id for m in markers.values()}, {"base_link"})
+        colors = {
+            ns: (m.color.r, m.color.g, m.color.b) for ns, m in markers.items() if m.type == Marker.SPHERE
+        }
+        self.assertEqual(
+            colors, {"pre_grasp": (1.0, 1.0, 0.0), "grasp": (0.0, 1.0, 0.0), "drop": (0.0, 0.0, 1.0)}
+        )
+
+        def xyz(point):
+            return np.array([point.x, point.y, point.z])
+
+        grasp, pre, drop = (xyz(markers[ns].pose.position) for ns in ("grasp", "pre_grasp", "drop"))
+        np.testing.assert_allclose(grasp, CUBE, atol=0.002)  # TCP at the cube center
+        np.testing.assert_allclose(drop, np.add(BOX, (0.0, 0.0, 0.09)), atol=0.002)  # 9 cm above the floor
+        self.assertAlmostEqual(np.linalg.norm(pre - grasp), 0.04, delta=0.002)  # 4 cm back-off
+        arrow = markers["approach"]
+        self.assertEqual(arrow.type, Marker.ARROW)
+        np.testing.assert_allclose([xyz(p) for p in arrow.points], [pre, grasp], atol=1e-9)
+
+    def test_9_an_unreachable_cube_is_an_error_without_any_command(self):
+        type(self).cube_at, type(self).cube_frame = (0.5, 0.0, 0.025), "base_link"
+        try:
+            self.assertTrue(self.trigger(self.start).success)
+            planning = self.wait_for_state("PLAN", timeout=10.0)
+            self.wait_for_state(
+                "ERROR:unreachable", timeout=7.0
+            )  # the planner answers within the 6 s timeout
+        finally:
+            type(self).cube_frame, type(self).cube_at = None, CUBE
+        self.assertFalse([a for a in self.arrivals if a > planning], "a command after PLAN")
+        self.assertTrue(self.trigger(self.start).success)  # re-arms
         self.wait_for_state("IDLE")
 
 

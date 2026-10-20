@@ -30,8 +30,8 @@ GOALS = {  # first goal of each motion state
 
 
 class World:
-    """Fake arm (follows every command at once, unless blocked), camera (10 Hz, frames alternately offset by
-    `jitter` along x) and planner (answers at the next tick)."""
+    """Fake arm and gripper (follow every command at once, unless blocked), camera (10 Hz, frames alternately
+    offset by `jitter` along x) and planner (answers at the next tick)."""
 
     def __init__(self, **params):
         self.fsm = Fsm(Params(**params))
@@ -42,6 +42,8 @@ class World:
         self.jitter = 0.0
         self.joints = True  # the driver publishes /joint_states
         self.blocked = False
+        self.gripper = 0.0  # measured, %; None: not in /joint_states
+        self.gripper_blocked = False
         self.answer = (PLAN, None)  # the planner's answer; None: it never answers
         self.joints_received = -np.inf
         self.seen = {"cube": None, "box": None}  # last detection of each, as the node stores them
@@ -72,6 +74,7 @@ class World:
                 start=start,
                 stop=stop,
                 plan=self.pending,
+                gripper=self.gripper,
             ),
         )
         assert out.state == self.fsm.label
@@ -87,6 +90,8 @@ class World:
                 self.q = out.command.copy()
         if out.gripper is not None:
             self.grippers.append((out.state, out.gripper))
+            if not self.gripper_blocked:
+                self.gripper = out.gripper
         if out.transition is not None:
             self.transitions.append(out.transition)
             self.reached.append((before, self.q.copy()))
@@ -271,6 +276,32 @@ def test_approach_opens_the_gripper_and_starts_from_the_measured_joints():
     near(world.reached[-1][1], PLAN.pre_grasp)
     steps = np.abs(np.diff(world.commands[first:], axis=0)).max(axis=1)
     assert steps.max() / DT <= Params().v_max * 1.01
+
+
+@pytest.mark.parametrize("opened, ends", [(50.0, False), (96.9, False), (97.1, True)])
+def test_approach_also_waits_for_the_gripper_open_within_3_pct(opened, ends):
+    world = reach("PLAN")
+    world.gripper, world.gripper_blocked = opened, True
+    world.run_until("APPROACH")
+    for _ in range(int(duration(world.q, PLAN.pre_grasp) / DT) + 10):  # the arm reached, still in the margin
+        world.step()
+    assert (world.fsm.label == "DESCEND") is ends
+    world.gripper_blocked = False
+    world.gripper = 100.0
+    world.run_until("DESCEND", within=0.1)
+
+
+def test_a_gripper_that_does_not_open_is_a_timeout():
+    world = reach("PLAN")
+    world.gripper_blocked = True
+    world.run_until("ERROR:timeout:APPROACH")
+    assert "gripper 0 %" in world.transitions[-1]
+
+
+def test_an_unknown_gripper_position_leaves_the_arm_alone_to_decide():
+    world = reach("PLAN")
+    world.gripper, world.gripper_blocked = None, True
+    world.run_until("DESCEND")
 
 
 def test_descend_moves_to_the_grasp():
