@@ -47,7 +47,7 @@ Result in sim: **0 missed detection, 0 false positive** over 80 episodes [MES-13
 
 ### 2.3 Detection guards
 
-- Minimum area 15 px at 320×240 (the cube typically covers 150–400 px).
+- Minimum area 15 px at 320×240 (the whole cube covers 330–620 px in the reference images).
 - **Truncation**: if the bounding box touches the image border, the detection is marked "truncated" (biased centroid, §6).
 - Solidity (area / convex hull area) > 0.6: rejects reflections and fragments.
 - One object expected: keep the largest valid contour.
@@ -205,6 +205,7 @@ With the provided camera at 320×240, over 2,000 positions drawn like `randomize
     ```
 
   - `so101_perception` checks the size budget, and that the labels agree with the pixels: no red pixel when out of view, red on the border exactly when truncated, blob centroid within 3 px of the projected center.
+  - `test_detection.py` runs `detection.py` on every image: each whole cube within 2 px of its projected center (1.1 px at worst), each truncated cube flagged, no red pixel out of view, the box within 4 px (3.1 px with 15 % hidden by the arm). Synthetic scenes cover the red on both sides of H = 0, the box limits, the guards and the four borders. Median 0.6 ms per frame.
 
 ## 9. Visualization (C-24)
 
