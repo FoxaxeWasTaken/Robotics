@@ -33,7 +33,7 @@ def scene(*rects, hsv=CUBE_RED):
 
 
 def test_every_whole_cube_is_found_where_the_labels_put_it(detections):
-    """100 % of the 32 whole cubes, centroid within 2 px of the projected center (1.1 px at worst)."""
+    """100 % of the 32 whole cubes, centroid within 2 px of the projected center (0.7 px at worst)."""
     for image, found in detections:
         if image["cube_view"] == "full":
             cube, name = found.cube, image["file"]
@@ -59,7 +59,7 @@ def test_no_cube_out_of_view_not_even_one_pixel_of_the_mask(detections):
 
 
 def test_the_box_is_found_in_every_image(detections):
-    """Centroid within 4 px of the projected center at mid-wall height (3.1 px with the arm hiding 15 %)."""
+    """Centroid within 4 px of the projected center at mid-wall height (2.8 px with the arm hiding 15 %)."""
     for image, found in detections:
         box, name = found.box, image["file"]
         assert box is not None, name

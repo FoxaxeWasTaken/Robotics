@@ -30,6 +30,7 @@ from so101_sim import SO101Sim
 from std_srvs.srv import Trigger
 
 from so101_common.robot import ARM_JOINT_NAMES, BASE_FRAME, CAMERA_FRAME, JOINT_NAMES, pct_to_rad
+from so101_driver.camera import opencv_intrinsics
 from so101_driver.command import apply_command
 from so101_driver.effort import normalized_effort
 from so101_driver.limiter import step_towards
@@ -256,7 +257,8 @@ class DriverNode(rclpy.node.Node):
         # Created here: its OpenGL context is bound to this thread.
         renderer = mujoco.Renderer(sim.model, height=sim.camera_height, width=sim.camera_width)
         bridge = CvBridge()
-        info = camera_info(sim.get_camera_intrinsics(), sim.camera_width, sim.camera_height)
+        K = opencv_intrinsics(sim.get_camera_intrinsics())  # OpenCV pixel centers [MES-41]
+        info = camera_info(K, sim.camera_width, sim.camera_height)
         next_frame = time.monotonic()
         try:
             while not self._stop_camera.wait(max(0.0, next_frame - time.monotonic())):

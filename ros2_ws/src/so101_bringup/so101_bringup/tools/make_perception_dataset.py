@@ -19,6 +19,7 @@ from so101_sim import SO101Sim
 
 from so101_brain.fsm import Params
 from so101_common.robot import ARM_JOINT_NAMES
+from so101_driver.camera import opencv_intrinsics
 from so101_driver.randomize import sample_box_xy
 
 PARK = Params().park_pose  # rad, ARM_JOINT_NAMES order: the brain's PARK (06 §6), as in brain.yaml
@@ -30,10 +31,11 @@ OUT_OF_VIEW_AREA = {"radius_range": (0.18, 0.45), "angle_range_deg": (-180.0, 18
 
 
 def cube_view(K, R, t, position, rotation, width, height):
-    """'full', 'truncated' or 'out_of_view': the cube's 8 corners projected against the image bounds."""
+    """'full', 'truncated' or 'out_of_view': the cube's 8 corners projected against the image bounds, which
+    span [-0.5, W - 0.5] with OpenCV pixel centers on integers."""
     corners = (position + CORNERS @ rotation.T - t) @ R  # in the optical frame
     u, v = (corners @ K.T)[:, :2].T / corners[:, 2]
-    inside = (corners[:, 2] > 0) & (u >= 0) & (u <= width) & (v >= 0) & (v <= height)
+    inside = (corners[:, 2] > 0) & (u >= -0.5) & (u <= width - 0.5) & (v >= -0.5) & (v <= height - 0.5)
     return "full" if inside.all() else "truncated" if inside.any() else "out_of_view"
 
 
@@ -72,7 +74,7 @@ def make_dataset(out, seed=0, full=32, truncated=8, out_of_view=4):
     for name, q in zip(ARM_JOINT_NAMES, PARK, strict=True):
         d.qpos[m.joint(name).qposadr[0]] = q
     sim.send_action({f"{name}.pos": q for name, q in zip(ARM_JOINT_NAMES, PARK, strict=True)})  # held there
-    K = sim.get_camera_intrinsics()
+    K = opencv_intrinsics(sim.get_camera_intrinsics())  # as the driver's camera_info [MES-41]
     T = sim.get_camera_extrinsics()  # MuJoCo world = base_link: the base sits at the scene origin
     R, t = T[:3, :3] @ FLIP, T[:3, 3]
     segmentation = mujoco.Renderer(m, height=sim.camera_height, width=sim.camera_width)

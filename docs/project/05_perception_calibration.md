@@ -80,7 +80,8 @@ Without this FLIP, positions are completely wrong (mirrored, behind the camera) 
 
 ### 3.2 Intrinsics
 
-- Sim: `K = [[fx, 0, W/2], [0, fy, H/2], [0, 0, 1]]`, `fy = H / (2·tan(fovy/2))`, fovy = 52° → **fx = fy ≈ 246 px at 320×240** (≈ 492 at 640×480). No distortion.
+- Sim: `fy = H / (2·tan(fovy/2))`, fovy = 52° → **fx = fy ≈ 246 px at 320×240** (≈ 492 at 640×480). No distortion.
+- **Principal point, half a pixel**: the provided `get_camera_intrinsics()` gives `cx = W/2`, `cy = H/2`, the OpenGL convention, where pixel *edges* sit on integers. `CameraInfo` and OpenCV put pixel *centers* on integers, so the driver publishes **`cx = (W − 1)/2`, `cy = (H − 1)/2`** (`so101_driver/camera.py`), 159.5 and 119.5 at 320×240. With `W/2`, every OpenCV centroid reads 0.5 px off in u and v: 2.6 mm instead of 0.5 mm on the cube [MES-41].
 - Real: from the intrinsic calibration (ADR-014), with distortion → `cv2.undistortPoints` before back-projection.
 - Perception reads K **only** from `/external_cam/camera_info`, never from the backend (C-05).
 
@@ -100,11 +101,11 @@ def pixel_to_world(u, v, K, R_wc, t_wc, z0):        # so101_perception/geometry.
 | --- | --- |
 | Mean XY error | **2.7 mm** |
 | p95 / max | 4.1 mm / 4.5 mm |
-| Mean bias | (+0.5, −2.6) mm: the centroid of the visible surface (top + two faces) is not the projection of the center |
+| Mean bias | (+0.5, −2.6) mm. Mostly the half pixel of §3.2, not the side faces: with the OpenCV principal point, mean **0.50 mm**, max 1.00 mm over 50 scenes [MES-41] |
 | After removing the constant bias | mean **0.8 mm**, max 1.9 mm |
 | Box (centroid, plane z = 2.5 cm) | mean 2.9 mm, max 5.4 mm [MES-15] |
 
-On the reference images (`test_geometry.py`, exact camera pose of the labels): cube mean **2.4 mm**, max 3.9 mm over the 32 whole cubes; box floor center mean **3.1 mm**, max 11.5 mm over 44, the worst where the arm hides 15 % of the box.
+On the reference images (`test_geometry.py`, exact camera pose of the labels): cube mean **0.8 mm**, max 1.6 mm over the 32 whole cubes (2.4 mm and 3.9 mm with the provided principal point, §3.2); box floor center mean **3.4 mm**, max 11.3 mm over 44, the worst where the arm hides 15 % of the box.
 
 **Cube yaw** (to align the jaws): back-project the contour points onto the top-face plane (z = 5 cm), then `cv2.minAreaRect` in metric coordinates → median error **1.3°**, p90 8.3° [MES-14] (modulo 90°, cube symmetry).
 
@@ -210,7 +211,7 @@ With the provided camera at 320×240, over 2,000 positions drawn like `randomize
     ```
 
   - `so101_perception` checks the size budget, and that the labels agree with the pixels: no red pixel when out of view, red on the border exactly when truncated, blob centroid within 3 px of the projected center.
-  - `test_detection.py` runs `detection.py` on every image: each whole cube within 2 px of its projected center (1.1 px at worst), each truncated cube flagged, no red pixel out of view, the box within 4 px (3.1 px with 15 % hidden by the arm). Synthetic scenes cover the red on both sides of H = 0, the box limits, the guards and the four borders. Median 0.6 ms per frame.
+  - `test_detection.py` runs `detection.py` on every image: each whole cube within 2 px of its projected center (0.7 px at worst), each truncated cube flagged, no red pixel out of view, the box within 4 px (2.8 px with 15 % hidden by the arm). Synthetic scenes cover the red on both sides of H = 0, the box limits, the guards and the four borders. Median 0.6 ms per frame.
   - `test_geometry.py`: the FLIP on a MuJoCo camera of known pose, the round trip over the workspace (< 1e-9 m), no point for a ray that misses the table, the cube and box errors of §4, the extrinsics file (round trip, refused files), and the committed file within 5 mm / 0.3° of the labels' camera pose: still true once 3.4 replaces it.
 
 ## 9. Visualization (C-24)

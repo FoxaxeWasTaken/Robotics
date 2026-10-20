@@ -21,7 +21,8 @@ ARM = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"
 CLOSED, OPEN = -0.174533, 1.74533  # URDF gripper limits (rad): 0 % and 100 %
 PAN_MAX = 1.91986  # URDF upper limit of shoulder_pan (rad)
 CAMERA_FRAME = "external_cam_optical_frame"  # so101_common, by hand
-K_320X240 = [246.036, 0.0, 160.0, 0.0, 246.036, 120.0, 0.0, 0.0, 1.0]  # fovy of external_cam in the scene
+# Scene fovy; principal point on OpenCV pixel centers, (W - 1)/2 and (H - 1)/2 [MES-41].
+K_320X240 = [246.036, 0.0, 159.5, 0.0, 246.036, 119.5, 0.0, 0.0, 1.0]
 PARAMETER_DEFAULTS = {  # docs/project/01 §3.3
     "control_rate_hz": 50.0,
     "joint_state_rate_hz": 30.0,

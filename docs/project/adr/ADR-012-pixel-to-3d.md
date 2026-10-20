@@ -32,3 +32,7 @@ Ray `K⁻¹[u, v, 1]` → rotation to `base_link` → intersection with **z = 0.
 ## Reconsider if
 
 Stacking or grasping non-resting objects (phase 2): known size or RGB-D.
+
+## Update (2026-10-20, #122)
+
+The constant bias was mostly half a pixel: the sim's principal point was in OpenGL pixel coordinates (ADR-007 Update). The driver now publishes it in OpenCV coordinates, and the cube error falls to 0.50 mm mean, 1.00 mm max, without any bias correction [MES-41]. The optional bias correction is dropped.

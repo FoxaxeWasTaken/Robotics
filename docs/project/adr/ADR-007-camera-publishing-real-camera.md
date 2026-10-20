@@ -33,3 +33,7 @@ The driver publishes `Image` (`rgb8`) + `CameraInfo` **with the same `stamp`**, 
 ## Reconsider if
 
 A depth camera (RealSense) is added: also publish `depth/image_raw` and revisit ADR-012.
+
+## Update (2026-10-20, #122)
+
+In sim, K is `get_camera_intrinsics()` with its principal point moved by −0.5 px, to `((W − 1)/2, (H − 1)/2)`. The provided K follows OpenGL, with pixel edges on integers; `CameraInfo` and OpenCV put pixel centers on integers. The half pixel cost 2.6 mm against 0.5 mm on the cube [MES-41]. The real camera's K comes from an OpenCV calibration and already follows that convention.
