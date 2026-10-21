@@ -21,6 +21,7 @@ setup(
     license="Apache-2.0",
     entry_points={
         "console_scripts": [
+            "evaluate = so101_bringup.evaluate:main",
             "make_perception_dataset = so101_bringup.tools.make_perception_dataset:main",
         ],
     },
