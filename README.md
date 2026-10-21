@@ -85,7 +85,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Planned work and progress: the team's Gi
 | --- | --- |
 | … | Driver, infrastructure, hardware |
 | … | Kinematics, brain |
-| … | Perception, calibration |
+| Hasnain ([@Hasnain-Pyarali](https://github.com/Hasnain-Pyarali)) | Perception, calibration |
 
 ## Acknowledgements and license
 
