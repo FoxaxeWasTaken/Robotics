@@ -1,10 +1,13 @@
 """Component test (launch_testing): perception.launch.py alone, fed by a fake camera at 10 Hz (no driver,
-no sim). Each image comes back once on /perception/debug_image, annotated, with the QoS of 01 §3.1."""
+no sim) that replays reference images with their K. Each image comes back once on /perception/debug_image,
+annotated; the cube and box poses match the labels, and a truncated cube is never published (01 §3.1)."""
 
+import json
 import time
 import unittest
 from pathlib import Path
 
+import cv2
 import launch
 import launch.actions
 import launch.launch_description_sources
@@ -14,13 +17,19 @@ import pytest
 import rclpy
 from ament_index_python.packages import get_package_share_directory
 from cv_bridge import CvBridge
+from geometry_msgs.msg import PoseStamped
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import CameraInfo, Image
 
-from so101_common.robot import CAMERA_FRAME
+from so101_common.robot import BASE_FRAME, CAMERA_FRAME
 
 TIMEOUT = 20.0  # s
 IMAGES = 30  # sent after the first debug image
+DATA = Path(__file__).parent / "data"
+LABELS = json.loads((DATA / "labels.json").read_text())
+# Whole cube A, truncated cube, whole cube B (B then repeats): each far from the others, so the filter
+# rejects the first 4 frames after each change (05 §7).
+SCRIPT = [("000.png", 15), ("015.png", 15), ("024.png", None)]
 
 
 @pytest.mark.launch_test
@@ -42,13 +51,17 @@ class TestPerception(unittest.TestCase):
         rclpy.init()
         cls.node = rclpy.create_node("test_perception")
         cls.bridge = CvBridge()
-        cls.rgb = np.random.default_rng(0).integers(0, 256, size=(240, 320, 3), dtype=np.uint8)
-        cls.sent, cls.debug = [], []
+        labels = {image["file"]: image for image in LABELS["images"]}
+        cls.script = [(labels[name], cls.rgb(name), count) for name, count in SCRIPT]
+        cls.sent, cls.debug, cls.cubes, cls.boxes = [], [], [], []
+        cls.shown = {}  # stamp -> label of the image sent with it
         # The driver's publishers: Reliable, depth 2 (01 §3.1).
         cls.pub_image = cls.node.create_publisher(Image, "/external_cam/image_raw", 2)
         cls.pub_info = cls.node.create_publisher(CameraInfo, "/external_cam/camera_info", 2)
         best_effort = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
         cls.node.create_subscription(Image, "/perception/debug_image", cls.debug.append, best_effort)
+        cls.node.create_subscription(PoseStamped, "/object_position", cls.cubes.append, 10)
+        cls.node.create_subscription(PoseStamped, "/drop_box_position", cls.boxes.append, 10)
         cls.node.create_timer(0.1, cls.publish_camera)
 
     @classmethod
@@ -56,15 +69,26 @@ class TestPerception(unittest.TestCase):
         cls.node.destroy_node()
         rclpy.shutdown()
 
+    @staticmethod
+    def rgb(name):
+        return cv2.cvtColor(cv2.imread(str(DATA / name)), cv2.COLOR_BGR2RGB)
+
     @classmethod
     def publish_camera(cls):
-        image = cls.bridge.cv2_to_imgmsg(cls.rgb, encoding="rgb8")
+        label, rgb, count = cls.script[0]
+        if count is not None:
+            cls.script[0] = (label, rgb, count - 1)
+            if count == 1:
+                cls.script.pop(0)
+        image = cls.bridge.cv2_to_imgmsg(rgb, encoding="rgb8")
         image.header.stamp = cls.node.get_clock().now().to_msg()
         image.header.frame_id = CAMERA_FRAME
-        info = CameraInfo(header=image.header, width=320, height=240)
+        info = CameraInfo(header=image.header, width=320, height=240, distortion_model="plumb_bob")
+        info.k = [float(v) for row in LABELS["K"] for v in row]
         cls.pub_image.publish(image)
         cls.pub_info.publish(info)
         cls.sent.append(key(image.header.stamp))
+        cls.shown[key(image.header.stamp)] = label
 
     def spin_until(self, condition, what):
         end = time.monotonic() + TIMEOUT
@@ -88,8 +112,9 @@ class TestPerception(unittest.TestCase):
         self.assertEqual(msg.header.frame_id, CAMERA_FRAME)
         self.assertEqual((msg.encoding, msg.width, msg.height), ("rgb8", 320, 240))
         out = self.bridge.imgmsg_to_cv2(msg, desired_encoding="rgb8")
-        self.assertTrue(np.any(out[:30, :160] != self.rgb[:30, :160]), "no status drawn")
-        np.testing.assert_array_equal(out[30:], self.rgb[30:])
+        sent = self.rgb(self.shown[key(msg.header.stamp)]["file"])
+        self.assertTrue(np.any(out[:30, :160] != sent[:30, :160]), "no status drawn")
+        self.assertGreater(np.sum(np.any(out[30:] != sent[30:], axis=2)), 100, "no mask painted")
 
     def test_2_qos_of_01_section_3_1(self):
         self.spin_until(lambda: self.debug, "no /perception/debug_image")
@@ -106,3 +131,30 @@ class TestPerception(unittest.TestCase):
         self.assertEqual(image_subs[0].qos_profile.reliability, ReliabilityPolicy.BEST_EFFORT)
         info_subs = self.node.get_subscriptions_info_by_topic("/external_cam/camera_info")
         self.assertIn("so101_perception", [s.node_name for s in info_subs])
+        for topic in ("/object_position", "/drop_box_position"):
+            publishers = self.node.get_publishers_info_by_topic(topic)
+            self.assertEqual([p.node_name for p in publishers], ["so101_perception"], topic)
+            self.assertEqual(publishers[0].qos_profile.reliability, ReliabilityPolicy.RELIABLE, topic)
+
+    def test_3_poses_match_the_labels_and_a_truncated_cube_is_never_published(self):
+        """05 §8 and 01 §3.1: within 5 mm of the labels (cube center, box floor center), in base_link,
+        stamped with their image; nothing for the truncated cube (015.png)."""
+        b_frames = lambda: sum(self.shown.get(k, {}).get("file") == "024.png" for k in self.sent)  # noqa: E731
+        self.spin_until(lambda: b_frames() >= 10, "the fake camera did not reach image B")
+        self.spin_until(
+            lambda: any(self.shown[key(m.header.stamp)]["file"] == "024.png" for m in self.cubes),
+            "no cube pose for image B",
+        )
+        seen = set()
+        poses = [(m, "cube_center") for m in self.cubes] + [(m, "box_floor_center") for m in self.boxes]
+        for msg, center in poses:
+            label = self.shown[key(msg.header.stamp)]
+            self.assertEqual(msg.header.frame_id, BASE_FRAME)
+            p, q = msg.pose.position, msg.pose.orientation
+            self.assertEqual((q.x, q.y, q.z, q.w), (0.0, 0.0, 0.0, 1.0))
+            error = np.linalg.norm(np.array([p.x, p.y, p.z]) - label[center])
+            limit = 0.01 if center == "box_floor_center" and label["file"] == "015.png" else 0.005
+            self.assertLess(error, limit, f"{center} of {label['file']}: {error * 1e3:.1f} mm")
+            seen.add((center, label["file"]))
+        self.assertNotIn(("cube_center", "015.png"), seen, "a truncated cube was published")
+        self.assertTrue({("cube_center", "000.png"), ("box_floor_center", "000.png")} <= seen)
