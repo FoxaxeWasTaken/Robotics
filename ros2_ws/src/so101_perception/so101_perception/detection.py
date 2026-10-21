@@ -27,6 +27,14 @@ class Thresholds:
 DEFAULT = Thresholds()
 
 
+def hsv_ranges(h_min: int, h_max: int, s_min: int, v_min: int, v_max: int = 255) -> tuple[HsvRange, ...]:
+    """The ranges of one hue interval, as the ROS parameters give it; it wraps around 180 when
+    h_min > h_max."""
+    if h_min <= h_max:
+        return (((h_min, s_min, v_min), (h_max, 255, v_max)),)
+    return (((h_min, s_min, v_min), (180, 255, v_max)), ((0, s_min, v_min), (h_max, 255, v_max)))
+
+
 @dataclass(frozen=True)
 class Blob:
     u: float  # centroid (moments), px

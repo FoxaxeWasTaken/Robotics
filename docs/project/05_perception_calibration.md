@@ -45,6 +45,8 @@ The box follows the same pattern (brown mask, centroid, plane z = 2.5 cm = mid-h
 
 Result in sim: **0 missed detection, 0 false positive** over 80 episodes [MES-13]. ⚠ The provided stub uses **yellow** thresholds (old golden ball): replace them.
 
+ROS parameters (`config/perception.yaml`, read at each image, so `ros2 param set` tunes them at runtime): `hsv_cube_h_min`, `hsv_cube_h_max`, `hsv_cube_s_min`, `hsv_cube_v_min`, `hsv_box_h_min`, `hsv_box_h_max`, `hsv_box_s_min`, `hsv_box_v_min`, `hsv_box_v_max`, `min_area_px`, `min_solidity`. A hue interval wraps around 180 when `h_min > h_max`: the red cube is `160`, `8`.
+
 ### 2.3 Detection guards
 
 - Minimum area 15 px at 320×240 (the whole cube covers 330–620 px in the reference images).
@@ -182,7 +184,7 @@ With the provided camera at 320×240, over 2,000 positions drawn like `randomize
 
 - When the arm is above the cube, perception may lose it or see it truncated. **The brain locks the target** while the arm is in the `PARK` pose, off the workspace (`[1.9, −1.7, 1.5, 0.7, 0]`: the cube never hidden, the box at worst 9 % hidden over 50 scenes [MES-39]), and then no longer depends on perception until the final verification (C-33, ADR-017).
 - Perception **publishes nothing** when the detection is invalid (absent, truncated, outlier): freshness is carried by `header.stamp`, the brain judges its age.
-- Temporal filter: rolling median of 5; a measurement more than 2 cm away from the median is rejected (unless it persists 5 times = the object really moved).
+- Temporal filter: rolling median of 5; a measurement more than 2 cm away from the median is rejected (unless it persists 5 times = the object really moved). Implemented in `filter.py`, one filter per object; the box is filtered at z = 2.5 cm and published at its floor, z = 0.
 
 ## 8. Tests
 
@@ -216,7 +218,7 @@ With the provided camera at 320×240, over 2,000 positions drawn like `randomize
 
 ## 9. Visualization (C-24)
 
-- `/perception/debug_image`: image with colored masks (cube in green, box in blue), centroids, "OK / TRUNCATED / LOST" text. Today (step 3.1): the input image with "NO DETECTION", same header, Best effort.
+- `/perception/debug_image`: the image with the masks painted (cube in green, box in blue), a red cross on each centroid and the cube status `OK`, `TRUNCATED` or `LOST`, same header, Best effort (`debug.py`).
 - RViz: `Pose` display on `/object_position` and `/drop_box_position`, plus the box `Marker` (provided).
 - RViz `Camera` display (optional): overlays the 3D model on the image through the camera TF — an **excellent visual check** of the extrinsic calibration.
 
