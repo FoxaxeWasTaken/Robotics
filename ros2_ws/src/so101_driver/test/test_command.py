@@ -57,6 +57,17 @@ def test_non_finite_value_rejects_the_whole_message(bad):
     assert "non-finite" in reason
 
 
+def test_the_rejection_says_why():
+    """The driver logs the reason of each rejected command (03 §4)."""
+    assert apply_command(GOAL, [], [math.nan, 0.0, 0.0, 0.0, 0.0, 0.0]) == (GOAL, "non-finite position")
+    assert apply_command(GOAL, ["elbow_flex"], [0.1, 0.2]) == (GOAL, "1 names, 2 positions")
+
+
+def test_an_unknown_name_does_not_hide_the_joints_after_it():
+    goal, _ = apply_command(GOAL, ["camera_tilt", "elbow_flex"], [0.5, 0.3])
+    assert goal == {**GOAL, "elbow_flex": 0.3}
+
+
 def test_unknown_name_is_ignored():
     goal, reason = apply_command(GOAL, ["shoulder_pan", "nose"], [0.5, 1.0])
     assert reason is None

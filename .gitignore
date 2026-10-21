@@ -40,3 +40,5 @@ Thumbs.db
 # Claude Code: personal files (the shared instructions are CLAUDE.md -> AGENTS.md)
 CLAUDE.local.md
 .claude/settings.local.json
+# mutmut working copies (08 §1)
+mutants/

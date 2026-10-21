@@ -1,6 +1,7 @@
 """Unit tests of the pick & place state machine (docs/project/06 §3.1, ADR-015). Pure: a fake clock, arm,
 camera and planner; no ROS, no sim. One test per row of 06 §3.1, /brain/stop from every state."""
 
+import dataclasses
 import re
 
 import numpy as np
@@ -40,6 +41,7 @@ class World:
         self.effort = HOLDING
         self.cube, self.box = CUBE, BOX  # where the camera sees them; None: out of view
         self.jitter = 0.0
+        self.cube_yaw = True  # False: perception gives no yaw
         self.joints = True  # the driver publishes /joint_states
         self.blocked = False
         self.gripper = 0.0  # measured, %; None: not in /joint_states
@@ -58,7 +60,7 @@ class World:
             self.joints_received = self.now
         if self.now >= self.frames * 0.1 - EPS:
             offset = np.array([self.jitter * (-1) ** self.frames, 0.0, 0.0])
-            for name, yaw in (("cube", 0.3 + 0.001 * self.frames), ("box", None)):
+            for name, yaw in (("cube", 0.3 + 0.001 * self.frames if self.cube_yaw else None), ("box", None)):
                 if getattr(self, name) is not None:
                     self.seen[name] = Detection(getattr(self, name) + offset, self.now, yaw)
             self.frames += 1
@@ -157,6 +159,7 @@ def test_start_without_joint_states_is_an_error():
     world.joints = False
     world.step(start=True)
     assert world.fsm.label == "ERROR:no_joint_states"
+    assert "(/brain/start without /joint_states, " in world.transitions[-1]
     assert not world.commands
 
 
@@ -205,6 +208,8 @@ def test_detections_more_than_5_mm_apart_never_lock():
     world.jitter = 0.003  # frames 6 mm apart
     world.step(start=True)
     elapsed = world.run_until("ERROR:object_lost")
+    assert "(no target locked 3 s after PARK, " in world.transitions[-1]
+    assert "ERROR:object_lost" not in world.command_states  # parked, nothing moves: nothing to freeze
     assert abs(elapsed - (duration(np.zeros(5), PARK) + 3.0)) <= 2 * DT
     assert not world.requests
 
@@ -248,6 +253,7 @@ def test_no_plan_is_an_error_with_the_planner_reason_and_no_command():
     world.pending = world.answer
     sent = len(world.commands)
     world.run_until("ERROR:drop_unreachable", within=DT)
+    assert "(no plan, " in world.transitions[-1]
     for _ in range(50):
         world.step()
     assert len(world.commands) == sent  # never "move anyway" (06 §10)
@@ -259,6 +265,7 @@ def test_a_silent_planner_is_a_timeout():
     world.step(start=True)
     world.run_until("PLAN")
     assert abs(world.run_until("ERROR:timeout:PLAN") - 1.0) <= 2 * DT
+    assert "(no plan in 1 s, " in world.transitions[-1]
 
 
 # --- motions: APPROACH, DESCEND, LIFT, TRANSPORT, HOME ---
@@ -295,7 +302,7 @@ def test_a_gripper_that_does_not_open_is_a_timeout():
     world = reach("PLAN")
     world.gripper_blocked = True
     world.run_until("ERROR:timeout:APPROACH")
-    assert "gripper 0 %" in world.transitions[-1]
+    assert "(not reached at T + 1 s: joint error 0.000 rad, gripper 0 %, " in world.transitions[-1]
 
 
 def test_an_unknown_gripper_position_leaves_the_arm_alone_to_decide():
@@ -322,6 +329,7 @@ def test_an_object_lost_during_the_lift_retries():
     world.effort = EMPTY
     world.run_until("RETRY")
     near(world.reached[-1][1], PLAN.lift)  # judged once lifted
+    assert "(object lost during the lift: effort 0.000, " in world.transitions[-1]
 
 
 def test_transport_moves_to_the_drop():
@@ -359,6 +367,7 @@ def test_an_empty_gripper_at_1_5_s_retries():
     world = reach("GRASP")
     world.effort = EMPTY
     assert abs(world.run_until("RETRY") - 1.5) <= DT + EPS
+    assert "(empty gripper: effort 0.000, " in world.transitions[-1]
 
 
 def test_the_effort_threshold_is_injected():
@@ -408,6 +417,7 @@ def test_retry_opens_the_gripper_and_parks_for_a_new_attempt():
     assert world.grippers[-1] == ("RETRY", 100.0)
     world.step()
     assert world.fsm.label == "HOME_RETRY"
+    assert "(attempt 1/3 failed, " in world.transitions[-1]
     world.run_until("WAIT_TARGET")
     near(world.reached[-1][1], PARK)
     assert "attempt 2/3" in world.transitions[-1]
@@ -427,6 +437,7 @@ def test_the_last_failed_attempt_is_grasp_failed(retries):
     world.step(start=True)
     world.run_until("ERROR:grasp_failed", within=60.0 * retries)
     assert world.states().count("RETRY") == retries
+    assert f"({retries} failed attempts, " in world.transitions[-1]
     assert world.states().count("GRASP") == retries
 
 
@@ -439,9 +450,11 @@ def test_stop_from_every_state_freezes_then_idles(state):
     q = world.q.copy()
     out = world.step(stop=True)
     assert out.state == "STOPPED"
+    assert "(/brain/stop, " in out.transition
     np.testing.assert_allclose(out.command, q)  # the measured position as the target
     world.step()
     assert world.fsm.label == "IDLE"
+    assert "(stopped, " in world.transitions[-1]
     world.step(start=True)
     assert world.fsm.label == "WAIT_TARGET"
 
@@ -460,6 +473,8 @@ def test_joint_states_lost_in_a_cycle_stop_the_commands(state):
     lost = world.joints_received
     world.run_until("ERROR:no_joint_states", within=0.3)
     assert world.now - DT - lost <= 0.2 + DT + EPS
+    age = world.now - DT - lost
+    assert f"(no /joint_states for {age:.2f} s, " in world.transitions[-1]
     for _ in range(50):
         world.step()
     assert "ERROR:no_joint_states" not in world.command_states  # commands stop
@@ -489,6 +504,7 @@ def test_start_rearms_an_error_into_idle():
     world = reach("ERROR")
     world.step(start=True)
     assert world.fsm.label == "IDLE"
+    assert "(/brain/start: re-armed, " in world.transitions[-1]
     world.step(start=True)
     assert world.fsm.label == "WAIT_TARGET"
 
@@ -507,3 +523,115 @@ def test_each_transition_logs_the_reason_and_the_time_in_the_old_state():
     world.run_until("LIFT")
     log = r"GRASP → LIFT \(holding: effort 0\.150, 0\.8[02] s in GRASP\)"  # 0.82: float rounding
     assert re.fullmatch(log, world.transitions[-1])
+
+
+# --- The reasons logged and the target lock, completed by mutation testing (#59, MES-42) ---
+
+
+def reasons(world):
+    """The reason of each transition, out of "old → new (reason, 1.23 s in old)"."""
+    return [t.split(" (", 1)[1].rsplit(", ", 1)[0] for t in world.transitions]
+
+
+def park(world):
+    """Steps until WAIT_TARGET has reached PARK: detections count from the next frame."""
+    while not np.allclose(world.q, PARK):
+        world.step()
+    world.step()
+
+
+@pytest.mark.parametrize("aligned", [True, False], ids=["aligned", "free_roll"])
+def test_a_full_cycle_logs_the_reason_of_each_transition(aligned):
+    """06 §7: the operator reads the cycle in these lines. Positions with 4 decimals: the log rounds to 3."""
+    world = World()
+    world.cube, world.box = np.array([0.2234, 0.0512, 0.025]), np.array([0.0512, -0.2534, 0.0])
+    world.answer = (dataclasses.replace(PLAN, aligned=aligned), None)
+    world.step(start=True)
+    world.run_until("RELEASE")
+    world.cube = world.box + np.array([0.01, -0.02, 0.025])
+    world.run_until("IDLE")
+    cube, yaw, box, _ = world.requests[0]
+    assert reasons(world) == [
+        "/brain/start",
+        f"target locked: cube {np.round(cube, 3)}, yaw {yaw:.2f} rad, box {np.round(box, 3)}",
+        f"plan: tilt 10°, {'aligned' if aligned else 'free roll'}",
+        "pre-grasp reached",
+        "grasp pose reached",
+        f"holding: effort {HOLDING:.3f}",
+        f"lifted, effort {HOLDING:.3f}",
+        "above the box",
+        "released",
+        "PARK reached",
+        "cube seen in the box",
+        "cycle done",
+    ]
+
+
+def test_a_target_without_yaw_logs_it_unknown():
+    world = World()
+    world.cube_yaw = False
+    world.step(start=True)
+    world.run_until("PLAN")
+    assert ", yaw unknown, " in world.transitions[-1]
+    assert world.requests[0][1] is None
+
+
+def test_a_cube_still_on_the_table_logs_where():
+    world = reach("VERIFY")
+    world.cube = np.array([0.2234, 0.0512, 0.025])
+    world.run_until("RETRY")
+    assert "(cube still on the table at [0.223 0.051 0.025], " in world.transitions[-1]
+
+
+@pytest.mark.parametrize("name", ["cube", "box"])
+def test_an_outlier_right_after_park_leaves_the_window(name):
+    """Only the last 5 detections count: a glitch right after PARK must not block the lock for good."""
+    world = World()
+    good = getattr(world, name)
+    setattr(world, name, good + np.array([0.03, 0.0, 0.0]))
+    world.step(start=True)
+    park(world)
+    for _ in range(round(0.25 / DT)):  # 2 or 3 outlier frames
+        world.step()
+    setattr(world, name, good)
+    world.run_until("PLAN", within=2.0)
+    np.testing.assert_allclose(world.requests[0][0 if name == "cube" else 2], good, atol=1e-12)
+
+
+def test_the_lock_needs_the_newest_detection_fresh_not_the_older_ones():
+    """4 cube detections, a gap longer than max_detection_age_s (0.5 s), then one more: it locks on it."""
+    world = World()
+    world.cube = None
+    world.step(start=True)
+    park(world)
+    world.cube = CUBE
+    first = world.frames
+    while world.frames < first + 4:
+        world.step()
+    world.cube = None
+    for _ in range(round(0.7 / DT)):
+        world.step()
+    world.cube = CUBE
+    seen = world.frames
+    while world.frames == seen:
+        world.step()
+    assert world.fsm.label == "PLAN"
+
+
+def test_box_detections_count_while_the_cube_is_out_of_view():
+    """Each object has its own history: box frames seen alone still fill the box's."""
+    world = World(max_detection_age_s=1.0)
+    world.cube = None
+    world.step(start=True)
+    park(world)
+    for _ in range(round(0.6 / DT)):  # 6 box frames, no cube
+        world.step()
+    world.cube, world.box = CUBE, None  # the box out of view while the cube's 5 frames come
+    world.run_until("PLAN", within=1.0)
+    np.testing.assert_allclose(world.requests[0][2], BOX)
+
+
+def test_joint_states_exactly_max_age_old_are_still_fresh():
+    """06 §3.1: stale means older than max_joint_state_age_s (0.5 s), the age itself is fresh."""
+    out = Fsm().step(10.0, Inputs(q=np.zeros(5), joints_received=9.5, start=True))
+    assert out.state == "WAIT_TARGET"

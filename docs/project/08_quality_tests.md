@@ -24,6 +24,17 @@ flowchart TB
 | **System** (full stack in sim) | Evaluation bench: N randomized pick & place episodes | `ros2 run so101_bringup evaluate` + test-only ground truth | `so101_bringup/so101_bringup/evaluate.py` | Every PR touching brain/perception/driver (N small), nightly (N = 50) |
 | **Real-arm acceptance** | Manual protocol (`07` §3.2) + accuracy measurement | Checklist | — | Every session on the arm |
 
+**Mutation testing** of the modules that protect the arm (step 5.1c, [MES-42]): mutmut injects small bugs into `so101_driver/command.py` (merge, clamp, NaN) and `so101_brain/fsm.py`, and counts those no test catches. Its configuration is the `[mutmut]` section of each package's `setup.cfg`: mutmut runs from the package folder, where the module names resolve. By hand, from the repository root, about 1 min:
+
+```bash
+docker run --rm -v "$PWD/ros2_ws/src:/src:ro" tek5/control bash -lc '
+  pip install -q --break-system-packages --ignore-installed mutmut==3.8.0 pytest==7.4.4 &&
+  source /opt/ros/jazzy/setup.bash && cp -r /src /tmp/src && export PYTHONPATH=/tmp/src/so101_common:$PYTHONPATH &&
+  for pkg in so101_driver so101_brain; do (cd /tmp/src/$pkg && PYTHONPATH=.:$PYTHONPATH mutmut run && mutmut results); done'
+```
+
+`pytest==7.4.4` is the image's own: a newer pytest breaks the `launch_testing` plugin. A surviving mutant gets a test, unless it is equivalent; the equivalent ones and the exact-threshold ties are listed in MES-42.
+
 ## 2. Metrics and success thresholds
 
 | Metric | Target | Measured so far (spikes, bootstrap prototype) |
