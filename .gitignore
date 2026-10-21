@@ -40,5 +40,8 @@ Thumbs.db
 # Claude Code: personal files (the shared instructions are CLAUDE.md -> AGENTS.md)
 CLAUDE.local.md
 .claude/settings.local.json
+# Evaluation bench outputs (ros2 run so101_bringup evaluate, 08 §3); milestone CSVs go in results/
+ros2_ws/eval*.csv
+ros2_ws/bags/
 # mutmut working copies (08 §1)
 mutants/

@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from test_reference_images import DATA, LABELS, project
 
-from so101_perception.detection import detect
+from so101_perception.detection import Thresholds, detect, hsv_ranges
 
 WIDTH, HEIGHT = LABELS["image_size"]
 CUBE_RED = (175, 230, 200)  # HSV, OpenCV ranges: H in [0, 180], S and V in [0, 255]
@@ -129,3 +129,9 @@ def test_a_frame_takes_under_2_ms_at_320x240():
         times.append(time.perf_counter() - start)
     print(f"detect: median {np.median(times) * 1e3:.2f} ms, p95 {np.percentile(times, 95) * 1e3:.2f} ms")
     assert np.median(times) < 0.002
+
+
+def test_the_parameter_form_gives_the_default_ranges():
+    """The ROS parameters (05 §2.2): one hue interval, wrapping around 180 when h_min > h_max."""
+    assert hsv_ranges(160, 8, 100, 60) == Thresholds().cube
+    assert hsv_ranges(5, 25, 90, 40, 220) == Thresholds().box

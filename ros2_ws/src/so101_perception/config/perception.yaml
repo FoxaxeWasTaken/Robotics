@@ -2,3 +2,17 @@
 so101_perception:
   ros__parameters:
     process_rate_hz: 20.0  # checks for a new image; above the camera's 10 Hz, each image is processed once
+    # HSV thresholds (05 §2.2; OpenCV: H in [0, 180], S, V in [0, 255]), tunable at runtime with ros2 param set.
+    # A hue interval wraps around 180 when h_min > h_max: the red cube is [160, 180] U [0, 8].
+    hsv_cube_h_min: 160
+    hsv_cube_h_max: 8
+    hsv_cube_s_min: 100
+    hsv_cube_v_min: 60
+    hsv_box_h_min: 5
+    hsv_box_h_max: 25
+    hsv_box_s_min: 90
+    hsv_box_v_min: 40
+    hsv_box_v_max: 220
+    min_area_px: 15.0  # blob guards (05 §2.3)
+    min_solidity: 0.6
+    # extrinsics_file: config/camera_extrinsics.yaml of the package share, by default (05 §5.1)
