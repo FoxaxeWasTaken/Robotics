@@ -21,7 +21,7 @@ def generate_test_description():
         launch.launch_description_sources.PythonLaunchDescriptionSource(
             os.path.join(get_package_share_directory("so101_bringup"), "launch", "sim.launch.py")
         ),
-        launch_arguments={"use_sim": "true", "port": PORT}.items(),
+        launch_arguments={"use_sim": "true", "port": PORT, "expose_ground_truth": "true"}.items(),
     )
     return launch.LaunchDescription([sim, launch_testing.actions.ReadyToTest()])
 
@@ -46,9 +46,10 @@ class TestSimLaunch(unittest.TestCase):
         return future.result().values
 
     def test_driver_gets_the_forwarded_arguments(self):
-        use_sim, port = self.get_parameters("so101_driver", ["use_sim", "port"])
+        use_sim, port, truth = self.get_parameters("so101_driver", ["use_sim", "port", "expose_ground_truth"])
         self.assertTrue(use_sim.bool_value)
         self.assertEqual(port.string_value, PORT)
+        self.assertTrue(truth.bool_value)  # the bench's switch (08 §3); false unless asked
 
     def test_brain_is_started(self):
         (use_sim_time,) = self.get_parameters("so101_brain", ["use_sim_time"])

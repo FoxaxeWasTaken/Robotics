@@ -171,9 +171,12 @@ jobs:
       - name: Build images
         run: docker compose -f docker/docker-compose.yml build
       - name: Evaluation bench (N=3)
+        env:
+          EXPOSE_GROUND_TRUTH: "true"  # the bench scores with the ground truth; the pipeline never reads it (C-06)
         run: |
           cp docker/.env.example docker/.env
           docker compose -f docker/docker-compose.yml up -d control perception viz
+          bash tools/ci/wait_for_stack.sh
           docker compose -f docker/docker-compose.yml exec -T control bash -lc '
             source /ros2_ws/install/setup.bash && ros2 run so101_bringup evaluate --episodes 3 --out /ros2_ws/eval.csv'
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

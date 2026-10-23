@@ -104,6 +104,7 @@ cp docker/.env.example docker/.env
 
 - `ROS_DOMAIN_ID`: **unique per team** if several teams share a network; the course asks for a number between 2 and 99 (e.g. your department) instead of the default 42 [BOOT2 p8]. The team uses **69** (0.2a), the value of `.env.example`.
 - `USE_SIM=false` + `REAL_ROBOT_PORT` + `CALIBRATION_FILE` for the real arm (`07`).
+- `EXPOSE_GROUND_TRUTH` (default false) is not for `.env`: the E2E jobs set it so the evaluation bench can score (C-06, `08` §3).
 
 ## 4. Golden rules of the workspace
 
