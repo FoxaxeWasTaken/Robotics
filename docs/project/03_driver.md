@@ -21,7 +21,7 @@
 | `/external_cam/camera_info` (C-13); `frame_id` = optical frame (ADR-005) | ✅ (step 1.3) | ❌ (`frame_id = "external_cam"`) | 1.3 |
 | Real-arm shutdown: `disconnect()` cuts the torque, the arm falls | ✅ slow move to `PARK` first, 4 s at most (6.1a, §8) | ⚠ | 6.1 |
 | Per-motor `max_relative_target`; serial bus errors | ✅ (6.1a, §2, §8) | ❌ | 6.1 (ADR-023) |
-| Real camera | ❌ | ❌ | 6.2 (ADR-007) |
+| Real camera | ✅ `camera_device`, MJPG, 10 Hz; `camera_info` from a calibration YAML (6.2a, §6) | ❌ | 6.2 (ADR-007) |
 
 ## 1. Responsibilities
 
@@ -163,8 +163,8 @@ The brain recovers the gripper percentage with the inverse conversion from `so10
 
 | | Sim | Real |
 | --- | --- | --- |
-| Source | MuJoCo render of `external_cam` on a state copy (dedicated thread) | `OpenCVCamera(index_or_path=/dev/videoN, fps=30, width=640, height=480, fourcc="MJPG")` in its own thread (async read) |
-| K | `get_camera_intrinsics()` (fx = fy ≈ 246 px at 320×240), principal point moved to OpenCV pixel centers: cx = 159.5, cy = 119.5 (`camera.py`, [MES-41]) | YAML from the intrinsic calibration (ADR-014) |
+| Source | MuJoCo render of `external_cam` on a state copy (dedicated thread) | Since 6.2a, `camera_device` (`/dev/video0` in `driver_real.yaml`): `OpenCVCamera(index_or_path=camera_device, width=640, height=480, fourcc="MJPG")`, RGB, the camera's own frame rate; a driver thread publishes its newest frame at 10 Hz (`read_latest()`; older than 0.5 s: nothing published). Also with the sim arm: real images without the real arm (`13` §1). No camera: an error in the log, the driver runs without images |
+| K | `get_camera_intrinsics()` (fx = fy ≈ 246 px at 320×240), principal point moved to OpenCV pixel centers: cx = 159.5, cy = 119.5 (`camera.py`, [MES-41]) | `camera_info_file`: the ROS calibration YAML of the intrinsic calibration (6.2b, ADR-014), refused if its image size differs; empty until then: images without `camera_info`, perception waits |
 | D (distortion) | 0 | From calibration |
 | Publication | `Image` `rgb8` + `CameraInfo` with the **same `stamp`**, `frame_id = external_cam_optical_frame`, 10 Hz | Same |
 

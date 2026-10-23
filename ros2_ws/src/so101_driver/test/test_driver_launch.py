@@ -35,6 +35,8 @@ PARAMETER_DEFAULTS = {  # docs/project/01 §3.3
     "max_relative_target_arm": 0.2,
     "max_relative_target_gripper": 25.0,
     "shutdown_pose": [1.9, -1.7, 1.5, 0.7, 0.0],  # = the brain's PARK
+    "camera_device": "",  # the sim render; a webcam on the real arm (driver_real.yaml)
+    "camera_info_file": "",
     "expose_ground_truth": False,  # tests and bench only (C-06)
 }
 VALUE_FIELD = {
@@ -42,6 +44,7 @@ VALUE_FIELD = {
     ParameterType.PARAMETER_INTEGER: "integer_value",
     ParameterType.PARAMETER_DOUBLE: "double_value",
     ParameterType.PARAMETER_DOUBLE_ARRAY: "double_array_value",
+    ParameterType.PARAMETER_STRING: "string_value",
 }
 
 

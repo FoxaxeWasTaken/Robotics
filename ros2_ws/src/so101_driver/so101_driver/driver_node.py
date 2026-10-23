@@ -6,8 +6,9 @@ The only node that talks to the backend: SO101Sim (MuJoCo) or SO101Follower
 knows which one runs.
 
 Publishes /joint_states (rad, 30 Hz) and applies /joint_command (rad, gripper in %)
-through a speed limiter at 50 Hz; in sim, publishes the camera at 10 Hz from a dedicated
-thread (docs/project/03 §3-§5) and serves the evaluation tools: /sim/randomize, ground truth (03 §7).
+through a speed limiter at 50 Hz; publishes the camera at 10 Hz from a dedicated thread, the sim render
+or a real webcam (camera_device) (docs/project/03 §3-§5); in sim, serves the evaluation tools:
+/sim/randomize, ground truth (03 §7).
 On shutdown, brings the arm slowly to its rest pose before disconnect() cuts the torque (03 §8).
 """
 
@@ -20,8 +21,10 @@ import mujoco
 import numpy as np
 import rclpy
 import rclpy.node
+import yaml
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PoseStamped
+from lerobot.cameras.opencv import OpenCVCamera, OpenCVCameraConfig
 from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig
 from rcl_interfaces.msg import FloatingPointRange, IntegerRange, ParameterDescriptor
 from rclpy.clock import Clock, ClockType
@@ -47,11 +50,11 @@ DEFAULT_PORT = "/dev/ttyACM0"
 PARAMETERS = {
     "control_rate_hz": (50.0, "Control tick: speed limiter, send_action, get_observation", 10.0, 100.0),
     "joint_state_rate_hz": (30.0, "/joint_states publication (>= 20 Hz imposed, C-11)", 20.0, 100.0),
-    "camera_rate_hz": (10.0, "Sim camera /external_cam/image_raw", 1.0, 30.0),
+    "camera_rate_hz": (10.0, "/external_cam/image_raw, sim render or webcam", 1.0, 30.0),
     "max_joint_velocity": (1.5, "Speed limiter, arm joints, rad/s (ADR-023)", 0.05, 3.0),
     "max_gripper_velocity": (200.0, "Speed limiter, gripper, %/s (ADR-023)", 10.0, 1000.0),
-    "camera_width": (320, "Sim camera width, px (640 for calibration, ADR-013)", 16, 1280),
-    "camera_height": (240, "Sim camera height, px (480 for calibration, ADR-013)", 16, 720),
+    "camera_width": (320, "Image width, px: sim (640 for calibration, ADR-013) or webcam", 16, 1280),
+    "camera_height": (240, "Image height, px: sim (480 for calibration, ADR-013) or webcam", 16, 720),
     "seed": (0, "Seed of /sim/randomize: cube and box positions (sim)", 0, 2**31 - 1),
     "max_relative_target_arm": (0.2, "Real arm: LeRobot max delta per command, arm joints, rad", 0.01, 1.0),
     "max_relative_target_gripper": (25.0, "Real arm: LeRobot max delta per command, gripper, %", 1.0, 100.0),
@@ -96,6 +99,21 @@ class DriverNode(rclpy.node.Node):
                 ParameterDescriptor(description="Rest pose reached before disconnect, rad", read_only=True),
             ).value
         )
+        camera_device: str = self.declare_parameter(
+            "camera_device",
+            "",
+            ParameterDescriptor(
+                description="Webcam (e.g. /dev/video0), also with the sim arm; empty: sim render or no image",
+                read_only=True,
+            ),
+        ).value
+        camera_info_file: str = self.declare_parameter(
+            "camera_info_file",
+            "",
+            ParameterDescriptor(
+                description="Webcam: ROS calibration YAML; empty: no camera_info", read_only=True
+            ),
+        ).value
         if len(self._shutdown_pose) != len(ARM_JOINT_NAMES):
             raise ValueError(f"shutdown_pose needs {len(ARM_JOINT_NAMES)} values, got {self._shutdown_pose}")
 
@@ -136,10 +154,24 @@ class DriverNode(rclpy.node.Node):
 
         self._pub_image = self.create_publisher(Image, "/external_cam/image_raw", 2)
         self._pub_camera_info = self.create_publisher(CameraInfo, "/external_cam/camera_info", 2)
+        self._bridge = CvBridge()
         self._stop_camera = threading.Event()
+        self._camera = None
         self._camera_thread = None
-        if self._use_sim:  # the real camera comes at 6.2a
+        if camera_device:  # with the sim arm too: real images, the real arm not needed
+            self._camera = self._connect_camera(camera_device)
+            if self._camera is not None:
+                info = None
+                if camera_info_file:
+                    info = camera_info_from_yaml(camera_info_file, self._camera.width, self._camera.height)
+                else:
+                    self.get_logger().warning("No camera_info_file: images without camera_info (6.2b)")
+                self._camera_thread = threading.Thread(
+                    target=self._real_camera_loop, args=(self._camera, info), name="webcam", daemon=True
+                )
+        elif self._use_sim:
             self._camera_thread = threading.Thread(target=self._camera_loop, name="sim_camera", daemon=True)
+        if self._camera_thread is not None:
             self._camera_thread.start()
 
         if self._use_sim:  # evaluation tools (ADR-018)
@@ -202,6 +234,8 @@ class DriverNode(rclpy.node.Node):
         self._stop_camera.set()
         if self._camera_thread is not None:
             self._camera_thread.join()
+        if self._camera is not None:
+            self._camera.disconnect()
         if self._robot.is_connected:
             if not self._bus_lost:
                 self._move_to_shutdown_pose()
@@ -336,7 +370,6 @@ class DriverNode(rclpy.node.Node):
         state = mujoco.MjData(sim.model)
         # Created here: its OpenGL context is bound to this thread.
         renderer = mujoco.Renderer(sim.model, height=sim.camera_height, width=sim.camera_width)
-        bridge = CvBridge()
         K = opencv_intrinsics(sim.get_camera_intrinsics())  # OpenCV pixel centers [MES-41]
         info = camera_info(K, sim.camera_width, sim.camera_height)
         next_frame = time.monotonic()
@@ -348,19 +381,58 @@ class DriverNode(rclpy.node.Node):
                     mujoco.mj_copyData(state, sim.model, sim.data)
                 stamp = self.get_clock().now().to_msg()  # image stamp = copy time, like /joint_states
                 renderer.update_scene(state, camera=sim.camera_name)
-                msg = bridge.cv2_to_imgmsg(renderer.render(), encoding="rgb8")
-                msg.header.stamp = stamp
-                msg.header.frame_id = CAMERA_FRAME
-                info.header = msg.header  # same stamp and frame_id: perception pairs them (C-13)
-                try:
-                    self._pub_image.publish(msg)
-                    self._pub_camera_info.publish(info)
-                except Exception:
-                    if rclpy.ok():
-                        raise
-                    break  # SIGINT/SIGTERM shut the context down during the render: stop quietly
+                if not self._publish_frame(renderer.render(), stamp, info):
+                    break
         finally:
             renderer.close()
+
+    def _connect_camera(self, device: str) -> OpenCVCamera | None:
+        """The webcam in MJPG, the only format with frames through usbip [MES-17]; RGB, as in sim (ADR-007).
+
+        None if it fails: the arm keeps working without images.
+        """
+        width, height = self._p["camera_width"], self._p["camera_height"]
+        camera = OpenCVCamera(
+            OpenCVCameraConfig(index_or_path=Path(device), width=width, height=height, fourcc="MJPG")
+        )
+        try:
+            camera.connect()
+        except (ConnectionError, RuntimeError) as error:
+            if camera.is_connected:
+                camera.disconnect()
+            self.get_logger().error(f"No camera image: {error}")
+            return None
+        self.get_logger().info(f"Camera {device}: {width}x{height} at {camera.fps:.0f} fps")
+        return camera
+
+    def _real_camera_loop(self, camera, info: CameraInfo | None):
+        """10 Hz: the newest frame of the OpenCVCamera reader thread, stamped when it is taken."""
+        next_frame = time.monotonic()
+        while not self._stop_camera.wait(max(0.0, next_frame - time.monotonic())):
+            next_frame = max(next_frame + 1.0 / self._p["camera_rate_hz"], time.monotonic())
+            try:
+                frame = camera.read_latest()
+            except (TimeoutError, RuntimeError) as error:  # no frame for 0.5 s: none published
+                self.get_logger().warning(f"Camera: {error}", throttle_duration_sec=5.0)
+                continue
+            if not self._publish_frame(frame, self.get_clock().now().to_msg(), info):
+                break
+
+    def _publish_frame(self, image, stamp, info: CameraInfo | None) -> bool:
+        """Publishes an RGB frame and its camera_info with the same header; False once ROS is down."""
+        msg = self._bridge.cv2_to_imgmsg(image, encoding="rgb8")
+        msg.header.stamp = stamp
+        msg.header.frame_id = CAMERA_FRAME
+        try:
+            self._pub_image.publish(msg)
+            if info is not None:
+                info.header = msg.header  # same stamp and frame_id: perception pairs them (C-13)
+                self._pub_camera_info.publish(info)
+        except Exception:
+            if rclpy.ok():
+                raise
+            return False  # SIGINT/SIGTERM shut the context down during the frame: stop quietly
+        return True
 
 
 def camera_info(K, width: int, height: int) -> CameraInfo:
@@ -370,6 +442,22 @@ def camera_info(K, width: int, height: int) -> CameraInfo:
     info.d = [0.0] * 5
     info.r = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
     info.p = [*info.k[0:3], 0.0, *info.k[3:6], 0.0, *info.k[6:9], 0.0]
+    return info
+
+
+def camera_info_from_yaml(path, width: int, height: int) -> CameraInfo:
+    """CameraInfo of a ROS calibration file (camera_calibration format, 6.2b) for a width x height image."""
+    calib = yaml.safe_load(Path(path).read_text())
+    if (calib["image_width"], calib["image_height"]) != (width, height):
+        raise ValueError(
+            f"{path} calibrates {calib['image_width']}x{calib['image_height']} images, the camera gives "
+            f"{width}x{height}"
+        )
+    info = CameraInfo(width=width, height=height, distortion_model=calib["distortion_model"])
+    info.k = [float(v) for v in calib["camera_matrix"]["data"]]
+    info.d = [float(v) for v in calib["distortion_coefficients"]["data"]]
+    info.r = [float(v) for v in calib["rectification_matrix"]["data"]]
+    info.p = [float(v) for v in calib["projection_matrix"]["data"]]
     return info
 
 

@@ -32,9 +32,10 @@ services:
       MUJOCO_GL: osmesa
       DISPLAY: ${DISPLAY}
       QT_QPA_PLATFORM: xcb        # robust X11 and XWayland
-    device_cgroup_rules:  # Grant permissions to access usb serial devices (real arm)
+    device_cgroup_rules:  # usb serial (real arm) and video4linux (webcam); nodes made by the entrypoint
       - 'c 166:* rmw'
       - 'c 188:* rmw'
+      - 'c 81:* rmw'
     volumes:
       - ../ros2_ws:/ros2_ws
       - ../sim:/opt/so101/sim

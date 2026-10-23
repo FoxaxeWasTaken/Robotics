@@ -49,6 +49,20 @@ docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && expo
 # Record an episode
 ros2 bag record -o ep_$(date +%H%M%S) /joint_states /joint_command /object_position /drop_box_position /brain_state
 
+# Real webcam (step 6.2a, 02 §5.2): attach it, find its color capture node (index 0), lock its settings (07 §5)
+"/mnt/c/Program Files/usbipd-win/usbipd.exe" attach --wsl --busid <X-Y>   # Windows loses it until detach
+for f in /sys/class/video4linux/video*; do echo "$f $(cat $f/name) index=$(cat $f/index)"; done
+sudo apt install -y v4l-utils && v4l2-ctl -d /dev/video0 --list-ctrls    # on the WSL host: not in the image
+v4l2-ctl -d /dev/video0 -c auto_exposure=1 -c exposure_time_absolute=200 -c white_balance_automatic=0 \
+  -c white_balance_temperature=4500 -c focus_automatic_continuous=0       # names depend on the camera
+# The webcam with the SIM arm (real images, no real arm), on another ROS_DOMAIN_ID than the stack's driver
+docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && export ROS_DOMAIN_ID=78 && \
+  ros2 run so101_driver driver --ros-args -p camera_device:=/dev/video0 -p camera_width:=640 -p camera_height:=480"
+docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && export ROS_DOMAIN_ID=78 && \
+  ros2 topic hz /external_cam/camera_info"  # 10 Hz, sent with each image (needs camera_info_file); on the
+# 640x480 images themselves ros2 topic hz reads lower: it deserializes each 0.9 MB image in Python
+"/mnt/c/Program Files/usbipd-win/usbipd.exe" detach --busid <X-Y>
+
 # Local quality checks (host, repo root)
 pre-commit run --all-files && bash tools/ci/guards.sh
 ```
@@ -101,6 +115,9 @@ Per-symptom details:
 | "No calibration" although `CALIBRATION_FILE` is set | Path does not exist: compose created an **empty root-owned directory** | Fix the path; `sudo rm -rf` the created directory |
 | The real arm collapses on shutdown; log "Shutdown pose not reached" | The move to `PARK` before `disconnect()` ran out of its 4 s (far pose), or the bus was lost (no move) | Stop the arm near `PARK` (the brain parks it after each cycle); hold the forearm (`03` §8) |
 | Real arm: `/joint_states` stops; log "Bus lost after 3 retries" | Serial bus: cable, servo board power, usbipd detached (`ls /dev/ttyACM*`) | Fix the link, then restart the driver (`docker compose restart control`) |
+| Driver log "No camera image: Failed to open" | Webcam not attached (`usbipd attach`), or `camera_device` is not its color capture node (index 0) | `02` §5.2; `cat /sys/class/video4linux/video*/name` |
+| Driver log "No camera image: … failed to capture frames during warmup" | Not in MJPG (YUYV gives 0 frames through usbip [MES-17]), or the webcam is busy in Windows | Close the Windows app using it; the driver asks for MJPG, check the log for a fourcc warning |
+| Driver log "Camera: … latest frame is too old" | The usbip stream stalled | `usbipd detach`, then `attach` again |
 | The cube bounces out of the box | Released too high | `grasp.drop_tcp_z_m` ≈ 0.09 + `VERIFY` state |
 | RViz crashes (segfault, no log) when a **Pose** display is unchecked | Upstream rviz2 bug (14.1.24): the display frees its handler while messages keep arriving | Do not uncheck it: remove the display or close RViz |
 | `/end_effector_pose` hard to see in RViz | Pose display drawn as a 1.3 m arrow by default | Shape `Axes`, length 0.05 m; check the topic name with `ros2 topic list` |

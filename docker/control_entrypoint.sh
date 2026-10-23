@@ -21,10 +21,11 @@ launch() {
   fi
 }
 
-# Ensure serial device nodes exist in /dev for real hardware access
+# Ensure serial and video device nodes exist in /dev for real hardware access (arm, webcam)
 for i in 0 1 2 3; do
   [ -e /dev/ttyACM$i ] || mknod /dev/ttyACM$i c 166 $i 2>/dev/null && chmod 666 /dev/ttyACM$i 2>/dev/null || true
   [ -e /dev/ttyUSB$i ] || mknod /dev/ttyUSB$i c 188 $i 2>/dev/null && chmod 666 /dev/ttyUSB$i 2>/dev/null || true
+  [ -e /dev/video$i ] || mknod /dev/video$i c 81 $i 2>/dev/null && chmod 666 /dev/video$i 2>/dev/null || true
 done
 
 launch so101_bringup sim.launch.py "use_sim:=${USE_SIM:-true}" "port:=${REAL_ROBOT_PORT:-/dev/ttyACM0}" \
