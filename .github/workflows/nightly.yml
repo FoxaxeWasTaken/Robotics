@@ -78,6 +78,9 @@ jobs:
       vars.CI_ENABLED == 'true' && vars.E2E_ENABLED == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    permissions:
+      contents: read
+      issues: write  # the report: one comment per bench on "Nightly bench results" (#151); it cannot push
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -89,12 +92,26 @@ jobs:
           EXPOSE_GROUND_TRUTH: "true"  # the bench scores with the ground truth; the pipeline never reads it (C-06)
           FASTDDS_BUILTIN_TRANSPORTS: DEFAULT  # as the control tests: LARGE_DATA lost nodes at the start (#141)
         run: |
+          set -o pipefail  # the bench's status, not tee's
           cp docker/.env.example docker/.env
           docker compose -f docker/docker-compose.yml up -d control perception viz
           bash tools/ci/wait_for_stack.sh
           docker compose -f docker/docker-compose.yml exec -T -e EPISODES control bash -lc '
             source /ros2_ws/install/setup.bash &&
-            ros2 run so101_bringup evaluate --episodes "$EPISODES" --out /ros2_ws/eval.csv --bags /ros2_ws/bags'
+            ros2 run so101_bringup evaluate --episodes "$EPISODES" --out /ros2_ws/eval.csv --bags /ros2_ws/bags' |
+            tee "$RUNNER_TEMP/bench.log"
+      - name: Report (run summary, issue "Nightly bench results")
+        if: always()  # a bench that stopped, or never started, is reported too
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          EPISODES: ${{ inputs.episodes || '50' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ARTIFACT: evaluation-${{ github.run_number }}
+        run: |
+          touch "$RUNNER_TEMP/bench.log"  # the bench never started: an empty log, "did not finish"
+          bash tools/ci/bench_report.sh "$RUNNER_TEMP/bench.log"
       - name: Stack state and logs (on failure)
         if: failure()
         run: |

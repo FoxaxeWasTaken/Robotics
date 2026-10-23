@@ -71,6 +71,12 @@ repos:
         language: system
         files: ^tools/(so101|ci/test_so101\.sh)$
         pass_filenames: false
+      - id: bench-report-test
+        name: bench_report.sh test (#151)
+        entry: bash tools/ci/test_bench_report.sh
+        language: system
+        files: ^tools/ci/(test_)?bench_report\.sh$
+        pass_filenames: false
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.4.0
     hooks:

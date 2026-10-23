@@ -171,12 +171,14 @@ flowchart LR
   S --> MC["main-changed<br/>main moved since the last bench?"]
   MC -->|"yes, or workflow_dispatch"| V["evaluation<br/>compose up control+perception+viz<br/>50 randomized episodes"]
   V --> R["artifacts<br/>eval.csv + failure rosbags (14 days)"]
-  R --> H["Humans: success-rate trend,<br/>failure-cause analysis"]
+  V --> B["report<br/>run summary + one comment on<br/>Nightly bench results"]
+  B --> H["Humans: success-rate trend,<br/>failure-cause analysis"]
   S --> W["upstream<br/>course main vs .github/upstream-sha"]
   W --> I["one issue<br/>Course repository: new commits"]
 ```
 
 - The bench writes one CSV row per episode: poses, final state, duration, failure cause (`08` §3).
+- **The report** (#151, `tools/ci/bench_report.sh`, tested by `test_bench_report.sh`): each night the bench runs, its summary line (success rate, p50/p95 duration, failure causes), the commit of `main`, the target (≥ 90 %, informative: the nightly does not fail under it) and the run link go to the run summary and to one comment on the issue "Nightly bench results". A bench that stopped, or never started, comments that too. Skipped nights add nothing. The first report creates the issue, which is then pinned by hand; only this job can write issues.
 - The bench runs only when `main` changed (#146): `main-changed` (`tools/ci/evaluation_due.sh`) finds the newest nightly run whose bench gave a verdict, success or failure, and skips the bench when that run was on the same commit. Skipped nights are passed over, and so are cancelled or timed-out benches. Any doubt runs it: no verdict among the last 30 runs, or the API failing; the bench is then skipped only on an explicit `false`. A failed bench is not rerun on the same commit: it was reported that night, and `workflow_dispatch` always runs it.
 - On failure, the evaluation job prints the stack state, the logs and the links still alive, and runs on the `DEFAULT` transports, as `e2e-smoke` (#141).
 - The `upstream` job (#137) compares the course's `main` with `.github/upstream-sha`. When they differ, it opens one issue listing the new commits and their files, or updates the one already open. It runs without `E2E_ENABLED`, and its token can only write issues.
