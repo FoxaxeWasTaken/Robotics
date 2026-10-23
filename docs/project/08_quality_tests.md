@@ -74,7 +74,7 @@ print success rate, p50/p95 duration, failure-cause breakdown
   - CSV columns: `episode, seed, cube_x, cube_y, cube_z, box_x, box_y, box_z, final_state, duration_s, success, cause`. `final_state` is `DONE`, the `ERROR:…` state, or `TIMEOUT` (the bench then calls `/brain/stop`); `cause` is the error without its prefix, `bench_timeout` or `not_in_box`.
   - Summary line: `success 3/3 (100 %); duration p50 15.7 s, p95 17.5 s; causes: none`. The durations are those of the successful cycles.
   - `--bags`: one `episode_NNN` rosbag per failed episode (the topics of `13` §1 plus the ground truth); a successful episode's bag is deleted.
-  - `--seed` checks the driver's `seed` parameter and stops (exit 2) when it differs; no ground truth also stops it (exit 2).
+  - `--seed` checks the driver's `seed` parameter and stops (exit 2) when it differs; no ground truth also stops it (exit 2), and so does no `/end_effector_pose` in 10 s: the brain computes it from `/joint_states`, and refuses a `/brain/start` without them (#132).
 
 ## 4. Automated guards (CI)
 

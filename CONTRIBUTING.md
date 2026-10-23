@@ -8,8 +8,9 @@ This guide is **the team's shared rulebook**. Details and rationale live in `doc
 git clone git@github.com:FoxaxeWasTaken/Robotics.git && cd Robotics
 git remote add upstream git@github.com:JasonChmn/content-lerobot-bras-students.git
 git remote set-url --push upstream DISABLED          # never push to the course repo
-cp docker/.env.example docker/.env                   # team-specific ROS_DOMAIN_ID
-pip install pre-commit && pre-commit install --install-hooks -t pre-commit -t commit-msg
+cp docker/.env.example docker/.env                   # ROS_DOMAIN_ID=69, the team's value
+sudo apt install -y pipx && pipx install pre-commit  # plain pip is refused on Ubuntu 24.04 (PEP 668)
+pre-commit install --install-hooks -t pre-commit -t commit-msg
 cd docker && docker compose build
 ```
 

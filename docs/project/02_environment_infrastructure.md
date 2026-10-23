@@ -102,7 +102,7 @@ In `control_entrypoint.sh`, following the ttyACM pattern: `[ -e /dev/video$i ] |
 cp docker/.env.example docker/.env
 ```
 
-- `ROS_DOMAIN_ID`: **unique per team** if several teams share a network; the course asks for a number between 2 and 99 (e.g. your department) instead of the default 42 [BOOT2 p8].
+- `ROS_DOMAIN_ID`: **unique per team** if several teams share a network; the course asks for a number between 2 and 99 (e.g. your department) instead of the default 42 [BOOT2 p8]. The team uses **69** (0.2a), the value of `.env.example`.
 - `USE_SIM=false` + `REAL_ROBOT_PORT` + `CALIBRATION_FILE` for the real arm (`07`).
 - `EXPOSE_GROUND_TRUTH` (default false) is not for `.env`: the E2E jobs set it so the evaluation bench can score (C-06, `08` §3).
 
@@ -168,16 +168,24 @@ The RViz configuration is versioned (C-52) in `so101_bringup/rviz/so101.rviz`; w
 
 ```bash
 git clone git@github.com:FoxaxeWasTaken/Robotics.git && cd Robotics
-cp docker/.env.example docker/.env                       # then pick ROS_DOMAIN_ID
-pip install pre-commit && pre-commit install --install-hooks -t pre-commit -t commit-msg
+cp docker/.env.example docker/.env                       # ROS_DOMAIN_ID=69, the team's value
+sudo apt install -y pipx && pipx install pre-commit      # plain pip is refused on Ubuntu 24.04 (PEP 668)
+pre-commit install --install-hooks -t pre-commit -t commit-msg
 cd docker && docker compose build                         # ~10 min the first time
 xhost +local:docker
-docker compose up -d control perception viz              # perception idle until step 3.1
-docker compose logs -f control                            # wait for "Brain node ready."
+docker compose up -d control perception viz              # perception builds its packages, then starts
+docker compose logs -f control                            # wait for "Driver node ready." and "Brain node ready."
 docker compose exec control bash
 source /ros2_ws/install/setup.bash
 ros2 node list                                            # driver, brain, perception, robot_state_publisher…
-ros2 topic hz /joint_states                               # ≥ 20 Hz, once step 1.0 is done
+ros2 topic hz /joint_states                               # ≥ 20 Hz (30 Hz on the three machines, 0.2a)
+ros2 run example_py_pkg talker                            # C-04 check, then Ctrl-C (see below)
 ros2 topic pub --once -w 1 --keep-alive 1 /joint_command sensor_msgs/msg/JointState '{name: [shoulder_pan], position: [0.5]}'
 rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz  # arm, TF, camera image, poses, markers
+```
+
+C-04 (containers talk to each other): while the talker runs in `control`, a second terminal reads it from the `perception` container. It prints `tek5 N`, N up by one every 0.5 s; two interleaved counters mean two talkers are running (`13` §2).
+
+```bash
+cd docker && docker compose exec perception bash -lc "source /opt/ros/jazzy/setup.bash && ros2 topic echo /chatter std_msgs/msg/String"
 ```

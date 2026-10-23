@@ -13,7 +13,7 @@ name: tek5
 
 # Shared ROS environment for all services.
 x-ros-env: &ros-env
-  ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-42}
+  ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-69}
   FASTDDS_BUILTIN_TRANSPORTS: LARGE_DATA
 
 services:
