@@ -14,24 +14,27 @@ pre-commit install --install-hooks -t pre-commit -t commit-msg
 cd docker && docker compose build
 ```
 
-Full environment (WSL2, usbipd, RViz): `docs/project/02`.
+Full environment (WSL2, usbipd, RViz): `docs/project/02`. Everyday commands: `tools/so101 --help` (start the stack, a cycle, the bench, the tests; `docs/project/13` §1).
 
 ## 2. Workflow
 
 1. On the **GitHub Project** board, take a ticket from **Ready** (highest priority first, in your lane), assign it to yourself and move it to **In progress** (§8).
 2. Create a branch named after the issue: `git switch -c feat/<issue#>-<topic>` (naming rules: §2.1).
-3. Code **inside the containers** (`docker compose exec control bash`) — never run `colcon build` on the host.
-4. Test locally:
+3. Start the stack with `tools/so101 up` and code; build and run ROS **inside the containers** (`tools/so101 shell`), never `colcon build` on the host.
+4. **Write the test first** (§5), then the code. Test locally:
 
    ```bash
-   cd /ros2_ws && colcon build --symlink-install --packages-select <pkg>
-   colcon test --packages-select <pkg> --event-handlers console_direct+ && colcon test-result --verbose
-   bash tools/ci/guards.sh                              # from the repo root, on the host (needs the git repo)
+   tools/so101 test <pkg>                                # build and test one package in the control container
+   pre-commit run --all-files && bash tools/ci/guards.sh # host, repo root: lint, format, the project rules
+   tools/so101 bench --perception -n 10                  # a change that can affect the cycle: the bench
    ```
 
-5. Commit with a **conventional message**: `feat(driver): publish camera_info` (§2.1; the hook rejects anything else).
-6. Open a PR with `Closes #<issue#>`, fill in the checklist; CODEOWNERS requests the review and the ticket moves to **In review**. A **draft** PR runs only lint, the guards and the PR title check: mark it **Ready for review** to run the build, the tests and the E2E job. A PR that only touches documentation never runs them (`docs/project/14` §5.4).
-7. **Squash merge** once CI is green and the PR is approved. GitHub requires the branch to be **up to date with `main`**: if `main` moved, click *Update branch* (a merge; never rebase or force-push) and wait for the CI again. `main` gets no CI of its own (`docs/project/14` §5.4). A draft that waited for another PR: merge `main` into its branch (never rebase or force-push), then mark it ready, so that its full CI runs on the merged tree. The squash commit takes the **PR title**, so it must be conventional too (§2.1), CI checks it: the ticket closes and moves to **Done**, the branch is deleted.
+5. Commit with a **conventional message**: `feat(driver): publish camera_info` (§2.1; the hook rejects anything else). One commit per ticket.
+6. Open the PR with one `Closes #<issue#>` line per ticket, assign yourself and **request the review of the other members**: `.github/CODEOWNERS` is indicative, any member may approve (`docs/project/14` §10). Fill in the checklist and show the **evidence**: the commands run and their output, or the measurement (§8). The ticket moves to **In review**.
+   - Open it **ready for review**. It stays a **draft** only when it is stacked on another open PR (its branch starts from that PR's branch).
+   - A draft runs only lint, the guards and the PR title check; marking it ready runs the build, the tests and the E2E job. A PR that only touches documentation never runs them (`docs/project/14` §5.4).
+7. **Prepare the merge**: merge `main` into the branch (`git fetch origin && git merge origin/main`, or *Update branch* on GitHub; never rebase or force-push), wait for the CI to pass on the merged tree, then **squash merge** once the PR is approved. GitHub refuses the merge while the branch is behind `main`, and `main` gets no CI of its own (`docs/project/14` §5.4). A stacked draft: once the PR below it is merged, merge `main` into its branch, then mark it ready.
+8. The squash commit takes the **PR title**, so it must be conventional too (§2.1), CI checks it. The ticket closes and moves to **Done**, the branch is deleted.
 
 ### 2.1 Naming: branches, commits, PR titles
 
@@ -42,7 +45,7 @@ Full environment (WSL2, usbipd, RViz): `docs/project/02`.
 | PR title | same format: it becomes the squash commit on `main` | `feat(brain): add min-jerk trajectories` | CI `PR title (conventional commit)` |
 
 - **Types**: `feat` new behavior · `fix` bug fix · `docs` · `test` · `refactor` no behavior change · `perf` · `build` Docker, dependencies, packaging · `ci` workflows, hooks · `chore` housekeeping · `revert`.
-- **Scope** (optional, lowercase): the package or area: `driver`, `brain`, `perception`, `common`, `bringup`, `interfaces`, `connect4`, `docker`, `docs`, `ci`.
+- **Scope** (optional, lowercase): the package or area: `driver`, `brain`, `perception`, `common`, `bringup`, `interfaces`, `connect4`, `docker`, `docs`, `ci`, `tooling` (`tools/`).
 - **Description**: imperative ("add", not "added"), lowercase start, no final period, at most 72 characters.
 - **Breaking change** of the interface contract (`docs/project/01` §3): `!` after the type or scope (`feat(interfaces)!: rename /object_position`), explained in the PR body.
 - **Body** (optional): why, not how; `Co-authored-by:` trailer when pairing (C-07).
@@ -64,22 +67,35 @@ The first three rules are checked in CI by `tools/ci/guards.sh`; the others rely
 
 - Python: **ruff** (lint + format, config in `pyproject.toml`). Run `pre-commit run --all-files` before a large PR.
 - Non-trivial logic lives **outside ROS callbacks**, in pure modules covered by unit tests.
-- No magic numbers: constants in `so101_common`, tunables as ROS parameters (YAML in `so101_bringup/config/`).
+- No magic numbers: constants in `so101_common`, tunables as ROS parameters declared with a description and a range. Every tunable is in its base YAML (`so101_bringup/config/`, `so101_perception/config/`); the real arm overrides only the keys of `docs/project/01` §3.3 (`*_real.yaml`).
 - **Do not modify** `core/`, `sim/`, `ros2_ws/src/so101_description/` (course kit). Provided files you have not rewritten yet are excluded from lint so they stay identical to upstream; remove a file from the exclusion list in `pyproject.toml` when you rewrite it.
 
 ## 5. Tests
 
+**Test first (TDD).** For a new behavior or a bug fix:
+
+1. write the test that shows it;
+2. run it and watch it fail, for the expected reason (not an import error or a typo);
+3. write the code until it passes, then run the package's whole suite.
+
+The PR shows both runs (RED → GREEN). A bug gets its regression test before its fix. A test that passes at once proves nothing: change it until it fails without the code.
+
 | Type | Where | When to write one |
 | --- | --- | --- |
-| Unit (pytest) | `<pkg>/test/test_*.py` | Any pure logic (conversions, IK, FSM, geometry, detection) |
+| Unit (pytest) | `<pkg>/test/test_*.py` | Any pure logic (conversions, IK, FSM, geometry, detection); a rule that must hold for every input gets a property test (Hypothesis, `docs/project/08` §5) |
 | Component (launch_testing) | `<pkg>/test/test_*_launch.py` | Rates, commands, services of one node |
-| E2E | `ros2 run so101_bringup evaluate` | Full pick & place (N episodes) |
+| Sim-backed | `so101_bringup/test/` | Anything that needs `so101_sim` (closed loop, IK accuracy, launch files): never under `so101_brain` or `so101_perception` |
+| E2E | `tools/so101 bench` (`ros2 run so101_bringup evaluate`) | Full pick & place, N episodes. CI runs 3 on every PR (`e2e-smoke`, not a required check) and 50 in the nightly each night `main` changes |
+| Scripts | `tools/ci/test_*.sh`, run by pre-commit | A CI or tooling script: its behavior without network or Docker (fake `gh`, `--dry-run`) |
 
-A flaky test never lands in `main`: quarantine marker + issue.
+The safety modules also have mutation testing (mutmut, run by hand, `docs/project/08` §1).
+
+**A flaky test never stays in `main`.** Open a `bug` issue with the failing run, then fix the cause, or the test, in its own PR, as #141 and #142 did. Never rerun until it passes.
 
 ## 6. Decisions and documentation
 
-- A structural choice gets an **ADR** (`docs/project/adr/`, template in `adr/README.md`). Accepted ADRs are not rewritten: a new one supersedes them.
+- A structural choice gets an **ADR** (`docs/project/adr/`, template in `adr/README.md`). Accepted ADRs are not rewritten: add an *Update* section, or a new ADR that supersedes them.
+- A new measurement gets a `MES-xx` row in `docs/project/11` §4, its script in `docs/project/experiences/`; update the counts in `docs/project/README.md`.
 - Changing the **interface contract** (`docs/project/01` §3) requires both sides' owners to agree.
 - Diagrams are **Mermaid**, and their rendering is checked in CI.
 

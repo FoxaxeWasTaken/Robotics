@@ -35,3 +35,8 @@ Prototype measurements: [MES-24] (30 Hz, 0.13 mm through `/go_to_target`); real-
 ## Reconsider if
 
 Time runs short before the mid-term review: port one prototype block at a time through normal PRs, with tests, instead of rewriting it.
+
+## Update (2026-10-24, #134)
+
+- **The prototype gets no link either**: it was never published and stays a local copy. The README says it stays outside this repository and links only the course repository (`upstream`), where the kit comes from (team decision, 2026-10-24).
+- The README quickstart now runs a full cycle (`tools/so101 cycle`): the driver, the perception and the brain exist since steps 1 to 4.
