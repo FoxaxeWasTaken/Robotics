@@ -31,6 +31,7 @@ from std_srvs.srv import Trigger
 FOOTPRINT_HALF_M = 0.05  # half the box's inner side (08 §3)
 MAX_CUBE_Z_M = 0.06  # higher: on a wall, not in the box
 STARTUP_S = 60.0  # s, each check before episode 1: a fresh process may find the stack late in CI (#141)
+RESEND_S = 5.0  # s: the driver's parameters asked again without a reply (none in 60 s once in CI, #141)
 FIELDS = [
     "episode", "seed", "cube_x", "cube_y", "cube_z", "box_x", "box_y", "box_z",
     "final_state", "duration_s", "success", "cause",
@@ -96,21 +97,30 @@ class Bench:
             rclpy.spin_once(self.node, timeout_sec=0.05)
         return condition()
 
-    def call(self, client, request, timeout_s: float = 10.0):
+    def call(self, client, request, timeout_s: float = 10.0, resend_s: float | None = None):
+        """The reply within timeout_s of the service being found. With resend_s, for a request that changes
+        nothing only, it is sent again each resend_s without a reply; any reply counts (self.attempts)."""
         if not client.wait_for_service(timeout_sec=timeout_s):
             raise RuntimeError(f"{client.srv_name}: no such service")
-        future = client.call_async(request)
-        rclpy.spin_until_future_complete(self.node, future, timeout_sec=timeout_s)
-        if future.result() is None:
-            raise RuntimeError(f"{client.srv_name}: no answer in {timeout_s:g} s")
-        return future.result()
+        futures, end = [], time.monotonic() + timeout_s
+        while True:
+            futures.append(client.call_async(request))
+            left = end - time.monotonic()
+            self.spin_until(lambda: any(f.done() for f in futures), min(resend_s or left, left))
+            replies = [f.result() for f in futures if f.done() and f.result() is not None]
+            if replies:
+                self.attempts = len(futures)
+                return replies[0]
+            if resend_s is None or time.monotonic() >= end:
+                raise RuntimeError(f"{client.srv_name}: no answer in {timeout_s:g} s")
 
     def trigger(self, name: str) -> bool:
         return self.call(self.services[name], Trigger.Request()).success
 
     def driver_seed(self, timeout_s: float) -> int:
         client = self.node.create_client(GetParameters, "/so101_driver/get_parameters")
-        return self.call(client, GetParameters.Request(names=["seed"]), timeout_s).values[0].integer_value
+        reply = self.call(client, GetParameters.Request(names=["seed"]), timeout_s, RESEND_S)
+        return reply.values[0].integer_value
 
     def episode(self, number: int, seed: int, timeout_s: float) -> dict:
         if self.states and self.states[-1].startswith("ERROR"):
@@ -159,7 +169,10 @@ def record(path: Path) -> subprocess.Popen:
 def run(args, bench: Bench) -> int:
     start = time.monotonic()
     seed = bench.driver_seed(STARTUP_S)
-    print(f"evaluate: the driver answered in {time.monotonic() - start:.1f} s", flush=True)
+    print(
+        f"evaluate: the driver answered in {time.monotonic() - start:.1f} s, request {bench.attempts}",
+        flush=True,
+    )
     if args.seed is not None and args.seed != seed:
         print(f"evaluate: the driver runs seed {seed}, not {args.seed}", file=sys.stderr)
         return 2

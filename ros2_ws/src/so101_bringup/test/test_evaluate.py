@@ -5,7 +5,9 @@ import inspect
 import re
 
 import pytest
+from rclpy.task import Future
 
+from so101_bringup import evaluate
 from so101_bringup.evaluate import FIELDS, Bench, outcome, run, summary
 
 BOX = (0.10, -0.25, 0.0)  # floor center
@@ -20,6 +22,7 @@ class FakeBench:
         self.episodes = []
         self.first_wait = None
         self.waits = []  # timeout of each spin_until
+        self.attempts = 1
 
     def driver_seed(self, timeout_s):
         self.first_wait = timeout_s
@@ -66,6 +69,58 @@ def test_the_ground_truth_and_the_brain_pose_get_the_same_minute(tmp_path):
     bench = FakeBench(pose=object())
     assert run(bench_args(tmp_path), bench) == 0
     assert bench.waits[:2] == [60.0, 60.0]
+
+
+class LossyService:
+    """A service found by wait_for_service whose first `lost` replies never come (#141)."""
+
+    srv_name = "/so101_driver/get_parameters"
+
+    def __init__(self, lost):
+        self.lost, self.sent = lost, 0
+
+    def wait_for_service(self, timeout_sec):
+        return True
+
+    def call_async(self, request):
+        self.sent += 1
+        future = Future()
+        if self.sent > self.lost:
+            future.set_result("reply")
+        return future
+
+
+@pytest.fixture
+def clocked_bench(monkeypatch):
+    """Bench.call without ROS: spin_until advances a fake clock by its timeout when nothing comes."""
+    clock = [0.0]
+    monkeypatch.setattr(evaluate.time, "monotonic", lambda: clock[0])
+    bench = Bench.__new__(Bench)
+
+    def spin_until(condition, timeout_s):
+        if not condition():
+            clock[0] += timeout_s
+        return bool(condition())
+
+    bench.spin_until = spin_until
+    return bench, clock
+
+
+def test_an_idempotent_request_without_reply_is_sent_again(clocked_bench):
+    """In CI the driver was found, then its reply never came in 60 s (#141): it is asked again every 5 s."""
+    bench, clock = clocked_bench
+    service = LossyService(lost=2)
+    assert bench.call(service, "request", 60.0, resend_s=5.0) == "reply"
+    assert (service.sent, bench.attempts, clock[0]) == (3, 3, 10.0)
+
+
+def test_other_requests_are_sent_once_and_stop_the_bench_without_reply(clocked_bench):
+    """/sim/randomize or /brain/start twice would change the episode: no resend."""
+    bench, _ = clocked_bench
+    service = LossyService(lost=1)
+    with pytest.raises(RuntimeError, match="no answer in 10 s"):
+        bench.call(service, "request", 10.0)
+    assert service.sent == 1
 
 
 def test_the_episodes_run_once_the_brain_publishes_its_pose(tmp_path):
