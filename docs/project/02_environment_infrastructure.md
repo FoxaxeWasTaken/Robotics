@@ -168,7 +168,8 @@ The RViz configuration is versioned (C-52) in `so101_bringup/rviz/so101.rviz`; w
 ```bash
 git clone git@github.com:FoxaxeWasTaken/Robotics.git && cd Robotics
 cp docker/.env.example docker/.env                       # ROS_DOMAIN_ID=69, the team's value
-pip install pre-commit && pre-commit install --install-hooks -t pre-commit -t commit-msg
+sudo apt install -y pipx && pipx install pre-commit      # plain pip is refused on Ubuntu 24.04 (PEP 668)
+pre-commit install --install-hooks -t pre-commit -t commit-msg
 cd docker && docker compose build                         # ~10 min the first time
 xhost +local:docker
 docker compose up -d control perception viz              # perception builds its packages, then starts

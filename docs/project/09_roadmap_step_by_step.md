@@ -78,7 +78,7 @@ flowchart LR
 | **C — Perception and calibration** | @Hasnain-Pyarali | 3.x, 6.3–6.4 | @SamuelValentin974 |
 | Shared | Everyone | 0.1, 0.2, 4.3 (integration), 4.5, 5.x, 6.5, 7.x (phase 2), 8.x | — |
 
-The owners are those of `.github/CODEOWNERS` (0.1d), which requests their review automatically. **Rule**: nobody merges their own code without review, and every member makes at least one PR in each lane before the end (C-50).
+The owners are those of `.github/CODEOWNERS` (0.1d), which requests their review automatically; it is indicative, and any member may approve any PR. **Rule**: nobody merges their own code without review, and every member makes at least one PR in each lane before the end (C-50).
 
 ---
 
