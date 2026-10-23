@@ -5,9 +5,12 @@ so101_driver:
     control_rate_hz: 50.0       # 2 backend calls per tick: the sim runs in real time [MES-02]
     joint_state_rate_hz: 30.0   # >= 20 Hz imposed (C-11)
     camera_rate_hz: 10.0        # C-12
-    max_joint_velocity: 1.5     # rad/s, sim; 0.8 on the real arm (6.1a)
+    max_joint_velocity: 1.5     # rad/s, sim; 0.8 on the real arm (driver_real.yaml)
     max_gripper_velocity: 200.0 # %/s
     camera_width: 320           # 640 x 480 during calibration (ADR-013)
     camera_height: 240
     seed: 0                     # /sim/randomize: same seed, same cube and box sequence
+    shutdown_pose: [1.9, -1.7, 1.5, 0.7, 0.0]  # rad: the brain's PARK, reached before disconnect (03 §8)
+    max_relative_target_arm: 0.2       # real arm only: LeRobot's max delta per command, rad (07 §2)
+    max_relative_target_gripper: 25.0  # real arm only: same, gripper, %
     expose_ground_truth: false  # true for the evaluation bench only (C-06)

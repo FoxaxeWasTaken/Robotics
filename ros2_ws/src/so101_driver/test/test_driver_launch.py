@@ -32,12 +32,19 @@ PARAMETER_DEFAULTS = {  # docs/project/01 §3.3
     "camera_width": 320,
     "camera_height": 240,
     "seed": 0,
+    "max_relative_target_arm": 0.2,
+    "max_relative_target_gripper": 25.0,
+    "shutdown_pose": [1.9, -1.7, 1.5, 0.7, 0.0],  # = the brain's PARK
+    "camera_device": "",  # the sim render; a webcam on the real arm (driver_real.yaml)
+    "camera_info_file": "",
     "expose_ground_truth": False,  # tests and bench only (C-06)
 }
 VALUE_FIELD = {
     ParameterType.PARAMETER_BOOL: "bool_value",
     ParameterType.PARAMETER_INTEGER: "integer_value",
     ParameterType.PARAMETER_DOUBLE: "double_value",
+    ParameterType.PARAMETER_DOUBLE_ARRAY: "double_array_value",
+    ParameterType.PARAMETER_STRING: "string_value",
 }
 
 
@@ -136,6 +143,7 @@ class TestDriver(unittest.TestCase):
             name: getattr(v, VALUE_FIELD[v.type])
             for name, v in zip(PARAMETER_DEFAULTS, future.result().values, strict=True)
         }
+        values["shutdown_pose"] = list(values["shutdown_pose"])  # array('d')
         self.assertEqual(values, PARAMETER_DEFAULTS)
 
     def test_sim_tools_by_default_randomize_but_no_ground_truth(self):
@@ -280,7 +288,13 @@ class TestDriver(unittest.TestCase):
 
 @launch_testing.post_shutdown_test()
 class TestDriverShutdown(unittest.TestCase):
-    def test_sigint_stops_the_driver_without_traceback(self, proc_info, proc_output, driver):
+    def test_sigint_parks_the_arm_then_stops_the_driver_without_traceback(
+        self, proc_info, proc_output, driver
+    ):
         launch_testing.asserts.assertExitCodes(proc_info, process=driver)
         output = b"".join(io.text for io in proc_output[driver])
+        print([line for line in output.decode().splitlines() if "Shutdown pose" in line])
+        # Moved before disconnect() cuts the torque (03 §8). Reached, or given up after 4 s: from the startup
+        # pose the pan alone needs 3.8 s, too close on a loaded runner (test_shutdown.py checks the move).
+        self.assertIn(b"Shutdown pose", output)
         self.assertNotIn(b"Traceback", output)

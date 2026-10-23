@@ -12,7 +12,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import IfElseSubstitution, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
@@ -35,6 +35,10 @@ def generate_launch_description():
                 output="screen",
                 parameters=[
                     PathJoinSubstitution([config, "driver.yaml"]),
+                    # Real arm: driver_real.yaml on top of driver.yaml; in sim, driver.yaml again (no change).
+                    PathJoinSubstitution(
+                        [config, IfElseSubstitution(LaunchConfiguration("use_sim"), "driver.yaml", "driver_real.yaml")]
+                    ),
                     {
                         "use_sim": ParameterValue(LaunchConfiguration("use_sim"), value_type=bool),
                         "port": LaunchConfiguration("port"),
