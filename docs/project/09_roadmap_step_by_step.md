@@ -73,12 +73,12 @@ flowchart LR
 
 | Lane | Main owner | Steps | Rotating reviewer |
 | --- | --- | --- | --- |
-| **A — Driver, infra, hardware** | Member 1 | 0.3, 1.x, 3.4 (driver side of the calibration scene), 6.1–6.2 | Member 3 |
-| **B — Kinematics and brain** | Member 2 | 2.x, 4.x | Member 1 |
-| **C — Perception and calibration** | Member 3 | 3.x, 6.3–6.4 | Member 2 |
+| **A — Driver, infra, hardware** | @FoxaxeWasTaken | 0.3, 1.x, 3.4 (driver side of the calibration scene), 6.1–6.2 | @Hasnain-Pyarali |
+| **B — Kinematics and brain** | @SamuelValentin974 | 2.x, 4.x | @FoxaxeWasTaken |
+| **C — Perception and calibration** | @Hasnain-Pyarali | 3.x, 6.3–6.4 | @SamuelValentin974 |
 | Shared | Everyone | 0.1, 0.2, 4.3 (integration), 4.5, 5.x, 6.5, 7.x (phase 2), 8.x | — |
 
-A proposal to adapt to everyone's preferences. **Rule**: nobody merges their own code without review, and every member makes at least one PR in each lane before the end (C-50).
+The owners are those of `.github/CODEOWNERS` (0.1d), which requests their review automatically. **Rule**: nobody merges their own code without review, and every member makes at least one PR in each lane before the end (C-50).
 
 ---
 

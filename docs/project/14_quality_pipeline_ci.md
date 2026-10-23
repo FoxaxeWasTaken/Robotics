@@ -228,7 +228,7 @@ For any future mass reformatting: one dedicated `style:` commit, then its SHA in
 
 Files are **in place at the repository root** (workflows, hooks, configurations). GitHub settings, done on 2026-10-15 unless stated:
 
-1. Replace `@member1/2/3` in `.github/CODEOWNERS` (to do: ticket 0.1d).
+1. Replace `@member1/2/3` in `.github/CODEOWNERS` with the lane owners of `09` §1.2 (done, ticket 0.1d); then enable "Require review from Code Owners" in the `main` ruleset (to do, once every member has merged a first PR).
 2. Every member: `pip install pre-commit && pre-commit install --install-hooks -t pre-commit -t commit-msg`.
 3. Private repo → Settings → Variables: `CI_ENABLED=true` (done) (CI and nightly are opt-in so they do not run on the school mirror, `16`).
 4. Settings → Rules (or Branches): protect `main` (PR required, 1 approval, required checks **by their displayed job names**: `Lint (pre-commit)`, `Project rules (C-05, C-06, C-23)`, `Build + tests (control image)`, `Build + tests (perception image)`, `PR title (conventional commit)`). A private repository needs GitHub Pro for this (`15` §12.5). Done on 2026-10-15 (ruleset "main protection", no bypass).
