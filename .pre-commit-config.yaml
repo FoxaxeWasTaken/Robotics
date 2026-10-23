@@ -65,6 +65,12 @@ repos:
         language: system
         files: ^tools/ci/(docs_only|evaluation_due|test_ci_skips)\.sh$
         pass_filenames: false
+      - id: so101-test
+        name: tools/so101 dry-run test (#133)
+        entry: bash tools/ci/test_so101.sh
+        language: system
+        files: ^tools/(so101|ci/test_so101\.sh)$
+        pass_filenames: false
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.4.0
     hooks:

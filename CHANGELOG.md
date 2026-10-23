@@ -6,6 +6,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Added
 
+- `tools/so101` (step 5.1f, #133): one entry point for the everyday commands of the sim stack, `up`, `down`, `logs`, `shell`, `rviz`, `cycle` (randomize, start, then `/brain_state` until `DONE` or `ERROR`), `bench --stub|--perception [-n N] [--bags DIR]` and `test <package>`. Each prints the `docker compose` command it runs; `--dry-run` only prints it. The bench runs on ROS domain 77, never the stack's, and refuses to start when a stack already answers there. `tools/ci/test_so101.sh` (pre-commit) checks every dry run without Docker. `02` §10 and `13` §1 use it.
 - Every tunable in YAML (step 5.1a, #57):
   - **New parameters**: the brain's values that were constants of `fsm.Params` (the timeouts of `06` §3.1, the ages, the box footprint, the shortest motion and its margin, the gripper tolerance); the driver's `shutdown_velocity`, `shutdown_tolerance` and `bus_retries`; perception's `filter_size` and `filter_jump_m`. Each has a description and a range.
   - **The base files** (`driver.yaml`, `brain.yaml`, `perception.yaml`) list every tunable with its sim value.
