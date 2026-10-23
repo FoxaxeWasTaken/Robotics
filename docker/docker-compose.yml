@@ -32,9 +32,10 @@ services:
       MUJOCO_GL: osmesa
       DISPLAY: ${DISPLAY}
       QT_QPA_PLATFORM: xcb        # robust X11 and XWayland
-    device_cgroup_rules:  # Grant permissions to access usb serial devices (real arm)
+    device_cgroup_rules:  # usb serial (real arm) and video4linux (webcam); nodes made by the entrypoint
       - 'c 166:* rmw'
       - 'c 188:* rmw'
+      - 'c 81:* rmw'
     volumes:
       - ../ros2_ws:/ros2_ws
       - ../sim:/opt/so101/sim
@@ -44,6 +45,7 @@ services:
     networks: [rosnet]
     stdin_open: true
     tty: true
+    stop_grace_period: 10s  # the driver parks the arm (4 s at most) before disconnect() cuts the torque (#64)
     # Only container that builds (concurrent colcon on the same volume = conflicts).
     # viz waits for install/ to be ready.
     command: ["/opt/so101/entrypoint.sh"]

@@ -14,15 +14,18 @@ launch() {
   local pkg=$1 file=$2
   shift 2
   if [ -f "install/$pkg/share/$pkg/launch/$file" ]; then
-    ros2 launch "$pkg" "$file" "$@" &
+    # --noninteractive: compose gives the container a TTY, so launch would take our SIGINT for a terminal
+    # Ctrl-C already sent to its nodes and not forward it; they were killed at 5 s, destroy_node() never ran.
+    ros2 launch --noninteractive "$pkg" "$file" "$@" &
     pids+=($!)
   fi
 }
 
-# Ensure serial device nodes exist in /dev for real hardware access
+# Ensure serial and video device nodes exist in /dev for real hardware access (arm, webcam)
 for i in 0 1 2 3; do
   [ -e /dev/ttyACM$i ] || mknod /dev/ttyACM$i c 166 $i 2>/dev/null && chmod 666 /dev/ttyACM$i 2>/dev/null || true
   [ -e /dev/ttyUSB$i ] || mknod /dev/ttyUSB$i c 188 $i 2>/dev/null && chmod 666 /dev/ttyUSB$i 2>/dev/null || true
+  [ -e /dev/video$i ] || mknod /dev/video$i c 81 $i 2>/dev/null && chmod 666 /dev/video$i 2>/dev/null || true
 done
 
 launch so101_bringup sim.launch.py "use_sim:=${USE_SIM:-true}" "port:=${REAL_ROBOT_PORT:-/dev/ttyACM0}" \

@@ -10,7 +10,7 @@
 | Item | Repository | Bootstrap prototype | Roadmap step (`09`) |
 | --- | --- | --- | --- |
 | `use_sim` backend, provided `_connect_arm` (explicit failure on calibration mismatch) | ✅ provided | ✅ | — |
-| Upstream #2: `disable_torque()` right after connecting (limp arm, commands ignored) | Active, as the course ships it: the real arm can be read, not moved | Commented out | Comment it out at 6.1a, once the clamp (1.1a) and the real-arm speed (1.1b) exist (ADR-032, `07` §2); uncomment to move the arm by hand (`07` §3.2, test 1) |
+| Upstream #2: `disable_torque()` right after connecting (limp arm, commands ignored) | Commented out (6.1a), after the clamp (1.1a), the real-arm speed (1.1b) and the shutdown move: the real arm obeys `/joint_command` (ADR-032, `07` §2) | Commented out | 6.1a; uncomment for a session where the arm is moved by hand (`07` §3.2, test 1) |
 | Partial commands by name; empty name list = `JOINT_NAMES` order | ✅ (step 1.0) | ✅ | 1.0 |
 | Speed limiter (1.5 rad/s; gripper 200 %/s) | ✅ `limiter.py`; parameters since step 1.1 | ✅ | 1.0, 1.1 |
 | `/joint_states` ≥ 20 Hz, gripper in rad, stamp = read time | ✅ 30.0 Hz (step 1.0) | ✅ 30.0 Hz (9 Hz before the camera fix) | 1.0 |
@@ -19,8 +19,9 @@
 | NaN/inf rejection | ✅ `command.py` (step 1.1) | ✅ in the working copy | 1.1 |
 | `effort` (grasp detection, ADR-016) | ✅ sim, `effort.py` (step 1.3); real: empty until 6.4a | ❌ | 1.3 |
 | `/external_cam/camera_info` (C-13); `frame_id` = optical frame (ADR-005) | ✅ (step 1.3) | ❌ (`frame_id = "external_cam"`) | 1.3 |
-| Real-arm shutdown: `disconnect()` cuts the torque, the arm falls | ⚠ provided `destroy_node` | ⚠ | `PARK` first (§8, 6.1) |
-| Real camera, `/sim/randomize`, `max_relative_target` | ❌ | ❌ | Later stages (ADR-007, 018, 023) |
+| Real-arm shutdown: `disconnect()` cuts the torque, the arm falls | ✅ slow move to `PARK` first, 4 s at most (6.1a, §8) | ⚠ | 6.1 |
+| Per-motor `max_relative_target`; serial bus errors | ✅ (6.1a, §2, §8) | ❌ | 6.1 (ADR-023) |
+| Real camera | ✅ `camera_device`, MJPG, 10 Hz; `camera_info` from a calibration YAML (6.2a, §6) | ❌ | 6.2 (ADR-007) |
 
 ## 1. Responsibilities
 
@@ -46,7 +47,7 @@ What the provided version does:
 | Sim | `SO101Sim()` then `connect()` |
 | Real | Checks that `CALIBRATION_FILE` (`/calibration/arm.json`) exists, else `RuntimeError`. Builds `SO101FollowerConfig(port, id=calib.stem, calibration_dir=calib.parent, use_radians=True)`, then `connect(calibrate=False)`. **If the motors do not match the file: `disconnect()` + `RuntimeError`** ("wrong file for this arm?"). Since #2, then `bus.disable_torque()`: commented out by the team (see above) |
 
-What the team adds, without touching the provided function (**planned** with ticket 6.1a, not in the code yet, §0):
+What the team adds, without touching the provided function (6.1a):
 
 ```python
 self._robot = self._connect_arm(port)                # provided by the course, unchanged
@@ -54,7 +55,9 @@ if not self._use_sim:
     # Hardware safety net (ADR-023): max delta per command, PER MOTOR
     # (a scalar would also apply to the gripper, in %, and freeze it).
     # send_action() re-reads config.max_relative_target on every call.
-    self._robot.config.max_relative_target = {**{j: 0.2 for j in ARM_JOINTS}, "gripper": 25.0}
+    self._robot.config.max_relative_target = max_relative_target(  # limiter.py: 0.2 rad, gripper 25 %
+        self._p["max_relative_target_arm"], self._p["max_relative_target_gripper"]
+    )
 ```
 
 Real-arm critical points:
@@ -160,8 +163,8 @@ The brain recovers the gripper percentage with the inverse conversion from `so10
 
 | | Sim | Real |
 | --- | --- | --- |
-| Source | MuJoCo render of `external_cam` on a state copy (dedicated thread) | `OpenCVCamera(index_or_path=/dev/videoN, fps=30, width=640, height=480, fourcc="MJPG")` in its own thread (async read) |
-| K | `get_camera_intrinsics()` (fx = fy ≈ 246 px at 320×240), principal point moved to OpenCV pixel centers: cx = 159.5, cy = 119.5 (`camera.py`, [MES-41]) | YAML from the intrinsic calibration (ADR-014) |
+| Source | MuJoCo render of `external_cam` on a state copy (dedicated thread) | Since 6.2a, `camera_device` (`/dev/video0` in `driver_real.yaml`): `OpenCVCamera(index_or_path=camera_device, width=640, height=480, fourcc="MJPG")`, RGB, the camera's own frame rate; a driver thread publishes its newest frame at 10 Hz (`read_latest()`; older than 0.5 s: nothing published). Also with the sim arm: real images without the real arm (`13` §1). No camera: an error in the log, the driver runs without images |
+| K | `get_camera_intrinsics()` (fx = fy ≈ 246 px at 320×240), principal point moved to OpenCV pixel centers: cx = 159.5, cy = 119.5 (`camera.py`, [MES-41]) | `camera_info_file`: the ROS calibration YAML of the intrinsic calibration (6.2b, ADR-014), refused if its image size differs; empty until then: images without `camera_info`, perception waits |
 | D (distortion) | 0 | From calibration |
 | Publication | `Image` `rgb8` + `CameraInfo` with the **same `stamp`**, `frame_id = external_cam_optical_frame`, 10 Hz | Same |
 
@@ -178,8 +181,11 @@ The brain recovers the gripper percentage with the inverse conversion from `so10
 ## 8. Lifecycle and shutdown
 
 - **Sim**: stop the camera thread, then `disconnect()` (closes the renderer).
-- **Real**: ⚠ `disable_torque_on_disconnect=True` by default — **the arm falls** when torque is cut. `destroy_node()` is provided since upstream #2 (disconnect + log); the team stops the camera thread before it and will add a slow move to `PARK` before the disconnect (ticket 6.1a). Until then, keep a hand ready to hold the forearm when stopping the real arm (`07` §2). The entrypoint already sends SIGINT to the process group so that `destroy_node()` runs.
-- **Serial errors**: 3 retries, then stop publishing `/joint_states` and log a clear error; the brain detects missing data (freshness, ADR-017) and stops.
+- **Real**: ⚠ `disable_torque_on_disconnect=True` by default — **the arm falls** when torque is cut. `destroy_node()` (provided since upstream #2: disconnect + log) first stops the camera thread, then, since 6.1a, moves the arm to `shutdown_pose` (the brain's `PARK`) at 0.5 rad/s at most, by direct backend calls (the ROS context is already down on SIGINT), until each arm joint is within 0.05 rad or 4 s have passed; then it disconnects. The gripper is not commanded: it keeps a held cube. Also active in sim, where it is tested (`test_shutdown.py`; the post-shutdown test of `test_driver_launch.py`).
+  - **4 s, not 5**: `ros2 launch` sends SIGTERM 5 s after its SIGINT, and the entrypoint kills the process group after 5 s; a second signal would cut the move.
+  - 0.5 rad/s × 4 s = 2 rad: from a far pose (pan −1 rad to `PARK`'s 1.9) the move stops short, logs "Shutdown pose not reached", and the arm falls from there. The joints under gravity (shoulder lift, elbow, wrist flex) move at the same time as the pan and usually get there: keep a hand ready to hold the forearm during the first sessions (`07` §2).
+  - The entrypoint sends SIGINT to `ros2 launch` only, so that `destroy_node()` runs once, and starts it with `--noninteractive`: compose gives the container a TTY (`tty: true`), and an interactive launch takes a SIGINT for a terminal Ctrl-C that its nodes got too, so it does not forward it. Until 6.1a the nodes never got it: killed by the entrypoint after 5 s (by compose after about 3.5 s), `destroy_node()` never ran. `stop_grace_period: 10s` on `control` covers the move.
+- **Serial errors**: a bus error in a control tick (`ConnectionError`, a motor packet error `RuntimeError`, an `OSError` from the port) is retried at the next ticks; after 3 retries (4 failed ticks in a row, 80 ms) the driver stops the control and `/joint_states` with a "Bus lost" error, until it is restarted. The brain detects missing data (freshness, ADR-017) and stops. On shutdown, a lost bus skips the move and a failed disconnect is logged: the node exits in every case. Faults injected in sim: `test_bus_errors.py`.
 
 ## 9. Tests (see `08` and `14`)
 

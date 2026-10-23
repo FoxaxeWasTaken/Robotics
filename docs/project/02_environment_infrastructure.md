@@ -94,7 +94,7 @@ The current compose file forbids two concurrent `colcon build` on the same volum
       - 'c 81:* rmw'    # video4linux (camera)
 ```
 
-In `control_entrypoint.sh`, following the ttyACM pattern: `[ -e /dev/video$i ] || mknod /dev/video$i c 81 $i`.
+In `control_entrypoint.sh`, following the ttyACM pattern: `[ -e /dev/video$i ] || mknod /dev/video$i c 81 $i` (both in place since 6.2a, for `/dev/video0` to `video3`).
 
 ### 3.3 `docker/.env`
 

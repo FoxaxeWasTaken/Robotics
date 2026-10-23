@@ -25,7 +25,7 @@ flowchart LR
 | 6. Stop | `/brain/stop` → arm frozen; Ctrl-C → back to PARK, then torque off | — |
 | 7. Physical | Power switch / plug | — |
 
-> **State of this repository (2026-10-16)**: the driver applies `/joint_command` in sim with a 1.5 rad/s speed limiter (step 1.0), but layer 3 is incomplete: no clamp yet. The provided `disable_torque()` lines are still active, so the real arm stays limp and ignores commands (`/joint_states` still works: useful for test 1 of §3.2). **Do not comment them out before ticket 1.1a** (clamp, NaN rejection) and a real speed ≤ 0.8 rad/s (1.1b); it is done at 6.1a. The bootstrap prototype had these changes and passed tests 1–3 of §3.2.
+> **State of this repository (2026-10-23)**: layers 3 (clamp and NaN rejection since 1.1a, speed limiter; 0.8 rad/s on the real arm, `driver_real.yaml`), 4 (per-motor `max_relative_target`) and 6 (slow move to `PARK` before the torque is cut, 4 s at most) are in the driver since 6.1a, and a lost serial bus stops it (`03` §8). The provided `disable_torque()` lines are commented out, last of 6.1a: **the real arm holds its pose and obeys `/joint_command` as soon as the driver starts with `USE_SIM=false`**. To move it by hand (test 1 of §3.2, taught poses), uncomment them for that session only, never in a commit. The bootstrap prototype had these changes and passed tests 1–3 of §3.2.
 
 ⚠ **Torque off = the arm falls.** `disable_torque_on_disconnect=True` by default: the driver brings the arm to the rest pose **before** `disconnect()`. During the first sessions, keep a hand ready to hold the forearm.
 
@@ -42,7 +42,7 @@ flowchart LR
    - To (re)calibrate yourself (no `lerobot-calibrate` CLI in the image): `docker compose exec control python3`, then `SO101Follower(SO101FollowerConfig(port=..., id="arm", calibration_dir=Path("/ros2_ws/calibration"))).connect()` and follow the prompts. **Torque must be off while moving the arm by hand.**
 4. `USE_SIM=false` and `REAL_ROBOT_PORT=/dev/ttyACM0` in `.env`, then `docker compose up -d control viz`.
 5. Logs: "Mode: hardware", no calibration error.
-6. Torque: since upstream #2 the provided `_connect_arm` ends with `robot.bus.disable_torque()`, so the arm is limp and ignores `/joint_command`. Comment these two lines out as soon as the driver commands the real arm (ADR-032; the repository starts from the course version, where they are active, ADR-039). To move the arm by hand for test 1, keep them active for that session only.
+6. Torque: since upstream #2 the provided `_connect_arm` ends with `robot.bus.disable_torque()` and its log, which leave the arm limp. The repository comments them out since 6.1a (ADR-032): ⚠ **the arm holds its pose and obeys `/joint_command` from the first start**. To move the arm by hand for test 1, uncomment them for that session only, never in a commit.
 
 ### 3.2 Checks before any autonomous motion
 
