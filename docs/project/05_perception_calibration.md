@@ -109,7 +109,7 @@ def pixel_to_world(u, v, K, R_wc, t_wc, z0):        # so101_perception/geometry.
 
 On the reference images (`test_geometry.py`, exact camera pose of the labels): cube mean **0.8 mm**, max 1.6 mm over the 32 whole cubes (2.4 mm and 3.9 mm with the provided principal point, §3.2); box floor center mean **3.4 mm**, max 11.3 mm over 44, the worst where the arm hides 15 % of the box.
 
-**Cube yaw** (to align the jaws): back-project the contour points onto the top-face plane (z = 5 cm), then `cv2.minAreaRect` in metric coordinates → median error **1.3°**, p90 8.3° [MES-14] (modulo 90°, cube symmetry).
+**Cube yaw** (to align the jaws): back-project the contour points onto the top-face plane (z = 5 cm), then `cv2.minAreaRect` in metric coordinates → median error **1.3°**, p90 8.3° [MES-14] (modulo 90°, cube symmetry). **Since step 3.3c** `geometry.cube_yaw` does it on the detected contour, yaw in [−45°, 45°), published as the orientation of `/object_position` (a quaternion about z); on the 32 whole cubes of the reference images: median 0.46°, p90 2.62° (`test_geometry.py`).
 
 > Rejected alternatives: **known size** (distance from apparent size) is less accurate at 320×240 (1 px error on ~15 px side ≈ 7 % of the distance); **depth camera** unavailable in sim; **stereo** out of scope.
 

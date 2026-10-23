@@ -137,8 +137,8 @@ class TestPerception(unittest.TestCase):
             self.assertEqual(publishers[0].qos_profile.reliability, ReliabilityPolicy.RELIABLE, topic)
 
     def test_3_poses_match_the_labels_and_a_truncated_cube_is_never_published(self):
-        """05 §8 and 01 §3.1: within 5 mm of the labels (cube center, box floor center), in base_link,
-        stamped with their image; nothing for the truncated cube (015.png)."""
+        """05 §8 and 01 §3.1: within 5 mm of the labels (cube center, box floor center), the cube yaw within
+        5°, in base_link, stamped with their image; nothing for the truncated cube (015.png)."""
         b_frames = lambda: sum(self.shown.get(k, {}).get("file") == "024.png" for k in self.sent)  # noqa: E731
         self.spin_until(lambda: b_frames() >= 10, "the fake camera did not reach image B")
         self.spin_until(
@@ -151,7 +151,14 @@ class TestPerception(unittest.TestCase):
             label = self.shown[key(msg.header.stamp)]
             self.assertEqual(msg.header.frame_id, BASE_FRAME)
             p, q = msg.pose.position, msg.pose.orientation
-            self.assertEqual((q.x, q.y, q.z, q.w), (0.0, 0.0, 0.0, 1.0))
+            if center == "box_floor_center":
+                self.assertEqual((q.x, q.y, q.z, q.w), (0.0, 0.0, 0.0, 1.0))
+            else:  # the cube yaw about z, 90°-symmetric (#43)
+                self.assertEqual((q.x, q.y), (0.0, 0.0))
+                self.assertAlmostEqual(q.z**2 + q.w**2, 1.0)
+                yaw = 2.0 * np.arctan2(q.z, q.w)
+                error = (yaw - label["cube_yaw"] + np.pi / 4) % (np.pi / 2) - np.pi / 4
+                self.assertLess(abs(np.degrees(error)), 5.0, f"cube yaw of {label['file']}")
             error = np.linalg.norm(np.array([p.x, p.y, p.z]) - label[center])
             limit = 0.01 if center == "box_floor_center" and label["file"] == "015.png" else 0.005
             self.assertLess(error, limit, f"{center} of {label['file']}: {error * 1e3:.1f} mm")

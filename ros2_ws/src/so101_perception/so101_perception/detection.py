@@ -40,6 +40,7 @@ class Blob:
     u: float  # centroid (moments), px
     v: float
     truncated: bool  # the bounding box touches the image border: biased centroid (05 §6)
+    contour: np.ndarray | None = None  # (N, 2) px, its outline: the cube yaw (geometry.cube_yaw)
 
 
 @dataclass(frozen=True)
@@ -80,4 +81,4 @@ def largest(mask: np.ndarray, thresholds: Thresholds) -> Blob | None:
     x, y, w, h = cv2.boundingRect(contour)
     height, width = mask.shape
     truncated = x == 0 or y == 0 or x + w == width or y + h == height
-    return Blob(m["m10"] / m["m00"], m["m01"] / m["m00"], truncated)
+    return Blob(m["m10"] / m["m00"], m["m01"] / m["m00"], truncated, contour[:, 0, :])

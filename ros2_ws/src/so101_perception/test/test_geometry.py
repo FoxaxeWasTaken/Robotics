@@ -12,6 +12,7 @@ from test_reference_images import LABELS
 from so101_perception.detection import detect
 from so101_perception.geometry import (
     Extrinsics,
+    cube_yaw,
     from_mujoco,
     load_extrinsics,
     pixel_to_world,
@@ -67,6 +68,21 @@ def test_the_cube_center_is_within_5_mm_on_average():
             errors.append(np.linalg.norm(p[:2] - image["cube_center"][:2]))
     print(f"cube: mean {np.mean(errors) * 1e3:.2f} mm, max {np.max(errors) * 1e3:.2f} mm over {len(errors)}")
     assert np.mean(errors) < 0.005
+
+
+def test_the_cube_yaw_is_within_3_deg_median_and_10_deg_p90():
+    """Whole cubes, contour on the top-face plane, minAreaRect (#43; expected 1.3° / 8.3°, MES-14). The
+    cube is 90°-symmetric: the yaw is in [-45°, 45°), the error modulo 90°."""
+    errors = []
+    for image in LABELS["images"]:
+        if image["cube_view"] == "full":
+            yaw = cube_yaw(detect(rgb(image)).cube.contour, K, R_LABELS, T_LABELS)
+            assert -np.pi / 4 <= yaw < np.pi / 4, image["file"]
+            errors.append(abs((yaw - image["cube_yaw"] + np.pi / 4) % (np.pi / 2) - np.pi / 4))
+    errors = np.degrees(errors)
+    print(f"yaw: median {np.median(errors):.2f}°, p90 {np.percentile(errors, 90):.2f}° over {len(errors)}")
+    assert np.median(errors) < 3.0
+    assert np.percentile(errors, 90) < 10.0
 
 
 def test_the_box_floor_center_is_within_1_cm_on_average():
