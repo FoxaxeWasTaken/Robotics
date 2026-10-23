@@ -161,7 +161,7 @@ The table below is the plan from 2026-10-15:
 - **Documentation only** (`tools/ci/docs_only.sh`): every changed file is a `*.md`, a PDF or an image under `docs/`, or an issue form (`.github/ISSUE_TEMPLATE/`). The list is `git diff --name-only --no-renames` of the PR's merge commit against its base: a file moved from code to a `.md` still counts as code. Code, tests and their data (the perception's reference images), experiments, workflows, Docker, launch, config and tooling files always run everything, and so does an empty list.
 - The `lint` job decides, not a separate job: `lint` is a required check, so a failed decision blocks the PR instead of letting it merge without its tests, and no extra job is billed.
 - **A skipped required check counts as passed**: a docs-only PR merges with `control` and `perception` skipped. A draft cannot be merged, and marking it ready reruns everything.
-- Tested without GitHub by `tools/ci/test_ci_skips.sh` (pre-commit, when one of the scripts changes).
+- Tested without GitHub by `tools/ci/test_ci_skips.sh` (pre-commit, when one of the scripts changes), and on GitHub by a throwaway docs-only PR.
 
 ## 6. Nightly
 
