@@ -5,8 +5,9 @@
 Each episode: /sim/randomize (cube and box), /brain/start from IDLE, then DONE, ERROR or the bench timeout
 (then /brain/stop). Scored with the driver's ground truth (expose_ground_truth, for this bench only, C-06):
 success = DONE with the cube within the box footprint, z < 6 cm. One CSV row per episode, a rosbag per
-failed episode with --bags, and the summary at the end. --seed checks the seed the driver runs. The first
-call, to the driver, waits up to 60 s and says how long it took (a fresh process on a CI runner); others 10 s.
+failed episode with --bags, and the summary at the end. --seed checks the seed the driver runs. The checks
+before the first episode (driver, ground truth, brain pose) wait up to 60 s each, for a fresh process on a CI
+runner; the calls during the episodes wait 10 s.
 """
 
 import argparse
@@ -29,7 +30,7 @@ from std_srvs.srv import Trigger
 
 FOOTPRINT_HALF_M = 0.05  # half the box's inner side (08 §3)
 MAX_CUBE_Z_M = 0.06  # higher: on a wall, not in the box
-FIRST_CALL_S = 60.0  # s, first call to the driver: a fresh process may find the stack late in CI (#141)
+STARTUP_S = 60.0  # s, each check before episode 1: a fresh process may find the stack late in CI (#141)
 FIELDS = [
     "episode", "seed", "cube_x", "cube_y", "cube_z", "box_x", "box_y", "box_z",
     "final_state", "duration_s", "success", "cause",
@@ -157,18 +158,18 @@ def record(path: Path) -> subprocess.Popen:
 
 def run(args, bench: Bench) -> int:
     start = time.monotonic()
-    seed = bench.driver_seed(FIRST_CALL_S)
+    seed = bench.driver_seed(STARTUP_S)
     print(f"evaluate: the driver answered in {time.monotonic() - start:.1f} s", flush=True)
     if args.seed is not None and args.seed != seed:
         print(f"evaluate: the driver runs seed {seed}, not {args.seed}", file=sys.stderr)
         return 2
-    if not bench.spin_until(lambda: len(bench.truth) == 2, 10.0):
+    if not bench.spin_until(lambda: len(bench.truth) == 2, STARTUP_S):
         print(
             "evaluate: no /sim/ground_truth/*: start the driver with expose_ground_truth:=true",
             file=sys.stderr,
         )
         return 2
-    if not bench.spin_until(lambda: bench.pose is not None, 10.0):
+    if not bench.spin_until(lambda: bench.pose is not None, STARTUP_S):
         print("evaluate: no /end_effector_pose: the brain does not see /joint_states", file=sys.stderr)
         return 2
     rows = []

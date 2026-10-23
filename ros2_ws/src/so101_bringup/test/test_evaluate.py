@@ -19,12 +19,14 @@ class FakeBench:
         self.pose = pose
         self.episodes = []
         self.first_wait = None
+        self.waits = []  # timeout of each spin_until
 
     def driver_seed(self, timeout_s):
         self.first_wait = timeout_s
         return 0
 
     def spin_until(self, condition, timeout_s):
+        self.waits.append(timeout_s)
         return bool(condition())
 
     def episode(self, number, seed, timeout_s):
@@ -56,6 +58,14 @@ def test_the_first_call_waits_a_minute_for_the_driver_and_says_how_long_it_took(
     assert bench.first_wait == 60.0
     assert re.search(r"the driver answered in \d+\.\d s", capsys.readouterr().out)
     assert inspect.signature(Bench.call).parameters["timeout_s"].default == 10.0
+
+
+def test_the_ground_truth_and_the_brain_pose_get_the_same_minute(tmp_path):
+    """Once in CI the driver answered but /end_effector_pose did not come within 10 s (#141): every check
+    before the first episode (driver, ground truth, brain pose) waits up to 60 s."""
+    bench = FakeBench(pose=object())
+    assert run(bench_args(tmp_path), bench) == 0
+    assert bench.waits[:2] == [60.0, 60.0]
 
 
 def test_the_episodes_run_once_the_brain_publishes_its_pose(tmp_path):
