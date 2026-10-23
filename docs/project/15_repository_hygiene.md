@@ -51,7 +51,10 @@ git remote add origin git@github.com:<team>/<repo>.git
 git push -u origin main
 # later, sync with a kit update:
 git fetch upstream && git merge upstream/main            # merge, not rebase: the shared history stays stable
+git rev-parse upstream/main > .github/upstream-sha       # the course commit now merged, in the same PR (#137)
 ```
+
+The nightly `upstream` job opens one issue, "Course repository: new commits", when the course's `main` moves past the commit recorded in `.github/upstream-sha`, and updates it on the next nights (#137). The sync PR writes the merged commit there and closes that issue with its `Closes #<n>` line. Not "is `upstream/main` an ancestor of `main`": the ruleset only allows squash merges, so the course's commits never become ancestors of `main`.
 
 The school mirror is described in `16`.
 
@@ -208,7 +211,7 @@ Default proposal for **our** code: **Apache-2.0** (consistent with the rest, com
 | Frequency | Action | Owner |
 | --- | --- | --- |
 | Every PR | PR template checklist; branch deleted after merge | Author |
-| Weekly | Board review in the sync (§12.4): Backlog → Ready, blocked tickets, WIP; review the risk register (`10`); merge Dependabot PRs; `git fetch upstream` | CP |
+| Weekly | Board review in the sync (§12.4): Backlog → Ready, blocked tickets, WIP; review the risk register (`10`); merge Dependabot PRs; an open "Course repository: new commits" issue (the nightly watches the course, #137) | CP |
 | Every tag | CHANGELOG, bench report in `results/`, GitHub Release | CP + QA |
 | End of project | Final README (demo, results), videos, `v2.0.0` tag, public visibility (after staff approval), archive | Everyone |
 

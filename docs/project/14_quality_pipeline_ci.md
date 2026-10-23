@@ -43,7 +43,7 @@ flowchart LR
 | `pre-commit` | Every `git commit` | < 10 s | Lint, format, invalid YAML/XML/TOML, large files, private keys, commit message |
 | Local tests (`colcon test --packages-select …`) | Before pushing | < 1 min per package | Unit and component regressions |
 | PR CI | Every push to a PR | ≈ 10–15 min (cached) | All of the above + project-rule guards + clean build + short E2E |
-| Nightly | Every night or on demand | 30–60 min | 50-episode success rate, diagrams, external links |
+| Nightly | Every night or on demand | 30–60 min | 50-episode success rate, diagrams, external links, new course commits |
 | Release | Every tag | — | Frozen evaluation report, release notes |
 
 ## 3. Check matrix: who checks what, and where
@@ -69,6 +69,8 @@ flowchart LR
 | **Full E2E (50 episodes, randomized cube and box)** | | | | ✅* | same |
 | Rendering of every Mermaid diagram | | | | ✅ | mermaid-cli (`tools/ci/check_mermaid.sh`) |
 | External links | | | | ✅ | lychee (`.lycheeignore`: the private repository) |
+| New commits in the course repository: one issue | | | | ✅ | `tools/ci/upstream_check.sh` (`15` §2) |
+| Test of that watch, offline | | ✅ | ✅ | | `tools/ci/test_upstream_check.sh` (local hook) |
 
 \* enabled on 2026-10-23, once the vertical slice worked (4.3a, #139): repository variable `E2E_ENABLED=true`. Every CI job also requires `CI_ENABLED=true` (opt-in, so nothing runs on the school mirror, `16`).
 
@@ -142,10 +144,13 @@ flowchart LR
   S --> V["evaluation<br/>compose up control+perception+viz<br/>50 randomized episodes"]
   V --> R["artifacts<br/>eval.csv + failure rosbags (14 days)"]
   R --> H["Humans: success-rate trend,<br/>failure-cause analysis"]
+  S --> W["upstream<br/>course main vs .github/upstream-sha"]
+  W --> I["one issue<br/>Course repository: new commits"]
 ```
 
 - The bench writes one CSV row per episode: poses, final state, duration, failure cause (`08` §3).
 - On failure, the evaluation job prints the stack state and logs, as `e2e-smoke` (#141).
+- The `upstream` job (#137) compares the course's `main` with `.github/upstream-sha`. When they differ, it opens one issue listing the new commits and their files, or updates the one already open. It runs without `E2E_ENABLED`, and its token can only write issues.
 - Reports of important milestones are **versioned by hand** in `results/` (small CSV/MD), never the rosbags (ADR-029).
 
 ## 7. Tests: conventions (ADR-026)
