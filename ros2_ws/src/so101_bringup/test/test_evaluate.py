@@ -1,10 +1,52 @@
-"""Unit tests of the evaluation bench's scoring (docs/project/08 §3). Pure: no ROS, no sim."""
+"""Unit tests of the evaluation bench's scoring and checks (docs/project/08 §3). Pure: no ROS, no sim."""
+
+import argparse
 
 import pytest
 
-from so101_bringup.evaluate import outcome, summary
+from so101_bringup.evaluate import FIELDS, outcome, run, summary
 
 BOX = (0.10, -0.25, 0.0)  # floor center
+
+
+class FakeBench:
+    """What run() reads of the bench, without ROS: the driver's seed, the ground truth, the brain's pose."""
+
+    def __init__(self, pose):
+        self.truth = {"object": None, "drop_box": None}
+        self.pose = pose
+        self.episodes = []
+
+    def driver_seed(self):
+        return 0
+
+    def spin_until(self, condition, timeout_s):
+        return bool(condition())
+
+    def episode(self, number, seed, timeout_s):
+        self.episodes.append(number)
+        return {**dict.fromkeys(FIELDS, 0), "episode": number, "seed": seed, "final_state": "DONE",
+                "duration_s": 15.0, "success": True, "cause": ""}  # fmt: skip
+
+
+def bench_args(tmp_path):
+    return argparse.Namespace(episodes=2, out=tmp_path / "eval.csv", bags=None, seed=None, timeout=60.0)
+
+
+def test_no_episode_starts_while_the_brain_does_not_see_joint_states(tmp_path, capsys):
+    """A /brain/start before the brain's first /joint_states is refused (ERROR:no_joint_states, #132): the
+    bench waits for the pose the brain computes from them, then gives up with exit 2, as its other checks."""
+    bench = FakeBench(pose=None)
+    assert run(bench_args(tmp_path), bench) == 2
+    assert bench.episodes == []
+    assert "/end_effector_pose" in capsys.readouterr().err
+    assert not (tmp_path / "eval.csv").exists()
+
+
+def test_the_episodes_run_once_the_brain_publishes_its_pose(tmp_path):
+    bench = FakeBench(pose=object())
+    assert run(bench_args(tmp_path), bench) == 0
+    assert bench.episodes == [1, 2]
 
 
 @pytest.mark.parametrize(

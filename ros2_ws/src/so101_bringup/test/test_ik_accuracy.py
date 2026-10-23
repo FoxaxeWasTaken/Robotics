@@ -67,8 +67,9 @@ class TestIkAccuracy(unittest.TestCase):
     def setUpClass(cls):
         rclpy.init()
         cls.node = rclpy.create_node("test_ik_accuracy")
-        cls.states, cls.commands = [], []  # /joint_command as arrival times (monotonic)
+        cls.states, cls.commands, cls.poses = [], [], []  # /joint_command as arrival times (monotonic)
         cls.node.create_subscription(JointState, "/joint_states", cls.states.append, 10)
+        cls.node.create_subscription(PoseStamped, "/end_effector_pose", cls.poses.append, 10)
         cls.node.create_subscription(
             JointState, "/joint_command", lambda _: cls.commands.append(time.monotonic()), 100
         )
@@ -131,6 +132,8 @@ class TestIkAccuracy(unittest.TestCase):
     def test_1_twenty_random_targets_within_1_cm(self):
         self.assertTrue(self.client.wait_for_service(timeout_sec=STARTUP_TIMEOUT), "/go_to_target not served")
         self.wait_until(lambda: len(self.states) > 10, STARTUP_TIMEOUT, "no /joint_states")
+        # the brain's pose comes from /joint_states: before it, /go_to_target answers "no /joint_states yet"
+        self.wait_until(lambda: self.poses, STARTUP_TIMEOUT, "no /end_effector_pose (#132)")
         obstacles = self.obstacles_after_randomize()
         print(", ".join(f"{name} at {xy.round(3)}" for name, xy in obstacles.items()))
         print("target,x,y,z,measured_x,measured_y,measured_z,error_mm")

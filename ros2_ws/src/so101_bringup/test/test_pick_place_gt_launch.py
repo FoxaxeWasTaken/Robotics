@@ -43,7 +43,8 @@ class TestPickPlace(unittest.TestCase):
     def setUpClass(cls):
         rclpy.init()
         cls.node = rclpy.create_node("test_pick_place")
-        cls.states, cls.truth = [], {}
+        cls.states, cls.truth, cls.poses = [], {}, []
+        cls.node.create_subscription(PoseStamped, "/end_effector_pose", cls.poses.append, 10)
         latched = QoSProfile(
             depth=10, reliability=ReliabilityPolicy.RELIABLE, durability=DurabilityPolicy.TRANSIENT_LOCAL
         )
@@ -76,6 +77,8 @@ class TestPickPlace(unittest.TestCase):
     def test_a_cycle_puts_the_cube_in_the_box(self):
         self.call(self.randomize)
         self.spin_until(lambda: self.states and self.states[-1] == "IDLE", STARTUP_TIMEOUT, "no IDLE")
+        # the brain computes its pose from /joint_states: a start before it is refused (no_joint_states, #132)
+        self.spin_until(lambda: self.poses, STARTUP_TIMEOUT, "no /end_effector_pose")
         begun, start = len(self.states), time.monotonic()
         self.call(self.start)
         self.spin_until(lambda: "WAIT_TARGET" in self.states[begun:], 5.0, "no WAIT_TARGET")
