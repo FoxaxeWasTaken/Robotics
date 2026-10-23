@@ -8,9 +8,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 from ament_index_python.packages import get_package_share_directory
-from hypothesis import given, settings
+from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
+from so101_brain.fsm import Params
 from so101_brain.kinematics import Kinematics
 from so101_common.robot import ARM_JOINT_NAMES, JOINT_LIMITS
 
@@ -41,13 +42,41 @@ def test_azimuth_is_measured_from_the_pan_axis(kin):
 
 @settings(max_examples=200, deadline=None)
 @given(configurations)
-def test_ik_reaches_every_reachable_position(kin, q):
+def test_ik_reaches_every_position_reachable_without_folding_onto_itself(kin, q):
+    assume(not kin.self_collides(q))  # a pose folded onto the shoulder is never a solution (#145)
     p = tcp(kin, q)
     solution = kin.ik_pos(p)
     assert solution is not None
     assert np.linalg.norm(tcp(kin, solution) - p) <= 1e-3
     assert np.all(solution >= LOW - 1e-9)
     assert np.all(solution <= HIGH + 1e-9)
+
+
+# Target 4 of test_ik_accuracy, seeded from joints read at the startup pose (q = 0 within 0.15 mrad): ik_pos
+# folded the elbow to its 1.69 limit, the lower arm on the shoulder; the arm stopped 28.4 mm short [MES-43].
+# In MuJoCo the lower arm meets the shoulder from 1.55 rad.
+TARGET_4 = [0.23234094, 0.08398106, 0.10749795]
+STARTUP = np.array([9.0e-05, -3.5e-05, -1.48e-04, -1.1e-05, -4.5e-05])
+ELBOW_ON_THE_SHOULDER = 1.55
+
+
+def test_target_4_from_the_straight_arm_gets_a_solution_clear_of_the_shoulder(kin):
+    q = kin.ik_pos(TARGET_4, q_seed=STARTUP)
+    assert q is not None
+    assert q[ARM_JOINT_NAMES.index("elbow_flex")] < ELBOW_ON_THE_SHOULDER
+
+
+def test_a_target_only_reachable_folded_onto_the_shoulder_gives_none(kin):
+    # Above and behind the pan axis: ikpy reached it with the elbow at 1.68 and the gripper on the shoulder.
+    assert kin.ik_pos([-0.063, 0.001, 0.163]) is None
+
+
+def test_the_fold_rule_flags_the_pose_stopped_on_the_shoulder_but_not_park(kin):
+    assert kin.self_collides(
+        [-0.4215, -1.5059, 1.5933, -0.0752, 0.3238]
+    )  # 28.4 mm short of target 4 [MES-43]
+    assert not kin.self_collides(Params().park_pose)  # commanded at every cycle, free in MuJoCo [MES-39]
+    assert not kin.self_collides(np.zeros(5))
 
 
 def test_a_seed_past_the_bounds_does_not_crash(kin):

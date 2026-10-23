@@ -5,6 +5,12 @@ targets of test_ik_accuracy (obstacles of the seed-0 /sim/randomize), each seed 
 of noise, the settling noise between runs. A solution is bad when it folds the elbow past 1.6 rad or when MuJoCo
 finds a contact on the arm (the cube and box of the default scene are left out: they are not where the bench
 puts them). Also: the contacts of the configuration that stayed 28.4 mm short of target 4.
+
+Since #145, ik_pos rejects the solutions Kinematics.self_collides flags. Its rule (elbow folded at most 1.55 rad, the
+polyline elbow -> wrist_flex -> wrist_roll -> TCP out of a cylinder of 9 cm around the pan axis below 12 cm) is the
+smallest with no miss found over random poses on a grid of 5 mm, 1 cm and 0.05 rad; the code adds its margin. Below:
+that rule against MuJoCo, on 30,000 random poses (pan 0: the shoulder turns with it), a pose in contact when MuJoCo
+finds a contact between two of the arm's bodies.
 """
 import sys
 
@@ -60,3 +66,16 @@ for label, seed in SEEDS.items():
                 bad.append(f"target {i}: elbow {q[elbow]:.3f}, {contacts}"); break
     home_contacts, tcp = arm_contacts(seed)
     print(f"{label} {seed}: TCP {tcp.round(3)}, contacts {home_contacts}; bad solutions: {len(bad)}/20 {bad}")
+
+arm = {m.body(b).id for b in ("base", "shoulder", "upper_arm", "lower_arm", "wrist", "gripper", "moving_jaw_so101_v1")}
+
+
+def self_contact(q):
+    arm_contacts(q)
+    return any({m.geom_bodyid[c.geom1], m.geom_bodyid[c.geom2]} <= arm for c in d.contact[: d.ncon])
+
+
+Q = np.random.default_rng(0).uniform(kin._low, kin._high, (30000, 5)); Q[:, 0] = 0.0
+contact = np.array([self_contact(q) for q in Q]); flagged = np.array([kin.self_collides(q) for q in Q])
+print(f"fold rule vs MuJoCo, {len(Q)} random poses: {contact.sum()} in contact, missed {np.sum(contact & ~flagged)},"
+      f" false alarms {np.sum(~contact & flagged) / np.sum(~contact):.1%} of the free poses")

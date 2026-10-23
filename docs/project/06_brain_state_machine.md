@@ -31,6 +31,7 @@ stateDiagram-v2
   [*] --> IDLE
   IDLE --> WAIT_TARGET: /brain/start
   WAIT_TARGET --> PLAN: target locked (5 consistent and recent detections)
+  WAIT_TARGET --> DONE: locked cube already in the box
   WAIT_TARGET --> ERROR: timeout 10 s (object not seen)
   PLAN --> APPROACH: valid plan
   PLAN --> ERROR: IK impossible (unreachable target)
@@ -58,7 +59,7 @@ stateDiagram-v2
 | State | Entry action | Exit condition | Timeout → |
 | --- | --- | --- | --- |
 | `IDLE` | Nothing (the arm keeps its target); `/go_to_target` is served in this state only | `/brain/start` (without fresh `/joint_states`: `ERROR:no_joint_states`) | — |
-| `WAIT_TARGET` | Go to `PARK` (arm out of the camera view); the detection history restarts once `PARK` is reached | 5 detections of the object **and** the box received since `PARK`, within 5 mm of each other, the newest younger than 0.5 s; target = their mean, yaw = the newest | `PARK` not reached at T + 1 s → `ERROR:timeout:WAIT_TARGET`; 10 s after `PARK` → `ERROR:object_lost` |
+| `WAIT_TARGET` | Go to `PARK` (arm out of the camera view); the detection history restarts once `PARK` is reached | 5 detections of the object **and** the box received since `PARK`, within 5 mm of each other, the newest younger than 0.5 s; target = their mean, yaw = the newest → `PLAN`. A locked cube already within the box footprint (`VERIFY`'s test, `fsm.box_half_size_m`) → `DONE` "cube already in the box", with no motion: grasping it would close the jaws on the box wall too (#143) | `PARK` not reached at T + 1 s → `ERROR:timeout:WAIT_TARGET`; 10 s after `PARK` → `ERROR:object_lost` |
 | `PLAN` | Start `grasp_planner.plan()` in a **worker process** (future); checked every tick | Future done: valid plan → `APPROACH`; `None` → `ERROR:<reason>` (`unreachable`, `lift_unreachable`, `drop_unreachable`) | 6 s → `ERROR:timeout:PLAN` |
 | `APPROACH` | Min-jerk trajectory to the pre-grasp, gripper **open (100 %)** | `max(abs(q − q_target)) < 0.01 rad` **and** the measured gripper within 3 % of open | T + 1 s → `ERROR:timeout:APPROACH` |
 | `DESCEND` | Trajectory to the grasp (4 cm back-off; Cartesian recommended on the real arm) | Reached | T + 1 s → `ERROR:timeout:DESCEND` |
