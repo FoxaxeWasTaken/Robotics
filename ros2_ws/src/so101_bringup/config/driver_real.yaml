@@ -1,8 +1,8 @@
-# Real-arm values of so101_driver (docs/project/07 §2), loaded on top of driver.yaml when use_sim is false.
+# Real-arm values of so101_driver (docs/project/01 §3.3, 07 §2), loaded on top of driver.yaml when use_sim is
+# false (real.launch.py). Only keys of driver.yaml, each with another value (test_real_config.py).
 so101_driver:
   ros__parameters:
     max_joint_velocity: 0.8     # rad/s (ADR-023)
     camera_device: /dev/video0  # the webcam, MJPG (02 §5.2); no camera: the arm works without images
     camera_width: 640
     camera_height: 480
-    camera_info_file: ""        # the intrinsic calibration (6.2b); empty: images without camera_info

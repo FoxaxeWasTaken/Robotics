@@ -2,6 +2,9 @@
 
     ros2 launch so101_bringup sim.launch.py
 
+On the real arm (use_sim:=false, or real.launch.py), driver_real.yaml and brain_real.yaml override a few of them
+(01 §3.3).
+
 use_sim and port are deployment choices, not tunables: docker/.env -> control_entrypoint.sh -> these arguments.
 expose_ground_truth and perception are for the evaluation bench only (C-06, 08 §3): the E2E jobs set
 EXPOSE_GROUND_TRUTH; a bench on its own ROS_DOMAIN_ID adds perception:=true, the compose stack runs perception
@@ -20,6 +23,12 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     config = PathJoinSubstitution([FindPackageShare("so101_bringup"), "config"])
+
+    def files(name):
+        """<name>.yaml, then <name>_real.yaml on the real arm, <name>.yaml again in sim (no change)."""
+        real = IfElseSubstitution(LaunchConfiguration("use_sim"), f"{name}.yaml", f"{name}_real.yaml")
+        return [PathJoinSubstitution([config, f"{name}.yaml"]), PathJoinSubstitution([config, real])]
+
     return LaunchDescription(
         [
             DeclareLaunchArgument("use_sim", default_value="true", description="Simulated backend or real arm"),
@@ -34,11 +43,7 @@ def generate_launch_description():
                 name="so101_driver",
                 output="screen",
                 parameters=[
-                    PathJoinSubstitution([config, "driver.yaml"]),
-                    # Real arm: driver_real.yaml on top of driver.yaml; in sim, driver.yaml again (no change).
-                    PathJoinSubstitution(
-                        [config, IfElseSubstitution(LaunchConfiguration("use_sim"), "driver.yaml", "driver_real.yaml")]
-                    ),
+                    *files("driver"),
                     {
                         "use_sim": ParameterValue(LaunchConfiguration("use_sim"), value_type=bool),
                         "port": LaunchConfiguration("port"),
@@ -53,7 +58,7 @@ def generate_launch_description():
                 executable="brain",
                 name="so101_brain",
                 output="screen",
-                parameters=[PathJoinSubstitution([config, "brain.yaml"])],
+                parameters=files("brain"),
             ),
             IncludeLaunchDescription(  # resolved only when included: the CI control job does not build it
                 PythonLaunchDescriptionSource(

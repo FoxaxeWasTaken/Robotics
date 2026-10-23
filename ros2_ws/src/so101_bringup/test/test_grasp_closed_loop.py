@@ -16,7 +16,6 @@ import yaml
 from ament_index_python.packages import get_package_share_directory
 from so101_sim import SO101Sim
 
-from so101_brain.brain_node import MIN_MOTION_DURATION, TIMEOUT_MARGIN
 from so101_brain.fsm import Params
 from so101_brain.grasp_planner import GraspPlanner
 from so101_brain.kinematics import Kinematics
@@ -56,7 +55,9 @@ class Arm:
 
     def move(self, q_goal):
         """Streams the trajectory from the measured joints; True when reached, False at T + margin (04 §6)."""
-        trajectory = min_jerk(self.q(), q_goal, BRAIN["motion"]["v_max_rad_s"], MIN_MOTION_DURATION)
+        trajectory = min_jerk(
+            self.q(), q_goal, BRAIN["motion"]["v_max_rad_s"], BRAIN["motion"]["min_duration_s"]
+        )
         t = 0.0
         while True:
             self.goal.update(zip(ARM_JOINT_NAMES, trajectory.sample(t), strict=True))
@@ -68,7 +69,7 @@ class Arm:
                 and np.max(np.abs(self.q() - q_goal)) < BRAIN["motion"]["reach_tol_rad"]
             ):
                 return True
-            if t > trajectory.duration + TIMEOUT_MARGIN:
+            if t > trajectory.duration + BRAIN["motion"]["timeout_margin_s"]:
                 return False
 
     def gripper(self, pct, seconds):

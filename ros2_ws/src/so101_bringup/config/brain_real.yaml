@@ -1,0 +1,6 @@
+# Real-arm values of so101_brain (docs/project/01 §3.3, 06 §5), loaded on top of brain.yaml when use_sim is false
+# (real.launch.py). Only keys of brain.yaml, each with another value (test_real_config.py).
+so101_brain:
+  ros__parameters:
+    motion:
+      v_max_rad_s: 0.5  # to start (06 §5): under the driver's 0.8 rad/s limiter (driver_real.yaml)

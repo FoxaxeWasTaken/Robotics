@@ -127,6 +127,7 @@ Per-symptom details:
 | Brain dies with "x0 is infeasible" on `/go_to_target` | IK seed (measured joints) slightly outside the URDF bounds | Clip the seed into the bounds before ikpy (`04` §8) |
 | The whole sim arm freezes after a manual command | A NaN in `/joint_command` reached MuJoCo, which then resets every step | Driver rejects non-finite values (step 1.1); never publish NaN |
 | `docker compose up`: "pull access denied for tek5/control" | Local images deleted (prune), so compose tries to pull them | `docker compose build` first |
+| A node stops at startup: "Unknown parameters ['…']: a typo in a config file?" | A key in a `config/*.yaml` file, or a `-p` argument, that the node does not declare; ROS would ignore it (#57) | Fix the name: the declared names are in `01` §3.3, `05` and `06` §6 |
 | `import pinocchio`: "No module named pinocchio" | Pinocchio comes from the ROS apt package | `source /opt/ros/jazzy/setup.bash` first |
 | Real arm: computed TCP below the table at rest (z < 0) | LeRobot's zero (middle of the recorded range) ≠ URDF zero [MES-30] | Ruler check of the rest pose; per-joint offset (`07` §4) |
 | `colcon test` fails on a package without tests ("NO TESTS RAN") | Python 3.12 unittest exits 5 when it finds no test | Test only packages with a `test/` folder (`ci.yml` does it). A package's **first** test also needs `tests_require=["pytest"]` in `setup.py` and `<test_depend>python3-pytest</test_depend>` in `package.xml`, otherwise colcon falls back to unittest: same exit 5 |

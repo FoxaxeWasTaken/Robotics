@@ -1,9 +1,12 @@
-# ROS parameters of so101_brain (docs/project/06 §6), read at startup.
+# ROS parameters of so101_brain (docs/project/06 §6), read at startup: every tunable, with its sim value.
+# brain_real.yaml overrides some on the real arm.
 so101_brain:
   ros__parameters:
     motion:
-      v_max_rad_s: 1.0     # peak arm joint speed of a motion; 0.5 on the real arm to start (06 §5)
+      v_max_rad_s: 1.0     # peak arm joint speed of a motion; 0.5 on the real arm (brain_real.yaml, 06 §5)
       reach_tol_rad: 0.01  # target reached when every arm joint is this close (04 §6)
+      min_duration_s: 0.5  # shortest min-jerk motion (04 §6)
+      timeout_margin_s: 1.0  # not reached at T + this margin: ERROR:timeout:<state> (06 §3.1)
     grasp:
       tilts_deg: [0.0, 10.0, 20.0, 30.0]  # approach tilts from vertical, tried in order [MES-08]; floats
       pregrasp_backoff_m: 0.04  # back along the approach axis [MES-09]
@@ -12,8 +15,18 @@ so101_brain:
       effort_threshold: 0.06  # normalized gripper closing force: held above it; recalibrate on the real arm
       open_pct: 100.0
       close_pct: 0.0
+      gripper_tol_pct: 3.0      # APPROACH also waits for the measured gripper this close to open_pct
     fsm:
       target_lock_n: 5             # consistent detections that lock the target (06 §3.1)
       target_lock_spread_m: 0.005  # ... within this distance of each other
+      max_detection_age_s: 0.5     # ... the newest younger than this
+      max_joint_state_age_s: 0.5   # older /joint_states during a cycle: ERROR:no_joint_states
       max_retries: 3               # failed attempts before ERROR:grasp_failed
+      wait_target_s: 10.0          # no lock this long after PARK: ERROR:object_lost
+      plan_timeout_s: 6.0          # slowest answer, a cube out of reach: 1.7 s, 2.4 s on CI [MES-40]
+      grasp_wait_s: 0.8            # GRASP: closing time before the effort is judged
+      grasp_timeout_s: 1.5         # GRASP: the effort still below the threshold: RETRY
+      release_wait_s: 0.5          # RELEASE: opening time before HOME
+      verify_timeout_s: 2.0        # VERIFY: no detection this long: DONE with a warning
+      box_half_size_m: 0.05        # in the box: cube center within this of the box center, per axis (08 §3)
       park_pose: [1.9, -1.7, 1.5, 0.7, 0.0]  # off the workspace view, no self-contact [MES-39]; check on the real arm

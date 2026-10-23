@@ -12,8 +12,8 @@ def fail(*_):
 
 
 @pytest.fixture
-def driver():
-    rclpy.init()
+def driver(request):
+    rclpy.init(args=getattr(request, "param", None))  # ROS arguments, from an indirect parametrize
     node = DriverNode()
     node.published = []
     node._pub_joint_states.publish = node.published.append  # spy: what reaches /joint_states
@@ -44,3 +44,11 @@ def test_a_fourth_failure_stops_joint_states_and_the_driver_still_exits(driver):
     assert driver.published == []
     driver._robot.send_action = driver._robot.get_observation = driver._robot.disconnect = fail
     driver.destroy_node()  # no shutdown move on a lost bus, and a failed disconnect does not raise
+
+
+@pytest.mark.parametrize("driver", [["--ros-args", "-p", "bus_retries:=1"]], indirect=True)
+def test_the_retries_are_a_parameter(driver):
+    failed_ticks(driver, 2)
+    driver._publish_joint_states()
+    assert driver.published == []
+    driver.destroy_node()

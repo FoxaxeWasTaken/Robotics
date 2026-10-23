@@ -1,5 +1,5 @@
-# ROS parameters of so101_driver (docs/project/01 §3.3), read at startup.
-# use_sim and port are launch arguments (see sim.launch.py).
+# ROS parameters of so101_driver (docs/project/01 §3.3), read at startup: every tunable, with its sim value.
+# driver_real.yaml overrides some on the real arm. use_sim and port are launch arguments (sim.launch.py).
 so101_driver:
   ros__parameters:
     control_rate_hz: 50.0       # 2 backend calls per tick: the sim runs in real time [MES-02]
@@ -11,6 +11,11 @@ so101_driver:
     camera_height: 240
     seed: 0                     # /sim/randomize: same seed, same cube and box sequence
     shutdown_pose: [1.9, -1.7, 1.5, 0.7, 0.0]  # rad: the brain's PARK, reached before disconnect (03 §8)
+    shutdown_velocity: 0.5      # rad/s, capped by max_joint_velocity; the move has 4 s (ros2 launch's SIGTERM)
+    shutdown_tolerance: 0.05    # rad: shutdown_pose reached
+    bus_retries: 3              # failed control ticks retried before the driver stops (03 §8)
     max_relative_target_arm: 0.2       # real arm only: LeRobot's max delta per command, rad (07 §2)
     max_relative_target_gripper: 25.0  # real arm only: same, gripper, %
     expose_ground_truth: false  # true for the evaluation bench only (C-06)
+    camera_device: ""           # a webcam (/dev/video0), also with the sim arm; empty: the sim render
+    camera_info_file: ""        # the webcam's ROS calibration YAML (6.2b); empty: images without camera_info

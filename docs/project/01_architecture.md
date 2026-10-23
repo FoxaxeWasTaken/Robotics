@@ -45,7 +45,7 @@ flowchart LR
 | `so101_interfaces` | ament_cmake | both | `.srv` (existing); phase 2 adds `Connect4Board.msg`, `DropToken.srv` and the `PickPlace` action (ADR-037) | Existing |
 | `so101_description` | ament_python | viz | URDF, meshes, `viz.launch.py`. **Do not modify** (C-08) | Provided |
 | **`so101_common`** | ament_python (pure Python, no dependency) | both | **Single source of truth**: joint names, limits, gripper %↔rad conversion, frame names | **Exists** (ADR-003, step 0.3) |
-| **`so101_bringup`** | ament_python | control | Top-level launch files (`sim.launch.py`, `real.launch.py`), `config/*.yaml`, RViz config, tools (`evaluate`, calibration) | **Exists** (step 0.3): `sim.launch.py`, `config/driver.yaml` and `brain.yaml`, `rviz/so101.rviz`; the rest later |
+| **`so101_bringup`** | ament_python | control | Top-level launch files (`sim.launch.py`, `real.launch.py`), `config/*.yaml`, RViz config, tools (`evaluate`, calibration) | **Exists** (step 0.3): `sim.launch.py`, `config/driver.yaml` and `brain.yaml`, `rviz/so101.rviz`; since 5.1a `real.launch.py`, `driver_real.yaml` and `brain_real.yaml`; the calibration tools later |
 | **`so101_connect4`** | ament_python | perception + control | Phase 2: pure `game.py` and `board.py`, `board_reader_node`, `game_node` | **Planned** (ADR-037) |
 
 > **Why `so101_common`?** Without it, the gripper 0–100 % ↔ rad mapping, the limits and the joint names would be duplicated in the driver, the brain and the tests — the number-one source of silent bugs in robotics (a joint clamped differently on each side).
@@ -82,29 +82,52 @@ This table is **the contract** between team members. Any change goes through a P
 
 ### 3.3 Main parameters
 
-Declared with descriptors (description, range, read-only: read at startup) in each node, loaded from `so101_bringup/config/*.yaml`. The driver declares `use_sim`, `port` and, since step 1.1, the rates, speed limits and image size, since step 1.4 `seed` and `expose_ground_truth`, since 6.1a `shutdown_pose` and the per-motor `max_relative_target_*`, since 6.2a `camera_device` and `camera_info_file`; `calibration_file` and `scene_path` come with step 5.1.
+Declared with descriptors (description, range, read-only: read at startup) in each node, loaded from `so101_bringup/config/*.yaml`. The driver declares `use_sim`, `port` and, since step 1.1, the rates, speed limits and image size, since step 1.4 `seed` and `expose_ground_truth`, since 6.1a `shutdown_pose` and the per-motor `max_relative_target_*`, since 6.2a `camera_device` and `camera_info_file`, since 5.1a `shutdown_velocity`, `shutdown_tolerance` and `bus_retries`.
+
+- **Every tunable is in the base files** (`driver.yaml`, `brain.yaml`, `perception.yaml`), with its sim value.
+- **A node stops at startup on a key it does not declare.** ROS would ignore it, so a typo in a real file would keep the sim's value.
+- **Not parameters**:
+  - the calibration file: the provided `_connect_arm` reads `/calibration/arm.json` (ADR-032); the host file is `CALIBRATION_FILE` in `docker/.env`;
+  - the shutdown move's 4 s: `ros2 launch` sends SIGTERM 5 s after SIGINT (`03` §8);
+  - the rates of §3.1, part of the interface contract;
+  - the arm geometry of the fold rule (`04` §8).
+- `scene_path` comes with the calibration scene (6.3a, ADR-013).
 
 | Node | Parameter | Default | Note |
 | --- | --- | --- | --- |
 | driver | `use_sim` | `true` | Imposed (C-10) |
 | driver | `port` | `/dev/ttyACM0` | Real arm |
-| driver | `calibration_file` | `/calibration/arm.json` | Real arm, mounted by compose |
+| driver | (calibration file) | `/calibration/arm.json` | Not a parameter: the path the provided `_connect_arm` reads, mounted by compose from `CALIBRATION_FILE` |
 | driver | `control_rate_hz` | 50 | 2 backend calls per tick → the sim runs in real time [MES-02] |
 | driver | `joint_state_rate_hz` | 30 | ≥ 20 imposed (C-11): the range starts at 20 |
 | driver | `camera_rate_hz` | 10 | C-12 |
 | driver | `camera_width/height` | 320/240 (640/480 real) | Sim: 640/480 during calibration (ADR-013), at most 1280/720, the scene's offscreen buffer, K follows; webcam: a size it supports |
 | driver | `max_joint_velocity` | 1.5 rad/s (sim), 0.8 (real, `driver_real.yaml`) | Safety limiter (ADR-023) |
 | driver | `max_gripper_velocity` | 200 %/s | Safety limiter (ADR-023) |
-| driver | `scene_path` | provided scene | Scene with ArUco markers for calibration (ADR-013) |
+| driver | `scene_path` | provided scene | Planned (6.3a): the scene with ArUco markers for calibration (ADR-013) |
 | driver | `seed` | 0 | `/sim/randomize`: same seed, same cube and box sequence (`03` §7) |
 | driver | `expose_ground_truth` | **`false`** | Tests and evaluation bench only (C-06) |
 | driver | `shutdown_pose` | `PARK` [1.9, −1.7, 1.5, 0.7, 0.0] rad | Reached at 0.5 rad/s before `disconnect()` cuts the torque (`03` §8) |
+| driver | `shutdown_velocity` / `shutdown_tolerance` | 0.5 rad/s / 0.05 rad | The shutdown move, at most `max_joint_velocity`, 4 s at most (`03` §8) |
+| driver | `bus_retries` | 3 | Failed control ticks retried before "Bus lost" (`03` §8) |
 | driver | `max_relative_target_arm` / `_gripper` | 0.2 rad / 25 % | Real arm only: LeRobot's max delta per command, per motor (ADR-023) |
 | driver | `camera_device` | empty (`/dev/video0` real) | Webcam in MJPG (`03` §6), also with the sim arm; empty: the sim render, or no image on the real arm |
 | driver | `camera_info_file` | empty | Webcam: ROS calibration YAML (6.2b); empty: no `camera_info` |
 | perception | `extrinsics_file` | `config/camera_extrinsics.yaml` | Produced by calibration |
-| perception | `hsv_*` | see `05` | Tunable at runtime |
-| brain | `grasp.*`, `motion.*`, `fsm.*` | see `06` | Heights, speeds, thresholds, timeouts |
+| perception | `hsv_*`, `min_area_px`, `min_solidity` | see `05` | Tunable at runtime |
+| perception | `process_rate_hz`, `filter_size`, `filter_jump_m` | 20 Hz, 5, 0.02 m | Read at startup; the median filter (`05` §7) |
+| brain | `grasp.*`, `motion.*`, `fsm.*` | see `06` §6 | Heights, speeds, thresholds, timeouts; `motion.v_max_rad_s` 1.0 rad/s, 0.5 on the real arm |
+
+**Real arm** (`real.launch.py`, or `use_sim:=false`): `driver_real.yaml` and `brain_real.yaml` load on top of the base files. They change only these keys (`test_real_config.py`):
+
+| File | Key | Real value |
+| --- | --- | --- |
+| `driver_real.yaml` | `max_joint_velocity` | 0.8 rad/s (ADR-023) |
+| `driver_real.yaml` | `camera_device` | `/dev/video0`, the webcam (6.2a) |
+| `driver_real.yaml` | `camera_width` / `camera_height` | 640 / 480 |
+| `brain_real.yaml` | `motion.v_max_rad_s` | 0.5 rad/s (`06` §5) |
+
+Perception has no real file yet: the real extrinsics (6.3a) and HSV thresholds (6.4b) bring it, with the switch of its container. The other real values are checked during commissioning (6.1b): `fsm.park_pose`, `grasp.effort_threshold` (6.4a), the timeouts.
 
 ## 4. Frames and conventions (ADR-005)
 
@@ -154,10 +177,10 @@ sequenceDiagram
 | Command | Effect |
 | --- | --- |
 | `docker compose up -d control perception viz` | `control` builds the workspace then starts `so101_bringup sim.launch.py` (driver + brain); `perception` stays idle until step 3.1, then waits for its build and starts `perception_node`; `viz` starts RSP + static TF + marker |
-| `USE_SIM=false` in `docker/.env` | The same launch passes `use_sim:=false` to the driver, nothing else changes (C-10) |
+| `USE_SIM=false` in `docker/.env` | The entrypoint starts `real.launch.py`: `sim.launch.py` with `use_sim:=false`, which adds `driver_real.yaml` and `brain_real.yaml` (§3.3); nothing else changes (C-10) |
 | `ros2 service call /brain/start std_srvs/srv/Trigger` | Starts a cycle: the arm parks and waits for its target (step 4.2a); the full cycle once perception (3.3) and the planning worker (4.2b) are in |
 
-The entrypoint (`docker/control_entrypoint.sh`) starts `so101_bringup sim.launch.py` and forwards `USE_SIM` and `REAL_ROBOT_PORT` (`docker/.env`) as `use_sim:=` and `port:=`. The course's `driver.launch.py` and `brain.launch.py` stay, to start one node alone.
+The entrypoint (`docker/control_entrypoint.sh`) starts `so101_bringup sim.launch.py`, or `real.launch.py` with `REAL_ROBOT_PORT` as `port:=` when `USE_SIM=false` (`docker/.env`). The course's `driver.launch.py` and `brain.launch.py` stay, to start one node alone.
 
 ## 7. Rejected architecture options
 

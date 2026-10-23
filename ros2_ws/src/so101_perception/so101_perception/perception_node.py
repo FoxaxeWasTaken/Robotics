@@ -47,6 +47,17 @@ PARAMETERS = {
     "min_area_px": (15.0, "Smallest blob kept, px (05 §2.3)", 1.0, 10000.0),
     "min_solidity": (0.6, "Smallest area / convex hull area kept (05 §2.3)", 0.0, 1.0),
 }
+# Startup-only parameters, same format.
+STARTUP = {
+    "process_rate_hz": (
+        20.0,
+        "New image check rate; above the camera's 10 Hz, each image is processed once",
+        1.0,
+        100.0,
+    ),
+    "filter_size": (5, "Median filter window; a jump must also persist this many times (05 §7)", 1, 50),
+    "filter_jump_m": (0.02, "A detection this far from the median is a jump, m (05 §7)", 0.001, 0.2),
+}
 
 
 class PerceptionNode(rclpy.node.Node):
@@ -54,33 +65,25 @@ class PerceptionNode(rclpy.node.Node):
 
     def __init__(self):
         super().__init__("so101_perception")
-        rate = self.declare_parameter(
-            "process_rate_hz",
-            20.0,
-            ParameterDescriptor(
-                description="New image check rate; above the camera's 10 Hz, each image is processed once",
-                read_only=True,
-                floating_point_range=[FloatingPointRange(from_value=1.0, to_value=100.0)],
-            ),
-        ).value
-        for name, (default, description, low, high) in PARAMETERS.items():
-            bounds = (
-                {"integer_range": [IntegerRange(from_value=low, to_value=high)]}
-                if isinstance(default, int)
-                else {"floating_point_range": [FloatingPointRange(from_value=low, to_value=high)]}
-            )
-            self.declare_parameter(name, default, ParameterDescriptor(description=description, **bounds))
+        for name, spec in PARAMETERS.items():
+            self._declare(name, *spec)
+        startup = {name: self._declare(name, *spec, read_only=True) for name, spec in STARTUP.items()}
         extrinsics = self.declare_parameter(
             "extrinsics_file",
             str(Path(get_package_share_directory("so101_perception")) / "config" / "camera_extrinsics.yaml"),
             ParameterDescriptor(description="Camera pose in base_link (05 §5.1)", read_only=True),
         ).value
+        # ROS ignores a key no node declares: a typo in perception.yaml would keep the default (#57).
+        if unknown := sorted(set(self._parameter_overrides) - set(self._parameters)):  # rclpy: no public API
+            raise ValueError(f"Unknown parameters {unknown}: a typo in a config file? (05)")
         T = load_extrinsics(extrinsics).T_base_cam  # a wrong file stops the node here (ValueError)
         self._R, self._t = T[:3, :3], T[:3, 3]
         self._bridge = CvBridge()
         self._image = None  # latest image not processed yet
         self._camera_info = None  # latest K
-        self._filters = {"cube": MedianFilter(), "box": MedianFilter()}
+        self._filters = {
+            name: MedianFilter(startup["filter_size"], startup["filter_jump_m"]) for name in ("cube", "box")
+        }
 
         self.create_subscription(Image, "/external_cam/image_raw", self._cb_image, LATEST)
         self.create_subscription(CameraInfo, "/external_cam/camera_info", self._cb_camera_info, LATEST)
@@ -90,8 +93,20 @@ class PerceptionNode(rclpy.node.Node):
             "box": self.create_publisher(PoseStamped, "/drop_box_position", 1),
         }
         # Steady clock: a step back of the system clock (WSL2, MES-37) would pause a ROS-clock timer.
-        self.create_timer(1.0 / rate, self._process, clock=Clock(clock_type=ClockType.STEADY_TIME))
+        self.create_timer(
+            1.0 / startup["process_rate_hz"], self._process, clock=Clock(clock_type=ClockType.STEADY_TIME)
+        )
         self.get_logger().info("Perception node ready.")
+
+    def _declare(self, name, default, description, low, high, read_only=False):
+        """A parameter with its range: an int range for an int default, else a float one."""
+        bounds = (
+            {"integer_range": [IntegerRange(from_value=low, to_value=high)]}
+            if isinstance(default, int)
+            else {"floating_point_range": [FloatingPointRange(from_value=low, to_value=high)]}
+        )
+        descriptor = ParameterDescriptor(description=description, read_only=read_only, **bounds)
+        return self.declare_parameter(name, default, descriptor).value
 
     def _cb_image(self, msg: Image):
         self._image = msg
