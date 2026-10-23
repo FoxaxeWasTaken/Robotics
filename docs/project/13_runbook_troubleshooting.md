@@ -74,6 +74,8 @@ Per-symptom details:
 | `ros2 topic echo` receives nothing, no error | **QoS mismatch** (Best-effort publisher, Reliable subscriber) | `ros2 topic info -v`; publish Reliable (ADR-004) |
 | Topic invisible from the other container | Different `ROS_DOMAIN_ID`, network, or cached ROS daemon | Same `.env`; `ros2 daemon stop`; `ros2 topic list --no-daemon` |
 | `ros2 topic echo`: "Could not determine the type" right after startup | DDS discovery not finished yet | Wait 2–3 s or pass the type: `ros2 topic echo /chatter std_msgs/msg/String` |
+| `/chatter` shows two interleaved counters (`tek5 6542`, `tek5 207`, …) | Two talkers on the same domain: an earlier `ros2 run example_py_pkg talker` still running | `ros2 node list` shows `/talker` twice; Ctrl-C the old one, or `docker compose restart control` |
+| `docker images` lists no `tek5/*` image; `docker compose up` builds again | Docker Desktop lost its images (seen twice, on 2026-10-16 and 2026-10-21) | `cd docker && docker compose build`: a few minutes, the build cache survives |
 | `ros2 topic list` empty **from WSL** | Expected: native ROS and the Docker bridge network are separate | Use `docker compose exec control bash` |
 | `colcon`: "Permission denied" on `build/`/`install/` | Files created by root in the container | `sudo rm -rf ros2_ws/{build,install,log}`; never build outside the container |
 | Editing `sim/` code changes nothing | `so101_sim` is installed **non-editable** in the image | Do not modify `sim/` (ADR-018); otherwise `docker compose build` |
