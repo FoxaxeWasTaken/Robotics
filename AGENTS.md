@@ -61,4 +61,5 @@ bash tools/ci/guards.sh           # host, repo root (needs the git repo): projec
 - "Brain node ready" does not mean the brain has `/joint_states` yet (DDS discovery): a `/brain/start` or `/go_to_target` right after it is refused (`no_joint_states`). Tests and tools wait for the first `/end_effector_pose`, which the brain computes from them (#119, #132).
 - Files written in the containers (`build/`, `install/`, `log/`, `__pycache__`) belong to root: delete them from inside a container.
 - `pyproject.toml` excludes course files still identical to upstream: remove a file from `extend-exclude` when you rewrite it, or it is never linted.
+- The position IK knows no collision volumes: seeded from the straight pose q = 0 (singular), it can fold the elbow to its limit, where the lower arm hits the shoulder in MuJoCo and the arm stops short [MES-43]; seed it from a bent pose.
 - More: `docs/project/13` (runbook) and `04` §8 (kinematics pitfalls).
