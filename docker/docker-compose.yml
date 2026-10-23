@@ -14,7 +14,8 @@ name: tek5
 # Shared ROS environment for all services.
 x-ros-env: &ros-env
   ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-69}
-  FASTDDS_BUILTIN_TRANSPORTS: LARGE_DATA
+  # The E2E jobs set DEFAULT: under LARGE_DATA, a fresh process missed a node of the stack for 60 s on CI runners (#141)
+  FASTDDS_BUILTIN_TRANSPORTS: ${FASTDDS_BUILTIN_TRANSPORTS:-LARGE_DATA}
 
 services:
   control:

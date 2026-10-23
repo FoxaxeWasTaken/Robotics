@@ -173,6 +173,7 @@ jobs:
       - name: Evaluation bench (N=3)
         env:
           EXPOSE_GROUND_TRUTH: "true"  # the bench scores with the ground truth; the pipeline never reads it (C-06)
+          FASTDDS_BUILTIN_TRANSPORTS: DEFAULT  # as the control tests: LARGE_DATA lost nodes at the start (#141)
         run: |
           cp docker/.env.example docker/.env
           docker compose -f docker/docker-compose.yml up -d control perception viz
@@ -184,6 +185,12 @@ jobs:
         run: |
           docker compose -f docker/docker-compose.yml ps -a
           docker compose -f docker/docker-compose.yml logs --tail 150 control perception
+          # which link is dead: the nodes a fresh process finds, then the driver's and the brain's topic
+          docker compose -f docker/docker-compose.yml exec -T control bash -lc '
+            source /ros2_ws/install/setup.bash && ros2 node list --no-daemon --spin-time 3
+            for t in "/joint_states sensor_msgs/msg/JointState" "/end_effector_pose geometry_msgs/msg/PoseStamped"; do
+              timeout 10 ros2 topic echo --once $t >/dev/null && echo "${t%% *}: received" || echo "${t%% *}: nothing in 10 s"
+            done'
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
