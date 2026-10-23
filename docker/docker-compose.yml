@@ -44,6 +44,7 @@ services:
     networks: [rosnet]
     stdin_open: true
     tty: true
+    stop_grace_period: 10s  # the driver parks the arm (4 s at most) before disconnect() cuts the torque (#64)
     # Only container that builds (concurrent colcon on the same volume = conflicts).
     # viz waits for install/ to be ready.
     command: ["/opt/so101/entrypoint.sh"]

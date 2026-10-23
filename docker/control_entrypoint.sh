@@ -14,7 +14,9 @@ launch() {
   local pkg=$1 file=$2
   shift 2
   if [ -f "install/$pkg/share/$pkg/launch/$file" ]; then
-    ros2 launch "$pkg" "$file" "$@" &
+    # --noninteractive: compose gives the container a TTY, so launch would take our SIGINT for a terminal
+    # Ctrl-C already sent to its nodes and not forward it; they were killed at 5 s, destroy_node() never ran.
+    ros2 launch --noninteractive "$pkg" "$file" "$@" &
     pids+=($!)
   fi
 }
