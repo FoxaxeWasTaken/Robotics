@@ -82,7 +82,7 @@ This table is **the contract** between team members. Any change goes through a P
 
 ### 3.3 Main parameters
 
-Declared with descriptors (description, range, read-only: read at startup) in each node, loaded from `so101_bringup/config/*.yaml`. The driver declares `use_sim`, `port` and, since step 1.1, the rates, speed limits and image size, since step 1.4 `seed` and `expose_ground_truth`; `calibration_file` and `scene_path` come with step 5.1.
+Declared with descriptors (description, range, read-only: read at startup) in each node, loaded from `so101_bringup/config/*.yaml`. The driver declares `use_sim`, `port` and, since step 1.1, the rates, speed limits and image size, since step 1.4 `seed` and `expose_ground_truth`, since 6.1a `shutdown_pose` and the per-motor `max_relative_target_*`; `calibration_file` and `scene_path` come with step 5.1.
 
 | Node | Parameter | Default | Note |
 | --- | --- | --- | --- |
@@ -93,11 +93,13 @@ Declared with descriptors (description, range, read-only: read at startup) in ea
 | driver | `joint_state_rate_hz` | 30 | ≥ 20 imposed (C-11): the range starts at 20 |
 | driver | `camera_rate_hz` | 10 | C-12 |
 | driver | `camera_width/height` | 320/240 | 640/480 during calibration (ADR-013); at most 1280/720, the scene's offscreen buffer; K follows |
-| driver | `max_joint_velocity` | 1.5 rad/s (sim), 0.8 (real) | Safety limiter (ADR-023) |
+| driver | `max_joint_velocity` | 1.5 rad/s (sim), 0.8 (real, `driver_real.yaml`) | Safety limiter (ADR-023) |
 | driver | `max_gripper_velocity` | 200 %/s | Safety limiter (ADR-023) |
 | driver | `scene_path` | provided scene | Scene with ArUco markers for calibration (ADR-013) |
 | driver | `seed` | 0 | `/sim/randomize`: same seed, same cube and box sequence (`03` §7) |
 | driver | `expose_ground_truth` | **`false`** | Tests and evaluation bench only (C-06) |
+| driver | `shutdown_pose` | `PARK` [1.9, −1.7, 1.5, 0.7, 0.0] rad | Reached at 0.5 rad/s before `disconnect()` cuts the torque (`03` §8) |
+| driver | `max_relative_target_arm` / `_gripper` | 0.2 rad / 25 % | Real arm only: LeRobot's max delta per command, per motor (ADR-023) |
 | perception | `extrinsics_file` | `config/camera_extrinsics.yaml` | Produced by calibration |
 | perception | `hsv_*` | see `05` | Tunable at runtime |
 | brain | `grasp.*`, `motion.*`, `fsm.*` | see `06` | Heights, speeds, thresholds, timeouts |

@@ -19,8 +19,9 @@
 | NaN/inf rejection | ✅ `command.py` (step 1.1) | ✅ in the working copy | 1.1 |
 | `effort` (grasp detection, ADR-016) | ✅ sim, `effort.py` (step 1.3); real: empty until 6.4a | ❌ | 1.3 |
 | `/external_cam/camera_info` (C-13); `frame_id` = optical frame (ADR-005) | ✅ (step 1.3) | ❌ (`frame_id = "external_cam"`) | 1.3 |
-| Real-arm shutdown: `disconnect()` cuts the torque, the arm falls | ⚠ provided `destroy_node` | ⚠ | `PARK` first (§8, 6.1) |
-| Real camera, `/sim/randomize`, `max_relative_target` | ❌ | ❌ | Later stages (ADR-007, 018, 023) |
+| Real-arm shutdown: `disconnect()` cuts the torque, the arm falls | ✅ slow move to `PARK` first, 4 s at most (6.1a, §8) | ⚠ | 6.1 |
+| Per-motor `max_relative_target`; serial bus errors | ✅ (6.1a, §2, §8) | ❌ | 6.1 (ADR-023) |
+| Real camera | ❌ | ❌ | 6.2 (ADR-007) |
 
 ## 1. Responsibilities
 
@@ -46,7 +47,7 @@ What the provided version does:
 | Sim | `SO101Sim()` then `connect()` |
 | Real | Checks that `CALIBRATION_FILE` (`/calibration/arm.json`) exists, else `RuntimeError`. Builds `SO101FollowerConfig(port, id=calib.stem, calibration_dir=calib.parent, use_radians=True)`, then `connect(calibrate=False)`. **If the motors do not match the file: `disconnect()` + `RuntimeError`** ("wrong file for this arm?"). Since #2, then `bus.disable_torque()`: commented out by the team (see above) |
 
-What the team adds, without touching the provided function (**planned** with ticket 6.1a, not in the code yet, §0):
+What the team adds, without touching the provided function (6.1a):
 
 ```python
 self._robot = self._connect_arm(port)                # provided by the course, unchanged
@@ -54,7 +55,9 @@ if not self._use_sim:
     # Hardware safety net (ADR-023): max delta per command, PER MOTOR
     # (a scalar would also apply to the gripper, in %, and freeze it).
     # send_action() re-reads config.max_relative_target on every call.
-    self._robot.config.max_relative_target = {**{j: 0.2 for j in ARM_JOINTS}, "gripper": 25.0}
+    self._robot.config.max_relative_target = max_relative_target(  # limiter.py: 0.2 rad, gripper 25 %
+        self._p["max_relative_target_arm"], self._p["max_relative_target_gripper"]
+    )
 ```
 
 Real-arm critical points:
@@ -178,8 +181,11 @@ The brain recovers the gripper percentage with the inverse conversion from `so10
 ## 8. Lifecycle and shutdown
 
 - **Sim**: stop the camera thread, then `disconnect()` (closes the renderer).
-- **Real**: ⚠ `disable_torque_on_disconnect=True` by default — **the arm falls** when torque is cut. `destroy_node()` is provided since upstream #2 (disconnect + log); the team stops the camera thread before it and will add a slow move to `PARK` before the disconnect (ticket 6.1a). Until then, keep a hand ready to hold the forearm when stopping the real arm (`07` §2). The entrypoint already sends SIGINT to the process group so that `destroy_node()` runs.
-- **Serial errors**: 3 retries, then stop publishing `/joint_states` and log a clear error; the brain detects missing data (freshness, ADR-017) and stops.
+- **Real**: ⚠ `disable_torque_on_disconnect=True` by default — **the arm falls** when torque is cut. `destroy_node()` (provided since upstream #2: disconnect + log) first stops the camera thread, then, since 6.1a, moves the arm to `shutdown_pose` (the brain's `PARK`) at 0.5 rad/s at most, by direct backend calls (the ROS context is already down on SIGINT), until each arm joint is within 0.05 rad or 4 s have passed; then it disconnects. The gripper is not commanded: it keeps a held cube. Also active in sim, where it is tested (`test_shutdown.py`; the post-shutdown test of `test_driver_launch.py`).
+  - **4 s, not 5**: `ros2 launch` sends SIGTERM 5 s after its SIGINT, and the entrypoint kills the process group after 5 s; a second signal would cut the move.
+  - 0.5 rad/s × 4 s = 2 rad: from a far pose (pan −1 rad to `PARK`'s 1.9) the move stops short, logs "Shutdown pose not reached", and the arm falls from there. The joints under gravity (shoulder lift, elbow, wrist flex) move at the same time as the pan and usually get there: keep a hand ready to hold the forearm during the first sessions (`07` §2).
+  - The entrypoint sends SIGINT to `ros2 launch` only, so that `destroy_node()` runs once.
+- **Serial errors**: a bus error in a control tick (`ConnectionError`, a motor packet error `RuntimeError`, an `OSError` from the port) is retried at the next ticks; after 3 retries (4 failed ticks in a row, 80 ms) the driver stops the control and `/joint_states` with a "Bus lost" error, until it is restarted. The brain detects missing data (freshness, ADR-017) and stops. On shutdown, a lost bus skips the move and a failed disconnect is logged: the node exits in every case. Faults injected in sim: `test_bus_errors.py`.
 
 ## 9. Tests (see `08` and `14`)
 

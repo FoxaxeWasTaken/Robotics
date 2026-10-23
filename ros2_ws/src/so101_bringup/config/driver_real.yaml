@@ -1,0 +1,4 @@
+# Real-arm values of so101_driver (docs/project/07 §2), loaded on top of driver.yaml when use_sim is false.
+so101_driver:
+  ros__parameters:
+    max_joint_velocity: 0.8     # rad/s (ADR-023)

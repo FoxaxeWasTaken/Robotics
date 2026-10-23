@@ -8,6 +8,7 @@ knows which one runs.
 Publishes /joint_states (rad, 30 Hz) and applies /joint_command (rad, gripper in %)
 through a speed limiter at 50 Hz; in sim, publishes the camera at 10 Hz from a dedicated
 thread (docs/project/03 §3-§5) and serves the evaluation tools: /sim/randomize, ground truth (03 §7).
+On shutdown, brings the arm slowly to its rest pose before disconnect() cuts the torque (03 §8).
 """
 
 import os
@@ -33,8 +34,9 @@ from so101_common.robot import ARM_JOINT_NAMES, BASE_FRAME, CAMERA_FRAME, JOINT_
 from so101_driver.camera import opencv_intrinsics
 from so101_driver.command import apply_command
 from so101_driver.effort import normalized_effort
-from so101_driver.limiter import step_towards
+from so101_driver.limiter import max_relative_target, step_towards
 from so101_driver.randomize import sample_box_xy
+from so101_driver.shutdown import move_to
 
 # Calibration file of the real arm, mounted by docker compose (CALIBRATION_FILE in docker/.env).
 CALIBRATION_FILE = Path("/calibration/arm.json")
@@ -51,7 +53,15 @@ PARAMETERS = {
     "camera_width": (320, "Sim camera width, px (640 for calibration, ADR-013)", 16, 1280),
     "camera_height": (240, "Sim camera height, px (480 for calibration, ADR-013)", 16, 720),
     "seed": (0, "Seed of /sim/randomize: cube and box positions (sim)", 0, 2**31 - 1),
+    "max_relative_target_arm": (0.2, "Real arm: LeRobot max delta per command, arm joints, rad", 0.01, 1.0),
+    "max_relative_target_gripper": (25.0, "Real arm: LeRobot max delta per command, gripper, %", 1.0, 100.0),
 }
+SHUTDOWN_POSE = [1.9, -1.7, 1.5, 0.7, 0.0]  # rad, ARM_JOINT_NAMES order: the brain's PARK (brain.yaml)
+SHUTDOWN_VELOCITY = 0.5  # rad/s, at most
+# ros2 launch sends SIGTERM 5 s after SIGINT: the move ends before, a second signal would interrupt it.
+SHUTDOWN_TIMEOUT = 4.0  # s
+SHUTDOWN_TOLERANCE = 0.05  # rad
+BUS_RETRIES = 3  # failed control ticks retried before the driver stops (03 §8)
 GROUND_TRUTH_RATE_HZ = 10.0
 GROUND_TRUTH_BODIES = {"object": "pickup_object", "drop_box": "drop_box"}  # /sim/ground_truth/<key>: body
 PARKED_BOX_XY = (2.0, 0.0)  # m: the box waits there while the randomized cube settles
@@ -79,6 +89,15 @@ class DriverNode(rclpy.node.Node):
                 description="Sim: publish /sim/ground_truth/*, bench only (C-06)", read_only=True
             ),
         ).value
+        self._shutdown_pose = list(
+            self.declare_parameter(
+                "shutdown_pose",
+                SHUTDOWN_POSE,
+                ParameterDescriptor(description="Rest pose reached before disconnect, rad", read_only=True),
+            ).value
+        )
+        if len(self._shutdown_pose) != len(ARM_JOINT_NAMES):
+            raise ValueError(f"shutdown_pose needs {len(ARM_JOINT_NAMES)} values, got {self._shutdown_pose}")
 
         self._robot = self._connect_arm(port)
         self.get_logger().info(f"Robot connected: {type(self._robot).__name__}")
@@ -91,6 +110,10 @@ class DriverNode(rclpy.node.Node):
             sim_seed, box_seed = np.random.SeedSequence(self._p["seed"]).spawn(2)
             self._robot._rng = np.random.default_rng(sim_seed)
             self._box_rng = np.random.default_rng(box_seed)
+        else:  # after the provided _connect_arm (ADR-032): SO101Follower.send_action reads it at each call
+            self._robot.config.max_relative_target = max_relative_target(
+                self._p["max_relative_target_arm"], self._p["max_relative_target_gripper"]
+            )
         self._backend_lock = threading.Lock()  # MuJoCo and the serial bus are not thread-safe (ADR-006)
 
         self._obs = self._robot.get_observation()
@@ -98,6 +121,8 @@ class DriverNode(rclpy.node.Node):
         self._effort = []  # normalized load per joint; empty on the real arm until 6.4a
         self._goal = {name: self._obs[f"{name}.pos"] for name in JOINT_NAMES}  # startup pose: no jump to 0
         self._setpoint = dict(self._goal)
+        self._bus_errors = 0  # consecutive failed control ticks
+        self._bus_lost = False
 
         self._pub_joint_states = self.create_publisher(JointState, "/joint_states", 10)
         self.create_subscription(JointState, "/joint_command", self._cb_joint_command, 10)
@@ -169,17 +194,48 @@ class DriverNode(rclpy.node.Node):
         return robot
 
     def destroy_node(self):
-        """Stops the camera thread, then disconnects the backend (provided).
+        """Stops the camera thread, brings the arm to its shutdown pose, then disconnects the backend.
 
-        On the real arm, disconnecting disables the torque.
+        On the real arm, disconnecting disables the torque: the arm falls if it is not at rest (03 §8).
+        A lost bus skips the move, and a failed disconnect is logged: the node exits in every case.
         """
         self._stop_camera.set()
         if self._camera_thread is not None:
             self._camera_thread.join()
         if self._robot.is_connected:
-            self._robot.disconnect()
-            self.get_logger().info("Robot disconnected.")
+            if not self._bus_lost:
+                self._move_to_shutdown_pose()
+            try:
+                self._robot.disconnect()
+                self.get_logger().info("Robot disconnected.")
+            except (OSError, RuntimeError) as error:
+                self.get_logger().error(f"Disconnect failed: {error}")
         super().destroy_node()
+
+    def _move_to_shutdown_pose(self):
+        """Direct backend calls at the control rate: the executor no longer runs the timers."""
+        goal = dict(zip(ARM_JOINT_NAMES, self._shutdown_pose, strict=True))
+        velocity = min(SHUTDOWN_VELOCITY, self._p["max_joint_velocity"])
+        try:
+            elapsed, error = move_to(
+                self._robot,
+                self._setpoint,
+                goal,
+                self._p["control_rate_hz"],
+                velocity,
+                SHUTDOWN_TIMEOUT,
+                SHUTDOWN_TOLERANCE,
+            )
+        except (OSError, RuntimeError) as error:
+            self.get_logger().error(f"Shutdown pose not reached, bus error: {error}")
+            return
+        if error <= SHUTDOWN_TOLERANCE:
+            self.get_logger().info(f"Shutdown pose reached in {elapsed:.1f} s.")
+        else:
+            self.get_logger().warning(
+                f"Shutdown pose not reached after {elapsed:.1f} s (a joint {error:.2f} rad off): "
+                "the arm may drop."
+            )
 
     def _cb_joint_command(self, msg: JointState):
         """Stores the goal only (the control timer applies it): clamped, or unchanged if rejected (03 §4)."""
@@ -188,7 +244,13 @@ class DriverNode(rclpy.node.Node):
             self.get_logger().warning(f"/joint_command rejected: {reason}", throttle_duration_sec=1.0)
 
     def _control_step(self):
-        """50 Hz: setpoint towards the goal (speed limiter), send it, read the state back."""
+        """50 Hz: setpoint towards the goal (speed limiter), send it, read the state back.
+
+        A bus error (ConnectionError, motor packet error) is retried at the next ticks; after BUS_RETRIES
+        retries the driver stops the control and /joint_states, until it is restarted (03 §8).
+        """
+        if self._bus_lost:
+            return
         self._setpoint = step_towards(
             self._setpoint,
             self._goal,
@@ -196,15 +258,33 @@ class DriverNode(rclpy.node.Node):
             self._p["max_joint_velocity"],
             self._p["max_gripper_velocity"],
         )
-        with self._backend_lock:
-            self._robot.send_action({f"{name}.pos": value for name, value in self._setpoint.items()})
-            self._obs = self._robot.get_observation()
-            if self._use_sim:
-                self._effort = normalized_effort(self._robot.model, self._robot.data, JOINT_NAMES)
+        try:
+            with self._backend_lock:
+                self._robot.send_action({f"{name}.pos": value for name, value in self._setpoint.items()})
+                self._obs = self._robot.get_observation()
+                if self._use_sim:
+                    self._effort = normalized_effort(self._robot.model, self._robot.data, JOINT_NAMES)
+        except (OSError, RuntimeError) as error:
+            self._bus_errors += 1
+            if self._bus_errors <= BUS_RETRIES:
+                self.get_logger().warning(f"Bus error {self._bus_errors}/{BUS_RETRIES}, retrying: {error}")
+            else:
+                self._bus_lost = True
+                self.get_logger().error(
+                    f"Bus lost after {BUS_RETRIES} retries ({error}): "
+                    "/joint_states stopped; restart the driver."
+                )
+            return
+        self._bus_errors = 0
         self._obs_stamp = self.get_clock().now().to_msg()
 
     def _publish_joint_states(self):
-        """30 Hz: last observation, arm in rad, gripper converted % -> rad (what RSP expects)."""
+        """30 Hz: last observation, arm in rad, gripper converted % -> rad (what RSP expects).
+
+        Silent once the bus is lost: the brain stops on stale /joint_states (ADR-017).
+        """
+        if self._bus_lost:
+            return
         msg = JointState()
         msg.header.stamp = self._obs_stamp
         msg.name = list(JOINT_NAMES)

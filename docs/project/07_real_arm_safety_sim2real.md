@@ -25,7 +25,7 @@ flowchart LR
 | 6. Stop | `/brain/stop` → arm frozen; Ctrl-C → back to PARK, then torque off | — |
 | 7. Physical | Power switch / plug | — |
 
-> **State of this repository (2026-10-16)**: the driver applies `/joint_command` in sim with a 1.5 rad/s speed limiter (step 1.0), but layer 3 is incomplete: no clamp yet. The provided `disable_torque()` lines are still active, so the real arm stays limp and ignores commands (`/joint_states` still works: useful for test 1 of §3.2). **Do not comment them out before ticket 1.1a** (clamp, NaN rejection) and a real speed ≤ 0.8 rad/s (1.1b); it is done at 6.1a. The bootstrap prototype had these changes and passed tests 1–3 of §3.2.
+> **State of this repository (2026-10-23)**: layers 3 (clamp and NaN rejection since 1.1a, speed limiter; 0.8 rad/s on the real arm, `driver_real.yaml`), 4 (per-motor `max_relative_target`) and 6 (slow move to `PARK` before the torque is cut, 4 s at most) are in the driver since 6.1a, and a lost serial bus stops it (`03` §8). The provided `disable_torque()` lines are still active, so the real arm stays limp and ignores commands (`/joint_states` still works: useful for test 1 of §3.2); 6.1a comments them out last. The bootstrap prototype had these changes and passed tests 1–3 of §3.2.
 
 ⚠ **Torque off = the arm falls.** `disable_torque_on_disconnect=True` by default: the driver brings the arm to the rest pose **before** `disconnect()`. During the first sessions, keep a hand ready to hold the forearm.
 
