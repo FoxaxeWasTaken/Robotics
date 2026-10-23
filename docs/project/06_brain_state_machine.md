@@ -156,7 +156,10 @@ Declared by `brain_node` (read-only, with ranges): `motion.*` since step 2.2; `g
 - `/brain_state` (transient_local): the current state is always visible, even for late subscribers.
 - Log on every transition: `old → new (reason, time spent in state)`.
 - Log when leaving `PLAN` (step 4.2b): the planner's time and the longest tick period meanwhile, `PLAN: planner answered in 0.23 s; longest tick period 20.6 ms over 12 ticks` (C-33, MES-40).
-- `/brain/markers`: pre-grasp (yellow sphere), grasp (green), drop (blue), approach (arrow from the pre-grasp to the grasp). Since step 4.2b: published when the cycle follows a plan, at the TCP of each of its configurations.
+- `/brain/markers`: pre-grasp (yellow sphere), grasp (green), drop (blue), approach (arrow from the pre-grasp to the grasp). Since step 4.2b: published when the cycle follows a plan, at the TCP of each of its configurations. Since 3.3b (#129): the locked cube, a red 5 cm cube turned by its yaw (unturned when the yaw is unknown).
+  - **When it shows**: published with the plan when `APPROACH` starts, deleted on entering `LIFT` (about 5 s per cycle). From `LIFT` on, the arm model shows where the cube is, and a cube left at the pick place would be a ghost.
+  - **Why only then**: it is the target the brain locked, not a live detection. Perception still sees the cube in the jaws but places it about 12 cm off (`05` §7), so a marker following `/object_position` would draw a ghost during the transport.
+  - **Limits**: nothing before the plan (`IDLE`, `WAIT_TARGET`, `PLAN`), nor when planning fails. After a stop or an error before `LIFT` it stays, where the untouched cube still is, until the next plan replaces it; it is off if the jaws pushed the cube. `/brain/markers` is not latched: RViz started during a cycle shows it from the next plan.
 - rosbag2 recording of demo episodes (`ros2 bag record /joint_states /joint_command /object_position /drop_box_position /brain_state`) to replay and analyze failures.
 
 ## 8. Tests

@@ -138,6 +138,7 @@ class BrainNode(rclpy.node.Node):
 
         self._worker = planner_pool(str(urdf), self._declare_planner())  # its own process (06 §4)
         self._planning = None  # the worker's future of the last PLAN
+        self._locked = None  # (cube, yaw) of the last PLAN: the cube marker
         self._plan_ticks = []  # tick periods while in PLAN, s (C-33: planning never blocks the tick)
         self._last_tick = None
 
@@ -324,6 +325,8 @@ class BrainNode(rclpy.node.Node):
         if out.transition is not None:
             self._log_transition(out.transition)
         self._follow_planning(planning, answer, seconds, out.plan_request)
+        if out.transition is not None and self._fsm.state is State.LIFT:  # held: the arm model shows it now
+            self._pub_markers.publish(MarkerArray(markers=[Marker(ns="cube", action=Marker.DELETE)]))
         if self._fsm.state is not State.IDLE:
             self._motion = None  # the cycle commands the arm: a /go_to_target motion ends
         elif self._motion is not None:
@@ -352,6 +355,7 @@ class BrainNode(rclpy.node.Node):
                 self._publish_markers(answer[0])
         if request is not None:
             self._planning = self._worker.submit(timed_plan, *request)
+            self._locked = request[:2]
 
     def _end_plan(self, seconds):
         """Out of PLAN: the planner's time and the tick periods meanwhile. A late answer is never read: PLAN
@@ -364,7 +368,8 @@ class BrainNode(rclpy.node.Node):
         self._plan_ticks = []
 
     def _publish_markers(self, plan):
-        """/brain/markers of the plan the cycle follows (06 §7), at the TCP of its configurations."""
+        """/brain/markers of the plan the cycle follows (06 §7), at the TCP of its configurations, and the
+        locked cube: 5 cm, turned by its yaw when known."""
         stamp = self.get_clock().now().to_msg()
         tcp = {}
         for name, _ in MARKERS:
@@ -388,6 +393,13 @@ class BrainNode(rclpy.node.Node):
         arrow.points = [tcp["pre_grasp"], tcp["grasp"]]
         arrow.scale.x, arrow.scale.y, arrow.scale.z = 0.004, 0.008, 0.01  # shaft, head diameters, head length
         markers.append(arrow)
+        (x, y, z), yaw = self._locked
+        cube = marker("cube", Marker.CUBE, (1.0, 0.0, 0.0))
+        cube.pose.position = Point(x=float(x), y=float(y), z=float(z))
+        if yaw is not None:
+            cube.pose.orientation.z, cube.pose.orientation.w = float(np.sin(yaw / 2)), float(np.cos(yaw / 2))
+        cube.scale.x = cube.scale.y = cube.scale.z = 0.05
+        markers.append(cube)
         self._pub_markers.publish(MarkerArray(markers=markers))
 
     def _stream_motion(self):

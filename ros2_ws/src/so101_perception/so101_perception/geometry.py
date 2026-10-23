@@ -7,6 +7,7 @@ Camera frame: OpenCV optical, x right, y down, z forward (REP-103). R_wc, t_wc m
 from dataclasses import dataclass
 from pathlib import Path
 
+import cv2
 import numpy as np
 import yaml
 
@@ -41,6 +42,14 @@ def pixel_to_world(u, v, K, R_wc, t_wc, z0) -> np.ndarray | None:
     if d[2] * (z0 - t_wc[2]) <= 0.0:  # parallel to the plane, or the plane behind the camera
         return None
     return t_wc + (z0 - t_wc[2]) / d[2] * d
+
+
+def cube_yaw(contour, K, R_wc, t_wc, z_top=0.05) -> float:
+    """The cube yaw about z in [-pi/4, pi/4) (90° symmetry): its outline (px) on the top-face plane, then the
+    smallest rectangle around it (05 §4, ADR-012, MES-14)."""
+    points = (pixel_to_world(u, v, K, R_wc, t_wc, z_top) for u, v in contour)
+    xy = np.array([p[:2] for p in points if p is not None], np.float32)
+    return (np.radians(cv2.minAreaRect(xy)[2]) + np.pi / 4) % (np.pi / 2) - np.pi / 4
 
 
 def world_to_pixel(p, K, R_wc, t_wc) -> np.ndarray:

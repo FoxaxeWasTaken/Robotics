@@ -4,7 +4,8 @@
 Never talks to the backend (C-05): images and K come from the driver's topics only, the camera pose from
 the extrinsics file. A timer takes each new image once: HSV detection, then for a valid, whole blob the ray
 on the plane z = 2.5 cm, the temporal filter, and a PoseStamped in base_link with the image's stamp
-(01 §3.1, 05 §1). Nothing is published for an invalid detection; /perception/debug_image always comes.
+(01 §3.1, 05 §1); the cube's orientation is its yaw about z (05 §4). Nothing is published for an invalid
+detection; /perception/debug_image always comes.
 """
 
 from pathlib import Path
@@ -25,7 +26,7 @@ from so101_common.robot import BASE_FRAME
 from so101_perception.debug import annotate, status
 from so101_perception.detection import Thresholds, detect, hsv_ranges
 from so101_perception.filter import MedianFilter
-from so101_perception.geometry import load_extrinsics, pixel_to_world
+from so101_perception.geometry import cube_yaw, load_extrinsics, pixel_to_world
 
 # Only the latest image matters; Best effort is compatible with the driver's Reliable publisher, and the
 # debug image is Best effort for RViz (docs/project/01 §3.1, ADR-004).
@@ -136,7 +137,8 @@ class PerceptionNode(rclpy.node.Node):
         pose.header.stamp, pose.header.frame_id = stamp, BASE_FRAME
         pose.pose.position.x, pose.pose.position.y = float(p[0]), float(p[1])
         pose.pose.position.z = float(p[2] if z is None else z)
-        pose.pose.orientation.w = 1.0  # the yaw comes at 3.3c
+        yaw = cube_yaw(blob.contour, K, self._R, self._t) if name == "cube" else 0.0
+        pose.pose.orientation.z, pose.pose.orientation.w = float(np.sin(yaw / 2)), float(np.cos(yaw / 2))
         self._pubs[name].publish(pose)
 
 

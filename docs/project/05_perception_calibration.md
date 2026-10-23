@@ -109,7 +109,7 @@ def pixel_to_world(u, v, K, R_wc, t_wc, z0):        # so101_perception/geometry.
 
 On the reference images (`test_geometry.py`, exact camera pose of the labels): cube mean **0.8 mm**, max 1.6 mm over the 32 whole cubes (2.4 mm and 3.9 mm with the provided principal point, §3.2); box floor center mean **3.4 mm**, max 11.3 mm over 44, the worst where the arm hides 15 % of the box.
 
-**Cube yaw** (to align the jaws): back-project the contour points onto the top-face plane (z = 5 cm), then `cv2.minAreaRect` in metric coordinates → median error **1.3°**, p90 8.3° [MES-14] (modulo 90°, cube symmetry).
+**Cube yaw** (to align the jaws): back-project the contour points onto the top-face plane (z = 5 cm), then `cv2.minAreaRect` in metric coordinates → median error **1.3°**, p90 8.3° [MES-14] (modulo 90°, cube symmetry). **Since step 3.3c** `geometry.cube_yaw` does it on the detected contour, yaw in [−45°, 45°), published as the orientation of `/object_position` (a quaternion about z); on the 32 whole cubes of the reference images: median 0.46°, p90 2.62° (`test_geometry.py`).
 
 > Rejected alternatives: **known size** (distance from apparent size) is less accurate at 320×240 (1 px error on ~15 px side ≈ 7 % of the distance); **depth camera** unavailable in sim; **stereo** out of scope.
 
@@ -184,6 +184,7 @@ With the provided camera at 320×240, over 2,000 positions drawn like `randomize
 
 - When the arm is above the cube, perception may lose it or see it truncated. **The brain locks the target** while the arm is in the `PARK` pose, off the workspace (`[1.9, −1.7, 1.5, 0.7, 0]`: the cube never hidden, the box at worst 9 % hidden over 50 scenes [MES-39]), and then no longer depends on perception until the final verification (C-33, ADR-017).
 - Perception **publishes nothing** when the detection is invalid (absent, truncated, outlier): freshness is carried by `header.stamp`, the brain judges its age.
+- **A held cube is still detected.** The mask only looks for red, so the cube in the jaws stays `OK` in the debug image and is published. Its position is wrong: the ray meets the plane z = 2.5 cm beyond the cube, about 12 cm off for a 10 cm lift (computed from the camera pose). It is harmless because the brain reads `/object_position` only at `PARK`, in `WAIT_TARGET` and `VERIFY` (06 §3); during the grasp it relies on the gripper effort (ADR-016). It is also why RViz shows the cube the brain locked rather than the live detection (§9).
 - Temporal filter: rolling median of 5; a measurement more than 2 cm away from the median is rejected (unless it persists 5 times = the object really moved). Implemented in `filter.py`, one filter per object; the box is filtered at z = 2.5 cm and published at its floor, z = 0.
 
 ## 8. Tests
@@ -219,7 +220,7 @@ With the provided camera at 320×240, over 2,000 positions drawn like `randomize
 ## 9. Visualization (C-24)
 
 - `/perception/debug_image`: the image with the masks painted (cube in green, box in blue), a red cross on each centroid and the cube status `OK`, `TRUNCATED` or `LOST`, same header, Best effort (`debug.py`).
-- RViz: `Pose` display on `/object_position` and `/drop_box_position`, plus the box `Marker` (provided).
+- RViz: `Pose` display on `/object_position` and `/drop_box_position`, plus the box `Marker` (provided). The cube itself shows as the brain's locked target in `/brain/markers`, from `APPROACH` to `LIFT` (06 §7), not as a marker following `/object_position`, which would draw the held cube off (§7).
 - RViz `Camera` display (optional): overlays the 3D model on the image through the camera TF — an **excellent visual check** of the extrinsic calibration.
 
 ## 10. Extrinsic calibration methods compared (including the demo's single ArUco)

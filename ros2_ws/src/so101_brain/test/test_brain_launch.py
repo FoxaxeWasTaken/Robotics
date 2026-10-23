@@ -52,6 +52,7 @@ class TestBrain(unittest.TestCase):
         cls.node = rclpy.create_node("test_brain")
         cls.q = dict.fromkeys(JOINTS, 0.0)  # the fake arm: at q = 0, follows every command at once
         cls.alive = True  # the fake driver publishes /joint_states
+        cls.effort = 0.0  # its normalized gripper effort: above 0.06, the cube is held (ADR-016)
         cls.commands, cls.arrivals, cls.poses, cls.sent, cls.markers = [], [], [], [], []
         cls.states = []  # /brain_state as (arrival, monotonic s; data)
         cls.pub_states = cls.node.create_publisher(JointState, "/joint_states", 10)
@@ -109,6 +110,7 @@ class TestBrain(unittest.TestCase):
             return
         cls.last_state_sent = time.monotonic()
         msg = JointState(name=JOINTS, position=[cls.q[n] for n in JOINTS])
+        msg.effort = [cls.effort if n == "gripper" else 0.0 for n in JOINTS]
         msg.header.stamp = cls.node.get_clock().now().to_msg()
         cls.sent.append(msg.header.stamp)
         cls.pub_states.publish(msg)
@@ -286,18 +288,27 @@ class TestBrain(unittest.TestCase):
         self.spin_for(0.5)
         self.assertGreater(len(self.commands) - streamed, 15, "APPROACH streams at 50 Hz")
         self.wait_for_state("DESCEND", timeout=8.0)  # the arm at the pre-grasp and the gripper read open
+        type(self).effort = 0.1
+        try:
+            self.wait_for_state("LIFT", timeout=4.0)
+            self.spin_for(0.3)
+        finally:
+            type(self).effort = 0.0
+        deleted = [(m.ns, m.action) for array in self.markers[-1:] for m in array.markers]
+        self.assertEqual(deleted, [("cube", Marker.DELETE)], "the cube marker stays once the cube is held")
         self.assertTrue(self.trigger(self.stop).success)
         self.wait_for_state("IDLE")
 
     def check_markers(self):
         """/brain/markers of the plan (06 §7): pre-grasp yellow, grasp green, drop blue spheres, approach
-        arrow, at the TCP positions of the plan's configurations (IK checked by FK within 1 mm)."""
+        arrow, at the TCP positions of the plan's configurations (IK checked by FK within 1 mm); the locked
+        cube, a red 5 cm cube turned by its yaw (#129)."""
         end = time.monotonic() + 2.0
         while not self.markers and time.monotonic() < end:
             rclpy.spin_once(self.node, timeout_sec=0.05)
         self.assertTrue(self.markers, "no /brain/markers")
         markers = {m.ns: m for m in self.markers[-1].markers}
-        self.assertEqual(sorted(markers), ["approach", "drop", "grasp", "pre_grasp"])
+        self.assertEqual(sorted(markers), ["approach", "cube", "drop", "grasp", "pre_grasp"])
         self.assertEqual({m.header.frame_id for m in markers.values()}, {"base_link"})
         colors = {
             ns: (m.color.r, m.color.g, m.color.b) for ns, m in markers.items() if m.type == Marker.SPHERE
@@ -316,6 +327,12 @@ class TestBrain(unittest.TestCase):
         arrow = markers["approach"]
         self.assertEqual(arrow.type, Marker.ARROW)
         np.testing.assert_allclose([xyz(p) for p in arrow.points], [pre, grasp], atol=1e-9)
+        cube = markers["cube"]
+        self.assertEqual((cube.type, cube.color.r, cube.color.g, cube.color.b), (Marker.CUBE, 1.0, 0.0, 0.0))
+        np.testing.assert_allclose(xyz(cube.pose.position), CUBE, atol=1e-9)
+        np.testing.assert_allclose([cube.scale.x, cube.scale.y, cube.scale.z], [0.05] * 3)
+        q = cube.pose.orientation
+        np.testing.assert_allclose([q.x, q.y, q.z, q.w], [0.0, 0.0, np.sin(0.15), np.cos(0.15)], atol=1e-9)
 
     def test_9_an_unreachable_cube_is_an_error_without_any_command(self):
         type(self).cube_at, type(self).cube_frame = (0.5, 0.0, 0.025), "base_link"

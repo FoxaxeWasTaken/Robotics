@@ -41,7 +41,7 @@ flowchart LR
 | --- | --- | --- | --- | --- |
 | `so101_driver` | ament_python | control | `driver_node`: sim/real backend, control loop, camera, sim services | Base driver (step 1.0): `/joint_states`, `/joint_command`, speed limiter; sim camera thread (step 1.2); clamp, parameters, `camera_info`, effort (1.1, 1.3); `/sim/randomize`, `seed`, ground truth (1.4); provided `_connect_arm` unchanged (ADR-032) |
 | `so101_brain` | ament_python | control | `brain_node` + pure modules: `kinematics.py`, `grasp_planner.py`, `trajectory.py`, `fsm.py` | FK/IK in `kinematics.py` (step 2.1), min-jerk `trajectory.py` (2.2); `/end_effector_pose`, `/go_to_target` streaming a trajectory; orientation IK (2.1b), `grasp_planner.py` validated in closed loop (2.4); pure `fsm.py` (4.1) driven by a 50 Hz tick, `/brain/start`, `/brain/stop`, `/brain_state` (4.2a); planning worker, `/brain/markers` (4.2b): full cycle in sim with the ground-truth stub (4.2c) |
-| `so101_perception` | ament_python | perception | `perception_node` + pure modules: `detection.py`, `geometry.py`, `calibration.py` (offline tool) | `/object_position` and `/drop_box_position` from the HSV detection, the provisional camera pose and the median filter (3.3b, yaw at 3.3c); `/perception/debug_image` with masks, centroids and status; reference images with labels in `test/data/` (3.2a) |
+| `so101_perception` | ament_python | perception | `perception_node` + pure modules: `detection.py`, `geometry.py`, `calibration.py` (offline tool) | `/object_position` and `/drop_box_position` from the HSV detection, the provisional camera pose and the median filter (3.3b), the cube yaw from `minAreaRect` (3.3c); `/perception/debug_image` with masks, centroids and status; reference images with labels in `test/data/` (3.2a) |
 | `so101_interfaces` | ament_cmake | both | `.srv` (existing); phase 2 adds `Connect4Board.msg`, `DropToken.srv` and the `PickPlace` action (ADR-037) | Existing |
 | `so101_description` | ament_python | viz | URDF, meshes, `viz.launch.py`. **Do not modify** (C-08) | Provided |
 | **`so101_common`** | ament_python (pure Python, no dependency) | both | **Single source of truth**: joint names, limits, gripper %↔rad conversion, frame names | **Exists** (ADR-003, step 0.3) |
@@ -67,7 +67,7 @@ This table is **the contract** between team members. Any change goes through a P
 | `/perception/debug_image` | `sensor_msgs/Image` | perception → RViz | 5–10 Hz | Annotated image: masks, centroids, status | `external_cam_optical_frame` | Best effort, depth 1 |
 | `/end_effector_pose` | `geometry_msgs/PoseStamped` | brain → RViz | 30 Hz | TCP pose (`gripper_frame_link`) from forward kinematics | `base_link` | Reliable, depth 10 |
 | `/brain_state` | `std_msgs/String` | brain → human, tests | On each transition + 1 Hz | FSM state name (`IDLE`, `APPROACH`…) | — | Reliable, **transient_local**, depth 1 |
-| `/brain/markers` | `visualization_msgs/MarkerArray` | brain → RViz | On each plan | Grasp/pre-grasp targets, waypoints | `base_link` | Reliable, depth 1 |
+| `/brain/markers` | `visualization_msgs/MarkerArray` | brain → RViz | On each plan | Grasp/pre-grasp targets, waypoints, the locked cube until `LIFT` (`06` §7) | `base_link` | Reliable, depth 1 |
 
 **QoS rule (ADR-004)**: a **Reliable publisher** is compatible with Reliable **and** Best-effort subscribers; the reverse is false, and fails silently [KO1 p29]. All our publishers are therefore Reliable (except debug streams). Subscribers that only want "the latest image" (perception) subscribe Best effort, depth 1.
 
