@@ -1,4 +1,4 @@
-# Install (once per clone):  pip install pre-commit && pre-commit install --install-hooks -t pre-commit -t commit-msg
+# Install (once per clone):  pipx install pre-commit && pre-commit install --install-hooks -t pre-commit -t commit-msg
 # Run on the whole repo:      pre-commit run --all-files
 # Content provided by the course: excluded (we never modify it, see docs/project/15).
 # docs/SUJET.md and the PDF slides are provided by the course (SUJET.md would raise 13 markdownlint issues).

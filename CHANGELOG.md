@@ -34,6 +34,8 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Changed
 
+- Working environment (0.2a), checked on the three machines: the team's `ROS_DOMAIN_ID` is 69 (`docker/.env.example`, compose fallback); the onboarding checklist of `02` §10 gets the C-04 check (talker in `control`, `/chatter` read from `perception`) and no longer says perception is idle; two rows in `13` §2: two talkers on one domain, images lost by Docker Desktop.
+- Team owners (0.1d): `.github/CODEOWNERS` names the lane owners instead of `@member1/2/3`: lane A @FoxaxeWasTaken (`docker/`, `.github/`, driver), lane B @SamuelValentin974 (brain), lane C @Hasnain-Pyarali (perception), `so101_common` A and B, `docs/project/` and the rest all three; `09` §1.2 names the owners and the rotating reviewers. CODEOWNERS stays indicative: the ruleset does not require the owners' review, so any member may approve. The hooks install with `pipx install pre-commit` (plain `pip install` is refused on Ubuntu 24.04, PEP 668).
 - Images: every pip package, dependencies included, pinned in `docker/constraints.txt` (`pip install -c`, both images) at the versions the measurements used (mujoco 3.15.0, ikpy 4.1.0); hadolint DL3013 re-enabled (0.3e).
 - Contributing: a PR may group related tickets (same files or same roadmap step), with one commit and one `Closes #` line per ticket; WIP limit raised from 2 to 5 tickets In progress per person (AGENTS.md, CONTRIBUTING, PR template, `15` §12).
 - CI: nothing runs on the school copy, Dependabot PRs included: the Dependabot exception of `ci.yml` and `pr-title.yml` is limited to this repository.
