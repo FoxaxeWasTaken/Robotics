@@ -97,7 +97,7 @@ Per-symptom details:
 | Several `/dev/video*` | Capture, metadata, infrared | `cat /sys/class/video4linux/video*/name` and `index` (0 = capture) |
 | Real driver stuck at startup | `calibrate()` waits for `input()` | `connect(calibrate=False)` (provided code); provide the calibration file |
 | Real driver: "does not match the motors: wrong file for this arm?" | Calibration file from another arm, or reconfigured motors | Check the file (arm ID); otherwise recalibrate (`07` §3.1). Never force-write the calibration |
-| Real arm limp, ignores `/joint_command`; log "Torque disabled" | The provided `disable_torque()` lines of upstream #2 are active | Comment them out (`07` §3.1 step 6, ADR-032) |
+| Real arm limp, ignores `/joint_command`; log "Torque disabled" | The provided `disable_torque()` lines of upstream #2 are uncommented (a session moving the arm by hand) | Comment them out again (`07` §3.1 step 6, ADR-032) |
 | "No calibration" although `CALIBRATION_FILE` is set | Path does not exist: compose created an **empty root-owned directory** | Fix the path; `sudo rm -rf` the created directory |
 | The real arm collapses on shutdown; log "Shutdown pose not reached" | The move to `PARK` before `disconnect()` ran out of its 4 s (far pose), or the bus was lost (no move) | Stop the arm near `PARK` (the brain parks it after each cycle); hold the forearm (`03` §8) |
 | Real arm: `/joint_states` stops; log "Bus lost after 3 retries" | Serial bus: cable, servo board power, usbipd detached (`ls /dev/ttyACM*`) | Fix the link, then restart the driver (`docker compose restart control`) |

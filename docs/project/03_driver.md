@@ -10,7 +10,7 @@
 | Item | Repository | Bootstrap prototype | Roadmap step (`09`) |
 | --- | --- | --- | --- |
 | `use_sim` backend, provided `_connect_arm` (explicit failure on calibration mismatch) | ✅ provided | ✅ | — |
-| Upstream #2: `disable_torque()` right after connecting (limp arm, commands ignored) | Active, as the course ships it: the real arm can be read, not moved | Commented out | Comment it out at 6.1a, once the clamp (1.1a) and the real-arm speed (1.1b) exist (ADR-032, `07` §2); uncomment to move the arm by hand (`07` §3.2, test 1) |
+| Upstream #2: `disable_torque()` right after connecting (limp arm, commands ignored) | Commented out (6.1a), after the clamp (1.1a), the real-arm speed (1.1b) and the shutdown move: the real arm obeys `/joint_command` (ADR-032, `07` §2) | Commented out | 6.1a; uncomment for a session where the arm is moved by hand (`07` §3.2, test 1) |
 | Partial commands by name; empty name list = `JOINT_NAMES` order | ✅ (step 1.0) | ✅ | 1.0 |
 | Speed limiter (1.5 rad/s; gripper 200 %/s) | ✅ `limiter.py`; parameters since step 1.1 | ✅ | 1.0, 1.1 |
 | `/joint_states` ≥ 20 Hz, gripper in rad, stamp = read time | ✅ 30.0 Hz (step 1.0) | ✅ 30.0 Hz (9 Hz before the camera fix) | 1.0 |
