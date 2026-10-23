@@ -47,9 +47,35 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: bash tools/ci/upstream_check.sh
 
-  evaluation:
-    name: Full evaluation bench
+  main-changed:
+    name: Bench due? (main changed since the last one)
     if: ${{ vars.CI_ENABLED == 'true' && vars.E2E_ENABLED == 'true' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read  # the previous nightly runs and their jobs
+    outputs:
+      evaluate: ${{ steps.due.outputs.evaluate }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: due
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then echo "evaluate=true"; else
+            bash tools/ci/evaluation_due.sh "$SHA"; fi | tee -a "$GITHUB_OUTPUT"
+
+  evaluation:
+    name: Full evaluation bench  # evaluation_due.sh finds the previous benches by this name
+    needs: main-changed
+    # Skipped only on an explicit "false" (#146): if the check itself fails, the bench runs.
+    if: >-
+      ${{ !cancelled() && needs.main-changed.outputs.evaluate != 'false' &&
+      vars.CI_ENABLED == 'true' && vars.E2E_ENABLED == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:

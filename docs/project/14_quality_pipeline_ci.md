@@ -42,7 +42,7 @@ flowchart LR
 | Editor (ruff, markdownlint) | While typing | Instant | Style, imports, trivial errors |
 | `pre-commit` | Every `git commit` | < 10 s | Lint, format, invalid YAML/XML/TOML, large files, private keys, commit message |
 | Local tests (`colcon test --packages-select …`) | Before pushing | < 1 min per package | Unit and component regressions |
-| PR CI | Every push to a PR | ≈ 10–15 min (cached) | All of the above + project-rule guards + clean build + short E2E |
+| PR CI | Every push to a PR ready for review (a draft or a docs-only change: lint, guards and PR title only, §5.4) | ≈ 17 min (cached) | All of the above + project-rule guards + clean build + short E2E |
 | Nightly | Every night or on demand | 30–60 min | 50-episode success rate, diagrams, external links, new course commits |
 | Release | Every tag | — | Frozen evaluation report, release notes |
 
@@ -100,23 +100,23 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  A["lint<br/>pre-commit --all-files<br/>≈ 1 min"] --> C
+  A["lint<br/>pre-commit --all-files<br/>+ draft or docs only? (§5.4)<br/>≈ 1 min"] --> C
   B["guards<br/>C-05 · C-06 · C-23<br/>≈ 10 s"] --> C
   A --> P
   B --> P
   C["control<br/>image build (cache) + colcon build/test<br/>≈ 5–10 min"] --> E
   P["perception<br/>image build + perception tests<br/>≈ 3–5 min"] --> E
-  E["e2e-smoke<br/>3 sim episodes<br/>(if E2E_ENABLED)"]
+  E["e2e-smoke<br/>3 sim episodes<br/>(PRs, if E2E_ENABLED)"]
 ```
 
 | Job | Fails when… | Artifacts |
 | --- | --- | --- |
-| `lint` | A ruff, markdownlint, actionlint, zizmor, shellcheck or hadolint rule is violated, a file is not formatted, a YAML is invalid, a file exceeds 1 MB, gitleaks finds a secret in the history | Diff shown (`--show-diff-on-failure`) |
+| `lint` | Also decides whether `control`, `perception` and `e2e-smoke` run (§5.4). Fails when a ruff, markdownlint, actionlint, zizmor, shellcheck or hadolint rule is violated, a file is not formatted, a YAML is invalid, a file exceeds 1 MB, gitleaks finds a secret in the history | Diff shown (`--show-diff-on-failure`) |
 | `PR title` (`pr-title.yml`) | The PR title is not `type(scope): description` | — |
 | `guards` | brain or perception imports the backend; ground truth or provided extrinsics appear in the pipeline | Offending lines |
 | `control` | `colcon build` fails or a test fails (`colcon test-result --verbose`); only packages with a `test/` folder are tested, one at a time (`--executor sequential`): in parallel, the brain's IK property tests starved the driver's camera test (2.7 Hz on the 4-vCPU runner) | Each package's `pytest.xml` |
 | `perception` | Same for the perception packages (separate build, ADR-002); **skipped until `COLCON_IGNORE` is removed** (step 3.1) | — |
-| `e2e-smoke` | The stack is not ready within 15 min (`tools/ci/wait_for_stack.sh`), or the bench stops (exit 2: no ground truth, no brain pose). The success rate is in `eval.csv` and the log, not a pass threshold yet: at 80 % per episode, requiring 3/3 would fail about one run in two. The threshold comes with the 50-episode statistics (4.5b). On failure, the job prints `docker compose ps -a` (an exited container shows there) and the last 150 log lines of `control` and `perception`, then the nodes a fresh process finds and whether `/joint_states` and `/end_effector_pose` reach it (#141). The stack runs with `FASTDDS_BUILTIN_TRANSPORTS=DEFAULT`, as the control tests: under the compose default `LARGE_DATA`, a fresh process missed the driver or the brain for 60 s in 2 of 5 runs on the runner. | `eval.csv` |
+| `e2e-smoke` | PRs only (§5.4). The stack is not ready within 15 min (`tools/ci/wait_for_stack.sh`), or the bench stops (exit 2: no ground truth, no brain pose). The success rate is in `eval.csv` and the log, not a pass threshold yet: at 80 % per episode, requiring 3/3 would fail about one run in two. The threshold comes with the 50-episode statistics (4.5b). On failure, the job prints `docker compose ps -a` (an exited container shows there) and the last 150 log lines of `control` and `perception`, then the nodes a fresh process finds and whether `/joint_states` and `/end_effector_pose` reach it (#141). The stack runs with `FASTDDS_BUILTIN_TRANSPORTS=DEFAULT`, as the control tests: under the compose default `LARGE_DATA`, a fresh process missed the driver or the brain for 60 s in 2 of 5 runs on the runner. | `eval.csv` |
 
 ### 5.2 Technical notes
 
@@ -131,17 +131,45 @@ flowchart LR
 
 ### 5.3 Minute budget
 
+GitHub bills each job rounded up to the minute. Measured on 2026-10-23 (#146), from the jobs' durations:
+
+| Run | Billed |
+| --- | --- |
+| PR push that changes code | 22 min: `control` 12, E2E 4, `perception` 2, lint, guards, coverage comment and PR title 1 each |
+| Draft or docs-only PR push (§5.4) | 3 min: lint, guards, PR title |
+| Push to `main` (a merge) | 16 min: as a PR push, without the E2E job, the coverage comment and the PR title |
+| Nightly, `main` unchanged | 5 to 6 min: docs 3–4, course watch 1, `main-changed` 1 |
+| Nightly, `main` changed | + about 20 min: build and 50 episodes (estimate, the first scheduled bench is the night of 2026-10-23) |
+
+The table below is the plan from 2026-10-15:
+
 | Repo | GitHub quota (free plan) | Estimate | Consequence |
 | --- | --- | --- | --- |
 | Public | Unlimited | — | Daily nightly without constraint |
 | Private, GitHub Pro (our plan) | 3,000 min/month | Measured on 2026-10-15: a cached PR run ≈ 3.4 min of jobs, ≈ 6 billed (each job rounded up to the minute); first build ≈ 10 min. 100 PR pushes ≈ 600 min, leaving room for a nightly bench (≈ 45 min) most days | Daily nightly once the bench exists; watch Settings → Billing |
+
+### 5.4 What runs when (#146)
+
+| Event | lint, guards, PR title | `control`, `perception`, coverage comment | `e2e-smoke` |
+| --- | --- | --- | --- |
+| PR push that changes code | Run | Run | Run |
+| PR push that only touches documentation | Run | Skipped | Skipped |
+| Push to a **draft** PR | Run | Skipped | Skipped |
+| **Ready for review** (and every later push) | Run | Run, unless documentation only | Run, unless documentation only |
+| Push to `main` | Run | Run: the check after the merge, the coverage baseline | Skipped: the PR ran it on the same tree (its branch merges `main` first), and the nightly bench covers `main` |
+
+- **Documentation only** (`tools/ci/docs_only.sh`): every changed file is a `*.md`, a PDF or an image under `docs/`, or an issue form (`.github/ISSUE_TEMPLATE/`). The list is `git diff --name-only --no-renames` of the PR's merge commit against its base: a file moved from code to a `.md` still counts as code. Code, tests and their data (the perception's reference images), experiments, workflows, Docker, launch, config and tooling files always run everything, and so does an empty list.
+- The `lint` job decides, not a separate job: `lint` is a required check, so a failed decision blocks the PR instead of letting it merge without its tests, and no extra job is billed.
+- **A skipped required check counts as passed**: a docs-only PR merges with `control` and `perception` skipped. A draft cannot be merged, and marking it ready reruns everything.
+- Tested without GitHub by `tools/ci/test_ci_skips.sh` (pre-commit, when one of the scripts changes).
 
 ## 6. Nightly
 
 ```mermaid
 flowchart LR
   S["cron 03:00 UTC<br/>or workflow_dispatch"] --> D["docs<br/>mermaid-cli + lychee"]
-  S --> V["evaluation<br/>compose up control+perception+viz<br/>50 randomized episodes"]
+  S --> MC["main-changed<br/>main moved since the last bench?"]
+  MC -->|"yes, or workflow_dispatch"| V["evaluation<br/>compose up control+perception+viz<br/>50 randomized episodes"]
   V --> R["artifacts<br/>eval.csv + failure rosbags (14 days)"]
   R --> H["Humans: success-rate trend,<br/>failure-cause analysis"]
   S --> W["upstream<br/>course main vs .github/upstream-sha"]
@@ -149,6 +177,7 @@ flowchart LR
 ```
 
 - The bench writes one CSV row per episode: poses, final state, duration, failure cause (`08` §3).
+- The bench runs only when `main` changed (#146): `main-changed` (`tools/ci/evaluation_due.sh`) finds the newest nightly run whose bench gave a verdict, success or failure, and skips the bench when that run was on the same commit. Skipped nights are passed over, and so are cancelled or timed-out benches. Any doubt runs it: no verdict among the last 30 runs, or the API failing; the bench is then skipped only on an explicit `false`. A failed bench is not rerun on the same commit: it was reported that night, and `workflow_dispatch` always runs it.
 - On failure, the evaluation job prints the stack state, the logs and the links still alive, and runs on the `DEFAULT` transports, as `e2e-smoke` (#141).
 - The `upstream` job (#137) compares the course's `main` with `.github/upstream-sha`. When they differ, it opens one issue listing the new commits and their files, or updates the one already open. It runs without `E2E_ENABLED`, and its token can only write issues.
 - Reports of important milestones are **versioned by hand** in `results/` (small CSV/MD), never the rosbags (ADR-029).

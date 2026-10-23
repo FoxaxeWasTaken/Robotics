@@ -4,6 +4,7 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]  # ready: a draft's pushes run the light jobs only
   push:
     branches: [main]
 
@@ -17,16 +18,35 @@ permissions:
 # Dependabot PRs run like fork PRs: repository variables may not reach them, and a skipped required
 # check counts as passed. Hence the jobs also run when Dependabot is the author, in this repository
 # only: the school copy mirrors dependabot.yml and must run nothing (docs/project/16 §4).
+# Billed minutes (#146): a draft PR or a docs-only change runs lint and guards only, decided in the lint job (a
+# required check: a failed decision blocks the PR instead of skipping the tests); no E2E on a push to main.
 jobs:
   lint:
     if: ${{ vars.CI_ENABLED == 'true' || (github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'FoxaxeWasTaken/Robotics') }}   # opt-in: nothing runs on the school mirror
     name: Lint (pre-commit)
     runs-on: ubuntu-24.04
+    outputs:
+      heavy: ${{ steps.changes.outputs.heavy }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0          # gitleaks scans the whole history
+      - name: Build, tests and E2E needed? (not for a draft or a docs-only change)
+        id: changes
+        env:
+          DRAFT: ${{ github.event.pull_request.draft }}
+        run: |
+          heavy=true
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            if [ "$DRAFT" = true ]; then
+              heavy=false && echo "Draft: lint and guards only; Ready for review runs every job."
+            # The PR's merge commit against its base, renames as delete + add: code moved into a .md still counts.
+            elif git diff --name-only --no-renames HEAD^1 HEAD | bash tools/ci/docs_only.sh; then
+              heavy=false
+            fi
+          fi
+          echo "heavy=$heavy" | tee -a "$GITHUB_OUTPUT"
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
@@ -51,7 +71,7 @@ jobs:
       - run: bash tools/ci/guards.sh
 
   control:
-    if: ${{ vars.CI_ENABLED == 'true' || (github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'FoxaxeWasTaken/Robotics') }}   # opt-in: nothing runs on the school mirror
+    if: ${{ needs.lint.outputs.heavy == 'true' && (vars.CI_ENABLED == 'true' || (github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'FoxaxeWasTaken/Robotics')) }}   # opt-in: nothing runs on the school mirror
     name: Build + tests (control image)
     runs-on: ubuntu-24.04
     needs: [lint, guards]
@@ -130,7 +150,7 @@ jobs:
           MINIMUM_ORANGE: 60
 
   perception:
-    if: ${{ vars.CI_ENABLED == 'true' || (github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'FoxaxeWasTaken/Robotics') }}   # opt-in: nothing runs on the school mirror
+    if: ${{ needs.lint.outputs.heavy == 'true' && (vars.CI_ENABLED == 'true' || (github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'FoxaxeWasTaken/Robotics')) }}   # opt-in: nothing runs on the school mirror
     name: Build + tests (perception image)
     runs-on: ubuntu-24.04
     needs: [lint, guards]
@@ -159,8 +179,9 @@ jobs:
 
   e2e-smoke:
     name: E2E sim (3 episodes)
-    # Enabled on 2026-10-23, after #139: Settings → Variables → E2E_ENABLED = true
-    if: ${{ vars.CI_ENABLED == 'true' && vars.E2E_ENABLED == 'true' }}
+    # Enabled on 2026-10-23, after #139: Settings → Variables → E2E_ENABLED = true. PRs only: the PR ran it on
+    # the tree that lands on main (its branch merges main first), and the nightly bench covers main.
+    if: ${{ github.event_name == 'pull_request' && vars.CI_ENABLED == 'true' && vars.E2E_ENABLED == 'true' }}
     runs-on: ubuntu-24.04
     needs: [control, perception]
     timeout-minutes: 30
