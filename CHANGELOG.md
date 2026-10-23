@@ -52,6 +52,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Fixed
 
+- The E2E bench at a stack start (#141): once, on a CI runner, `evaluate` stopped before its first episode with `/so101_driver/get_parameters: no such service`; its rerun did 3/3. On a stack pinned to 2 cores, a fresh process finds the driver in 1.5 to 1.8 s (5 runs), so the cause is not the load alone. The first call now waits up to 60 s and prints how long it took; both E2E jobs print `docker compose ps -a` and the stack logs on failure.
 - A cycle started before the brain sees `/joint_states` (#132): `test_pick_place_gt_launch` failed once in CI with `ERROR:no_joint_states`, `/brain/start` 13 ms after "Brain node ready". It and `test_ik_accuracy` now wait for the first `/end_effector_pose`, as `test_brain_launch` does (#119); `evaluate` too, and stops (exit 2) without one in 10 s.
 - Sim `camera_info`: the principal point is now in OpenCV pixel coordinates, (159.5, 119.5) at 320×240 instead of the provided (160, 120), which put pixel edges on integers. Every OpenCV centroid was half a pixel off: cube error 2.63 → 0.50 mm mean over 50 scenes (MES-41, #122), 2.39 → 0.78 mm on the reference images. The reference images' `labels.json` carries the same K; the images are unchanged.
 - Driver and brain: timers and motion time on the steady clock. On WSL2 the system clock steps back ~2.6 s every 30 s: `/joint_states` stopped and motions froze for 2.6 s at each step; largest `/joint_states` gap now 37 ms [MES-37].

@@ -1,10 +1,12 @@
 """Unit tests of the evaluation bench's scoring and checks (docs/project/08 §3). Pure: no ROS, no sim."""
 
 import argparse
+import inspect
+import re
 
 import pytest
 
-from so101_bringup.evaluate import FIELDS, outcome, run, summary
+from so101_bringup.evaluate import FIELDS, Bench, outcome, run, summary
 
 BOX = (0.10, -0.25, 0.0)  # floor center
 
@@ -16,8 +18,10 @@ class FakeBench:
         self.truth = {"object": None, "drop_box": None}
         self.pose = pose
         self.episodes = []
+        self.first_wait = None
 
-    def driver_seed(self):
+    def driver_seed(self, timeout_s):
+        self.first_wait = timeout_s
         return 0
 
     def spin_until(self, condition, timeout_s):
@@ -41,6 +45,17 @@ def test_no_episode_starts_while_the_brain_does_not_see_joint_states(tmp_path, c
     assert bench.episodes == []
     assert "/end_effector_pose" in capsys.readouterr().err
     assert not (tmp_path / "eval.csv").exists()
+
+
+def test_the_first_call_waits_a_minute_for_the_driver_and_says_how_long_it_took(tmp_path, capsys):
+    """A fresh process can find the stack late on a CI runner (#141): the first call to the driver waits up to
+    60 s and the bench prints how long it took; later calls keep 10 s, so a driver that dies mid-run still
+    stops the bench quickly."""
+    bench = FakeBench(pose=object())
+    assert run(bench_args(tmp_path), bench) == 0
+    assert bench.first_wait == 60.0
+    assert re.search(r"the driver answered in \d+\.\d s", capsys.readouterr().out)
+    assert inspect.signature(Bench.call).parameters["timeout_s"].default == 10.0
 
 
 def test_the_episodes_run_once_the_brain_publishes_its_pose(tmp_path):
