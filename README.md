@@ -1,6 +1,6 @@
 # SO-ARM101 — autonomous pick & place (ROS 2 · MuJoCo · real arm)
 
-[![CI](https://github.com/FoxaxeWasTaken/Robotics/actions/workflows/ci.yml/badge.svg)](https://github.com/FoxaxeWasTaken/Robotics/actions/workflows/ci.yml) · [Latest bench results](https://github.com/FoxaxeWasTaken/Robotics/issues?q=is%3Aissue+in%3Atitle+%22Nightly+bench+results%22)
+[![Nightly](https://github.com/FoxaxeWasTaken/Robotics/actions/workflows/nightly.yml/badge.svg)](https://github.com/FoxaxeWasTaken/Robotics/actions/workflows/nightly.yml) · [Latest bench results](https://github.com/FoxaxeWasTaken/Robotics/issues?q=is%3Aissue+in%3Atitle+%22Nightly+bench+results%22)
 
 A camera spots a red cube, the SO-ARM101 arm grasps it and drops it into a box — in MuJoCo simulation, then on the real robot — with a ROS 2 stack written by the team.
 

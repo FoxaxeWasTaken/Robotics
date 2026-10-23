@@ -31,7 +31,7 @@ Full environment (WSL2, usbipd, RViz): `docs/project/02`.
 
 5. Commit with a **conventional message**: `feat(driver): publish camera_info` (§2.1; the hook rejects anything else).
 6. Open a PR with `Closes #<issue#>`, fill in the checklist; CODEOWNERS requests the review and the ticket moves to **In review**. A **draft** PR runs only lint, the guards and the PR title check: mark it **Ready for review** to run the build, the tests and the E2E job. A PR that only touches documentation never runs them (`docs/project/14` §5.4).
-7. **Squash merge** once CI is green and the PR is approved. A draft that waited for another PR: merge `main` into its branch (never rebase or force-push), then mark it ready, so that its full CI runs on the merged tree. The squash commit takes the **PR title**, so it must be conventional too (§2.1), CI checks it: the ticket closes and moves to **Done**, the branch is deleted.
+7. **Squash merge** once CI is green and the PR is approved. GitHub requires the branch to be **up to date with `main`**: if `main` moved, click *Update branch* (a merge; never rebase or force-push) and wait for the CI again. `main` gets no CI of its own (`docs/project/14` §5.4). A draft that waited for another PR: merge `main` into its branch (never rebase or force-push), then mark it ready, so that its full CI runs on the merged tree. The squash commit takes the **PR title**, so it must be conventional too (§2.1), CI checks it: the ticket closes and moves to **Done**, the branch is deleted.
 
 ### 2.1 Naming: branches, commits, PR titles
 

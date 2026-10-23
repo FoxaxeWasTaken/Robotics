@@ -6,6 +6,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Added
 
+- No CI run on a push to `main` (#153): the `main protection` ruleset now requires a PR to be up to date with `main` before it merges, so `main` gets the exact tree its CI tested; a run after the merge repeated it for 16 billed minutes. The mirror and the nightly still run on `main`. The README badge is the nightly's. `14` §5.3, §5.4; CONTRIBUTING §2.
 - Nightly bench report (#151): each night the bench runs, `tools/ci/bench_report.sh` writes its summary line (success rate, p50/p95, causes), the commit of `main`, the target (≥ 90 %, informative) and the run link to the run summary and to one comment on the issue "Nightly bench results", created by the first report. A bench that stopped, or never started, is reported too. Tested offline by `tools/ci/test_bench_report.sh` (pre-commit). README link "Latest bench results"; `14` §6, `08` §2.
 - `tools/so101` (step 5.1f, #133): one entry point for the everyday commands of the sim stack, `up`, `down`, `logs`, `shell`, `rviz`, `cycle` (randomize, start, then `/brain_state` until `DONE` or `ERROR`), `bench --stub|--perception [-n N] [--bags DIR]` and `test <package>`. Each prints the `docker compose` command it runs; `--dry-run` only prints it. The bench runs on ROS domain 77, never the stack's, and refuses to start when a stack already answers there. `tools/ci/test_so101.sh` (pre-commit) checks every dry run without Docker. `02` §10 and `13` §1 use it.
 - Every tunable in YAML (step 5.1a, #57):
