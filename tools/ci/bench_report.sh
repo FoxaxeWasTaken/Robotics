@@ -2,7 +2,7 @@
 # Nightly bench report (#151): the bench's summary line, the commit, the target and the run, written to the run
 # summary ($GITHUB_STEP_SUMMARY) and as one comment on the issue "Nightly bench results", created if none is open.
 # A bench that stopped before its summary line is reported too. Needs `gh` allowed to write issues (GH_TOKEN) and
-# SHA, EPISODES, RUN_URL, ARTIFACT in the environment.
+# REF (the branch tested: main, or the branch of a workflow_dispatch), SHA, EPISODES, RUN_URL, ARTIFACT in the environment.
 # Usage, from the repository root: bash tools/ci/bench_report.sh <bench log>   (tested by test_bench_report.sh)
 set -euo pipefail
 title="Nightly bench results"
@@ -12,7 +12,7 @@ body=$(mktemp)
 {
   echo "### Nightly bench, $(date -u +%F)"
   echo
-  echo "\`main\` at \`${SHA:0:7}\`, $EPISODES episodes, randomized cube and box, real perception."
+  echo "\`$REF\` at \`${SHA:0:7}\`, $EPISODES episodes, randomized cube and box, real perception."
   echo
   if [ -n "$line" ]; then
     rate=$(sed -E 's/^success [0-9]+\/[0-9]+ \(([0-9]+) %\).*/\1/' <<< "$line")
@@ -31,7 +31,8 @@ number=$(gh issue list --state open --limit 100 --json number,title --jq ".[] | 
 if [ -z "$number" ]; then
   intro=$(mktemp)
   echo "One comment per nightly bench (\`.github/workflows/nightly.yml\`, \`tools/ci/bench_report.sh\`). Pin this issue." > "$intro"
-  number=$(gh issue create --title "$title" --body-file "$intro" | sed -E 's|.*/issues/||')
+  # label "report": the project views leave it out, it is not a work item
+  number=$(gh issue create --title "$title" --label report --body-file "$intro" | sed -E 's|.*/issues/||')
 fi
 gh issue comment "$number" --body-file "$body"
 echo "Commented on issue #$number"
