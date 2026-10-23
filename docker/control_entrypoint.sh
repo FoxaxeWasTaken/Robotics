@@ -28,8 +28,12 @@ for i in 0 1 2 3; do
   [ -e /dev/video$i ] || mknod /dev/video$i c 81 $i 2>/dev/null && chmod 666 /dev/video$i 2>/dev/null || true
 done
 
-launch so101_bringup sim.launch.py "use_sim:=${USE_SIM:-true}" "port:=${REAL_ROBOT_PORT:-/dev/ttyACM0}" \
-  "expose_ground_truth:=${EXPOSE_GROUND_TRUTH:-false}"  # evaluation bench only (C-06): the E2E jobs set it
+if [ "${USE_SIM:-true}" = false ]; then  # the real arm: driver_real.yaml and brain_real.yaml on top (01 §3.3)
+  launch so101_bringup real.launch.py "port:=${REAL_ROBOT_PORT:-/dev/ttyACM0}"
+else
+  launch so101_bringup sim.launch.py \
+    "expose_ground_truth:=${EXPOSE_GROUND_TRUTH:-false}"  # evaluation bench only (C-06): the E2E jobs set it
+fi
 
 shutdown() {
   trap - TERM INT

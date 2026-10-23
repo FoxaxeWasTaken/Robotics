@@ -58,13 +58,18 @@ PARAMETERS = {
     "seed": (0, "Seed of /sim/randomize: cube and box positions (sim)", 0, 2**31 - 1),
     "max_relative_target_arm": (0.2, "Real arm: LeRobot max delta per command, arm joints, rad", 0.01, 1.0),
     "max_relative_target_gripper": (25.0, "Real arm: LeRobot max delta per command, gripper, %", 1.0, 100.0),
+    "shutdown_velocity": (
+        0.5,
+        "Move to shutdown_pose before disconnect, rad/s, at most max_joint_velocity",
+        0.1,
+        1.5,
+    ),
+    "shutdown_tolerance": (0.05, "shutdown_pose reached when every arm joint is this close, rad", 0.005, 0.2),
+    "bus_retries": (3, "Failed control ticks retried before the driver stops (03 §8)", 0, 20),
 }
 SHUTDOWN_POSE = [1.9, -1.7, 1.5, 0.7, 0.0]  # rad, ARM_JOINT_NAMES order: the brain's PARK (brain.yaml)
-SHUTDOWN_VELOCITY = 0.5  # rad/s, at most
 # ros2 launch sends SIGTERM 5 s after SIGINT: the move ends before, a second signal would interrupt it.
 SHUTDOWN_TIMEOUT = 4.0  # s
-SHUTDOWN_TOLERANCE = 0.05  # rad
-BUS_RETRIES = 3  # failed control ticks retried before the driver stops (03 §8)
 GROUND_TRUTH_RATE_HZ = 10.0
 GROUND_TRUTH_BODIES = {"object": "pickup_object", "drop_box": "drop_box"}  # /sim/ground_truth/<key>: body
 PARKED_BOX_XY = (2.0, 0.0)  # m: the box waits there while the randomized cube settles
@@ -80,8 +85,16 @@ class DriverNode(rclpy.node.Node):
 
     def __init__(self):
         super().__init__("so101_driver")
-        self._use_sim: bool = self.declare_parameter("use_sim", True).value
-        port: str = self.declare_parameter("port", DEFAULT_PORT).value
+        self._use_sim: bool = self.declare_parameter(
+            "use_sim",
+            True,
+            ParameterDescriptor(description="Simulated backend or real arm (C-10)", read_only=True),
+        ).value
+        port: str = self.declare_parameter(
+            "port",
+            DEFAULT_PORT,
+            ParameterDescriptor(description="Serial port of the real arm", read_only=True),
+        ).value
         mode = "simulation" if self._use_sim else "hardware"
         self.get_logger().info(f"Mode: {mode} (port={port})")
         self._p = {name: self._declare(name, *spec) for name, spec in PARAMETERS.items()}
@@ -116,6 +129,9 @@ class DriverNode(rclpy.node.Node):
         ).value
         if len(self._shutdown_pose) != len(ARM_JOINT_NAMES):
             raise ValueError(f"shutdown_pose needs {len(ARM_JOINT_NAMES)} values, got {self._shutdown_pose}")
+        # ROS ignores a key no node declares: a typo in driver_real.yaml would keep the sim's value (#57).
+        if unknown := sorted(set(self._parameter_overrides) - set(self._parameters)):  # rclpy: no public API
+            raise ValueError(f"Unknown parameters {unknown}: a typo in a config file? (01 §3.3)")
 
         self._robot = self._connect_arm(port)
         self.get_logger().info(f"Robot connected: {type(self._robot).__name__}")
@@ -249,7 +265,7 @@ class DriverNode(rclpy.node.Node):
     def _move_to_shutdown_pose(self):
         """Direct backend calls at the control rate: the executor no longer runs the timers."""
         goal = dict(zip(ARM_JOINT_NAMES, self._shutdown_pose, strict=True))
-        velocity = min(SHUTDOWN_VELOCITY, self._p["max_joint_velocity"])
+        velocity = min(self._p["shutdown_velocity"], self._p["max_joint_velocity"])
         try:
             elapsed, error = move_to(
                 self._robot,
@@ -258,12 +274,12 @@ class DriverNode(rclpy.node.Node):
                 self._p["control_rate_hz"],
                 velocity,
                 SHUTDOWN_TIMEOUT,
-                SHUTDOWN_TOLERANCE,
+                self._p["shutdown_tolerance"],
             )
         except (OSError, RuntimeError) as error:
             self.get_logger().error(f"Shutdown pose not reached, bus error: {error}")
             return
-        if error <= SHUTDOWN_TOLERANCE:
+        if error <= self._p["shutdown_tolerance"]:
             self.get_logger().info(f"Shutdown pose reached in {elapsed:.1f} s.")
         else:
             self.get_logger().warning(
@@ -280,7 +296,7 @@ class DriverNode(rclpy.node.Node):
     def _control_step(self):
         """50 Hz: setpoint towards the goal (speed limiter), send it, read the state back.
 
-        A bus error (ConnectionError, motor packet error) is retried at the next ticks; after BUS_RETRIES
+        A bus error (ConnectionError, motor packet error) is retried at the next ticks; after bus_retries
         retries the driver stops the control and /joint_states, until it is restarted (03 §8).
         """
         if self._bus_lost:
@@ -300,13 +316,13 @@ class DriverNode(rclpy.node.Node):
                     self._effort = normalized_effort(self._robot.model, self._robot.data, JOINT_NAMES)
         except (OSError, RuntimeError) as error:
             self._bus_errors += 1
-            if self._bus_errors <= BUS_RETRIES:
-                self.get_logger().warning(f"Bus error {self._bus_errors}/{BUS_RETRIES}, retrying: {error}")
+            retries = self._p["bus_retries"]
+            if self._bus_errors <= retries:
+                self.get_logger().warning(f"Bus error {self._bus_errors}/{retries}, retrying: {error}")
             else:
                 self._bus_lost = True
                 self.get_logger().error(
-                    f"Bus lost after {BUS_RETRIES} retries ({error}): "
-                    "/joint_states stopped; restart the driver."
+                    f"Bus lost after {retries} retries ({error}): /joint_states stopped; restart the driver."
                 )
             return
         self._bus_errors = 0

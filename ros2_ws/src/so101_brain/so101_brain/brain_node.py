@@ -42,8 +42,85 @@ from so101_interfaces.srv import GoToTarget
 END_EFFECTOR_POSE_HZ = 30.0  # docs/project/01 §3.1
 STREAM_HZ = 50.0  # the FSM tick, /joint_command during a motion (04 §6, 06 §4)
 STATE_HZ = 1.0  # /brain_state, also on each transition (01 §3.1)
-MIN_MOTION_DURATION = 0.5  # s: T_min of the min-jerk duration (04 §6)
-TIMEOUT_MARGIN = 1.0  # s: not reached at T + this margin -> warning, motion dropped (04 §6)
+# Startup-only parameters (06 §6), values in so101_bringup/config/brain.yaml: name: (fsm.Params field,
+# description, min, max), the default is the field's; fsm.park_pose and the planner's grasp.* are apart.
+PARAMETERS = {
+    "motion.v_max_rad_s": ("v_max", "Peak arm joint speed of a motion, rad/s", 0.05, 1.5),
+    "motion.reach_tol_rad": (
+        "reach_tol",
+        "Target reached when every arm joint is this close, rad",
+        0.001,
+        0.1,
+    ),
+    "motion.min_duration_s": ("min_motion_s", "Shortest min-jerk motion, s (04 §6)", 0.1, 5.0),
+    "motion.timeout_margin_s": (
+        "motion_margin_s",
+        "Not reached at T + this margin: timeout, s (04 §6)",
+        0.1,
+        10.0,
+    ),
+    "grasp.open_pct": ("open_pct", "Gripper open, %", 0.0, 100.0),
+    "grasp.close_pct": ("close_pct", "Gripper closed on the cube, %", 0.0, 100.0),
+    "grasp.gripper_tol_pct": (
+        "gripper_tol_pct",
+        "APPROACH waits for the measured gripper this close to open, %",
+        0.5,
+        20.0,
+    ),
+    "grasp.effort_threshold": (
+        "effort_threshold",
+        "Normalized gripper closing force above which the cube is held (ADR-016)",
+        0.0,
+        1.0,
+    ),
+    "fsm.target_lock_n": ("target_lock_n", "Consistent detections that lock the target", 1, 50),
+    "fsm.target_lock_spread_m": (
+        "target_lock_spread_m",
+        "The locking detections lie within this distance of each other, m",
+        0.0005,
+        0.05,
+    ),
+    "fsm.max_detection_age_s": (
+        "max_detection_age_s",
+        "The newest locking detection is younger than this, s",
+        0.05,
+        5.0,
+    ),
+    "fsm.max_joint_state_age_s": (
+        "max_joint_state_age_s",
+        "/joint_states older than this during a cycle: ERROR:no_joint_states, s",
+        0.05,
+        5.0,
+    ),
+    "fsm.max_retries": ("max_retries", "Failed attempts before ERROR:grasp_failed", 1, 10),
+    "fsm.wait_target_s": (
+        "wait_target_s",
+        "No target locked this long after PARK: ERROR:object_lost, s",
+        1.0,
+        120.0,
+    ),
+    "fsm.plan_timeout_s": ("plan_timeout_s", "No plan within this time: ERROR:timeout:PLAN, s", 1.0, 60.0),
+    "fsm.grasp_wait_s": ("grasp_wait_s", "GRASP: closing time before the effort is judged, s", 0.1, 5.0),
+    "fsm.grasp_timeout_s": (
+        "grasp_timeout_s",
+        "GRASP: the effort still below the threshold: RETRY, s",
+        0.2,
+        10.0,
+    ),
+    "fsm.release_wait_s": ("release_wait_s", "RELEASE: opening time before HOME, s", 0.1, 5.0),
+    "fsm.verify_timeout_s": (
+        "verify_timeout_s",
+        "VERIFY: no detection this long: DONE with a warning, s",
+        0.5,
+        10.0,
+    ),
+    "fsm.box_half_size_m": (
+        "box_half_size_m",
+        "In the box: the cube center within this distance of the box center, per axis, m (08 §3)",
+        0.01,
+        0.2,
+    ),
+}
 MARKERS = (("pre_grasp", (1.0, 1.0, 0.0)), ("grasp", (0.0, 1.0, 0.0)), ("drop", (0.0, 0.0, 1.0)))  # 06 §7
 
 
@@ -90,53 +167,18 @@ class BrainNode(rclpy.node.Node):
         self._cube = self._box = None  # last /object_position, /drop_box_position (fsm.Detection)
         self._start = self._stop = False  # service requests, for the next tick
         self._motion = None  # running /go_to_target trajectory: (MinJerk, start time in s)
-        # Startup-only parameters (06 §6), values in so101_bringup/config/brain.yaml.
         d = Params()
-        self._v_max = self._declare(
-            "motion.v_max_rad_s", d.v_max, "Peak arm joint speed of a motion, rad/s", 0.05, 1.5
-        )
-        self._reach_tol = self._declare(
-            "motion.reach_tol_rad",
-            d.reach_tol,
-            "Target reached when every arm joint is this close, rad",
-            0.001,
-            0.1,
-        )
-        self._fsm = Fsm(
-            Params(
-                park_pose=self._declare_park_pose(d.park_pose),
-                v_max=self._v_max,
-                min_motion_s=MIN_MOTION_DURATION,
-                reach_tol=self._reach_tol,
-                motion_margin_s=TIMEOUT_MARGIN,
-                open_pct=self._declare("grasp.open_pct", d.open_pct, "Gripper open, %", 0.0, 100.0),
-                close_pct=self._declare(
-                    "grasp.close_pct", d.close_pct, "Gripper closed on the cube, %", 0.0, 100.0
-                ),
-                effort_threshold=self._declare(
-                    "grasp.effort_threshold",
-                    d.effort_threshold,
-                    "Normalized gripper closing force above which the cube is held (ADR-016)",
-                    0.0,
-                    1.0,
-                ),
-                target_lock_n=self._declare(
-                    "fsm.target_lock_n", d.target_lock_n, "Consistent detections that lock the target", 1, 50
-                ),
-                target_lock_spread_m=self._declare(
-                    "fsm.target_lock_spread_m",
-                    d.target_lock_spread_m,
-                    "The locking detections lie within this distance of each other, m",
-                    0.0005,
-                    0.05,
-                ),
-                max_retries=self._declare(
-                    "fsm.max_retries", d.max_retries, "Failed attempts before ERROR:grasp_failed", 1, 10
-                ),
-            )
-        )
-
-        self._worker = planner_pool(str(urdf), self._declare_planner())  # its own process (06 §4)
+        values = {
+            field: self._declare(name, getattr(d, field), description, low, high)
+            for name, (field, description, low, high) in PARAMETERS.items()
+        }
+        self._fsm = Fsm(Params(park_pose=self._declare_park_pose(d.park_pose), **values))
+        self._p = self._fsm.p  # also /go_to_target's motion: v_max, min_motion_s, reach_tol, motion_margin_s
+        planner = self._declare_planner()
+        # ROS ignores a key no node declares: a typo in brain_real.yaml would keep the sim's value (#57).
+        if unknown := sorted(set(self._parameter_overrides) - set(self._parameters)):  # rclpy: no public API
+            raise ValueError(f"Unknown parameters {unknown}: a typo in a config file? (06 §6)")
+        self._worker = planner_pool(str(urdf), planner)  # its own process (06 §4)
         self._planning = None  # the worker's future of the last PLAN
         self._locked = None  # (cube, yaw) of the last PLAN: the cube marker
         self._plan_ticks = []  # tick periods while in PLAN, s (C-33: planning never blocks the tick)
@@ -276,7 +318,7 @@ class BrainNode(rclpy.node.Node):
             return response
         # From the measured position, not the last command: nothing jumps if the arm lagged (06 §5).
         # A new goal replaces the running motion.
-        trajectory = min_jerk(self._joints[0], q, self._v_max, MIN_MOTION_DURATION)
+        trajectory = min_jerk(self._joints[0], q, self._p.v_max, self._p.min_motion_s)
         self._motion = (trajectory, self._now())
         error = np.linalg.norm(self._kin.fk(q)[:3, 3] - p)
         response.success = True
@@ -410,15 +452,15 @@ class BrainNode(rclpy.node.Node):
         if t < trajectory.duration or self._joints is None:
             return
         joint_error = float(np.max(np.abs(self._joints[0] - trajectory.q_goal)))
-        if joint_error < self._reach_tol:
+        if joint_error < self._p.reach_tol:
             tcp_error = np.linalg.norm(
                 self._kin.fk(self._joints[0])[:3, 3] - self._kin.fk(trajectory.q_goal)[:3, 3]
             )
             self.get_logger().info(f"target reached: TCP {tcp_error * 1000:.2f} mm from the IK solution")
             self._motion = None
-        elif t > trajectory.duration + TIMEOUT_MARGIN:
+        elif t > trajectory.duration + self._p.motion_margin_s:
             self.get_logger().warning(
-                f"target not reached at T + {TIMEOUT_MARGIN:.0f} s: joint error {joint_error:.3f} rad"
+                f"target not reached at T + {self._p.motion_margin_s:g} s: joint error {joint_error:.3f} rad"
             )
             self._motion = None
 

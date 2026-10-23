@@ -135,7 +135,7 @@ sequenceDiagram
 
 ## 6. Parameters (YAML `so101_bringup/config/brain.yaml`)
 
-Declared by `brain_node` (read-only, with ranges): `motion.*` since step 2.2; `grasp.effort_threshold`, `grasp.open_pct`, `grasp.close_pct` and `fsm.*` since step 4.2a (`fsm.park_pose` checked against the URDF limits at startup); the planner's `grasp.tilts_deg`, `grasp.pregrasp_backoff_m`, `grasp.lift_dz_m` and `grasp.drop_tcp_z_m` since step 4.2b (defaults: the planner's own). The timeouts of §3.1 are constants (`fsm.Params`).
+Declared by `brain_node` (read-only, with ranges): `motion.*` since step 2.2; `grasp.effort_threshold`, `grasp.open_pct`, `grasp.close_pct` and `fsm.*` since step 4.2a (`fsm.park_pose` checked against the URDF limits at startup); the planner's `grasp.tilts_deg`, `grasp.pregrasp_backoff_m`, `grasp.lift_dz_m` and `grasp.drop_tcp_z_m` since step 4.2b (defaults: the planner's own). **Since 5.1a every value of `fsm.Params` is a parameter**: the timeouts of §3.1, the ages, the box footprint, the shortest motion and its margin (`test_parameters.py`). A key the node does not declare stops it at startup. On the real arm, `brain_real.yaml` sets `motion.v_max_rad_s` to 0.5 (`01` §3.3).
 
 | Parameter | Default | Origin |
 | --- | --- | --- |
@@ -145,11 +145,21 @@ Declared by `brain_node` (read-only, with ranges): `motion.*` since step 2.2; `g
 | `grasp.drop_tcp_z_m` | 0.09 | Failure observed at 0.11 [MES-09] |
 | `grasp.effort_threshold` | 0.06 | [MES-10] |
 | `grasp.close_pct` / `open_pct` | 0 / 100 | LeRobot convention |
+| `grasp.gripper_tol_pct` | 3 % | `APPROACH` waits for the open gripper (§3.1) |
 | `motion.v_max_rad_s` | 1.0 (sim) / 0.5 (real) | Safety |
 | `motion.reach_tol_rad` | 0.01 | — |
+| `motion.min_duration_s` | 0.5 s | `04` §6 |
+| `motion.timeout_margin_s` | 1.0 s | T + margin → `ERROR:timeout:<state>` (§3.1) |
 | `fsm.target_lock_n` | 5 | — |
 | `fsm.target_lock_spread_m` | 0.005 | — |
 | `fsm.max_retries` | 3 | — |
+| `fsm.max_detection_age_s` / `fsm.max_joint_state_age_s` | 0.5 s / 0.5 s | The lock's newest detection; stale `/joint_states` → `ERROR:no_joint_states` |
+| `fsm.wait_target_s` | 10 s | No lock after `PARK` → `ERROR:object_lost` |
+| `fsm.plan_timeout_s` | 6 s | Slowest answer 1.7 s, 2.4 s on CI [MES-40] |
+| `fsm.grasp_wait_s` / `fsm.grasp_timeout_s` | 0.8 s / 1.5 s | `GRASP` (§3.1) |
+| `fsm.release_wait_s` | 0.5 s | `RELEASE` |
+| `fsm.verify_timeout_s` | 2 s | `VERIFY`: no detection → `DONE` with a warning |
+| `fsm.box_half_size_m` | 0.05 m | The box footprint (`08` §3), for `VERIFY` and the lock (#143) |
 | `fsm.park_pose` | [1.9, -1.7, 1.5, 0.7, 0.0] | Off the workspace view: the cube never hidden, the box at worst 9 % hidden; elbow 1.6 pressed the lower arm on the shoulder, 0.01 rad short [MES-39]; **to validate mechanically on the real arm** |
 
 ## 7. Observability

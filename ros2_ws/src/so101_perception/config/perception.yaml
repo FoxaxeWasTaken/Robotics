@@ -15,4 +15,6 @@ so101_perception:
     hsv_box_v_max: 220
     min_area_px: 15.0  # blob guards (05 §2.3)
     min_solidity: 0.6
+    filter_size: 5        # median filter window; a jump must also persist this many times (05 §7)
+    filter_jump_m: 0.02   # a detection this far from the median is a jump
     # extrinsics_file: config/camera_extrinsics.yaml of the package share, by default (05 §5.1)
