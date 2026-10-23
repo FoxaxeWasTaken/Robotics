@@ -285,6 +285,10 @@ class Fsm:
         if target is not None:
             self._target = target
             cube, yaw, box = target
+            if self._in_box(cube, box):  # grasping it would close the jaws on the box wall too (#143)
+                where = f"cube {np.round(cube, 3)}, box {np.round(box, 3)}"
+                self._go(State.DONE, f"cube already in the box: {where}")
+                return
             yaw = "unknown" if yaw is None else f"{yaw:.2f} rad"
             self._go(
                 State.PLAN, f"target locked: cube {np.round(cube, 3)}, yaw {yaw}, box {np.round(box, 3)}"
@@ -310,12 +314,15 @@ class Fsm:
             means.append(P.mean(axis=0))
         return means[0], self._cubes[-1].yaw, means[1]
 
+    def _in_box(self, cube, box) -> bool:
+        """The cube's center within the box footprint (08 §3): a placed cube, for VERIFY and for the lock."""
+        return bool(np.all(np.abs(cube[:2] - box[:2]) < self.p.box_half_size_m))
+
     def _verify(self, t):
         """A cube seen since PARK: in the box footprint -> DONE, elsewhere -> RETRY; unseen -> DONE."""
         cube = self._in.cube
         if cube is not None and cube.received > self._since:
-            offset = np.abs(cube.position[:2] - self._target[2][:2])
-            if np.all(offset < self.p.box_half_size_m):
+            if self._in_box(cube.position, self._target[2]):
                 self._go(State.DONE, "cube seen in the box")
             else:
                 self._go(State.RETRY, f"cube still on the table at {np.round(cube.position, 3)}")
