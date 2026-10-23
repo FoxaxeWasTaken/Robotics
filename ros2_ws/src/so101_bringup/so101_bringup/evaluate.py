@@ -68,11 +68,13 @@ def xyz(msg: PoseStamped) -> list[float]:
 
 
 class Bench:
-    """The bench's ROS side: /brain_state, the ground truth, the services."""
+    """The bench's ROS side: /brain_state, the ground truth, the brain's pose, the services."""
 
     def __init__(self, node):
         self.node = node
-        self.states, self.truth = [], {}
+        self.states, self.truth, self.pose = [], {}, None
+        # the brain computes it from /joint_states: once it comes, /brain/start is not refused for them
+        node.create_subscription(PoseStamped, "/end_effector_pose", lambda m: setattr(self, "pose", m), 10)
         latched = QoSProfile(
             depth=10, durability=DurabilityPolicy.TRANSIENT_LOCAL
         )  # as /brain_state (01 §3.1)
@@ -161,6 +163,9 @@ def run(args, bench: Bench) -> int:
             "evaluate: no /sim/ground_truth/*: start the driver with expose_ground_truth:=true",
             file=sys.stderr,
         )
+        return 2
+    if not bench.spin_until(lambda: bench.pose is not None, 10.0):
+        print("evaluate: no /end_effector_pose: the brain does not see /joint_states", file=sys.stderr)
         return 2
     rows = []
     args.out.parent.mkdir(parents=True, exist_ok=True)

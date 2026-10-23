@@ -13,7 +13,7 @@ name: tek5
 
 # Shared ROS environment for all services.
 x-ros-env: &ros-env
-  ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-42}
+  ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-69}
   FASTDDS_BUILTIN_TRANSPORTS: LARGE_DATA
 
 services:
@@ -27,6 +27,7 @@ services:
       <<: *ros-env
       USE_SIM: ${USE_SIM:-true}
       REAL_ROBOT_PORT: ${REAL_ROBOT_PORT:-/dev/ttyACM0}
+      EXPOSE_GROUND_TRUTH: ${EXPOSE_GROUND_TRUTH:-false}  # evaluation bench only (C-06): set by the E2E jobs
       MUJOCO_GL: osmesa
       DISPLAY: ${DISPLAY}
       QT_QPA_PLATFORM: xcb        # robust X11 and XWayland

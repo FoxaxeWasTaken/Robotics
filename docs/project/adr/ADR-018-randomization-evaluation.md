@@ -36,3 +36,12 @@ The teaching staff provides its own randomization: use it.
 ## Update (2026-10-16, teaching staff)
 
 Confirmed: random cube **and** box poses are what is expected, and showing that it works on a few draws is enough. "Robust" refers to the five cases of [BOOT2 p12] (the object moves mid-action, the grasp fails, the object leaves the view, the target is out of reach, the lighting changes): show a quick example of how each one is handled, or not.
+
+## Update (2026-10-23, step 4.3a)
+
+The bench now runs on the real pipeline, so the switch reaches the launch, still off by default:
+
+- `sim.launch.py` has an `expose_ground_truth` argument, default false. A `perception` argument, default false too, adds the real perception for a bench on its own `ROS_DOMAIN_ID`.
+- The compose stack takes `EXPOSE_GROUND_TRUTH`, and only the E2E jobs set it.
+
+The decision is unchanged: only the bench reads the ground truth, and the C-06 guards still check that no launch file outside `test/` enables it and that no node of the pipeline reads it.

@@ -25,7 +25,8 @@ for i in 0 1 2 3; do
   [ -e /dev/ttyUSB$i ] || mknod /dev/ttyUSB$i c 188 $i 2>/dev/null && chmod 666 /dev/ttyUSB$i 2>/dev/null || true
 done
 
-launch so101_bringup sim.launch.py "use_sim:=${USE_SIM:-true}" "port:=${REAL_ROBOT_PORT:-/dev/ttyACM0}"
+launch so101_bringup sim.launch.py "use_sim:=${USE_SIM:-true}" "port:=${REAL_ROBOT_PORT:-/dev/ttyACM0}" \
+  "expose_ground_truth:=${EXPOSE_GROUND_TRUTH:-false}"  # evaluation bench only (C-06): the E2E jobs set it
 
 shutdown() {
   trap - TERM INT

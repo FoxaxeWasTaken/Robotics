@@ -1,10 +1,9 @@
 # Reviewers requested automatically per lane (docs/project/09 §1.2).
-# ⚠ Replace @member1/2/3 with real GitHub handles, otherwise GitHub ignores the line.
-*                                  @member1 @member2 @member3
-/docker/                           @member1
-/.github/                          @member1
-/ros2_ws/src/so101_driver/         @member1
-/ros2_ws/src/so101_common/         @member1 @member2
-/ros2_ws/src/so101_brain/          @member2
-/ros2_ws/src/so101_perception/     @member3
-/docs/project/                     @member1 @member2 @member3
+*                                  @FoxaxeWasTaken @Hasnain-Pyarali @SamuelValentin974
+/docker/                           @FoxaxeWasTaken
+/.github/                          @FoxaxeWasTaken
+/ros2_ws/src/so101_driver/         @FoxaxeWasTaken
+/ros2_ws/src/so101_common/         @FoxaxeWasTaken @SamuelValentin974
+/ros2_ws/src/so101_brain/          @SamuelValentin974
+/ros2_ws/src/so101_perception/     @Hasnain-Pyarali
+/docs/project/                     @FoxaxeWasTaken @SamuelValentin974 @Hasnain-Pyarali
