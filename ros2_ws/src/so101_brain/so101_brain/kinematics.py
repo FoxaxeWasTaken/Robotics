@@ -25,6 +25,15 @@ FALLBACK_TAILS = tuple(
     (lift, elbow, wrist, 0.0)
     for lift, elbow, wrist in itertools.product((-1.2, 1.2), (-1.2, 1.2), (0.0, 1.2))
 )
+# Self-collision (#145): ikpy knows no collision volumes. Over 30,000 random poses, MuJoCo found no contact
+# between the arm's bodies while the elbow folds at most 1.55 rad and the lower arm, wrist and gripper (the
+# polyline elbow -> wrist_flex -> wrist_roll -> TCP, 6 points per segment) stay out of a vertical cylinder of
+# 9 cm around the pan axis below 12 cm [MES-43]. Margin for the real arm's calibration: 0.05 rad, 1 cm on the
+# radius, 0.5 cm on the height (PARK's elbow sits at 13.0 cm, 8.7 cm from the axis: PARK stays clear).
+MAX_ELBOW_FOLD = 1.50  # rad
+ELBOW = ARM_JOINT_NAMES.index("elbow_flex")
+SHOULDER_RADIUS = 0.10  # m, around the pan axis
+SHOULDER_HEIGHT = 0.125  # m, above base_link
 
 
 class Kinematics:
@@ -107,8 +116,21 @@ class Kinematics:
                 seed[4] = np.clip(roll, self._low[4], self._high[4])
         return seeds
 
+    def self_collides(self, q) -> bool:
+        """The arm folded onto its shoulder or base (#145, 04 §8): elbow past MAX_ELBOW_FOLD, or a point of
+        the lower arm, wrist or gripper inside the shoulder cylinder. Pure geometry of the chain."""
+        if q[ELBOW] > MAX_ELBOW_FOLD:
+            return True
+        frames = self._chain.forward_kinematics(self._full(q), full_kinematics=True)
+        joints = [frame[:3, 3] for frame in frames[3:]]  # elbow, wrist_flex, wrist_roll, TCP
+        t = np.linspace(0.0, 1.0, 6)[:, None]
+        points = np.concatenate([a + t * (b - a) for a, b in itertools.pairwise(joints)])
+        near_axis = np.hypot(points[:, 0] - PAN_AXIS_X, points[:, 1]) < SHOULDER_RADIUS
+        return bool(np.any(near_axis & (points[:, 2] < SHOULDER_HEIGHT)))
+
     def _solve(self, chain, seeds, p, orientation, mode) -> np.ndarray | None:
-        """First solution from the seeds that FK confirms, or None: never an unconverged one (04 §8)."""
+        """First solution from the seeds that FK confirms and that does not fold the arm onto itself, or None:
+        never an unconverged or self-colliding one (04 §8)."""
         p = np.asarray(p, dtype=float)
         for seed in seeds:
             # Measured joints can sit past a URDF bound: unclipped, scipy raises "x0 is infeasible".
@@ -119,7 +141,7 @@ class Kinematics:
                 orientation_mode=mode,
                 initial_position=start,
             )[1:6]
-            if self._confirms(q, p, orientation, mode):
+            if self._confirms(q, p, orientation, mode) and not self.self_collides(q):
                 return q
         return None
 

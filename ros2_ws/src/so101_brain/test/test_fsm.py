@@ -192,11 +192,13 @@ def test_wait_target_parks_then_locks_the_mean_of_5_consistent_detections():
 def test_a_cube_locked_in_the_box_is_done_without_any_motion():
     # #143: a second /brain/start without /sim/randomize; grasping it closed the jaws on the box wall too.
     world = World()
-    world.cube = IN_BOX
+    world.box = np.array([0.0512, -0.2534, 0.0])  # 4 decimals: the log rounds to 3
+    world.cube = world.box + np.array([0.0123, -0.0217, 0.025])
     world.step(start=True)
     world.run_until("DONE")
     assert world.states() == ["WAIT_TARGET", "DONE"]
-    assert "cube already in the box" in world.transitions[-1]
+    where = f"cube {np.round(world.cube, 3)}, box {np.round(world.box, 3)}"
+    assert reasons(world)[-1] == f"cube already in the box: {where}"
     assert world.requests == []  # no plan asked
     assert set(world.command_states) == {"WAIT_TARGET"}  # the park motion only
     assert world.grippers == []
