@@ -114,7 +114,7 @@ flowchart LR
 | `guards` | brain or perception imports the backend; ground truth or provided extrinsics appear in the pipeline | Offending lines |
 | `control` | `colcon build` fails or a test fails (`colcon test-result --verbose`); only packages with a `test/` folder are tested, one at a time (`--executor sequential`): in parallel, the brain's IK property tests starved the driver's camera test (2.7 Hz on the 4-vCPU runner) | Each package's `pytest.xml` |
 | `perception` | Same for the perception packages (separate build, ADR-002); **skipped until `COLCON_IGNORE` is removed** (step 3.1) | — |
-| `e2e-smoke` | Fewer than 3 successful episodes out of 3 | `eval.csv` |
+| `e2e-smoke` | The stack is not ready within 15 min (`tools/ci/wait_for_stack.sh`), or the bench stops (exit 2: no ground truth, no brain pose). The success rate is in `eval.csv` and the log, not a pass threshold yet: at 80 % per episode, requiring 3/3 would fail about one run in two. The threshold comes with the 50-episode statistics (4.5b). | `eval.csv` |
 
 ### 5.2 Technical notes
 
@@ -234,4 +234,4 @@ Files are **in place at the repository root** (workflows, hooks, configurations)
 4. Settings → Rules (or Branches): protect `main` (PR required, 1 approval, required checks **by their displayed job names**: `Lint (pre-commit)`, `Project rules (C-05, C-06, C-23)`, `Build + tests (control image)`, `Build + tests (perception image)`, `PR title (conventional commit)`). A private repository needs GitHub Pro for this (`15` §12.5). Done on 2026-10-15 (ruleset "main protection", no bypass).
 5. School mirror: `16` §5 (done; first run at the merge of PR #1).
 6. Step 3.1: the `perception` job enables itself once `COLCON_IGNORE` is removed from the package.
-7. Step 4.5: variable `E2E_ENABLED=true`.
+7. Variable `E2E_ENABLED=true` once the vertical slice works (4.3a). The E2E jobs set `EXPOSE_GROUND_TRUTH=true` for the bench, then wait for the stack.

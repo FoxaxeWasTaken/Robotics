@@ -39,6 +39,13 @@ docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && expo
 docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && export ROS_DOMAIN_ID=77 && \
   ros2 service call /sim/randomize std_srvs/srv/Trigger && ros2 service call /brain/start std_srvs/srv/Trigger"
 
+# Evaluation bench on the real pipeline (step 4.3a): driver with the ground truth for the bench only, brain and
+# the real perception, on their own ROS_DOMAIN_ID. Stop the ground-truth stub above first: one stack per domain.
+docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && export ROS_DOMAIN_ID=77 && \
+  ros2 launch so101_bringup sim.launch.py expose_ground_truth:=true perception:=true"
+docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && export ROS_DOMAIN_ID=77 && \
+  ros2 run so101_bringup evaluate --episodes 10 --out /tmp/eval.csv --bags /tmp/bags && cat /tmp/eval.csv"
+
 # Record an episode
 ros2 bag record -o ep_$(date +%H%M%S) /joint_states /joint_command /object_position /drop_box_position /brain_state
 

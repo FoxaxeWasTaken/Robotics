@@ -27,6 +27,7 @@ services:
       <<: *ros-env
       USE_SIM: ${USE_SIM:-true}
       REAL_ROBOT_PORT: ${REAL_ROBOT_PORT:-/dev/ttyACM0}
+      EXPOSE_GROUND_TRUTH: ${EXPOSE_GROUND_TRUTH:-false}  # evaluation bench only (C-06): set by the E2E jobs
       MUJOCO_GL: osmesa
       DISPLAY: ${DISPLAY}
       QT_QPA_PLATFORM: xcb        # robust X11 and XWayland

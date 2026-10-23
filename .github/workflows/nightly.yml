@@ -43,9 +43,11 @@ jobs:
       - name: Bench (randomized cube + box)
         env:
           EPISODES: ${{ inputs.episodes || '50' }}
+          EXPOSE_GROUND_TRUTH: "true"  # the bench scores with the ground truth; the pipeline never reads it (C-06)
         run: |
           cp docker/.env.example docker/.env
           docker compose -f docker/docker-compose.yml up -d control perception viz
+          bash tools/ci/wait_for_stack.sh
           docker compose -f docker/docker-compose.yml exec -T -e EPISODES control bash -lc '
             source /ros2_ws/install/setup.bash &&
             ros2 run so101_bringup evaluate --episodes "$EPISODES" --out /ros2_ws/eval.csv --bags /ros2_ws/bags'
