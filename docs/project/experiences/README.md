@@ -32,6 +32,7 @@ Produced images (camera views, masks, ArUco) are written to `/tmp/exp_out`.
 | `exp_calibration_zero.py` | Real arm: is LeRobot's zero the URDF zero? FK of the rest pose under both hypotheses | MES-30 | < 1 min |
 | `exp_park_pose.py` | Is PARK reached within 0.01 rad through the actuators? Does the parked arm hide the cube or the box? | MES-39 | < 1 min |
 | `exp_gt_cycles.py` | Does a full pick & place cycle run in sim with the ground-truth stub, and how long does it take? What does planning cost the brain's tick? | MES-40 | 6 min (20 cycles) |
+| `exp_ik_self_collision.py` | Which position-IK solutions collide with the arm itself? From which seed does `test_ik_accuracy` get none? | MES-43 | < 1 min |
 | `exp_tick_by_state.py` | The brain's tick period per FSM state, the planner in a worker process or thread (patches a copy of the node) | MES-40 | with `exp_gt_cycles.py` |
 | `exp_principal_point.py` | Is the sim's principal point in OpenCV pixel coordinates? Blob against the exact silhouette, both conventions | MES-41 | < 1 min |
 | `exp_webcam_formats.py` | Which webcam formats go through usbipd? (run with `--device /dev/video0`) | MES-17 | < 1 min |

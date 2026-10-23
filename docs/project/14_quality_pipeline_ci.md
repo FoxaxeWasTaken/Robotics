@@ -43,7 +43,7 @@ flowchart LR
 | `pre-commit` | Every `git commit` | < 10 s | Lint, format, invalid YAML/XML/TOML, large files, private keys, commit message |
 | Local tests (`colcon test --packages-select …`) | Before pushing | < 1 min per package | Unit and component regressions |
 | PR CI | Every push to a PR | ≈ 10–15 min (cached) | All of the above + project-rule guards + clean build + short E2E |
-| Nightly | Every night or on demand | 30–60 min | 50-episode success rate, diagrams, external links |
+| Nightly | Every night or on demand | 30–60 min | 50-episode success rate, diagrams, external links, new course commits |
 | Release | Every tag | — | Frozen evaluation report, release notes |
 
 ## 3. Check matrix: who checks what, and where
@@ -69,8 +69,10 @@ flowchart LR
 | **Full E2E (50 episodes, randomized cube and box)** | | | | ✅* | same |
 | Rendering of every Mermaid diagram | | | | ✅ | mermaid-cli (`tools/ci/check_mermaid.sh`) |
 | External links | | | | ✅ | lychee (`.lycheeignore`: the private repository) |
+| New commits in the course repository: one issue | | | | ✅ | `tools/ci/upstream_check.sh` (`15` §2) |
+| Test of that watch, offline | | ✅ | ✅ | | `tools/ci/test_upstream_check.sh` (local hook) |
 
-\* enabled once the bench exists (step 4.5): repository variable `E2E_ENABLED=true`. Every CI job also requires `CI_ENABLED=true` (opt-in, so nothing runs on the school mirror, `16`).
+\* enabled on 2026-10-23, once the vertical slice worked (4.3a, #139): repository variable `E2E_ENABLED=true`. Every CI job also requires `CI_ENABLED=true` (opt-in, so nothing runs on the school mirror, `16`).
 
 ## 4. Tool choices (options considered)
 
@@ -114,7 +116,7 @@ flowchart LR
 | `guards` | brain or perception imports the backend; ground truth or provided extrinsics appear in the pipeline | Offending lines |
 | `control` | `colcon build` fails or a test fails (`colcon test-result --verbose`); only packages with a `test/` folder are tested, one at a time (`--executor sequential`): in parallel, the brain's IK property tests starved the driver's camera test (2.7 Hz on the 4-vCPU runner) | Each package's `pytest.xml` |
 | `perception` | Same for the perception packages (separate build, ADR-002); **skipped until `COLCON_IGNORE` is removed** (step 3.1) | — |
-| `e2e-smoke` | The stack is not ready within 15 min (`tools/ci/wait_for_stack.sh`), or the bench stops (exit 2: no ground truth, no brain pose). The success rate is in `eval.csv` and the log, not a pass threshold yet: at 80 % per episode, requiring 3/3 would fail about one run in two. The threshold comes with the 50-episode statistics (4.5b). | `eval.csv` |
+| `e2e-smoke` | The stack is not ready within 15 min (`tools/ci/wait_for_stack.sh`), or the bench stops (exit 2: no ground truth, no brain pose). The success rate is in `eval.csv` and the log, not a pass threshold yet: at 80 % per episode, requiring 3/3 would fail about one run in two. The threshold comes with the 50-episode statistics (4.5b). On failure, the job prints `docker compose ps -a` (an exited container shows there) and the last 150 log lines of `control` and `perception`, then the nodes a fresh process finds and whether `/joint_states` and `/end_effector_pose` reach it (#141). The stack runs with `FASTDDS_BUILTIN_TRANSPORTS=DEFAULT`, as the control tests: under the compose default `LARGE_DATA`, a fresh process missed the driver or the brain for 60 s in 2 of 5 runs on the runner. | `eval.csv` |
 
 ### 5.2 Technical notes
 
@@ -142,9 +144,13 @@ flowchart LR
   S --> V["evaluation<br/>compose up control+perception+viz<br/>50 randomized episodes"]
   V --> R["artifacts<br/>eval.csv + failure rosbags (14 days)"]
   R --> H["Humans: success-rate trend,<br/>failure-cause analysis"]
+  S --> W["upstream<br/>course main vs .github/upstream-sha"]
+  W --> I["one issue<br/>Course repository: new commits"]
 ```
 
 - The bench writes one CSV row per episode: poses, final state, duration, failure cause (`08` §3).
+- On failure, the evaluation job prints the stack state, the logs and the links still alive, and runs on the `DEFAULT` transports, as `e2e-smoke` (#141).
+- The `upstream` job (#137) compares the course's `main` with `.github/upstream-sha`. When they differ, it opens one issue listing the new commits and their files, or updates the one already open. It runs without `E2E_ENABLED`, and its token can only write issues.
 - Reports of important milestones are **versioned by hand** in `results/` (small CSV/MD), never the rosbags (ADR-029).
 
 ## 7. Tests: conventions (ADR-026)
@@ -234,4 +240,4 @@ Files are **in place at the repository root** (workflows, hooks, configurations)
 4. Settings → Rules (or Branches): protect `main` (PR required, 1 approval, required checks **by their displayed job names**: `Lint (pre-commit)`, `Project rules (C-05, C-06, C-23)`, `Build + tests (control image)`, `Build + tests (perception image)`, `PR title (conventional commit)`). A private repository needs GitHub Pro for this (`15` §12.5). Done on 2026-10-15 (ruleset "main protection", no bypass).
 5. School mirror: `16` §5 (done; first run at the merge of PR #1).
 6. Step 3.1: the `perception` job enables itself once `COLCON_IGNORE` is removed from the package.
-7. Variable `E2E_ENABLED=true` once the vertical slice works (4.3a). The E2E jobs set `EXPOSE_GROUND_TRUTH=true` for the bench, then wait for the stack.
+7. Variable `E2E_ENABLED=true` once the vertical slice works (4.3a): done on 2026-10-23, after #139. The E2E jobs set `EXPOSE_GROUND_TRUTH=true` for the bench, then wait for the stack.

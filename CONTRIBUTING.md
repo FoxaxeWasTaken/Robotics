@@ -87,8 +87,11 @@ A flaky test never lands in `main`: quarantine marker + issue.
 
 ```bash
 git fetch upstream && git switch -c chore/sync-upstream && git merge upstream/main
+git rev-parse upstream/main > .github/upstream-sha    # the course commit now merged (#137)
 # resolve conflicts, then open a "chore: sync upstream" PR
 ```
+
+The nightly `upstream` job opens one issue, "Course repository: new commits", when the course's `main` moves past the commit recorded in `.github/upstream-sha`, and updates it on the next nights (#137). The sync PR writes the merged commit there and closes that issue with its `Closes #<n>` line.
 
 ## 8. Tickets and the GitHub Project
 

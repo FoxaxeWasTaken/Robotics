@@ -33,6 +33,12 @@ STILL = 1e-4  # rad: largest joint change between two /joint_states once settled
 SETTLE_TIMEOUT = 15.0
 # m, horizontal, from the obstacle center: its half-diagonal + 4.5 cm for the jaws (cube 3.5 cm, box 7.4 cm)
 CLEARANCE = {"object": 0.08, "drop_box": 0.12}
+# rad, arm bent up, TCP 28.5 cm above the table: each target starts from it, so the brain seeds its position
+# IK the same way each run (#142). Chained, the seeds drifted, and so did the solutions (target 15: 2.55, 4.42
+# or 6.8 s of motion); some fold the elbow to its limit, where the lower arm hits the shoulder in MuJoCo and
+# the arm stops short: once in CI, 13.9 mm above target 15. Not the start pose q = 0 either: straight, it is
+# singular, and target 4 then folds (28.4 mm). From HOME, none of the 20 solutions folds or collides.
+HOME = dict(zip(ARM_JOINT_NAMES, (0.0, -1.0, 0.7, 0.0, 0.0), strict=True))
 
 
 @pytest.mark.launch_test
@@ -68,11 +74,10 @@ class TestIkAccuracy(unittest.TestCase):
         rclpy.init()
         cls.node = rclpy.create_node("test_ik_accuracy")
         cls.states, cls.commands, cls.poses = [], [], []  # /joint_command as arrival times (monotonic)
+        cls.last_command = None
         cls.node.create_subscription(JointState, "/joint_states", cls.states.append, 10)
         cls.node.create_subscription(PoseStamped, "/end_effector_pose", cls.poses.append, 10)
-        cls.node.create_subscription(
-            JointState, "/joint_command", lambda _: cls.commands.append(time.monotonic()), 100
-        )
+        cls.node.create_subscription(JointState, "/joint_command", cls.on_command, 100)
         cls.pub = cls.node.create_publisher(JointState, "/joint_command", 10)
         cls.client = cls.node.create_client(GoToTarget, "/go_to_target")
         cls.truth = {name: [] for name in CLEARANCE}
@@ -85,6 +90,11 @@ class TestIkAccuracy(unittest.TestCase):
     def tearDownClass(cls):
         cls.node.destroy_node()
         rclpy.shutdown()
+
+    @classmethod
+    def on_command(cls, msg):
+        cls.commands.append(time.monotonic())
+        cls.last_command = msg
 
     def wait_until(self, condition, timeout, message):
         end = time.monotonic() + timeout
@@ -102,6 +112,17 @@ class TestIkAccuracy(unittest.TestCase):
         q = np.array([[self.joints(m)[n] for n in ARM_JOINT_NAMES] for m in self.states[-10:]])
         return float(np.max(np.abs(np.diff(q, axis=0)))) < STILL
 
+    def go_home(self):
+        """HOME, republished until reached (the first command may go out before discovery), then settled."""
+
+        def reached():
+            self.pub.publish(JointState(name=list(HOME), position=list(HOME.values())))
+            q = self.joints(self.states[-1])
+            return max(abs(q[name] - HOME[name]) for name in HOME) < 0.01
+
+        self.wait_until(reached, SETTLE_TIMEOUT, "HOME not reached")
+        self.wait_until(self.settled, SETTLE_TIMEOUT, "not settled at HOME")
+
     def measured_tcp(self):
         q = self.joints(self.states[-1])
         for name in ARM_JOINT_NAMES:
@@ -110,17 +131,20 @@ class TestIkAccuracy(unittest.TestCase):
         return self.data.site("gripperframe").xpos.copy()
 
     def obstacles_after_randomize(self):
-        """Seeded /sim/randomize, then the cube and box centers (xy) from ground truth stamped after it."""
+        """Seeded /sim/randomize, then the cube and box centers (xy), ground truth stamped after its reply.
+
+        Not after the call: the driver publishes the ground truth between the call and the move, with the old
+        positions; read so, 2 runs in 6 drew their targets around the old obstacles (#142)."""
         randomize = self.node.create_client(Trigger, "/sim/randomize")
         self.assertTrue(randomize.wait_for_service(timeout_sec=STARTUP_TIMEOUT), "/sim/randomize not served")
-        called = self.node.get_clock().now().nanoseconds * 1e-9
         future = randomize.call_async(Trigger.Request())
         rclpy.spin_until_future_complete(self.node, future, timeout_sec=5.0)
         self.assertTrue(future.result().success)
+        answered = self.node.get_clock().now().nanoseconds * 1e-9
 
         def after(name):
             fresh = [
-                m for m in self.truth[name] if m.header.stamp.sec + m.header.stamp.nanosec * 1e-9 > called
+                m for m in self.truth[name] if m.header.stamp.sec + m.header.stamp.nanosec * 1e-9 > answered
             ]
             return fresh[-1] if fresh else None
 
@@ -139,6 +163,7 @@ class TestIkAccuracy(unittest.TestCase):
         print("target,x,y,z,measured_x,measured_y,measured_z,error_mm")
         errors = []
         for i, target in enumerate(targets(N_TARGETS, obstacles), start=1):
+            self.go_home()
             request = GoToTarget.Request()
             request.target_pose.header.frame_id = "base_link"
             p = request.target_pose.pose.position
@@ -155,6 +180,11 @@ class TestIkAccuracy(unittest.TestCase):
             measured = self.measured_tcp()
             errors.append(float(np.linalg.norm(measured - target)))
             print(f"{i},{','.join(f'{v:.4f}' for v in (*target, *measured))},{errors[-1] * 1000:.3f}")
+            if errors[-1] > 0.001:  # which joints stayed behind the IK solution (the brain's last command)
+                commanded = dict(zip(self.last_command.name, self.last_command.position, strict=True))
+                q = self.joints(self.states[-1])
+                print(f"  target {i}: measured - commanded, rad:",
+                      {name: round(q[name] - commanded[name], 4) for name in ARM_JOINT_NAMES})  # fmt: skip
         errors_mm = np.array(errors) * 1000
         print(
             f"IK accuracy over {N_TARGETS} targets: mean {errors_mm.mean():.3f} mm, "
