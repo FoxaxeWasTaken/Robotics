@@ -35,14 +35,24 @@ A camera spots a red cube, the SO-ARM101 arm grasps it and drops it into a box �
 
 On the real arm: nothing measured yet (stage 6). Measurements and how to reproduce them: [`11` §4](docs/project/11_cross_review_and_measurements.md); milestone reports in [`results/`](results/).
 
+## Prerequisites
+
+- **A Linux host** (x86_64) with **Docker**: Docker Engine with the Compose v2 plugin, or Docker Desktop. About 8 GB of disk for the two images (control 4.2 GB, perception 2.9 GB).
+- **An X server on the host for RViz**: X11, or Wayland with XWayland.
+- **git**, and **pre-commit** to contribute ([CONTRIBUTING §1](CONTRIBUTING.md#1-setup-once)).
+- **Real arm only**: the arm's serial port (`/dev/ttyACM*`) and the USB webcam (`/dev/video*`) visible on the host; compose passes them to the control container.
+- **On Windows**: all of the above inside WSL2, a Linux distribution, with Docker Desktop's WSL integration. WSLg is the X server, and the USB devices reach WSL2 through usbipd ([`02` §5](docs/project/02_environment_infrastructure.md#5-usb-hardware-under-wsl2-arm-and-camera)).
+
+**Tested on** Windows with WSL2 (Ubuntu 24.04), Docker Desktop and WSLg ([`02` §1](docs/project/02_environment_infrastructure.md#1-reference-workstation-validated-on-2026-10-08)); the CI on GitHub's Ubuntu 24.04 runners (native Linux, headless, no USB). A native Linux host needs no usbipd; the team has not run the stack on one yet.
+
 ## Quickstart (simulation)
 
-From the repository root (Linux or WSL2 with Docker; full setup: [`02`](docs/project/02_environment_infrastructure.md)):
+From the repository root, on a host with the prerequisites (full setup: [`02`](docs/project/02_environment_infrastructure.md)):
 
 ```bash
 cp docker/.env.example docker/.env           # ROS_DOMAIN_ID=69, the team's value
-(cd docker && docker compose build)          # ~10 min the first time
-xhost +local:docker                          # X11 for RViz (Linux / WSLg)
+tools/so101 build                            # the images, ~10 min the first time
+xhost +local:docker                          # let the containers open windows on your X server (RViz)
 tools/so101 up                               # control, perception, viz
 tools/so101 logs                             # wait for "Driver node ready." and "Brain node ready.", then Ctrl-C
 tools/so101 rviz                             # the arm, the camera, the detections; it keeps this terminal: the rest in another
@@ -66,7 +76,8 @@ The bench starts its own driver, brain and perception on ROS domain 77 (below), 
 ## Test the project
 
 ```bash
-tools/so101 test so101_brain                 # one package: build, colcon test (its own free ROS domain)
+tools/so101 test                             # all our packages: build, colcon test (each on its own free ROS domain)
+tools/so101 test so101_brain -k fsm          # one package; the options go to pytest: the fast loop on one test
 pre-commit run --all-files                   # host: lint, format, shellcheck, workflow checks, the scripts' tests
 bash tools/ci/guards.sh                      # host: the project rules (no ground truth in the pipeline, …)
 tools/so101 bench --stub -n 10               # driver and brain alone: the ground truth in place of perception
@@ -74,6 +85,7 @@ tools/so101 bench --perception -n 10         # the real pipeline
 ```
 
 - The packages: `so101_common`, `so101_driver`, `so101_brain`, `so101_perception`, `so101_bringup` (the sim-backed tests: closed loop, IK accuracy, launch files).
+- `tools/so101 test` runs in a new control container: the stack need not run. For a full run, stop it first (`tools/so101 down`): the grasp planner's timing tests (p95 under 1 s) fail when the simulation shares the CPU.
 - **Every PR** runs lint, the guards, the build and tests of both images, and a 3-episode E2E bench (a draft or a docs-only change: lint and guards only). The nightly runs 50 episodes each night `main` changes.
 - Test strategy, thresholds and the bench: [`08`](docs/project/08_quality_tests.md); CI: [`14`](docs/project/14_quality_pipeline_ci.md); how to write tests: [CONTRIBUTING §5](CONTRIBUTING.md#5-tests).
 

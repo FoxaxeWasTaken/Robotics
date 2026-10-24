@@ -9,12 +9,12 @@ git clone git@github.com:FoxaxeWasTaken/Robotics.git && cd Robotics
 git remote add upstream git@github.com:JasonChmn/content-lerobot-bras-students.git
 git remote set-url --push upstream DISABLED          # never push to the course repo
 cp docker/.env.example docker/.env                   # ROS_DOMAIN_ID=69, the team's value
-sudo apt install -y pipx && pipx install pre-commit  # plain pip is refused on Ubuntu 24.04 (PEP 668)
+pipx install pre-commit                              # or your distribution's package; plain pip is refused where PEP 668 applies
 pre-commit install --install-hooks -t pre-commit -t commit-msg
-cd docker && docker compose build
+tools/so101 build                                    # the images, ~10 min the first time
 ```
 
-Full environment (WSL2, usbipd, RViz): `docs/project/02`. Everyday commands: `tools/so101 --help` (start the stack, a cycle, the bench, the tests; `docs/project/13` §1).
+Prerequisites (a Linux host with Docker and an X server; Windows through WSL2) and what the team tested on: the [README](README.md#prerequisites). Full environment (display, USB devices, the WSL2 specifics): `docs/project/02`. Everyday commands: `tools/so101 --help` (start the stack, a cycle, the bench, the tests; `docs/project/13` §1).
 
 ## 2. Workflow
 
@@ -24,7 +24,9 @@ Full environment (WSL2, usbipd, RViz): `docs/project/02`. Everyday commands: `to
 4. **Write the test first** (§5), then the code. Test locally:
 
    ```bash
-   tools/so101 test <pkg>                                # build and test one package in the control container
+   tools/so101 test <pkg> -k <name>                      # while coding: the tests you work on (options go to pytest)
+   tools/so101 test <pkg>                                # then the whole package; tools/so101 test: all of ours,
+                                                         # the stack stopped (the planner's timing tests need the CPU)
    pre-commit run --all-files && bash tools/ci/guards.sh # host, repo root: lint, format, the project rules
    tools/so101 bench --perception -n 10                  # a change that can affect the cycle: the bench
    ```
@@ -51,6 +53,22 @@ Full environment (WSL2, usbipd, RViz): `docs/project/02`. Everyday commands: `to
 - **Body** (optional): why, not how; `Co-authored-by:` trailer when pairing (C-07).
 
 The hook and the CI check the type, the lowercase scope and the `: description` part; the imperative form and the 72 characters are checked in review.
+
+### 2.2 Reviewing
+
+Any member may review and approve any PR. The author requests the reviews (step 6) and merges (step 7).
+
+- **Start from the ticket's *Review focus***, then check:
+  - the evidence in the PR: the commands and their output, the measurements;
+  - the tests: RED → GREEN (§5);
+  - the rules of §3;
+  - the docs, updated with the code.
+- **Comment on the lines**, and ask rather than guess. The author answers each thread, then resolves it or lets the reviewer do it.
+- **The ruleset of `main`** (`docs/project/14` §10):
+  - 1 approval, and every conversation resolved, before the merge;
+  - the required checks: lint, the project-rule guards, the build and tests of both images, the PR title;
+  - the branch up to date with `main`, and squash merge only;
+  - new commits dismiss the approvals: after a push (an *Update branch* included), check that the approval is still there, else ask again.
 
 ## 3. Non-negotiable rules (from the project brief)
 
@@ -116,7 +134,7 @@ All planned work lives in **one GitHub Project** (board + backlog) linked to thi
 - **One ticket = a few hours to two days of work**. Bigger? Split it. A PR closes one ticket or a **group of related tickets** (same files or same roadmap step: fewer conflicts and re-reviews), with one commit and one `Closes #<n>` line per ticket. Tickets are grouped under one **epic per roadmap stage** (sub-issues; *phase 1 / phase 2* are the brief's parts, `docs/project/12`) and carry the roadmap step in their title: `[1.3a] Publish camera_info and use the optical frame`.
 - **Statuses**: Backlog → **Ready** → In progress → In review → Done. At most **five tickets In progress per person**.
 - **Fields**: Lane (A, B, C, Shared, `docs/project/09` §1.2), Priority (P0 critical path · P1 needed for the final defense · P2 optional), Size (XS < 2 h · S ≤ ½ day · M ≤ 1 day · L ≤ 2–3 days). Dependencies use GitHub's native **blocked by** relationship, not labels.
-- **Labels**: `task`, `bug`, `epic`, `safety` (moves the real arm: [SAFE] review, sim first, `docs/project/07` §7), `staff-question`, and one or more `area:*`.
+- **Labels**: `task`, `bug`, `epic`, `safety` (moves the real arm: [SAFE] review, sim first, `docs/project/07` §7), `staff-question`, and one or more `area:*`. `report` marks an automatic report, not a work item (the pinned "Nightly bench results"): the project views leave it out.
 
 **Anatomy of a ticket** (the issue template, `.github/ISSUE_TEMPLATE.md`): Roadmap step · Goal · Scope · Out of scope · **Done when** · Files and interfaces · References · Review focus. Write it so that **a teammate or an AI agent can do it without asking**: exact paths, checkable criteria (a command, a test, a threshold), what not to touch.
 
