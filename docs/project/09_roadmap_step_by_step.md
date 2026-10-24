@@ -298,7 +298,7 @@ The owners are those of `.github/CODEOWNERS` (0.1d), which requests their review
 - **When**: as soon as the vertical slice (4.3) works (the pitch itself earlier if the teaching staff asks for it).
 - **Tasks**: 2–3 ideas checked against the constraints above; check-in "idea in one sentence / the tech to add / the risk" [BOOT p17], [BOOT2 p16]; choose one with the staff; ADR; break it into tickets (same anatomy, `15` §12), riskiest part first.
 - **Done when**: pitch validated by the teaching staff; ADR merged; phase-2 tickets created.
-- **Choice (2026-10-09)**: **Connect Four against the robot** (ADR-034, [`phase2/`](phase2/README.md)), **validated by the teaching staff** the same day. Remaining: create the phase-2 tickets P2.1a to P2.8d (7.1b).
+- **Choice (2026-10-09)**: **Connect Four against the robot** (ADR-034, [`phase2/`](phase2/README.md)), **validated by the teaching staff** the same day. The phase-2 tickets P2.1a to P2.8d exist under epic E7 (#75 to #95); the demo scenario of 7.1b (#74) remains.
 
 ### Step 7.2 — Phase-2 project
 

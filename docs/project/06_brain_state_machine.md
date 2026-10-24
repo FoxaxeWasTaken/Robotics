@@ -9,7 +9,7 @@
 - **Outputs**: `/joint_command` (only channel to the motors, C-05), `/brain_state`, `/end_effector_pose`, `/brain/markers`.
 - **Phase 2** adds the `/brain/pick_place` action, served by the same motion code (ADR-037), and `/brain/set_gripper` for the token handover (ADR-038, `phase2/P2-02` §6).
 - **Starting point**: the course stub (ADR-039). The bootstrap prototype (outside the repository) had ikpy FK + `/end_effector_pose`, `/go_to_target` (position IK, rejected if error > 1 cm), the command sent **in one go** (the driver's speed limiter smoothed it): enough for C-41, not for pick & place, which needs trajectories (§5); target reached within 0.13 mm [MES-24].
-- **Today** (step 4.2b): the full sequence runs in sim. `fsm.py` (§3) is driven by the node's 50 Hz tick, with `/brain/start`, `/brain/stop` and `/brain_state`; `PLAN` runs the planner in a worker process (§4) and the plan shows on `/brain/markers` (§7). Until perception (stage 3), the development stack `so101_bringup/test/gt_stub.launch.py` feeds the brain the ground truth (4.2c, C-06).
+- **Today**: the full cycle runs in sim with the real perception (4.3a, #139). `fsm.py` (§3) is driven by the node's 50 Hz tick, with `/brain/start`, `/brain/stop` and `/brain_state`; `PLAN` runs the planner in a worker process (§4); the plan and the locked cube show on `/brain/markers` (§7). The ground-truth stub (`so101_bringup/test/gt_stub.launch.py`, 4.2c, C-06) stays for development and for the tests that isolate the brain. The success rate: the nightly bench (`08` §2).
 
 ## 2. Code organization
 

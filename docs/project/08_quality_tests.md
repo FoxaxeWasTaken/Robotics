@@ -21,6 +21,8 @@ flowchart TB
 | --- | --- | --- | --- | --- |
 | **Unit** (fast, ROS-free) | Gripper conversion, clamping, partial-command merge, FK/IK, pixel ↔ 3D projection, HSV detection on reference images, FSM transitions with a fake clock | `pytest` | `<pkg>/test/` | Every commit (pre-commit + CI) |
 | **Component** (one node) | `/joint_states` rate, partial command, clamping, `camera_info`, service answers | `launch_testing` + `pytest` | `<pkg>/test/test_*_launch.py` | Every PR (CI) |
+| **Sim-backed** (needs `so101_sim`) | Closed-loop grasp, IK accuracy against MuJoCo, the launch files, a full cycle with the ground-truth stub | `pytest`, `launch_testing` | `so101_bringup/test/` only: never under `so101_brain` or `so101_perception` (CI guard) | Every PR (CI) |
+| **Scripts** (CI and tooling) | `tools/so101`, the nightly report, the CI skip rules, the course watch: their behavior without network or Docker (fake `gh`, `--dry-run`) | `bash` | `tools/ci/test_*.sh` | Every commit that changes them (pre-commit) |
 | **System** (full stack in sim) | Evaluation bench: N randomized pick & place episodes | `ros2 run so101_bringup evaluate` + test-only ground truth | `so101_bringup/so101_bringup/evaluate.py` | Every PR touching brain/perception/driver (N small), nightly (N = 50) |
 | **Real-arm acceptance** | Manual protocol (`07` §3.2) + accuracy measurement | Checklist | — | Every session on the arm |
 
@@ -37,17 +39,17 @@ docker run --rm -v "$PWD/ros2_ws/src:/src:ro" tek5/control bash -lc '
 
 ## 2. Metrics and success thresholds
 
-| Metric | Target | Measured so far (spikes, bootstrap prototype) |
+| Metric | Target | Measured (this repository, unless marked) |
 | --- | --- | --- |
 | `/joint_states` rate | ≥ 20 Hz (imposed); target 30–50 Hz | **30.0 Hz** (bootstrap prototype) [MES-24] |
-| Control loop jitter (p99) | ≤ 25 ms | 25 ms with render on a copy; 52 ms otherwise [MES-20] |
-| Image / `camera_info` | 10 Hz, same `stamp` | Image 10.0 Hz; `camera_info` to do |
+| Control loop jitter (p99) | ≤ 25 ms | Driver, camera on: 20.3–20.4 ms [MES-34]; brain tick during `PLAN`: 24.4 ms [MES-40] |
+| Image / `camera_info` | 10 Hz, same `stamp` | Image 10.0 Hz [MES-34]; `camera_info` shares each image's header (`test_driver_launch.py`) |
 | IK success in the workspace | 100 % (position) | 100 % [MES-07], [MES-21] |
 | **Measured TCP accuracy (C-41)** | < 1 cm | Sim: 0.1–0.3 mm closed loop [MES-09]; 0.13 mm through `/go_to_target` [MES-24] |
 | Object position error (perception) | < 5 mm (sim), < 1 cm (real) | 2.7 mm with the exact camera pose; 1.6–1.8 mm induced by the ArUco calibration [MES-13], [MES-16], [MES-25] |
 | Detection rate (non-truncated) | 100 % | 100 % [MES-13] |
-| **Pick & place success (C-42), randomized cube + box** | **≥ 90 %** over 50 episodes | Ground-truth spike: 39/40 [MES-09] |
-| Cycle duration | < 30 s | Spike: ~12 s |
+| **Pick & place success (C-42), randomized cube + box** | **≥ 90 %** over 50 episodes | Ground-truth stub: 20/20 [MES-40]; real perception: the nightly bench (below), capped near 80 % by the cubes cut by the image edge [MES-12]; 3/3 on every PR (`e2e-smoke`) |
+| Cycle duration | < 30 s | Ground-truth stub: median 14.6 s, max 17.7 [MES-40]; real perception in CI: p50 17.4 s, p95 18.0 s (`e2e-smoke`, 2026-10-24) |
 | Ground truth used in the pipeline | **0** | CI grep |
 
 Phase-2 targets: `phase2/P2-01` §4.

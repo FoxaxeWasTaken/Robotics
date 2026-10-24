@@ -114,7 +114,11 @@ Sent on Teams on 2026-10-16 and answered the same day (ticket 0.1c). *Team* mark
 
 Phase-2 questions and answers (riser, cameras, real-arm sessions, taught poses, 3D printer): `phase2/P2-03` §4.
 
-## Project status on 2026-10-16
+## Project history
+
+What the repository does today: the Status section of the [repository README](../../README.md); the work in progress: the GitHub Project (`15` §12). Below, the dated events these documents rest on, newest first.
+
+- **Upstream pull on 2026-10-23** (#136): the day-3 visio slides on perception, `docs/J3_visio_perception.pdf` [J3]. No code or kit change. Impact absorbed in `00` (sources, the review calendar).
 
 - **Teaching staff answers (2026-10-16)**: the sim camera may be moved, our own scenes and markers are allowed, the random cube + box bench is the expected measure and "robust" means the five cases of [BOOT2 p12] (questions above).
 - **Team repository created (2026-10-15)**, private. It starts from the **course stubs**: the bootstrap prototype (driver, FK/IK, RViz file, teleop) stays outside the repository as a reference, its measurements remain valid as feasibility evidence (ADR-039).
@@ -125,5 +129,4 @@ Phase-2 questions and answers (riser, cameras, real-arm sessions, taught poses, 
 - **Upstream pull on 2026-10-08** (fast-forward to `bc00df7`): slides versioned in `docs/`, `_connect_arm` **provided** in the driver stub (PR #1). Sim, Docker, URDF, brain and perception unchanged: **every measurement in this folder remains valid**. `driver_node.py` merged with the provided `_connect_arm` kept (ADR-032).
 - Environment validated (images, X11, DDS, usbipd, MJPG webcam).
 - **Bootstrap prototype** (outside the repository, ADR-039): `/joint_states` at **30 Hz** (9 Hz before the camera thread), tests 6/6, `/go_to_target` within 0.13 mm [MES-24]. Reference for steps 1.0, 1.2 and 2.1.
-- Quality tooling, CI, mirror and governance files: **in place in this repository** (`14`, `15`, `16`); GitHub settings applied on 2026-10-15 (ruleset on `main`, squash only, `school-mirror` environment, variables). Remaining: CODEOWNERS handles (ticket 0.1d); the GitHub Project exists since 2026-10-15 (`15` §12).
-- Next roadmap steps: the GitHub Project and the backlog (end of **0.1**), then **0.3** and **1.0** (`09`).
+- Quality tooling, CI, mirror and governance files: **in place in this repository** (`14`, `15`, `16`); GitHub settings applied on 2026-10-15 (ruleset on `main`, squash only, `school-mirror` environment, variables). CODEOWNERS handles filled in (#130); the GitHub Project exists since 2026-10-15 (`15` §12).
