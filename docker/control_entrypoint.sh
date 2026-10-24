@@ -9,6 +9,11 @@ cd /ros2_ws
 colcon build --symlink-install
 source install/setup.bash
 
+# Throwaway (#156, do not merge): every grasp judged empty, in the compose stack only (the E2E job), not in the tests
+f=install/so101_bringup/share/so101_bringup/config/brain.yaml
+sed 's/effort_threshold: 0.06/effort_threshold: 1.0/; s/max_retries: 3 /max_retries: 1 /' "$f" > /tmp/brain.yaml
+rm "$f" && cp /tmp/brain.yaml "$f" && grep -E 'effort_threshold|max_retries' "$f"
+
 pids=()
 launch() {
   local pkg=$1 file=$2

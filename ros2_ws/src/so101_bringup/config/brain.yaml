@@ -12,7 +12,7 @@ so101_brain:
       pregrasp_backoff_m: 0.04  # back along the approach axis [MES-09]
       lift_dz_m: 0.10           # TCP above the cube center: 5 cm walls + margin
       drop_tcp_z_m: 0.09        # TCP above the box floor; failure observed at 0.11 [MES-09]
-      effort_threshold: 1.0  # normalized gripper closing force: held above it; recalibrate on the real arm
+      effort_threshold: 0.06  # normalized gripper closing force: held above it; recalibrate on the real arm
       open_pct: 100.0
       close_pct: 0.0
       gripper_tol_pct: 3.0      # APPROACH also waits for the measured gripper this close to open_pct
@@ -21,7 +21,7 @@ so101_brain:
       target_lock_spread_m: 0.005  # ... within this distance of each other
       max_detection_age_s: 0.5     # ... the newest younger than this
       max_joint_state_age_s: 0.5   # older /joint_states during a cycle: ERROR:no_joint_states
-      max_retries: 1               # failed attempts before ERROR:grasp_failed
+      max_retries: 3               # failed attempts before ERROR:grasp_failed
       wait_target_s: 10.0          # no lock this long after PARK: ERROR:object_lost
       plan_timeout_s: 6.0          # slowest answer, a cube out of reach: 1.7 s, 2.4 s on CI [MES-40]
       grasp_wait_s: 0.8            # GRASP: closing time before the effort is judged
