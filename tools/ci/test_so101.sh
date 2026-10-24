@@ -34,6 +34,29 @@ dry "restart viz" -- restart viz
 echo "ok: up, down, logs, shell, rviz, build and restart print their docker compose command"
 dry "exec -T control" "/sim/randomize" "/brain/start" "/brain_state" "(DONE|ERROR|STOPPED)" -- cycle
 echo "ok: cycle randomizes, starts and follows /brain_state to the end of the cycle"
+
+# cycle for real against fakes (#164): docker runs the command without its `source`, ros2 answers the services and
+# publishes /brain_state like the brain, its states then IDLE forever. cycle must return at DONE, not at its timeout.
+mkdir "$tmp/run"
+printf '#!/usr/bin/env bash\ncmd=${*: -1}\nexec bash -c "${cmd#*&& }"\n' > "$tmp/run/docker"
+cat > "$tmp/run/ros2" <<'FAKE'
+#!/usr/bin/env bash
+case "$*" in
+  *"service call"*) echo "success: true" ;;
+  *--once*) echo IDLE ;;
+  *"topic echo"*)
+    for s in WAIT_TARGET PLAN PLAN "$FINAL"; do echo "$s"; echo ---; sleep 0.1; done
+    while :; do echo IDLE; echo ---; sleep 0.2; done ;;
+esac
+FAKE
+chmod +x "$tmp/run/docker" "$tmp/run/ros2"
+for final in DONE ERROR:grasp_failed STOPPED; do
+  start=$SECONDS
+  out=$(FINAL=$final PATH="$tmp/run:$PATH" timeout 10 "$so101" cycle 2> /dev/null) || fail "cycle did not return after $final (exit $?)"
+  [ $((SECONDS - start)) -le 3 ] || fail "cycle returned $((SECONDS - start)) s after it started ($final)"
+  [ "$(grep -v '^+ ' <<< "$out")" = "$(printf 'WAIT_TARGET\nPLAN\n%s' "$final")" ] || fail "cycle printed: $out"
+done
+echo "ok: cycle returns at DONE, ERROR or STOPPED, each state printed once"
 dry "-e ROS_DOMAIN_ID=77 control" "&& set -m;" "pgrep -f \"[/]lib/so101_\"" "grep -qxz ROS_DOMAIN_ID=77 /proc/" "a stack already runs on ROS domain 77" \
   "expose_ground_truth:=true perception:=true" \
   "evaluate --episodes 10 --out /ros2_ws/eval_bench.csv'" -- bench --perception
