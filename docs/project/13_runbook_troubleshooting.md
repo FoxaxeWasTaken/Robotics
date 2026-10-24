@@ -7,17 +7,21 @@
 `tools/so101` (#133) runs the everyday commands from anywhere in the repository. It prints each `docker compose` command it runs, and `--dry-run` only prints it; `tools/so101 --help` lists them. Simulation only.
 
 ```bash
-# Start / stop
+# Build, start, stop
+tools/so101 build                         # the images (~10 min the first time); again after a Dockerfile change
 tools/so101 up                            # control, perception, viz; perception builds its packages, then starts
 tools/so101 logs                          # control's logs: wait for "Brain node ready." (logs perception, logs viz)
+tools/so101 restart                       # reload Python code changes (symlink-install); restart perception too
 tools/so101 down                          # SIGINT → destroy_node() → clean stop
-cd docker && docker compose restart control   # reload Python code changes (symlink-install)
 
 # A cycle, the bench, the tests
 tools/so101 cycle                         # /sim/randomize, /brain/start, then /brain_state until DONE or ERROR
 tools/so101 bench --perception -n 10      # evaluation bench, real pipeline, on ROS domain 77 (below)
 tools/so101 bench --stub -n 10            # the same with the ground-truth stub in place of perception
-tools/so101 test so101_brain              # build and test one package (its own free ROS domain)
+tools/so101 test                          # all our packages, in a new control container (no stack needed)
+tools/so101 test so101_brain -k fsm       # one package; the options go to pytest: the fast loop on one test
+# A full run: stop the stack first (tools/so101 down). The planner's timing tests (p95 under 1 s) fail when the
+# simulation shares the CPU; colcon test gives each package its own free ROS domain anyway.
 
 # ROS shell inside the container (the workspace sourced), RViz
 tools/so101 shell

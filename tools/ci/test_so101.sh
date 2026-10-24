@@ -27,7 +27,11 @@ dry "logs -f control" -- logs
 dry "logs -f viz" -- logs viz
 dry "exec control bash -lc 'source /ros2_ws/install/setup.bash && exec bash'" -- shell
 dry "rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz" -- rviz
-echo "ok: up, down, logs, shell and rviz print their docker compose command"
+dry "yml build" -- build
+dry "yml build perception" -- build perception
+dry "restart control" -- restart
+dry "restart viz" -- restart viz
+echo "ok: up, down, logs, shell, rviz, build and restart print their docker compose command"
 dry "exec -T control" "/sim/randomize" "/brain/start" "/brain_state" "(DONE|ERROR|STOPPED)" -- cycle
 echo "ok: cycle randomizes, starts and follows /brain_state to the end of the cycle"
 dry "-e ROS_DOMAIN_ID=77 control" "&& set -m;" "pgrep -f \"[/]lib/so101_\"" "grep -qxz ROS_DOMAIN_ID=77 /proc/" "a stack already runs on ROS domain 77" \
@@ -37,15 +41,21 @@ dry "-e ROS_DOMAIN_ID=77 control" "test/gt_stub.launch.py" "--episodes 3 " "--ba
   -- bench --stub -n 3 --bags /ros2_ws/bags
 echo "ok: bench runs on ROS domain 77 only, refuses a busy domain, real pipeline or stub, N episodes, bags"
 dry "colcon build --symlink-install --packages-select so101_brain" "colcon test --packages-select so101_brain" \
-  -- test so101_brain
-echo "ok: test builds and tests one package"
+  "colcon test-result --test-result-base build/so101_brain --verbose" -- test so101_brain
+dry "colcon test --executor sequential --packages-select so101_common so101_driver so101_brain so101_perception so101_bringup " -- test
+dry "colcon test --packages-select so101_brain --event-handlers console_direct+ --pytest-args -k fsm\\ and\\ lock" \
+  -- test so101_brain -k "fsm and lock"
+dry "run --rm --no-deps -T control bash -lc 'source /opt/ros/jazzy/setup.bash && cd /ros2_ws" -- test
+dry "run --rm --no-deps -T control bash -lc 'source /opt/ros/jazzy/setup.bash && cd /ros2_ws" -- test so101_driver
+echo "ok: test builds and tests one package, or all of ours, in a fresh control container (no stack needed), the rest to pytest, quoted"
 
 refused() { ! "$so101" --dry-run "$@" > /dev/null 2>&1 || fail "so101 $* accepted"; }
 refused bench
 refused bench --perception -n 0
 refused bench --perception -n "3; rm -rf /"
 refused bench --stub --bags "/tmp/x; reboot"
-refused test
+refused build viz
+refused restart deploy
 refused test "so101_brain && reboot"
 refused logs control-real
 refused deploy

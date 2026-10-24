@@ -171,7 +171,7 @@ git clone git@github.com:FoxaxeWasTaken/Robotics.git && cd Robotics
 cp docker/.env.example docker/.env                       # ROS_DOMAIN_ID=69, the team's value
 sudo apt install -y pipx && pipx install pre-commit      # plain pip is refused on Ubuntu 24.04 (PEP 668)
 pre-commit install --install-hooks -t pre-commit -t commit-msg
-(cd docker && docker compose build)                       # ~10 min the first time
+tools/so101 build                                         # the images, ~10 min the first time
 xhost +local:docker
 tools/so101 up                                            # perception builds its packages, then starts
 tools/so101 logs                                          # wait for "Driver node ready." and "Brain node ready."
@@ -184,7 +184,7 @@ ros2 run example_py_pkg talker                            # C-04 check, then Ctr
 ros2 topic pub --once -w 1 --keep-alive 1 /joint_command sensor_msgs/msg/JointState '{name: [shoulder_pan], position: [0.5]}'
 ```
 
-`tools/so101` (#133) prints each `docker compose` command it runs; `tools/so101 --help` lists the others (`down`, `bench`, `test`), `13` §1 the everyday use.
+`tools/so101` (#133) prints each `docker compose` command it runs; `tools/so101 --help` lists the others (`down`, `restart`, `bench`, `test`), `13` §1 the everyday use.
 
 C-04 (containers talk to each other): while the talker runs in `control`, a second terminal reads it from the `perception` container. It prints `tek5 N`, N up by one every 0.5 s; two interleaved counters mean two talkers are running (`13` §2).
 

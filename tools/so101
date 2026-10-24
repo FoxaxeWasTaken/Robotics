@@ -6,14 +6,17 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 compose=(docker compose -f "$root/docker/docker-compose.yml")
 BENCH_DOMAIN=77  # the bench's own ROS domain: the ground truth never reaches the everyday stack's (C-06)
+PACKAGES="so101_common so101_driver so101_brain so101_perception so101_bringup"  # ours, each with tests
 dry=false
 
 usage() {
   cat <<EOF
 Usage: tools/so101 [--dry-run] <command> [options]
 
+  build [service]       build the images (both, or control or perception); ~10 min the first time
   up                    start the stack (control, perception, viz)
   down                  stop it (each node gets SIGINT: clean stop)
+  restart [service]     restart control (default), perception or viz: reloads changed Python code
   logs [service]        follow the logs of control (default), perception or viz
   shell                 a shell in the control container, the workspace sourced
   rviz                  RViz with the project's configuration
@@ -22,7 +25,10 @@ Usage: tools/so101 [--dry-run] <command> [options]
                         the evaluation bench on ROS domain $BENCH_DOMAIN, N episodes (10), in the control
                         container: --perception the real pipeline, --stub the ground truth in its place.
                         CSV in ros2_ws/eval_bench.csv; DIR is a container path (/ros2_ws/bags: ros2_ws/bags)
-  test <package>        build and test one package (colcon test, its own free ROS domain)
+  test [package [pytest options]]
+                        build and test one package, or all of ours, in a new control container (colcon
+                        test, its own free ROS domain); the options go to pytest: test so101_brain -k fsm.
+                        The stack need not run; stop it for a full run (the planner's timing tests)
 
   --dry-run             print the command without running it
 EOF
@@ -52,6 +58,10 @@ ros() {  # ros [docker compose exec options] <command>: a command in the control
   run "${compose[@]}" exec "${@:1:$#-1}" control bash -lc "source /ros2_ws/install/setup.bash && $cmd"
 }
 
+fresh() {  # fresh <command>: a command in a new control container, ROS sourced; the stack need not run
+  run "${compose[@]}" run --rm --no-deps -T control bash -lc "source /opt/ros/jazzy/setup.bash && $1"
+}
+
 while [ $# -gt 0 ]; do
   case $1 in
     --dry-run) dry=true ;;
@@ -65,8 +75,16 @@ command=$1
 shift
 
 case $command in
+  build)
+    [[ ${1:-} =~ ^(control|perception)?$ ]] || die "build: control or perception (viz uses the control image)"
+    run "${compose[@]}" build ${1:+"$1"}
+    ;;
   up) run "${compose[@]}" up -d control perception viz ;;
   down) run "${compose[@]}" down ;;
+  restart)
+    [[ ${1:-control} =~ ^(control|perception|viz)$ ]] || die "restart: control, perception or viz"
+    run "${compose[@]}" restart "${1:-control}"
+    ;;
   logs)
     [[ ${1:-control} =~ ^(control|perception|viz)$ ]] || die "logs: control, perception or viz"
     run "${compose[@]}" logs -f "${1:-control}"
@@ -114,9 +132,22 @@ $stack > /tmp/bench_stack.log 2>&1 & stack=\$!; trap \"kill -INT \$stack; wait \
 ros2 run so101_bringup evaluate --episodes $episodes --out /ros2_ws/eval_bench.csv${bags:+ --bags $bags}"
     ;;
   test)
-    [[ ${1:-} =~ ^so101_[a-z0-9_]+$ ]] || die "test: a package name, e.g. so101_brain"
-    ros -T "cd /ros2_ws && colcon build --symlink-install --packages-select $1 && \
-colcon test --packages-select $1 --event-handlers console_direct+ && colcon test-result --verbose"
+    # In a fresh container: the tests need no stack, and the timing ones (the planner's p95) need its CPU, so stop
+    # the stack first for a full run. One package at a time, as the CI: in parallel, those tests fail too.
+    if [ $# -eq 0 ]; then
+      fresh "cd /ros2_ws && colcon build --symlink-install --packages-up-to $PACKAGES && \
+colcon test --executor sequential --packages-select $PACKAGES --event-handlers console_cohesion+ && colcon test-result --verbose"
+    else
+      [[ $1 =~ ^so101_[a-z0-9_]+$ ]] || die "test: a package name, e.g. so101_brain"
+      package=$1
+      shift
+      pytest=""
+      [ $# -eq 0 ] || pytest=" --pytest-args$(printf ' %q' "$@")"  # quoted: they cross a bash -lc
+      # test-result on this package only: build/ keeps the other packages' results, old failures included
+      fresh "cd /ros2_ws && colcon build --symlink-install --packages-select $package && \
+colcon test --packages-select $package --event-handlers console_direct+$pytest && \
+colcon test-result --test-result-base build/$package --verbose"
+    fi
     ;;
   *) usage >&2; exit 2 ;;
 esac
