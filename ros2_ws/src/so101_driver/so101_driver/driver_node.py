@@ -13,6 +13,7 @@ On shutdown, brings the arm slowly to its rest pose before disconnect() cuts the
 """
 
 import os
+import signal
 import threading
 import time
 from pathlib import Path
@@ -28,7 +29,8 @@ from lerobot.cameras.opencv import OpenCVCamera, OpenCVCameraConfig
 from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig
 from rcl_interfaces.msg import FloatingPointRange, IntegerRange, ParameterDescriptor
 from rclpy.clock import Clock, ClockType
-from rclpy.executors import ExternalShutdownException
+from rclpy.executors import SingleThreadedExecutor
+from rclpy.signals import SignalHandlerOptions
 from sensor_msgs.msg import CameraInfo, Image, JointState
 from so101_sim import SO101Sim
 from std_srvs.srv import Trigger
@@ -68,7 +70,7 @@ PARAMETERS = {
     "bus_retries": (3, "Failed control ticks retried before the driver stops (03 §8)", 0, 20),
 }
 SHUTDOWN_POSE = [1.9, -1.7, 1.5, 0.7, 0.0]  # rad, ARM_JOINT_NAMES order: the brain's PARK (brain.yaml)
-# ros2 launch sends SIGTERM 5 s after SIGINT: the move ends before, a second signal would interrupt it.
+# ros2 launch sends SIGTERM 5 s after SIGINT, then SIGKILL: the move ends before. Signals only stop the spin.
 SHUTDOWN_TIMEOUT = 4.0  # s
 GROUND_TRUTH_RATE_HZ = 10.0
 GROUND_TRUTH_BODIES = {"object": "pickup_object", "drop_box": "drop_box"}  # /sim/ground_truth/<key>: body
@@ -478,20 +480,21 @@ def camera_info_from_yaml(path, width: int, height: int) -> CameraInfo:
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    # SIGINT and SIGTERM only set an event (#158). rclpy's handlers raise KeyboardInterrupt at any bytecode:
+    # one landing while the executor built a Task left it half-built, and its __del__ printed a traceback.
+    rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
     node = DriverNode()
+    stop = threading.Event()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, lambda *_: stop.set())
+    executor = SingleThreadedExecutor()
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
-    except (KeyboardInterrupt, ExternalShutdownException):
-        pass
-    except Exception:
-        if rclpy.ok():
-            raise
-        # SIGINT/SIGTERM shut the context down while a callback was publishing: a normal stop.
+        while not stop.is_set():
+            executor.spin_once(timeout_sec=0.1)
     finally:
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        node.destroy_node()  # the context is still valid: the shutdown logs reach /rosout
+        rclpy.try_shutdown()
 
 
 if __name__ == "__main__":

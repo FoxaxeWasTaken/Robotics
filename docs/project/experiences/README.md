@@ -36,3 +36,4 @@ Produced images (camera views, masks, ArUco) are written to `/tmp/exp_out`.
 | `exp_tick_by_state.py` | The brain's tick period per FSM state, the planner in a worker process or thread (patches a copy of the node) | MES-40 | with `exp_gt_cycles.py` |
 | `exp_principal_point.py` | Is the sim's principal point in OpenCV pixel coordinates? Blob against the exact silhouette, both conventions | MES-41 | < 1 min |
 | `exp_webcam_formats.py` | Which webcam formats go through usbipd? (run with `--device /dev/video0`) | MES-17 | < 1 min |
+| `exp_sigint_stop.py` | Does a SIGINT at a random moment make a node print a traceback at exit, with `rclpy.spin()` and with an event-driven stop? | MES-44 | ~12 min (2 × 150 stops) |
