@@ -199,7 +199,7 @@ jobs:
           docker compose -f docker/docker-compose.yml up -d control perception viz
           bash tools/ci/wait_for_stack.sh
           docker compose -f docker/docker-compose.yml exec -T control bash -lc '
-            source /ros2_ws/install/setup.bash && ros2 run so101_bringup evaluate --episodes 3 --out /ros2_ws/eval.csv'
+            source /ros2_ws/install/setup.bash && ros2 run so101_bringup evaluate --episodes 3 --min-success 3 --out /ros2_ws/eval.csv'
       - name: Stack state and logs (on failure)
         if: failure()
         run: |

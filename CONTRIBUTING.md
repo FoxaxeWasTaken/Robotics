@@ -66,7 +66,7 @@ Any member may review and approve any PR. The author requests the reviews (step 
 - **Comment on the lines**, and ask rather than guess. The author answers each thread, then resolves it or lets the reviewer do it.
 - **The ruleset of `main`** (`docs/project/14` §10):
   - 1 approval, and every conversation resolved, before the merge;
-  - the required checks: lint, the project-rule guards, the build and tests of both images, the PR title;
+  - the required checks: lint, the project-rule guards, the build and tests of both images, the E2E job (3 pick & place out of 3), the PR title;
   - the branch up to date with `main`, and squash merge only;
   - new commits dismiss the approvals: after a push (an *Update branch* included), check that the approval is still there, else ask again.
 
@@ -103,12 +103,12 @@ The PR shows both runs (RED → GREEN). A bug gets its regression test before it
 | Unit (pytest) | `<pkg>/test/test_*.py` | Any pure logic (conversions, IK, FSM, geometry, detection); a rule that must hold for every input gets a property test (Hypothesis, `docs/project/08` §5) |
 | Component (launch_testing) | `<pkg>/test/test_*_launch.py` | Rates, commands, services of one node |
 | Sim-backed | `so101_bringup/test/` | Anything that needs `so101_sim` (closed loop, IK accuracy, launch files): never under `so101_brain` or `so101_perception` |
-| E2E | `tools/so101 bench` (`ros2 run so101_bringup evaluate`) | Full pick & place, N episodes. CI runs 3 on every PR (`e2e-smoke`, not a required check) and 50 in the nightly each night `main` changes |
+| E2E | `tools/so101 bench` (`ros2 run so101_bringup evaluate`) | Full pick & place, N episodes. CI runs 3 on every PR (`e2e-smoke`, a required check: 3 successes out of 3) and 50 in the nightly each night `main` changes |
 | Scripts | `tools/ci/test_*.sh`, run by pre-commit | A CI or tooling script: its behavior without network or Docker (fake `gh`, `--dry-run`) |
 
 The safety modules also have mutation testing (mutmut, run by hand, `docs/project/08` §1).
 
-**A flaky test never stays in `main`.** Open a `bug` issue with the failing run, then fix the cause, or the test, in its own PR, as #141 and #142 did. Never rerun until it passes.
+**A flaky test never stays in `main`.** Open a `bug` issue with the failing run, then fix the cause, or the test, in its own PR, as #141 and #142 did. Never rerun until it passes. The E2E job is the one exception, since it runs the whole stack: one rerun of the failed job at most, and a second failure is a `bug` issue.
 
 ## 6. Decisions and documentation
 

@@ -1,13 +1,15 @@
 """evaluate - the evaluation bench in sim (docs/project/08 §3).
 
     ros2 run so101_bringup evaluate --episodes N --out <csv> [--bags <dir>] [--seed S] [--timeout 60]
+                                    [--min-success M]
 
 Each episode: /sim/randomize (cube and box), /brain/start from IDLE, then DONE, ERROR or the bench timeout
 (then /brain/stop). Scored with the driver's ground truth (expose_ground_truth, for this bench only, C-06):
 success = DONE with the cube within the box footprint, z < 6 cm. One CSV row per episode, a rosbag per
-failed episode with --bags, and the summary at the end. --seed checks the seed the driver runs. The checks
-before the first episode (driver, ground truth, brain pose) wait up to 60 s each, for a fresh process on a CI
-runner; the calls during the episodes wait 10 s.
+failed episode with --bags, and the summary at the end. --seed checks the seed the driver runs. With
+--min-success, fewer than M successes exit 1, after the CSV and the summary (the PR's E2E job, #156).
+The checks before the first episode (driver, ground truth, brain pose) wait up to 60 s each, for a fresh
+process on a CI runner; the calls during the episodes wait 10 s.
 """
 
 import argparse
@@ -206,6 +208,12 @@ def run(args, bench: Bench) -> int:
                 f"episode {number}: {row['final_state']}, {row['duration_s']} s, {row['cause'] or 'success'}"
             )
     print(summary(rows))
+    successes = sum(row["success"] for row in rows)
+    if args.min_success is not None and successes < args.min_success:
+        print(
+            f"evaluate: {successes} successes, fewer than --min-success {args.min_success}", file=sys.stderr
+        )
+        return 1
     return 0
 
 
@@ -218,6 +226,7 @@ def main(argv=None) -> int:
         "--seed", type=int, help="the driver's seed parameter, checked before the first episode"
     )
     parser.add_argument("--timeout", type=float, default=60.0, help="bench timeout per episode, s (08 §3)")
+    parser.add_argument("--min-success", type=int, help="exit 1 below this many successes (the PR's E2E job)")
     args = parser.parse_args(argv)
     rclpy.init()
     node = rclpy.create_node("evaluate")
