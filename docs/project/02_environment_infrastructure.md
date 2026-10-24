@@ -171,18 +171,20 @@ git clone git@github.com:FoxaxeWasTaken/Robotics.git && cd Robotics
 cp docker/.env.example docker/.env                       # ROS_DOMAIN_ID=69, the team's value
 sudo apt install -y pipx && pipx install pre-commit      # plain pip is refused on Ubuntu 24.04 (PEP 668)
 pre-commit install --install-hooks -t pre-commit -t commit-msg
-cd docker && docker compose build                         # ~10 min the first time
+tools/so101 build                                         # the images, ~10 min the first time
 xhost +local:docker
-docker compose up -d control perception viz              # perception builds its packages, then starts
-docker compose logs -f control                            # wait for "Driver node ready." and "Brain node ready."
-docker compose exec control bash
-source /ros2_ws/install/setup.bash
+tools/so101 up                                            # perception builds its packages, then starts
+tools/so101 logs                                          # wait for "Driver node ready." and "Brain node ready."
+tools/so101 rviz                                          # arm, TF, camera image, poses, markers
+tools/so101 cycle                                         # a full pick and place, to DONE
+tools/so101 shell                                         # a ROS shell in control, then:
 ros2 node list                                            # driver, brain, perception, robot_state_publisher…
 ros2 topic hz /joint_states                               # ≥ 20 Hz (30 Hz on the three machines, 0.2a)
 ros2 run example_py_pkg talker                            # C-04 check, then Ctrl-C (see below)
 ros2 topic pub --once -w 1 --keep-alive 1 /joint_command sensor_msgs/msg/JointState '{name: [shoulder_pan], position: [0.5]}'
-rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz  # arm, TF, camera image, poses, markers
 ```
+
+`tools/so101` (#133) prints each `docker compose` command it runs; `tools/so101 --help` lists the others (`down`, `restart`, `bench`, `test`), `13` §1 the everyday use.
 
 C-04 (containers talk to each other): while the talker runs in `control`, a second terminal reads it from the `perception` container. It prints `tek5 N`, N up by one every 0.5 s; two interleaved counters mean two talkers are running (`13` §2).
 

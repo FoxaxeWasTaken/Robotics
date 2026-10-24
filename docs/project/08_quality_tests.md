@@ -52,6 +52,8 @@ docker run --rm -v "$PWD/ros2_ws/src:/src:ro" tek5/control bash -lc '
 
 Phase-2 targets: `phase2/P2-01` §4.
 
+**Where to read the bench results**: the issue ["Nightly bench results"](https://github.com/FoxaxeWasTaken/Robotics/issues?q=is%3Aissue+in%3Atitle+%22Nightly+bench+results%22), one comment per nightly bench with its success rate, durations and failure causes (`14` §6); the CSV and the failed episodes' rosbags are the run's artifact for 14 days.
+
 ## 3. Evaluation bench (sim)
 
 ```text

@@ -1,16 +1,14 @@
-# CI for every PR and main: lint → project-rule guards → build + tests inside the project image.
+# CI for every PR (none on main, #153): lint → project-rule guards → build + tests inside the project image.
 # Details and rationale: docs/project/14_quality_pipeline_ci.md
 name: CI
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]  # ready: a draft's pushes run the light jobs only
-  push:
-    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}   # never cancel a run on main
+  cancel-in-progress: true  # a new push replaces the PR's running CI
 
 permissions:
   contents: read
@@ -19,7 +17,9 @@ permissions:
 # check counts as passed. Hence the jobs also run when Dependabot is the author, in this repository
 # only: the school copy mirrors dependabot.yml and must run nothing (docs/project/16 §4).
 # Billed minutes (#146): a draft PR or a docs-only change runs lint and guards only, decided in the lint job (a
-# required check: a failed decision blocks the PR instead of skipping the tests); no E2E on a push to main.
+# required check: a failed decision blocks the PR instead of skipping the tests).
+# No run on main (#153): the ruleset merges a PR only up to date with main, by squash, so main gets the exact tree
+# its CI tested. The mirror (mirror.yml) and the nightly (nightly.yml) still run on main.
 jobs:
   lint:
     if: ${{ vars.CI_ENABLED == 'true' || (github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'FoxaxeWasTaken/Robotics') }}   # opt-in: nothing runs on the school mirror
@@ -179,8 +179,7 @@ jobs:
 
   e2e-smoke:
     name: E2E sim (3 episodes)
-    # Enabled on 2026-10-23, after #139: Settings → Variables → E2E_ENABLED = true. PRs only: the PR ran it on
-    # the tree that lands on main (its branch merges main first), and the nightly bench covers main.
+    # Enabled on 2026-10-23, after #139: Settings → Variables → E2E_ENABLED = true.
     if: ${{ github.event_name == 'pull_request' && vars.CI_ENABLED == 'true' && vars.E2E_ENABLED == 'true' }}
     runs-on: ubuntu-24.04
     needs: [control, perception]

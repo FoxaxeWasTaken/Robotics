@@ -123,7 +123,7 @@ flowchart LR
 - **Docker cache**: `docker/build-push-action` with `cache-from/to: type=gha`. First build ≈ 10 min (apt + pip), then 1–2 min if the Dockerfiles did not change.
 - **Runner disk**: the `control` image is 4.2 GB, fine on `ubuntu-24.04`; if space runs out, add a cleanup step (remove preinstalled SDKs) before the build.
 - **Headless**: `MUJOCO_GL=osmesa`: sim and rendering run on CPU, no GPU or X11 [MES-02], [MES-03].
-- **`concurrency`**: a new push cancels the previous run of the same PR; runs on `main` are never cancelled (each merged commit gets its full CI).
+- **`concurrency`**: a new push cancels the previous run of the same PR. No CI on `main` since #153 (§5.4).
 - **Supply chain**: every action pinned by commit SHA (version in a comment), updated by Dependabot after a 7-day cooldown; `persist-credentials: false` on every checkout (zizmor).
 - **Dependabot PRs**: GitHub runs them like fork PRs, and repository variables may not reach them; a skipped required check would count as passed. The jobs therefore also run when the PR author (`github.event.pull_request.user.login`, not the spoofable `github.actor`) is `dependabot[bot]`, **in this repository only** (`github.repository`): the school copy mirrors `dependabot.yml`, and Dependabot ran there on 2026-10-16 (`16` §4).
 - **Minimal permissions**: `contents: read`.
@@ -137,7 +137,7 @@ GitHub bills each job rounded up to the minute. Measured on 2026-10-23 (#146), f
 | --- | --- |
 | PR push that changes code | 22 min: `control` 12, E2E 4, `perception` 2, lint, guards, coverage comment and PR title 1 each |
 | Draft or docs-only PR push (§5.4) | 3 min: lint, guards, PR title |
-| Push to `main` (a merge) | 16 min: as a PR push, without the E2E job, the coverage comment and the PR title |
+| Push to `main` (a merge) | 1 min since #153, the mirror only (16 before: a PR push without the E2E job, the coverage comment and the PR title) |
 | Nightly, `main` unchanged | 5 to 6 min: docs 3–4, course watch 1, `main-changed` 1 |
 | Nightly, `main` changed | + about 20 min: build and 50 episodes (estimate, the first scheduled bench is the night of 2026-10-23) |
 
@@ -156,8 +156,9 @@ The table below is the plan from 2026-10-15:
 | PR push that only touches documentation | Run | Skipped | Skipped |
 | Push to a **draft** PR | Run | Skipped | Skipped |
 | **Ready for review** (and every later push) | Run | Run, unless documentation only | Run, unless documentation only |
-| Push to `main` | Run | Run: the check after the merge, the coverage baseline | Skipped: the PR ran it on the same tree (its branch merges `main` first), and the nightly bench covers `main` |
+| Push to `main` (a merge) | Nothing since #153: the mirror only (`mirror.yml`) | Nothing | Nothing |
 
+- **No CI on `main`** (#153): the `main protection` ruleset requires a PR to be **up to date with `main`** before it merges ("Require branches to be up to date before merging", since 2026-10-24), and merges by squash. The PR's CI tests the merge of its branch with `main`, so `main` gets exactly the tree that CI tested: a run after the merge would repeat it (16 billed minutes per merge, about 1,500 a month at the pace of 2026-10-16 to 23). The cost moves to the branch updates, which the team already made before each merge. The nightly still covers `main` every night it changes. The Docker layer cache of `main` (written by those runs) stops being refreshed: measured on 2026-10-24, a cached build of the control image takes 89 s, both images without cache 179 s, so a PR loses at most about 40 s after a Dockerfile change; not worth a cache export in the nightly.
 - **Documentation only** (`tools/ci/docs_only.sh`): every changed file is a `*.md`, a PDF or an image under `docs/`, or an issue form (`.github/ISSUE_TEMPLATE/`). The list is `git diff --name-only --no-renames` of the PR's merge commit against its base: a file moved from code to a `.md` still counts as code. Code, tests and their data (the perception's reference images), experiments, workflows, Docker, launch, config and tooling files always run everything, and so does an empty list.
 - The `lint` job decides, not a separate job: `lint` is a required check, so a failed decision blocks the PR instead of letting it merge without its tests, and no extra job is billed.
 - **A skipped required check counts as passed**: a docs-only PR merges with `control` and `perception` skipped. A draft cannot be merged, and marking it ready reruns everything.
@@ -171,12 +172,14 @@ flowchart LR
   S --> MC["main-changed<br/>main moved since the last bench?"]
   MC -->|"yes, or workflow_dispatch"| V["evaluation<br/>compose up control+perception+viz<br/>50 randomized episodes"]
   V --> R["artifacts<br/>eval.csv + failure rosbags (14 days)"]
-  R --> H["Humans: success-rate trend,<br/>failure-cause analysis"]
+  V --> B["report<br/>run summary + one comment on<br/>Nightly bench results"]
+  B --> H["Humans: success-rate trend,<br/>failure-cause analysis"]
   S --> W["upstream<br/>course main vs .github/upstream-sha"]
   W --> I["one issue<br/>Course repository: new commits"]
 ```
 
 - The bench writes one CSV row per episode: poses, final state, duration, failure cause (`08` §3).
+- **The report** (#151, `tools/ci/bench_report.sh`, tested by `test_bench_report.sh`): each night the bench runs, its summary line (success rate, p50/p95 duration, failure causes), the commit of `main`, the target (≥ 90 %, informative: the nightly does not fail under it) and the run link go to the run summary and to one comment on the issue "Nightly bench results". A bench that stopped, or never started, comments that too. Skipped nights add nothing. The first report created it (#155), labeled `report` so the project views leave it out (it is not a work item), then pinned by hand; only this job can write issues.
 - The bench runs only when `main` changed (#146): `main-changed` (`tools/ci/evaluation_due.sh`) finds the newest nightly run whose bench gave a verdict, success or failure, and skips the bench when that run was on the same commit. Skipped nights are passed over, and so are cancelled or timed-out benches. Any doubt runs it: no verdict among the last 30 runs, or the API failing; the bench is then skipped only on an explicit `false`. A failed bench is not rerun on the same commit: it was reported that night, and `workflow_dispatch` always runs it.
 - On failure, the evaluation job prints the stack state, the logs and the links still alive, and runs on the `DEFAULT` transports, as `e2e-smoke` (#141).
 - The `upstream` job (#137) compares the course's `main` with `.github/upstream-sha`. When they differ, it opens one issue listing the new commits and their files, or updates the one already open. It runs without `E2E_ENABLED`, and its token can only write issues.

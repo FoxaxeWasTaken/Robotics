@@ -4,16 +4,28 @@
 
 ## 1. Everyday commands
 
-```bash
-# Start / stop
-cd docker && docker compose up -d control perception viz   # perception builds its packages, then starts
-docker compose logs -f control            # wait for "Brain node ready."
-docker compose restart control            # reload Python code changes (symlink-install)
-docker compose down                       # SIGINT → destroy_node() → clean stop
+`tools/so101` (#133) runs the everyday commands from anywhere in the repository. It prints each `docker compose` command it runs, and `--dry-run` only prints it; `tools/so101 --help` lists them. Simulation only.
 
-# ROS shell inside the container
-docker compose exec control bash
-source /ros2_ws/install/setup.bash
+```bash
+# Build, start, stop
+tools/so101 build                         # the images (~10 min the first time); again after a Dockerfile change
+tools/so101 up                            # control, perception, viz; perception builds its packages, then starts
+tools/so101 logs                          # control's logs: wait for "Brain node ready." (logs perception, logs viz)
+tools/so101 restart                       # reload Python code changes (symlink-install); restart perception too
+tools/so101 down                          # SIGINT → destroy_node() → clean stop
+
+# A cycle, the bench, the tests
+tools/so101 cycle                         # /sim/randomize, /brain/start, then /brain_state until DONE or ERROR
+tools/so101 bench --perception -n 10      # evaluation bench, real pipeline, on ROS domain 77 (below)
+tools/so101 bench --stub -n 10            # the same with the ground-truth stub in place of perception
+tools/so101 test                          # all our packages, in a new control container (no stack needed)
+tools/so101 test so101_brain -k fsm       # one package; the options go to pytest: the fast loop on one test
+# A full run: stop the stack first (tools/so101 down). The planner's timing tests (p95 under 1 s) fail when the
+# simulation shares the CPU; colcon test gives each package its own free ROS domain anyway.
+
+# ROS shell inside the container (the workspace sourced), RViz
+tools/so101 shell
+tools/so101 rviz
 
 # Rebuild after changing setup.py / package.xml / .srv
 cd /ros2_ws && colcon build --symlink-install && source install/setup.bash
@@ -32,19 +44,12 @@ ros2 topic pub --once -w 1 --keep-alive 1 /joint_command sensor_msgs/msg/JointSt
 ros2 service call /go_to_target so101_interfaces/srv/GoToTarget \
   '{target_pose: {header: {frame_id: base_link}, pose: {position: {x: 0.22, y: 0.0, z: 0.08}}}}'
 
-# Development only (step 4.2c): a full cycle before perception, the ground truth standing in for it (C-06).
-# Its own driver and brain: on another ROS_DOMAIN_ID than the running stack. Then RViz on the same domain.
-docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && export ROS_DOMAIN_ID=77 && \
-  (ros2 launch so101_description viz.launch.py &) && ros2 launch /ros2_ws/src/so101_bringup/test/gt_stub.launch.py"
-docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && export ROS_DOMAIN_ID=77 && \
-  ros2 service call /sim/randomize std_srvs/srv/Trigger && ros2 service call /brain/start std_srvs/srv/Trigger"
-
-# Evaluation bench on the real pipeline (step 4.3a): driver with the ground truth for the bench only, brain and
-# the real perception, on their own ROS_DOMAIN_ID. Stop the ground-truth stub above first: one stack per domain.
-docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && export ROS_DOMAIN_ID=77 && \
-  ros2 launch so101_bringup sim.launch.py expose_ground_truth:=true perception:=true"
-docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && export ROS_DOMAIN_ID=77 && \
-  ros2 run so101_bringup evaluate --episodes 10 --out /tmp/eval.csv --bags /tmp/bags && cat /tmp/eval.csv"
+# The bench (step 4.3a) starts its own driver (with the ground truth, for the bench only, C-06), brain and
+# perception (or the ground-truth stub, development only, step 4.2c) on ROS domain 77, never the stack's 69, runs
+# evaluate, then stops them. It refuses to start when a stack already answers on 77. CSV in ros2_ws/eval_bench.csv;
+# --bags /ros2_ws/bags keeps a rosbag of each failed episode in ros2_ws/bags. To watch it, RViz on the same domain:
+cd docker && docker compose exec -e ROS_DOMAIN_ID=77 control bash -lc "source /ros2_ws/install/setup.bash && \
+  (ros2 launch so101_description viz.launch.py &) && rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz"
 
 # Record an episode
 ros2 bag record -o ep_$(date +%H%M%S) /joint_states /joint_command /object_position /drop_box_position /brain_state
