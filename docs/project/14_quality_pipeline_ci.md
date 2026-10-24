@@ -253,7 +253,7 @@ State of the code with the final configuration (ruff 0.16.10), before the cleanu
 What was done so that CI is green from the first push **without diverging from upstream**:
 
 - **Team code** (`driver_node.py`, `brain_node.py`): fixed and formatted (≈ 6 lines; the provided part of the driver is untouched).
-- **Provided files still identical to upstream** (perception stub, launch files, `example_py_pkg`, `ros2_ws/.gitignore`, `__init__.py` in mode 755): **excluded** in `pyproject.toml` / `.pre-commit-config.yaml` rather than modified. Remove a file from the exclusion list when the team rewrites it.
+- **Provided files still identical to upstream** (the launch files of `so101_brain` and `so101_driver`, `example_py_pkg`, `ros2_ws/.gitignore`, `__init__.py` in mode 755): **excluded** in `pyproject.toml` / `.pre-commit-config.yaml` rather than modified. Each file is listed by name, never by a glob: `ros2_ws/src/*/launch/*.launch.py` also skipped the team's `sim.launch.py`, `real.launch.py` and `perception.launch.py` until #161. Remove a file from the exclusion list when the team rewrites it.
 - Course content (`core/`, `sim/`, `so101_description`, `docs/SUJET.md`, slides) is excluded from every check; `docs/SUJET.md` would otherwise raise 13 markdownlint issues [RC-30].
 - `docs/` and `*.md` are excluded from ruff, which also formats Python blocks inside Markdown (doc snippets are deliberately compact).
 - Rule excluded after review: `N803`/`N806` (upper-case variables): `R`, `T`, `K`, `J` denote matrices by robotics convention.

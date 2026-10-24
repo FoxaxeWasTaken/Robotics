@@ -60,6 +60,6 @@ bash tools/ci/guards.sh           # host, repo root (needs the git repo): projec
 - In a fresh `docker compose exec`, `ros2 node list` or `ros2 topic echo` may show nothing at first (DDS discovery): use `--no-daemon --spin-time 3`, or retry.
 - "Brain node ready" does not mean the brain has `/joint_states` yet (DDS discovery): a `/brain/start` or `/go_to_target` right after it is refused (`no_joint_states`). Tests and tools wait for the first `/end_effector_pose`, which the brain computes from them (#119, #132).
 - Files written in the containers (`build/`, `install/`, `log/`, `__pycache__`) belong to root: delete them from inside a container.
-- `pyproject.toml` excludes course files still identical to upstream: remove a file from `extend-exclude` when you rewrite it, or it is never linted.
+- `pyproject.toml` excludes course files still identical to upstream, each by name: remove a file from `extend-exclude` when you rewrite it, or it is never linted; never add a glob, it catches the team's files too (#161).
 - ikpy knows no collision volumes: `Kinematics._solve` rejects the solutions `self_collides` flags (the arm folded onto its shoulder or base, `04` §8) [MES-43]; keep every IK call behind `_solve`, and still seed from a bent pose (q = 0 is singular).
 - More: `docs/project/13` (runbook) and `04` §8 (kinematics pitfalls).
