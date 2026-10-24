@@ -20,7 +20,9 @@ def generate_launch_description():
                 executable="perception",
                 name="so101_perception",
                 output="screen",
-                parameters=[PathJoinSubstitution([FindPackageShare("so101_perception"), "config", "perception.yaml"])],
+                parameters=[
+                    PathJoinSubstitution([FindPackageShare("so101_perception"), "config", "perception.yaml"])
+                ],
             ),
         ]
     )

@@ -28,7 +28,8 @@ IMAGES = 30  # sent after the first debug image
 DATA = Path(__file__).parent / "data"
 LABELS = json.loads((DATA / "labels.json").read_text())
 # Whole cube A, truncated cube, whole cube B (B then repeats): each far from the others, so the filter
-# rejects the first 4 frames after each change (05 §7).
+# rejects the first 4 frames after each change (05 §7). Each image is shown until the node has processed
+# that many frames of it, not sent: a loaded node starts late and drops frames (#157).
 SCRIPT = [("000.png", 15), ("015.png", 15), ("024.png", None)]
 
 
@@ -76,10 +77,9 @@ class TestPerception(unittest.TestCase):
     @classmethod
     def publish_camera(cls):
         label, rgb, count = cls.script[0]
-        if count is not None:
-            cls.script[0] = (label, rgb, count - 1)
-            if count == 1:
-                cls.script.pop(0)
+        if count is not None and sum(cls.shown[key(m.header.stamp)] is label for m in cls.debug) >= count:
+            cls.script.pop(0)
+            label, rgb, count = cls.script[0]
         image = cls.bridge.cv2_to_imgmsg(rgb, encoding="rgb8")
         image.header.stamp = cls.node.get_clock().now().to_msg()
         image.header.frame_id = CAMERA_FRAME

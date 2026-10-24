@@ -36,3 +36,7 @@ Produced images (camera views, masks, ArUco) are written to `/tmp/exp_out`.
 | `exp_tick_by_state.py` | The brain's tick period per FSM state, the planner in a worker process or thread (patches a copy of the node) | MES-40 | with `exp_gt_cycles.py` |
 | `exp_principal_point.py` | Is the sim's principal point in OpenCV pixel coordinates? Blob against the exact silhouette, both conventions | MES-41 | < 1 min |
 | `exp_webcam_formats.py` | Which webcam formats go through usbipd? (run with `--device /dev/video0`) | MES-17 | < 1 min |
+| `exp_sigint_stop.py` | Does a SIGINT at a random moment make a node print a traceback at exit, with `rclpy.spin()` and with an event-driven stop? | MES-44 | ~12 min (2 × 150 stops) |
+| `exp_driver_jitter.py` | The driver's control period with the sim camera thread on and off, and with llvmpipe's render threads at half the cores (`LP_NUM_THREADS`)? | MES-34 | 30 s per variant |
+| `exp_ik_seeds.py` | Does `ik_pos` find every reachable configuration of the joint space with the seeds of `04` §3.1? (2000 random configurations, target = FK) | MES-36 | ~5 min (2 × 2000 solves; a miss tries every seed) |
+| `exp_clock_steps.py` | How often does the WSL2 wall clock step, and what does a step do to `/joint_states` and to a `/go_to_target` motion? (run next to a sim stack) | MES-37 | 95 s by default (argument) |

@@ -277,7 +277,7 @@ flowchart LR
 | Ticket | ≤ L; closed by a PR, alone or grouped with related tickets (one commit and one `Closes #` each); title `[<step><letter>] <imperative summary>`, e.g. `[3.4b] Extrinsic calibration tool`; body = *Task* form (CONTRIBUTING §8) |
 | Dependencies | Native **blocked by** relationship (Issue → Relationships), never a label |
 | Milestones | The functional SemVer versions of §6 (`v0.1.0 — Foundations and driver` … `v2.0.0 — Phase 2 and final defense`), **no due date** (the plan follows logic, not dates, `09`) |
-| Labels | `task`, `bug`, `epic`, `safety`, `staff-question`, `area:infra` `area:ci` `area:bringup` `area:driver` `area:kinematics` `area:perception` `area:brain` `area:eval` `area:docs` |
+| Labels | `task`, `bug`, `epic`, `safety`, `staff-question`, `area:infra` `area:ci` `area:bringup` `area:driver` `area:kinematics` `area:perception` `area:brain` `area:eval` `area:docs` `area:connect4`; `report` for an issue that collects reports, not a work item ("Nightly bench results", #151): the project views leave it out |
 
 ### 12.3 Fields, views, automations
 

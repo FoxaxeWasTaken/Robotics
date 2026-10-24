@@ -16,9 +16,10 @@ BOX = (0.10, -0.25, 0.0)  # floor center
 class FakeBench:
     """What run() reads of the bench, without ROS: the driver's seed, the ground truth, the brain's pose."""
 
-    def __init__(self, pose):
+    def __init__(self, pose, successes=None):
         self.truth = {"object": None, "drop_box": None}
         self.pose = pose
+        self.successes = successes  # success of each episode; None: all succeed
         self.episodes = []
         self.first_wait = None
         self.waits = []  # timeout of each spin_until
@@ -34,12 +35,21 @@ class FakeBench:
 
     def episode(self, number, seed, timeout_s):
         self.episodes.append(number)
-        return {**dict.fromkeys(FIELDS, 0), "episode": number, "seed": seed, "final_state": "DONE",
-                "duration_s": 15.0, "success": True, "cause": ""}  # fmt: skip
+        success = self.successes is None or self.successes[number - 1]
+        return {**dict.fromkeys(FIELDS, 0), "episode": number, "seed": seed,
+                "final_state": "DONE" if success else "ERROR:timeout:APPROACH", "duration_s": 15.0,
+                "success": success, "cause": "" if success else "timeout:APPROACH"}  # fmt: skip
 
 
-def bench_args(tmp_path):
-    return argparse.Namespace(episodes=2, out=tmp_path / "eval.csv", bags=None, seed=None, timeout=60.0)
+def bench_args(tmp_path, episodes=2, min_success=None):
+    return argparse.Namespace(
+        episodes=episodes,
+        out=tmp_path / "eval.csv",
+        bags=None,
+        seed=None,
+        timeout=60.0,
+        min_success=min_success,
+    )
 
 
 def test_no_episode_starts_while_the_brain_does_not_see_joint_states(tmp_path, capsys):
@@ -121,6 +131,27 @@ def test_other_requests_are_sent_once_and_stop_the_bench_without_reply(clocked_b
     with pytest.raises(RuntimeError, match="no answer in 10 s"):
         bench.call(service, "request", 10.0)
     assert service.sent == 1
+
+
+@pytest.mark.parametrize(
+    ("successes", "min_success", "code"),
+    [
+        ([True, False, True], 3, 1),
+        ([True, True, True], 3, 0),
+        ([True, False, True], 2, 0),
+        ([False, False, False], None, 0),  # without the option: the nightly stays informative (#151)
+    ],
+)
+def test_min_success_fails_the_run_below_it_after_the_csv_and_the_summary(
+    tmp_path, capsys, successes, min_success, code
+):
+    """#156: the PR's E2E job fails on a failed pick & place, not only on a crash."""
+    bench = FakeBench(pose=object(), successes=successes)
+    assert run(bench_args(tmp_path, len(successes), min_success), bench) == code
+    assert len((tmp_path / "eval.csv").read_text().splitlines()) == 1 + len(successes)
+    out = capsys.readouterr()
+    assert re.search(rf"^success {sum(successes)}/{len(successes)} ", out.out, re.MULTILINE)
+    assert (f"fewer than --min-success {min_success}" in out.err) == bool(code)
 
 
 def test_the_episodes_run_once_the_brain_publishes_its_pose(tmp_path):

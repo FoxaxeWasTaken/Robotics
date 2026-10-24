@@ -43,7 +43,7 @@ The box follows the same pattern (brown mask, centroid, plane z = 2.5 cm = mid-h
 | Box | rgba (0.35, 0.20, 0.12) | H ≈ 10, S ≈ 168, V ≈ 89 | H ∈ [5, 25], S ≥ 90, V ∈ [40, 220] |
 | Floor, robot | Gray (S ≈ 0) | — | Excluded by the saturation threshold |
 
-Result in sim: **0 missed detection, 0 false positive** over 80 episodes [MES-13]. ⚠ The provided stub uses **yellow** thresholds (old golden ball): replace them.
+Result in sim: **0 missed detection, 0 false positive** over 80 episodes [MES-13]. These thresholds are `perception.yaml`'s, replacing the course stub's yellow ones (old golden ball).
 
 ROS parameters (`config/perception.yaml`, read at each image, so `ros2 param set` tunes them at runtime): `hsv_cube_h_min`, `hsv_cube_h_max`, `hsv_cube_s_min`, `hsv_cube_v_min`, `hsv_box_h_min`, `hsv_box_h_max`, `hsv_box_s_min`, `hsv_box_v_min`, `hsv_box_v_max`, `min_area_px`, `min_solidity`. A hue interval wraps around 180 when `h_min > h_max`: the red cube is `160`, `8`.
 

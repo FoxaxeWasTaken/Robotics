@@ -108,7 +108,8 @@ The ground truth (`/sim/ground_truth/*`) is published only by a driver started w
 - **The 3D view**:
   - the arm and its TF;
   - the TCP pose (`/end_effector_pose`), the cube and box poses;
-  - the brain's markers (`/brain/markers`): pre-grasp in yellow, grasp in green, drop in blue, the approach arrow, and the locked cube as a red 5 cm cube from `APPROACH` until it is lifted.
+  - the brain's markers (`/brain/markers`): pre-grasp in yellow, grasp in green, drop in blue, the approach arrow (display "Brain targets");
+  - the locked cube, a red 5 cm cube from `APPROACH` until it is lifted, in its own display "Cube (locked)": untick it to hide the cube.
 - **The large red translucent block is the drop box** (the course's marker), not the cube.
 
 ## Common problems

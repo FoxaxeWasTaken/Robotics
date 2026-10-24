@@ -153,7 +153,23 @@ Visualization Manager:
       Enabled: true
       Name: Brain targets
       Namespaces:
-        {}
+        cube: false
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /brain/markers
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: Cube (locked)
+      Namespaces:
+        approach: false
+        cube: true
+        drop: false
+        grasp: false
+        pre_grasp: false
       Topic:
         Depth: 1
         Durability Policy: Volatile
