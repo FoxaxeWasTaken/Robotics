@@ -96,7 +96,7 @@ jobs:
             colcon build --symlink-install --event-handlers console_cohesion+ &&
             ament_xmllint src/*/package.xml &&   # package.xml against the ROS schema (check-xml only checks syntax)
             # Only packages with a test/ folder: since Python 3.12 an empty package fails ("NO TESTS RAN").
-            # so101_perception: built here for so101_bringup's sim tests (#45), tested in its own image.
+            # so101_perception: built here for the sim tests of so101_bringup (#45), tested in its own image.
             pkgs=$(ls -d src/*/test 2>/dev/null | cut -d/ -f2 | grep -vx so101_perception) &&
             if [ -z "$pkgs" ]; then echo "No test folder yet: nothing to test."; else
               # One package at a time: run in parallel, the brain IK property tests starved the camera of the
