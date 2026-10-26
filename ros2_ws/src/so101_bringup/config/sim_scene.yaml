@@ -1,0 +1,12 @@
+# Our sim scene (so101_bringup.sim_scene, ADR-036): what it changes in a copy of the provided scene.
+# camera: the external camera, moved (#47, MES-45; allowed by the teaching staff on 2026-10-16). The provided
+# pose, (0.45, 0.45, 0.55), cut 21 % of the cubes at the image edge [MES-12]. This one, on the provided camera's
+# side (azimuth 50 around the work area), 35 degrees down, keeps every corner of every cube and box of
+# /sim/randomize >= 10 px inside the 320x240 image and shows the cube 23.2 px wide (18.1 before); the arm in PARK
+# hides neither, and a cube lying in the box is still read inside its footprint, as VERIFY needs (30 degrees down
+# misread 3 in 48). MuJoCo convention: pos in base_link (the MuJoCo world), xyaxes = the camera's x (right) and
+# y (up) axes; it looks along -z. Perception's provisional extrinsics (so101_perception/config/
+# camera_extrinsics.yaml) are this pose.
+camera:
+  pos: [0.458, 0.339, 0.363]
+  xyaxes: [-0.7660, 0.6428, 0.0, -0.3687, -0.4394, 0.8192]

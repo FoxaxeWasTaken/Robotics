@@ -1,0 +1,6 @@
+# Loaded on top of driver.yaml with calibration:=true (sim.launch.py): the image size of the extrinsic
+# calibration (ADR-013, 05 §10).
+so101_driver:
+  ros__parameters:
+    camera_width: 640
+    camera_height: 480

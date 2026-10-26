@@ -137,7 +137,7 @@ The kit contains leftovers of a previous project version ("golden ball"). Resolu
 | I-7 | The API comment says `get_observation()` contains `external_cam` (sim); the code says otherwise | The code wins: **`render_camera()`** | Resolved |
 | I-8 | `so101_perception` has a `COLCON_IGNORE` and its `setup.py` references a missing `launch/` folder | Remove `COLCON_IGNORE` and create `launch/` when implementing | Resolved |
 | I-9 | Slides: "wait: Brain node prêt"; the real log says "Brain node ready." | Cosmetic | — |
-| I-10 | **21 % of the randomized cube positions are partially outside the field of view** of the simulated camera [MES-12] | The staff allows moving the sim camera (2026-10-16): move it and re-measure; the software mitigation stays (`05` §6) | Answered, camera move to do |
+| I-10 | **21 % of the randomized cube positions are partially outside the field of view** of the simulated camera [MES-12] | The staff allows moving the sim camera (2026-10-16): move it and re-measure; the software mitigation stays (`05` §6) | Resolved (#47): the camera moved, 0 % cut [MES-45] |
 | I-11 | Brief update of 2026-10-08: the S2 milestone, "7 out of 10 on a real arm" and "randomized object and box poses" are gone; S4 adds "ideally the pick & place should be functional"; S7 adds phase 2 | 7/10 and the randomized bench kept as **team targets** (DECIDED, source tags changed); early vertical slice kept; phase 2 becomes roadmap stage 7 (`09`) | Resolved |
 
 ## 6. Out of scope (phase 1)

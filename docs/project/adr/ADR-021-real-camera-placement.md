@@ -31,3 +31,7 @@ Rigid mount, viewpoint close to the sim (high, on the side, 30–40° down), **w
 ## Reconsider if
 
 The teaching staff imposes a standard camera mount.
+
+## Update (2026-10-26, #47)
+
+The sim camera moved, so "a viewpoint close to the sim" now means its new pose (`so101_bringup/config/sim_scene.yaml`): (0.458, 0.339, 0.363) in `base_link`, on the provided camera's side (azimuth 50° around the work area), 35° down, 0.59 m from the center of the work area, so lower and closer than the provided (0.45, 0.45, 0.55). It keeps every cube and box of `/sim/randomize` ≥ 10 px inside the image, where the provided pose cut 19 % of the cubes; the arm in PARK hides neither; and a cube lying in the box stays readable over its walls, which 30° down did not ensure [MES-45]. The decision itself is unchanged: rigid mount, the whole area in view with margin, manual exposure, white balance and focus, MJPG 640×480. The real camera gets placed alike and calibrated (6.3a).

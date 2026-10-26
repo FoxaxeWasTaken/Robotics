@@ -44,3 +44,7 @@ The arm sits on a riser and gets a wrist camera, two changes inside the provided
 ## Update (2026-10-16, teaching staff)
 
 The staff allows changing the scene: our own scenes (calibration markers, phase-2 grid) and the pose and parameters of the scene camera, for instance to match the real camera. The rule stays: edit a copy with `mujoco.MjSpec`, never `sim/`.
+
+## Update (2026-10-26, #44, #47)
+
+The mechanism exists for phase 1: `so101_bringup.sim_scene` copies the provided scene folder and edits it with `mujoco.MjSpec`; `sim.launch.py` generates the scene at launch and passes it to the driver's `scene_path`, which reconnects `SO101Sim` right after the provided `_connect_arm`. Every sim run uses it now: the external camera moved (`config/sim_scene.yaml`, #47); `calibration:=true` adds the ArUco markers (`config/markers_sim.yaml`, #44). The phase-2 scene extends the same generator. A camera of the provided scene is oriented by `xyaxes`: the copy sets `xyaxes` too, since a `quat` set alone does not override it.

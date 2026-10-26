@@ -129,6 +129,14 @@ class DriverNode(rclpy.node.Node):
                 description="Webcam: ROS calibration YAML; empty: no camera_info", read_only=True
             ),
         ).value
+        scene_path: str = self.declare_parameter(
+            "scene_path",
+            "",
+            ParameterDescriptor(
+                description="Sim: our scene (so101_bringup.sim_scene, ADR-036); empty: the provided one",
+                read_only=True,
+            ),
+        ).value
         if len(self._shutdown_pose) != len(ARM_JOINT_NAMES):
             raise ValueError(f"shutdown_pose needs {len(ARM_JOINT_NAMES)} values, got {self._shutdown_pose}")
         # ROS ignores a key no node declares: a typo in driver_real.yaml would keep the sim's value (#57).
@@ -137,8 +145,12 @@ class DriverNode(rclpy.node.Node):
 
         self._robot = self._connect_arm(port)
         self.get_logger().info(f"Robot connected: {type(self._robot).__name__}")
-        # SO101Sim is built by the provided _connect_arm (ADR-032): image size and seed are set here.
+        # SO101Sim is built by the provided _connect_arm (ADR-032): scene, image size and seed are set here.
         if self._use_sim:
+            if scene_path:  # SO101Sim.connect() loads scene_path (ADR-036)
+                self._robot.disconnect()
+                self._robot.scene_path = scene_path
+                self._robot.connect()
             self._robot.camera_width = self._p["camera_width"]
             self._robot.camera_height = self._p["camera_height"]
             # Two independent streams from one seed: the provided randomize_object() and the box sampler.
