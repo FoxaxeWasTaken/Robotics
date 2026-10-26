@@ -5,8 +5,8 @@
 # /sim/randomize >= 10 px inside the 320x240 image and shows the cube 23.2 px wide (18.1 before); the arm in PARK
 # hides neither, and a cube lying in the box is still read inside its footprint, as VERIFY needs (30 degrees down
 # misread 3 in 48). MuJoCo convention: pos in base_link (the MuJoCo world), xyaxes = the camera's x (right) and
-# y (up) axes; it looks along -z. Perception's provisional extrinsics (so101_perception/config/
-# camera_extrinsics.yaml) are this pose.
+# y (up) axes; it looks along -z. Perception's extrinsics (so101_perception/config/
+# camera_extrinsics.yaml) are our calibration of this camera (#46): move it, calibrate again (05 §5.1).
 camera:
   pos: [0.458, 0.339, 0.363]
   xyaxes: [-0.7660, 0.6428, 0.0, -0.3687, -0.4394, 0.8192]

@@ -3,6 +3,7 @@ errors on the reference images with the exact camera pose of the labels, the ext
 
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pytest
 import yaml
@@ -16,6 +17,7 @@ from so101_perception.geometry import (
     from_mujoco,
     load_extrinsics,
     pixel_to_world,
+    quaternion,
     save_extrinsics,
     world_to_pixel,
 )
@@ -129,3 +131,21 @@ def test_the_reference_images_extrinsics_file_is_their_camera():
     assert np.linalg.norm(T[:3, 3] - T_LABELS) < 0.005
     cos = (np.trace(T[:3, :3].T @ R_LABELS) - 1.0) / 2.0
     assert np.degrees(np.arccos(np.clip(cos, -1.0, 1.0))) < 0.3
+
+
+def rotation(x, y, z, w):
+    return np.array(
+        [
+            [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+            [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+            [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)],
+        ]
+    )
+
+
+@pytest.mark.parametrize("angle", [0.0, 1.0, 2.83, np.pi - 1e-9, np.pi])  # the camera's: about 162° (2.83)
+def test_the_quaternion_of_the_camera_tf_gives_back_its_rotation(angle):
+    """#46: the static TF base_link -> camera carries the extrinsics' rotation as a unit quaternion."""
+    R = cv2.Rodrigues(np.array([1.0, -2.0, 0.5]) / np.linalg.norm([1.0, -2.0, 0.5]) * angle)[0]
+    q = quaternion(R)
+    assert np.isclose(np.linalg.norm(q), 1.0) and np.allclose(rotation(*q), R, atol=1e-9)

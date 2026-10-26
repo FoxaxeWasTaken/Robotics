@@ -58,6 +58,13 @@ def world_to_pixel(p, K, R_wc, t_wc) -> np.ndarray:
     return x[:2] / x[2]
 
 
+def quaternion(R) -> np.ndarray:
+    """(x, y, z, w) of a rotation matrix, through its rotation vector (cv2 handles angles near 180°)."""
+    r = cv2.Rodrigues(np.asarray(R, dtype=float))[0].ravel()
+    angle = np.linalg.norm(r)
+    return np.r_[r * (np.sin(angle / 2) / angle if angle > 1e-12 else 0.5), np.cos(angle / 2)]
+
+
 def save_extrinsics(path, extrinsics: Extrinsics):
     data = {
         "T_base_cam": np.asarray(extrinsics.T_base_cam, dtype=float).tolist(),
