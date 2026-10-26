@@ -17,7 +17,7 @@ A camera spots a red cube, the SO-ARM101 arm grasps it and drops it into a box �
 
 | Done | Next (see [roadmap](docs/project/09_roadmap_step_by_step.md)) |
 | --- | --- |
-| Environment (Docker images, X11, DDS, usbipd), CI, hooks, design docs with measured spikes | Our ArUco calibration (3.4) and the sim camera placed to see the whole area: today 21 % of the cube positions are cut by the image edge (MES-12) |
+| Environment (Docker images, X11, DDS, usbipd), CI, hooks, design docs with measured spikes | Our ArUco calibration tool and extrinsics (3.4b, 3.4c): the calibration scene exists (3.4a, #44). The sim camera sees the whole area since #47 (MES-45) |
 | Driver: `/joint_states` at 30 Hz, `/joint_command`, speed limiter, joint-limit clamp, camera at 10 Hz with `camera_info`, `/sim/randomize`, ground truth for the bench only; real-arm safety and webcam | Robustness: truncation and outliers (3.5a), grasp verification and retries (4.4a), then ≥ 90 % over 50 episodes (4.5b) |
 | Perception: HSV detection, pixel → 3D, median filter, cube yaw, `/object_position` and `/drop_box_position`, debug image | The real arm: commissioning (6.1b), camera and grasp calibration (6.2b–6.4), 10 real trials (6.5a) |
 | Brain: FK/IK (no self-collision), `/go_to_target`, grasp planner in a worker process, the full state machine, markers in RViz | Release v1.0.0, the simulation milestone (5.3a); phase 2 (stage 7) |
@@ -27,7 +27,7 @@ A camera spots a red cube, the SO-ARM101 arm grasps it and drops it into a box �
 
 | Metric | Result | Source |
 | --- | --- | --- |
-| Pick & place, real perception, randomized cube and box | Each night `main` changes, 50 episodes: [latest results](https://github.com/FoxaxeWasTaken/Robotics/issues?q=is%3Aissue+in%3Atitle+%22Nightly+bench+results%22). Ceiling today: the 21 % of cubes cut by the image edge are not published | MES-12, [`08` §2](docs/project/08_quality_tests.md) |
+| Pick & place, real perception, randomized cube and box | Each night `main` changes, 50 episodes: [latest results](https://github.com/FoxaxeWasTaken/Robotics/issues?q=is%3Aissue+in%3Atitle+%22Nightly+bench+results%22). Since the sim camera moved (#47), no cube is cut by the image edge any more (21 % were): 50/50 on the nightly's scenes in a local bench | MES-45, MES-46, [`08` §2](docs/project/08_quality_tests.md) |
 | Full cycle with the ground truth in place of perception | 20/20 in the box, cycle median 14.6 s | MES-40 |
 | Grasp chain in closed loop (IK, planner, min-jerk) | 40/40 in the box | MES-38 |
 | IK accuracy (FK of the solution against the target) | mean 0.161 mm, max 0.218 mm | MES-43 |

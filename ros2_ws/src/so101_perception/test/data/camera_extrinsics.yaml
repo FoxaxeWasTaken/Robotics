@@ -1,0 +1,13 @@
+# Pose of the external camera in base_link (docs/project/05 §3-§5), written by
+# so101_perception.geometry.save_extrinsics. T_base_cam maps a point of the camera's OpenCV optical
+# frame (x right, y down, z forward) to base_link.
+T_base_cam:
+- [-0.7071067811865477, 0.3538959698750378, -0.6121745196479567, 0.45]
+- [0.7071067811865476, 0.3538959698750378, -0.6121745196479567, 0.45]
+- [0.0, -0.8657455082253751, -0.5004844802664588, 0.55]
+- [0.0, 0.0, 0.0, 1.0]
+parent_frame: base_link
+child_frame: external_cam_optical_frame
+method: the provided camera pose, which rendered these reference images (make_perception_dataset)
+date: '2026-10-20'
+reprojection_error_px: null

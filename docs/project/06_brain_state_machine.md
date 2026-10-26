@@ -160,7 +160,7 @@ Declared by `brain_node` (read-only, with ranges): `motion.*` since step 2.2; `g
 | `fsm.release_wait_s` | 0.5 s | `RELEASE` |
 | `fsm.verify_timeout_s` | 2 s | `VERIFY`: no detection → `DONE` with a warning |
 | `fsm.box_half_size_m` | 0.05 m | The box footprint (`08` §3), for `VERIFY` and the lock (#143) |
-| `fsm.park_pose` | [1.9, -1.7, 1.5, 0.7, 0.0] | Off the workspace view: the cube never hidden, the box at worst 9 % hidden; elbow 1.6 pressed the lower arm on the shoulder, 0.01 rad short [MES-39]; **to validate mechanically on the real arm** |
+| `fsm.park_pose` | [1.9, -1.7, 1.5, 0.7, 0.0] | Off the workspace view: the cube never hidden, the box at worst 9 % hidden with the provided camera, 1 % with the moved one [MES-45]; elbow 1.6 pressed the lower arm on the shoulder, 0.01 rad short [MES-39]; **to validate mechanically on the real arm** |
 
 ## 7. Observability
 

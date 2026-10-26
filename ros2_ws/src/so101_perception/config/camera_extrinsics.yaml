@@ -2,12 +2,13 @@
 # so101_perception.geometry.save_extrinsics. T_base_cam maps a point of the camera's OpenCV optical
 # frame (x right, y down, z forward) to base_link.
 T_base_cam:
-- [-0.7071067811865477, 0.3538959698750378, -0.6121745196479567, 0.45]
-- [0.7071067811865476, 0.3538959698750378, -0.6121745196479567, 0.45]
-- [0.0, -0.8657455082253751, -0.5004844802664588, 0.55]
+- [-0.7660196405178613, 0.36869921832560193, -0.5265688907892072, 0.458]
+- [0.6428171671160912, 0.4393625122106495, -0.627492368499243, 0.339]
+- [-1.3150618301538408e-06, -0.8191590012140723, -0.573566500702607, 0.363]
 - [0.0, 0.0, 0.0, 1.0]
 parent_frame: base_link
 child_frame: external_cam_optical_frame
-method: provisional (provided pose), replaced at step 3.4
-date: '2026-10-20'
+method: 'provisional (the sim camera of so101_bringup/config/sim_scene.yaml, #47),
+  replaced at step 3.4c'
+date: '2026-10-26'
 reprojection_error_px: null

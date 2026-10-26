@@ -24,6 +24,7 @@ K = np.array(LABELS["K"])
 R_LABELS = np.array(LABELS["camera_in_base_link"]["rotation"])  # exact pose, OpenCV optical frame
 T_LABELS = np.array(LABELS["camera_in_base_link"]["translation"])
 CONFIG = Path(__file__).parents[1] / "config" / "camera_extrinsics.yaml"
+REFERENCE = Path(__file__).parent / "data" / "camera_extrinsics.yaml"  # the camera of the reference images
 CUBE_Z = 0.025  # center of a cube resting on the table (C-22)
 
 
@@ -121,9 +122,10 @@ def test_a_file_that_is_not_the_camera_pose_is_refused(tmp_path, change):
         load_extrinsics(tmp_path / "e.yaml")
 
 
-def test_the_extrinsics_file_is_the_camera_of_the_reference_images():
-    """Within 5 mm and 0.3°, the target of the own calibration (3.4), which will replace the file."""
-    T = load_extrinsics(CONFIG).T_base_cam
+def test_the_reference_images_extrinsics_file_is_their_camera():
+    """The provided camera pose rendered the reference images; the sim camera moved since (#47), so they carry
+    their own file. Within 5 mm and 0.3°, the target of the own calibration (3.4)."""
+    T = load_extrinsics(REFERENCE).T_base_cam
     assert np.linalg.norm(T[:3, 3] - T_LABELS) < 0.005
     cos = (np.trace(T[:3, :3].T @ R_LABELS) - 1.0) / 2.0
     assert np.degrees(np.arccos(np.clip(cos, -1.0, 1.0))) < 0.3

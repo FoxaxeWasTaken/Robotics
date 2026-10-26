@@ -11,9 +11,10 @@ expose_ground_truth and perception are for the evaluation bench only (C-06, 08 Â
 EXPOSE_GROUND_TRUTH; a bench on its own ROS_DOMAIN_ID adds perception:=true, the compose stack runs perception
 in its own container.
 
-calibration:=true (sim): the scene with the ArUco markers of config/markers_sim.yaml and 640x480 images
-(driver_calibration.yaml), for the extrinsic calibration (3.4, #44). The scene is generated at launch by
-so101_bringup.sim_scene, never in sim/ (ADR-036).
+In sim, the driver runs on our scene, generated at launch by so101_bringup.sim_scene, never in sim/ (ADR-036):
+the external camera moved to the pose of config/sim_scene.yaml (#47). calibration:=true adds the ArUco markers
+of config/markers_sim.yaml and gives 640x480 images (driver_calibration.yaml), for the extrinsic calibration
+(3.4, #44).
 """
 
 from launch import LaunchDescription

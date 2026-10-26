@@ -138,7 +138,7 @@ flowchart TD
 5. Quality check: mean reprojection error < 1 px (sim) / < 2 px (real), otherwise reject.
 6. Write `config/camera_extrinsics.yaml`; perception loads it and publishes the **static TF** `base_link → external_cam_optical_frame`.
 
-**The file** (`geometry.save_extrinsics` and `load_extrinsics`): `T_base_cam`, the 4×4 transform from the camera's OpenCV optical frame to `base_link`; `parent_frame: base_link`; `child_frame: external_cam_optical_frame`; `method`; `date`; `reprojection_error_px` (`null` without a calibration). `load_extrinsics` refuses other frames and a transform that is not rigid. Until step 3.4, the file holds the provided camera pose through `geometry.from_mujoco` (FLIP, §3.1), with `method: provisional (provided pose), replaced at step 3.4`.
+**The file** (`geometry.save_extrinsics` and `load_extrinsics`): `T_base_cam`, the 4×4 transform from the camera's OpenCV optical frame to `base_link`; `parent_frame: base_link`; `child_frame: external_cam_optical_frame`; `method`; `date`; `reprojection_error_px` (`null` without a calibration). `load_extrinsics` refuses other frames and a transform that is not rigid. Until step 3.4, the file holds the pose of our sim camera, `so101_bringup/config/sim_scene.yaml` (#47; the provided pose before), through `geometry.from_mujoco` (FLIP, §3.1), with `method: provisional (the sim camera of …), replaced at step 3.4c`; `so101_bringup/test/test_sim_scene.py` fails if the two differ.
 
 ### 5.2 Measured results in sim [MES-16]
 
@@ -158,7 +158,7 @@ Review conclusions:
 - **Since 3.4a (#44)**: `ros2 launch so101_bringup sim.launch.py calibration:=true` (on its own `ROS_DOMAIN_ID` next to a running stack) starts the driver at 640×480 on the calibration scene.
 - The scene is **generated at launch** by `so101_bringup.sim_scene`: a copy of the provided scene folder, edited with `mujoco.MjSpec`, with an ArUco-textured plane per marker. The driver loads it through its `scene_path` parameter, by reconnecting `SO101Sim` right after the provided `_connect_arm`, which stays untouched (ADR-036).
 - **The layout**: `so101_bringup/config/markers_sim.yaml`, the single source of truth (`DICT_4X4_50`, 7.5 cm squares on 10 cm planes, centers in `base_link`), chosen for the camera's view: spread over the image, each ≥ 28 px wide at 640×480, not behind the arm in PARK, clear of every cube and box position. Seen from above, a marker image's up is +x and its right −y: `sim_scene.marker_corners` gives the four corners in `cv2.aruco`'s order, for the calibration tool (3.4b).
-- **Checked** by `so101_bringup/test/test_sim_scene.py`: ≥ 5 markers detected at 640×480 with the arm in PARK (8/8 with the provided camera), each corner within 3 px of where the layout puts it, `sim/` untouched.
+- **Checked** by `so101_bringup/test/test_sim_scene.py`: ≥ 5 markers detected at 640×480 with the arm in PARK (8/8 with the provided camera and, laid out again for it in #47, 8/8 with the camera of `sim_scene.yaml`), each corner within 3 px of where the layout puts it, `sim/` untouched.
 
 ### 5.4 Real implementation
 
@@ -166,7 +166,7 @@ Review conclusions:
 - More accurate variant, **touch probing**: bring the TCP (pointer in the gripper) onto the marker corners and read the FK → corners in `base_link` without manual measurement.
 - **Startup self-check**: perception detects the still-visible markers and computes the reprojection error with the stored extrinsics → above 3 px: warning "camera moved, recalibrate".
 
-## 6. Field of view: 21 % of cube positions are truncated [MES-12]
+## 6. Field of view: 21 % of cube positions were truncated [MES-12], none since the camera moved [MES-45]
 
 With the provided camera at 320×240, over 2,000 positions drawn like `randomize_object()`:
 
@@ -176,15 +176,16 @@ With the provided camera at 320×240, over 2,000 positions drawn like `randomize
 
 **Mitigations, in order of preference**:
 
-1. **Move the sim camera** (allowed by the teaching staff, 2026-10-16): place it like the real camera, with the whole randomization area in view with margin (ADR-021), on a copy of the scene edited with `mujoco.MjSpec` (ADR-036), never in `sim/`. Then recalibrate (step 3.4) and re-measure MES-12. The evaluation is not settled, but partial occlusions by the robot should be handled when possible (§7).
+1. **Move the sim camera** (allowed by the teaching staff, 2026-10-16), **done in #47**: `so101_bringup/config/sim_scene.yaml`, applied by `so101_bringup.sim_scene` to a copy of the scene edited with `mujoco.MjSpec` (ADR-036), never in `sim/`. The pose, chosen by projection then checked by rendering [MES-45]: (0.458, 0.339, 0.363), on the provided camera's side (azimuth 50°), 35° down, 0.59 m from the work area. Every corner of every cube and box of `/sim/randomize` stays ≥ 10 px inside the image: **0 cube cut over 300 scenes, against 57 (19 %) with the provided pose**; the cube shows 23.2 px wide (18.1 before); the arm in PARK hides neither the cube nor, at 99 %, the box. **Not lower**: at 30° down the box's walls hide most of a cube lying in it, and perception read it outside the box footprint in 3 of 48 cases, so `VERIFY` sent the brain back to grasp it in the box (8 failures in a 50-episode bench); at 35°, 48/48. `test_sim_scene.py` checks the edge on 200 scenes. Perception's provisional extrinsics are this pose until the calibration of step 3.4 replaces them; the reference images of the tests keep the provided pose that rendered them, in their own file (`so101_perception/test/data/camera_extrinsics.yaml`). The evaluation is not settled, but partial occlusions by the robot should be handled when possible (§7).
 2. **Far-edge** method for truncated detections: the top edge (opposite the camera) is still visible → back-project it on z = 5 cm, then step back 2.5 cm along the viewing direction projected on the floor. Less accurate; needs a dedicated test.
 3. A higher resolution (640×480) does **not** change the field of view, only accuracy.
 4. On the **real** arm: place the camera to cover the whole area **with margin** (ADR-021).
 
 ## 7. Arm occlusions and freshness
 
-- When the arm is above the cube, perception may lose it or see it truncated. **The brain locks the target** while the arm is in the `PARK` pose, off the workspace (`[1.9, −1.7, 1.5, 0.7, 0]`: the cube never hidden, the box at worst 9 % hidden over 50 scenes [MES-39]), and then no longer depends on perception until the final verification (C-33, ADR-017).
+- When the arm is above the cube, perception may lose it or see it truncated. **The brain locks the target** while the arm is in the `PARK` pose, off the workspace (`[1.9, −1.7, 1.5, 0.7, 0]`: the cube never hidden; the box at worst 9 % hidden over 50 scenes with the provided camera [MES-39], at worst 1 % with the moved one [MES-45]), and then no longer depends on perception until the final verification (C-33, ADR-017).
 - Perception **publishes nothing** when the detection is invalid (absent, truncated, outlier): freshness is carried by `header.stamp`, the brain judges its age.
+- **Measured** with the moved camera [MES-46]: arm in PARK, 200/200 scenes published, mean 0.7 mm, max 2.8 mm, none above 2 cm. **Limit**: a cube the arm *partly* hides is still published, its center pulled towards its visible part (up to 17.4 mm with the arm passing between the camera and the cube, 20.5 mm with the arm left there): only the image edge marks a blob as truncated. The target lock in PARK keeps the pick & place out of it; comparing the blob area with the cube's expected area at that distance would close the gap.
 - **A held cube is still detected.** The mask only looks for red, so the cube in the jaws stays `OK` in the debug image and is published. Its position is wrong: the ray meets the plane z = 2.5 cm beyond the cube, about 12 cm off for a 10 cm lift (computed from the camera pose). It is harmless because the brain reads `/object_position` only at `PARK`, in `WAIT_TARGET` and `VERIFY` (06 §3); during the grasp it relies on the gripper effort (ADR-016). It is also why RViz shows the cube the brain locked rather than the live detection (§9).
 - Temporal filter: rolling median of 5; a measurement more than 2 cm away from the median is rejected (unless it persists 5 times = the object really moved). Implemented in `filter.py`, one filter per object; the window and the jump are `filter_size` and `filter_jump_m` since 5.1a; the box is filtered at z = 2.5 cm and published at its floor, z = 0.
 

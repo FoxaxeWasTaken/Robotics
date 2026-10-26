@@ -60,10 +60,12 @@ def test_calibration_starts_the_driver_on_the_markers_scene_at_640x480():
     assert scene.is_file() and "aruco_0" in scene.read_text()
 
 
-def test_without_calibration_the_driver_keeps_its_image_size_and_the_provided_scene():
+def test_without_calibration_the_driver_keeps_its_image_size_and_gets_the_moved_camera_only():
+    """#47: the sim always runs on our scene, its camera moved (sim_scene.yaml); no markers."""
     files, values = driver_parameters()
     assert files[-1] == "driver.yaml"
-    assert values["scene_path"] == ""
+    scene = Path(values["scene_path"]).read_text()
+    assert "aruco_0" not in scene and 'name="external_cam"' in scene
 
 
 def test_the_real_arm_gets_no_generated_scene():
