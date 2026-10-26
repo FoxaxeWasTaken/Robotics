@@ -54,7 +54,9 @@ def test_the_real_files_change_only_the_documented_keys_of_the_base_files():
 def parameter_files(use_sim):
     """The YAML files sim.launch.py gives each node, in load order (a later file wins)."""
     context = LaunchContext()
-    context.launch_configurations.update(use_sim=use_sim, port="/dev/ttyACM0", expose_ground_truth="false")
+    context.launch_configurations.update(
+        use_sim=use_sim, port="/dev/ttyACM0", expose_ground_truth="false", calibration="false"
+    )
     files = {}
     for node in (e for e in entities("sim.launch.py") if isinstance(e, Node)):
         evaluated = evaluate_parameters(context, node._Node__parameters)  # launch_ros has no public getter
@@ -64,11 +66,12 @@ def parameter_files(use_sim):
 
 def test_the_sim_loads_the_base_files_and_the_real_arm_its_real_files_on_top():
     assert parameter_files("true") == {
-        "so101_driver": ["driver.yaml", "driver.yaml"],
+        # the third: driver_calibration.yaml with calibration:=true
+        "so101_driver": ["driver.yaml", "driver.yaml", "driver.yaml"],
         "so101_brain": ["brain.yaml", "brain.yaml"],
     }
     assert parameter_files("false") == {
-        "so101_driver": ["driver.yaml", "driver_real.yaml"],
+        "so101_driver": ["driver.yaml", "driver_real.yaml", "driver.yaml"],
         "so101_brain": ["brain.yaml", "brain_real.yaml"],
     }
 

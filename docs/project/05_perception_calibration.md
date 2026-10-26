@@ -155,9 +155,10 @@ Review conclusions:
 
 ### 5.3 Sim implementation without touching `sim/`
 
-- Create **in our repo** a `scene_calib.xml` that **includes** `scene_tek5.xml` and adds ArUco-textured planes (method validated in `exp_perception_calib.py`).
-- The driver loads it through the `scene_path` parameter during the calibration session, by reconnecting `SO101Sim` right after the provided `_connect_arm`, which stays untouched; the provided assets are copied next to our scene so that the `include` resolves (ADR-036).
-- Marker positions are **known by construction** in the scene.
+- **Since 3.4a (#44)**: `ros2 launch so101_bringup sim.launch.py calibration:=true` (on its own `ROS_DOMAIN_ID` next to a running stack) starts the driver at 640×480 on the calibration scene.
+- The scene is **generated at launch** by `so101_bringup.sim_scene`: a copy of the provided scene folder, edited with `mujoco.MjSpec`, with an ArUco-textured plane per marker. The driver loads it through its `scene_path` parameter, by reconnecting `SO101Sim` right after the provided `_connect_arm`, which stays untouched (ADR-036).
+- **The layout**: `so101_bringup/config/markers_sim.yaml`, the single source of truth (`DICT_4X4_50`, 7.5 cm squares on 10 cm planes, centers in `base_link`), chosen for the camera's view: spread over the image, each ≥ 28 px wide at 640×480, not behind the arm in PARK, clear of every cube and box position. Seen from above, a marker image's up is +x and its right −y: `sim_scene.marker_corners` gives the four corners in `cv2.aruco`'s order, for the calibration tool (3.4b).
+- **Checked** by `so101_bringup/test/test_sim_scene.py`: ≥ 5 markers detected at 640×480 with the arm in PARK (8/8 with the provided camera), each corner within 3 px of where the layout puts it, `sim/` untouched.
 
 ### 5.4 Real implementation
 

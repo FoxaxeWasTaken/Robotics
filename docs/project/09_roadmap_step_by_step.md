@@ -194,7 +194,7 @@ The owners are those of `.github/CODEOWNERS` (0.1d), which requests their review
 
 ### Step 3.4 — Own extrinsic calibration (C-23)
 
-- **Tasks**: `scene_calib.xml` in our repo (includes the provided scene + ArUco markers **spread over the whole image**, `05` §10); `calibrate_extrinsics.py` tool (detection, SQPNP + LM `solvePnP`, reprojection check, YAML); static TF `base_link → external_cam_optical_frame`.
+- **Tasks**: a calibration scene with ArUco markers **spread over the whole image** (`05` §10), generated from the provided one (3.4a, #44: `so101_bringup.sim_scene`, `markers_sim.yaml`); `calibrate_extrinsics.py` tool (detection, SQPNP + LM `solvePnP`, reprojection check, YAML); static TF `base_link → external_cam_optical_frame`.
 - **Done when**: camera pose error < 5 mm / 0.3° (expected 0.9 mm / 0.06° [MES-16]); the provisional YAML is **replaced**; the `get_camera_extrinsics` CI guard passes.
 
 ### Step 3.5 — Robustness

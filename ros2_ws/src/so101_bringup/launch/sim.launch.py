@@ -10,6 +10,10 @@ arguments.
 expose_ground_truth and perception are for the evaluation bench only (C-06, 08 §3): the E2E jobs set
 EXPOSE_GROUND_TRUTH; a bench on its own ROS_DOMAIN_ID adds perception:=true, the compose stack runs perception
 in its own container.
+
+calibration:=true (sim): the scene with the ArUco markers of config/markers_sim.yaml and 640x480 images
+(driver_calibration.yaml), for the extrinsic calibration (3.4, #44). The scene is generated at launch by
+so101_bringup.sim_scene, never in sim/ (ADR-036).
 """
 
 from launch import LaunchDescription
@@ -20,6 +24,8 @@ from launch.substitutions import IfElseSubstitution, LaunchConfiguration, PathJo
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
+
+from so101_bringup.sim_scene import SimScene
 
 
 def generate_launch_description():
@@ -46,6 +52,11 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "perception", default_value="false", description="Also start so101_perception"
             ),
+            DeclareLaunchArgument(
+                "calibration",
+                default_value="false",
+                description="Sim: the ArUco calibration scene at 640x480 (3.4)",
+            ),
             Node(
                 package="so101_driver",
                 executable="driver",
@@ -53,7 +64,19 @@ def generate_launch_description():
                 output="screen",
                 parameters=[
                     *files("driver"),
+                    PathJoinSubstitution(
+                        [
+                            config,
+                            IfElseSubstitution(
+                                LaunchConfiguration("calibration"), "driver_calibration.yaml", "driver.yaml"
+                            ),
+                        ]
+                    ),
                     {
+                        "scene_path": ParameterValue(
+                            SimScene(LaunchConfiguration("use_sim"), LaunchConfiguration("calibration")),
+                            value_type=str,
+                        ),
                         "use_sim": ParameterValue(LaunchConfiguration("use_sim"), value_type=bool),
                         "port": LaunchConfiguration("port"),
                         "expose_ground_truth": ParameterValue(
