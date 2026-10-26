@@ -32,7 +32,7 @@ dry "yml build perception" -- build perception
 dry "restart control" -- restart
 dry "restart viz" -- restart viz
 echo "ok: up, down, logs, shell, rviz, build and restart print their docker compose command"
-dry "exec -T control" "/sim/randomize" "/brain/start" "/brain_state" "(DONE|ERROR|STOPPED)" -- cycle
+dry "exec -T control" "/sim/randomize" "/brain/start" "/brain_state" "DONE*|ERROR*|STOPPED*) break" -- cycle
 echo "ok: cycle randomizes, starts and follows /brain_state to the end of the cycle"
 
 # cycle for real against fakes (#164): docker runs the command without its `source`, ros2 answers the services and
@@ -49,7 +49,10 @@ case "$*" in
     while :; do echo IDLE; echo ---; sleep 0.2; done ;;
 esac
 FAKE
-chmod +x "$tmp/run/docker" "$tmp/run/ros2"
+# The control image's awk is mawk, which reads a pipe in blocks: it saw DONE only when the echo ended, at the
+# timeout (#169). This awk reads all its input first, whatever the host's awk is.
+printf '#!/usr/bin/env bash\nin=$(cat)\nexec %s "$@" <<< "$in"\n' "$(command -v awk)" > "$tmp/run/awk"
+chmod +x "$tmp/run/docker" "$tmp/run/ros2" "$tmp/run/awk"
 for final in DONE ERROR:grasp_failed STOPPED; do
   start=$SECONDS
   out=$(FINAL=$final PATH="$tmp/run:$PATH" timeout 10 "$so101" cycle 2> /dev/null) || fail "cycle did not return after $final (exit $?)"
