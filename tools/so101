@@ -93,13 +93,14 @@ case $command in
   rviz) ros "rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz" ;;
   cycle)
     # After an ERROR, /brain/start only re-arms (06 §3.1): one call to come back to IDLE first. A service call
-    # whose answer is lost would wait forever (#141): 30 s each.
+    # whose answer is lost would wait forever (#141): 30 s each. awk filters on its own (#164): a grep in between,
+    # dropping the IDLE published at 1 Hz after DONE, never wrote again, so the echo ran until its timeout.
     call="timeout 30 ros2 service call"
     ros -T "state=\$(timeout 30 ros2 topic echo --once --field data /brain_state std_msgs/msg/String | head -n 1); \
 case \$state in ERROR*) $call /brain/start std_srvs/srv/Trigger > /dev/null ;; esac; \
 $call /sim/randomize std_srvs/srv/Trigger > /dev/null && $call /brain/start std_srvs/srv/Trigger > /dev/null && \
-timeout 120 ros2 topic echo --field data /brain_state std_msgs/msg/String | grep --line-buffered -v -x -e --- -e IDLE \
-| awk \"\\\$0 != last { print; fflush(); last = \\\$0 } /^(DONE|ERROR|STOPPED)/ { exit }\""
+timeout 120 ros2 topic echo --field data /brain_state std_msgs/msg/String 2> /dev/null \
+| awk \"/^(---|IDLE)/ { next } \\\$0 != last { print; fflush(); last = \\\$0 } /^(DONE|ERROR|STOPPED)/ { exit }\""
     ;;
   bench)
     mode="" episodes=10 bags=""
