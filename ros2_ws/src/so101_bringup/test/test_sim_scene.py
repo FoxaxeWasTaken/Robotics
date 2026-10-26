@@ -1,9 +1,9 @@
 """Our sim scenes (#44, #47, ADR-036): a copy of the provided scene edited with mujoco.MjSpec, never sim/.
 - The camera sits at the pose of sim_scene.yaml: no cube or box of /sim/randomize is cut by the image edge
-  (21 % of the cubes were with the provided pose, MES-12), and perception's provisional extrinsics are that
-  pose.
+  (21 % of the cubes were with the provided pose, MES-12), and perception's calibrated extrinsics (#46) are
+  within 5 mm and 0.3° of that pose.
 - The calibration scene's ArUco markers are detected at 640x480 with the arm in PARK, each corner where the
-  layout's convention puts it (sim_scene.marker_corners), which the calibration tool (3.4b) relies on."""
+  layout's convention puts it (so101_common.markers); the calibration (#45) finds the camera's pose."""
 
 import hashlib
 from pathlib import Path
@@ -17,8 +17,11 @@ from ament_index_python.packages import get_package_share_directory
 from so101_sim import ARM_JOINTS, DEFAULT_SCENE, SO101Sim
 
 from so101_bringup import sim_scene
+from so101_common.markers import marker_corners
 from so101_driver.camera import opencv_intrinsics
 from so101_driver.randomize import sample_box_xy
+from so101_perception import calibration
+from so101_perception.geometry import load_extrinsics
 
 PARK = [1.9, -1.7, 1.5, 0.7, 0.0]  # the brain's PARK (brain.yaml): calibration is done with the arm there
 CONFIG = Path(get_package_share_directory("so101_bringup")) / "config"
@@ -45,10 +48,7 @@ def calibration_view(tmp_path_factory):
     mujoco.mj_forward(sim.model, sim.data)
     renderer = mujoco.Renderer(sim.model, height=480, width=640)
     renderer.update_scene(sim.data, camera=sim.camera_name)
-    gray = cv2.cvtColor(renderer.render(), cv2.COLOR_RGB2GRAY)
-    dictionary = cv2.aruco.getPredefinedDictionary(getattr(cv2.aruco, LAYOUT["dictionary"]))
-    corners, ids, _ = cv2.aruco.ArucoDetector(dictionary, cv2.aruco.DetectorParameters()).detectMarkers(gray)
-    found = {} if ids is None else {int(i): c[0] for i, c in zip(ids.ravel(), corners, strict=True)}
+    found = calibration.detect_markers(renderer.render(), LAYOUT["dictionary"])
     return sim, scene, before, found
 
 
@@ -64,10 +64,21 @@ def test_each_detected_corner_is_where_the_layout_puts_it(calibration_view):
     R, t = T[:3, :3] @ FLIP, T[:3, 3]
     K = opencv_intrinsics(sim.get_camera_intrinsics())
     for i, detected in found.items():
-        camera = (sim_scene.marker_corners(LAYOUT["markers"][i], LAYOUT["side_m"]) - t) @ R
+        camera = (marker_corners(LAYOUT["markers"][i], LAYOUT["side_m"]) - t) @ R
         uv = (camera @ K.T)[:, :2] / camera[:, 2:]
         # corner detection on a small, oblique rendered marker: up to ~3 px; a wrong order: a side (>= 28 px)
         assert np.abs(uv - detected).max() < 5.0, (i, uv.round(1).tolist(), detected.round(1).tolist())
+
+
+def test_the_calibration_finds_the_rendered_camera_within_5_mm_and_0_3_degrees(calibration_view):
+    """3.4b (#45): the calibration tool's solve on the rendered view, against the camera MuJoCo renders."""
+    sim, *_, found = calibration_view
+    T, error, ids = calibration.solve([found], LAYOUT, opencv_intrinsics(sim.get_camera_intrinsics()))
+    truth = sim.get_camera_extrinsics()  # test only
+    position_mm = 1000 * np.linalg.norm(T[:3, 3] - truth[:3, 3])
+    angle_deg = np.degrees(np.linalg.norm(cv2.Rodrigues(T[:3, :3].T @ truth[:3, :3] @ FLIP)[0]))
+    print(f"calibration: {len(ids)} markers, {error:.2f} px, {position_mm:.2f} mm, {angle_deg:.3f} deg")
+    assert position_mm < 5.0 and angle_deg < 0.3
 
 
 def test_the_scene_is_a_copy_and_sim_is_left_untouched(calibration_view):
@@ -91,13 +102,12 @@ def test_the_camera_is_at_the_pose_of_sim_scene_yaml(moved):
     assert np.allclose(T[:3, 1], y / np.linalg.norm(y), atol=1e-4)
 
 
-def test_perceptions_provisional_extrinsics_are_that_pose(moved):
-    """Until the own calibration (3.4c) replaces the file, perception must use the camera the sim renders."""
-    # read from the sources: the control image does not build so101_perception (CI perception job)
-    path = Path(__file__).resolve().parents[2] / "so101_perception" / "config" / "camera_extrinsics.yaml"
-    T, truth = np.array(yaml.safe_load(path.read_text())["T_base_cam"]), moved.get_camera_extrinsics()
-    assert np.allclose(T[:3, 3], truth[:3, 3], atol=1e-6)
-    assert np.allclose(T[:3, :3], truth[:3, :3] @ FLIP, atol=1e-6)
+def test_perceptions_calibrated_extrinsics_are_that_pose_within_5_mm_and_0_3_degrees(moved):
+    """3.4c (#46): perception runs on our calibration; moving the sim camera needs a new one (05 §5.1)."""
+    path = Path(get_package_share_directory("so101_perception")) / "config" / "camera_extrinsics.yaml"
+    T, truth = load_extrinsics(path).T_base_cam, moved.get_camera_extrinsics()
+    assert np.linalg.norm(T[:3, 3] - truth[:3, 3]) < 0.005
+    assert np.degrees(np.linalg.norm(cv2.Rodrigues(T[:3, :3].T @ truth[:3, :3] @ FLIP)[0])) < 0.3
 
 
 def test_no_cube_or_box_of_randomize_is_cut_by_the_image_edge(moved):

@@ -15,18 +15,19 @@ import rclpy
 import rclpy.node
 from ament_index_python.packages import get_package_share_directory
 from cv_bridge import CvBridge
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, TransformStamped
 from rcl_interfaces.msg import FloatingPointRange, IntegerRange, ParameterDescriptor
 from rclpy.clock import Clock, ClockType
 from rclpy.executors import ExternalShutdownException
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import CameraInfo, Image
+from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 
-from so101_common.robot import BASE_FRAME
+from so101_common.robot import BASE_FRAME, CAMERA_FRAME
 from so101_perception.debug import annotate, status
 from so101_perception.detection import Thresholds, detect, hsv_ranges
 from so101_perception.filter import MedianFilter
-from so101_perception.geometry import cube_yaw, load_extrinsics, pixel_to_world
+from so101_perception.geometry import cube_yaw, load_extrinsics, pixel_to_world, quaternion
 
 # Only the latest image matters; Best effort is compatible with the driver's Reliable publisher, and the
 # debug image is Best effort for RViz (docs/project/01 §3.1, ADR-004).
@@ -78,6 +79,15 @@ class PerceptionNode(rclpy.node.Node):
             raise ValueError(f"Unknown parameters {unknown}: a typo in a config file? (05)")
         T = load_extrinsics(extrinsics).T_base_cam  # a wrong file stops the node here (ValueError)
         self._R, self._t = T[:3, :3], T[:3, 3]
+        # the camera pose for tf2 and RViz (01 §4, 05 §5.1): static, from the same file
+        tf = TransformStamped()
+        tf.header.stamp = self.get_clock().now().to_msg()
+        tf.header.frame_id, tf.child_frame_id = BASE_FRAME, CAMERA_FRAME
+        t, r = tf.transform.translation, tf.transform.rotation
+        t.x, t.y, t.z = map(float, self._t)
+        r.x, r.y, r.z, r.w = map(float, quaternion(self._R))
+        self._tf = StaticTransformBroadcaster(self)
+        self._tf.sendTransform(tf)
         self._bridge = CvBridge()
         self._image = None  # latest image not processed yet
         self._camera_info = None  # latest K

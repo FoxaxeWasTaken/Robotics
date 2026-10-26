@@ -18,10 +18,13 @@ import rclpy
 from ament_index_python.packages import get_package_share_directory
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PoseStamped
-from rclpy.qos import QoSProfile, ReliabilityPolicy
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import CameraInfo, Image
+from test_geometry import rotation
+from tf2_msgs.msg import TFMessage
 
 from so101_common.robot import BASE_FRAME, CAMERA_FRAME
+from so101_perception.geometry import load_extrinsics
 
 TIMEOUT = 20.0  # s
 IMAGES = 30  # sent after the first debug image
@@ -167,3 +170,16 @@ class TestPerception(unittest.TestCase):
             seen.add((center, label["file"]))
         self.assertNotIn(("cube_center", "015.png"), seen, "a truncated cube was published")
         self.assertTrue({("cube_center", "000.png"), ("box_floor_center", "000.png")} <= seen)
+
+    def test_4_the_camera_tf_is_the_pose_of_the_extrinsics_file(self):
+        """#46: perception publishes the static TF base_link -> camera of the file it loaded (01 §4)."""
+        tfs = []
+        latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        self.node.create_subscription(TFMessage, "/tf_static", tfs.append, latched)
+        self.spin_until(lambda: tfs, "no /tf_static")
+        tf = next(t for m in tfs for t in m.transforms if t.child_frame_id == CAMERA_FRAME)
+        self.assertEqual(tf.header.frame_id, BASE_FRAME)
+        T = load_extrinsics(DATA / "camera_extrinsics.yaml").T_base_cam
+        t, r = tf.transform.translation, tf.transform.rotation
+        np.testing.assert_allclose([t.x, t.y, t.z], T[:3, 3], atol=1e-9)
+        np.testing.assert_allclose(rotation(r.x, r.y, r.z, r.w), T[:3, :3], atol=1e-9)
