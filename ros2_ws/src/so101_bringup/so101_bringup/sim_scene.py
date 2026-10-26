@@ -23,14 +23,9 @@ from launch.substitution import Substitution
 from launch.utilities import perform_substitutions
 from so101_sim import DEFAULT_SCENE
 
+from so101_common.markers import marker_corners  # noqa: F401 (the convention the textures follow)
+
 MARKER_PIXELS = 600  # texture resolution of a marker's black square
-
-
-def marker_corners(center, side):
-    """A marker's corners in base_link (on the table), in the order cv2.aruco detects them: seen from above,
-    the marker image's up is +x and its right is -y."""
-    x, y, h = center[0], center[1], side / 2
-    return np.array([[x + h, y + h, 0.0], [x + h, y - h, 0.0], [x - h, y - h, 0.0], [x - h, y + h, 0.0]])
 
 
 def generate(folder, camera=None, markers=None) -> Path:
@@ -50,7 +45,7 @@ def generate(folder, camera=None, markers=None) -> Path:
         for i, (x, y) in markers["markers"].items():
             image = cv2.aruco.generateImageMarker(dictionary, i, MARKER_PIXELS)
             image = cv2.copyMakeBorder(image, *(border,) * 4, cv2.BORDER_CONSTANT, value=255)  # quiet zone
-            cv2.imwrite(str(folder / f"aruco_{i}.png"), np.rot90(image, -1))  # see marker_corners
+            cv2.imwrite(str(folder / f"aruco_{i}.png"), np.rot90(image, -1))  # see so101_common.markers
             spec.add_texture(name=f"aruco_{i}", type=mujoco.mjtTexture.mjTEXTURE_2D, file=f"aruco_{i}.png")
             material = spec.add_material(name=f"aruco_{i}")
             material.textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = f"aruco_{i}"

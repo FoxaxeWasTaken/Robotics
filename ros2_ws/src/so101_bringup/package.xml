@@ -24,6 +24,7 @@
   <test_depend>python3-yaml</test_depend>
   <test_depend>sensor_msgs</test_depend>
   <test_depend>so101_interfaces</test_depend>
+  <test_depend>so101_perception</test_depend>
 
   <export>
     <build_type>ament_python</build_type>

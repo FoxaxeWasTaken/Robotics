@@ -21,6 +21,7 @@ setup(
     entry_points={
         "console_scripts": [
             "perception = so101_perception.perception_node:main",
+            "calibrate_extrinsics = so101_perception.calibrate_extrinsics:main",
         ],
     },
 )

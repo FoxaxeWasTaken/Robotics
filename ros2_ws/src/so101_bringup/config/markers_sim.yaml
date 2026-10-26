@@ -1,12 +1,13 @@
 # ArUco markers of the sim calibration scene (3.4a, #44; 05 §10): the single source of truth of their layout,
 # for so101_bringup.sim_scene and the calibration tool (3.4b). Centers in base_link, m, on the table; seen from
-# above, each marker image's up is +x and its right is -y (sim_scene.marker_corners).
+# above, each marker image's up is +x and its right is -y (so101_common.markers).
 # Chosen by projection for the camera of sim_scene.yaml (#47): spread over its image, each at least 28 px wide at
 # 640x480, its 10 cm plane fully in view and not behind the arm in PARK (calibration is done there), 11 cm
 # apart at least, clear of the arm's base and of every cube and box position of /sim/randomize.
 dictionary: DICT_4X4_50
 side_m: 0.075  # black square
 plane_m: 0.10  # with its white quiet zone
+max_reprojection_px: 1.0  # the calibration's quality gate (05 §5.1): 1 px in sim, 2 px on the real jig
 markers:
   0: [0.43, -0.01]
   1: [-0.35, 0.04]
