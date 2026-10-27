@@ -233,9 +233,15 @@ def main(argv=None) -> int:
     node = rclpy.create_node("evaluate")
     try:
         return run(args, Bench(node))
+    except (
+        KeyboardInterrupt
+    ):  # Ctrl-C from a terminal reaches the bench since #58: the CSV keeps the done ones
+        print(f"evaluate: stopped (Ctrl-C); the finished episodes are in {args.out}", file=sys.stderr)
+        return 130
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():  # rclpy's SIGINT handler has already shut its context down
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":

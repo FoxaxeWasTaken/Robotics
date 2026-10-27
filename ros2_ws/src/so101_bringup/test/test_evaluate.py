@@ -5,6 +5,7 @@ import inspect
 import re
 
 import pytest
+import rclpy
 from rclpy.task import Future
 
 from so101_bringup import evaluate
@@ -103,6 +104,19 @@ def test_each_episode_line_shows_before_the_next_episode_starts(tmp_path, monkey
     assert run(bench_args(tmp_path, episodes=3), Watched(pose=object())) == 0
     assert "episode 1: DONE" in seen[1] and "episode 2: DONE" in seen[2]
     assert "success 3/3" in out.shown  # the summary too, before the process ends
+
+
+def test_ctrl_c_stops_the_bench_cleanly(tmp_path, monkeypatch, capsys):
+    """From a terminal Ctrl-C now reaches evaluate (#58): rclpy's SIGINT handler shuts its context down and a
+    KeyboardInterrupt comes out of the spin. A short message and exit 130, not two tracebacks and exit 1."""
+
+    def interrupted(args, bench):
+        rclpy.shutdown()  # what rclpy's SIGINT handler does before the KeyboardInterrupt
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(evaluate, "run", interrupted)
+    assert evaluate.main(["--episodes", "3", "--out", str(tmp_path / "eval.csv")]) == 130
+    assert "stopped (Ctrl-C)" in capsys.readouterr().err
 
 
 def test_the_ground_truth_and_the_brain_pose_get_the_same_minute(tmp_path):
