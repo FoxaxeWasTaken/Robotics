@@ -89,6 +89,7 @@ tools/so101 bench --perception -n 10         # the real pipeline
 - The packages: `so101_common`, `so101_driver`, `so101_brain`, `so101_perception`, `so101_bringup` (the sim-backed tests: closed loop, IK accuracy, launch files).
 - `tools/so101 test` runs in a new control container: the stack need not run. For a full run, stop it first (`tools/so101 down`): the grasp planner's timing tests (p95 under 1 s) fail when the simulation shares the CPU.
 - **Every PR** runs lint, the guards, the build and tests of both images, and a 3-episode E2E bench (a draft or a docs-only change: lint and guards only). The nightly runs 50 episodes each night `main` changes.
+- Code quality: [SonarQube Cloud](https://sonarcloud.io/project/overview?id=FoxaxeWasTaken_Robotics), `main` analyzed each night it changes, on trial until 2026-11-10 (`14` §4; members of the SonarCloud organization only).
 - Test strategy, thresholds and the bench: [`08`](docs/project/08_quality_tests.md); CI: [`14`](docs/project/14_quality_pipeline_ci.md); how to write tests: [CONTRIBUTING §5](CONTRIBUTING.md#5-tests).
 
 ## ROS domains
