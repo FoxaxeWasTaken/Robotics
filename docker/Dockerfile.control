@@ -33,6 +33,7 @@ RUN pip install --break-system-packages --no-cache-dir -c /opt/so101/constraints
 # (colcon-ros-domain-id-coordinator: tests never see a stack running on the team's domain).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-hypothesis \
+    python3-pytest-benchmark \
     python3-pytest-cov \
     python3-colcon-ros-domain-id-coordinator \
     && rm -rf /var/lib/apt/lists/*
