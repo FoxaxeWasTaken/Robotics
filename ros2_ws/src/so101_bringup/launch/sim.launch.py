@@ -14,7 +14,7 @@ in its own container.
 In sim, the driver runs on our scene, generated at launch by so101_bringup.sim_scene, never in sim/ (ADR-036):
 the external camera moved to the pose of config/sim_scene.yaml (#47). calibration:=true adds the ArUco markers
 of config/markers_sim.yaml and gives 640x480 images (driver_calibration.yaml), for the extrinsic calibration
-(3.4, #44).
+(3.4, #44). lighting:=dim darkens and warms every light (config/sim_scene.yaml): the robustness demo (#103).
 """
 
 from launch import LaunchDescription
@@ -58,6 +58,11 @@ def generate_launch_description():
                 default_value="false",
                 description="Sim: the ArUco calibration scene at 640x480 (3.4)",
             ),
+            DeclareLaunchArgument(
+                "lighting",
+                default_value="",
+                description="Sim: a lighting entry of config/sim_scene.yaml (dim), robustness demo (#103)",
+            ),
             Node(
                 package="so101_driver",
                 executable="driver",
@@ -75,7 +80,11 @@ def generate_launch_description():
                     ),
                     {
                         "scene_path": ParameterValue(
-                            SimScene(LaunchConfiguration("use_sim"), LaunchConfiguration("calibration")),
+                            SimScene(
+                                LaunchConfiguration("use_sim"),
+                                LaunchConfiguration("calibration"),
+                                LaunchConfiguration("lighting"),
+                            ),
                             value_type=str,
                         ),
                         "use_sim": ParameterValue(LaunchConfiguration("use_sim"), value_type=bool),

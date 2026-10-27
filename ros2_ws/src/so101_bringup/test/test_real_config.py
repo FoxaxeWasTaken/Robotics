@@ -55,7 +55,7 @@ def parameter_files(use_sim):
     """The YAML files sim.launch.py gives each node, in load order (a later file wins)."""
     context = LaunchContext()
     context.launch_configurations.update(
-        use_sim=use_sim, port="/dev/ttyACM0", expose_ground_truth="false", calibration="false"
+        use_sim=use_sim, port="/dev/ttyACM0", expose_ground_truth="false", calibration="false", lighting=""
     )
     files = {}
     for node in (e for e in entities("sim.launch.py") if isinstance(e, Node)):

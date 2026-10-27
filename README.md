@@ -32,6 +32,7 @@ A camera spots a red cube, the SO-ARM101 arm grasps it and drops it into a box โ
 | Grasp chain in closed loop (IK, planner, min-jerk) | 40/40 in the box | MES-38 |
 | IK accuracy (FK of the solution against the target) | mean 0.161 mm, max 0.218 mm | MES-43 |
 | Cube localization on the table plane (exact camera pose) | mean 0.50 mm, max 1.00 mm | MES-41 |
+| Robustness, the five questions of the slides | Handled: the cube moved mid-action, failed grasps, perception lost, a target out of reach. Not handled: a dim, warm light (the box is lost, 0/5 cycles, the arm stays still) | [`results/robustness_demo.md`](results/robustness_demo.md), MES-49 |
 
 On the real arm: nothing measured yet (stage 6). Measurements and how to reproduce them: [`11` ยง4](docs/project/11_cross_review_and_measurements.md); milestone reports in [`results/`](results/).
 

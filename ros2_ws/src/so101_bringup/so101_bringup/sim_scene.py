@@ -7,7 +7,9 @@ launch substitution that does it at launch time, in sim only.
 - camera: the pose of the external camera, config/sim_scene.yaml (#47): the provided one cut 21 % of the
   cubes at the image edge [MES-12];
 - markers: the ArUco markers of config/markers_sim.yaml on the table, for the extrinsic calibration
-  (3.4a, #44).
+  (3.4a, #44);
+- lighting: every light, the headlight included, darker and tinted (config/sim_scene.yaml), for the robustness
+  demo's lighting case (#103).
 """
 
 import shutil
@@ -28,7 +30,7 @@ from so101_common.markers import marker_corners  # noqa: F401 (the convention th
 MARKER_PIXELS = 600  # texture resolution of a marker's black square
 
 
-def generate(folder, camera=None, markers=None) -> Path:
+def generate(folder, camera=None, markers=None, lighting=None) -> Path:
     """Our scene in folder (a copy of the provided one, edited); returns the path of its main file."""
     folder = Path(folder) / "so101"
     shutil.copytree(Path(DEFAULT_SCENE).parent, folder)
@@ -58,28 +60,41 @@ def generate(folder, camera=None, markers=None) -> Path:
                 contype=0,
                 conaffinity=0,
             )
+    if lighting:
+        factor = lighting["scale"] * np.asarray(lighting["tint"], dtype=float)
+        for light in [*spec.lights, spec.visual.headlight]:
+            light.diffuse = np.asarray(light.diffuse) * factor
+            light.ambient = np.asarray(light.ambient) * factor
+            light.specular = np.asarray(light.specular) * factor
     path = folder / "scene_so101.xml"
     path.write_text(spec.to_xml())
     return path
 
 
 class SimScene(Substitution):
-    """The path of our scene, generated at launch: in sim, the moved camera, and the markers with calibration;
-    empty (the provided scene) on the real arm."""
+    """The path of our scene, generated at launch: in sim, the moved camera, the markers with calibration, and
+    the lights of sim_scene.yaml's `lighting` entry if one is named; empty (the provided scene) on the real
+    arm."""
 
-    def __init__(self, use_sim, calibration):
+    def __init__(self, use_sim, calibration, lighting):
         super().__init__()
-        self._use_sim, self._calibration = use_sim, calibration
+        self._use_sim, self._calibration, self._lighting = use_sim, calibration, lighting
 
     def describe(self):
-        return "SimScene(use_sim, calibration)"
+        return "SimScene(use_sim, calibration, lighting)"
 
     def perform(self, context):
         if perform_substitutions(context, [self._use_sim]).lower() != "true":
             return ""
         config = Path(get_package_share_directory("so101_bringup")) / "config"
-        camera = yaml.safe_load((config / "sim_scene.yaml").read_text())["camera"]
+        scene = yaml.safe_load((config / "sim_scene.yaml").read_text())
         markers = None
         if perform_substitutions(context, [self._calibration]).lower() == "true":
             markers = yaml.safe_load((config / "markers_sim.yaml").read_text())
-        return str(generate(tempfile.mkdtemp(prefix="so101_scene_"), camera=camera, markers=markers))
+        lighting = None
+        if name := perform_substitutions(context, [self._lighting]):
+            if name not in scene["lighting"]:
+                raise ValueError(f"lighting {name!r}: not in sim_scene.yaml ({', '.join(scene['lighting'])})")
+            lighting = scene["lighting"][name]
+        folder = tempfile.mkdtemp(prefix="so101_scene_")
+        return str(generate(folder, camera=scene["camera"], markers=markers, lighting=lighting))

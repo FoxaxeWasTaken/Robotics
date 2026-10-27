@@ -23,6 +23,7 @@ setup(
         "console_scripts": [
             "evaluate = so101_bringup.evaluate:main",
             "make_perception_dataset = so101_bringup.tools.make_perception_dataset:main",
+            "robustness_demo = so101_bringup.robustness_demo:main",
         ],
     },
 )
