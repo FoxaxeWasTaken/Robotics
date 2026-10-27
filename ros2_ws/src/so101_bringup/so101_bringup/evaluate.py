@@ -204,10 +204,11 @@ def run(args, bench: Bench) -> int:
             writer.writerow(row)
             f.flush()
             rows.append(row)
-            print(
-                f"episode {number}: {row['final_state']}, {row['duration_s']} s, {row['cause'] or 'success'}"
+            print(  # flushed: through tools/so101 stdout is a pipe, the line would wait for the end (#58)
+                f"episode {number}: {row['final_state']}, {row['duration_s']} s, {row['cause'] or 'success'}",
+                flush=True,
             )
-    print(summary(rows))
+    print(summary(rows), flush=True)
     successes = sum(row["success"] for row in rows)
     if args.min_success is not None and successes < args.min_success:
         print(

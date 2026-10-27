@@ -73,6 +73,38 @@ def test_the_first_call_waits_a_minute_for_the_driver_and_says_how_long_it_took(
     assert inspect.signature(Bench.call).parameters["timeout_s"].default == 10.0
 
 
+class Pipe:
+    """A stdout that is a pipe, as through `docker compose exec -T` (tools/so101 bench): what is written stays
+    in the buffer until flush()."""
+
+    def __init__(self):
+        self.buffer, self.shown = "", ""
+
+    def write(self, text):
+        self.buffer += text
+        return len(text)
+
+    def flush(self):
+        self.shown, self.buffer = self.shown + self.buffer, ""
+
+
+def test_each_episode_line_shows_before_the_next_episode_starts(tmp_path, monkeypatch):
+    """Through tools/so101 bench, stdout is a pipe: an unflushed line waited for the end of the run, the bench
+    looked stuck for minutes and a newcomer stopped it (#58)."""
+    out = Pipe()
+    monkeypatch.setattr("sys.stdout", out)
+    seen = []
+
+    class Watched(FakeBench):
+        def episode(self, number, seed, timeout_s):
+            seen.append(out.shown)
+            return super().episode(number, seed, timeout_s)
+
+    assert run(bench_args(tmp_path, episodes=3), Watched(pose=object())) == 0
+    assert "episode 1: DONE" in seen[1] and "episode 2: DONE" in seen[2]
+    assert "success 3/3" in out.shown  # the summary too, before the process ends
+
+
 def test_the_ground_truth_and_the_brain_pose_get_the_same_minute(tmp_path):
     """Once in CI the driver answered but /end_effector_pose did not come within 10 s (#141): every check
     before the first episode (driver, ground truth, brain pose) waits up to 60 s."""

@@ -66,6 +66,18 @@ dry "-e ROS_DOMAIN_ID=77 control" "&& set -m;" "pgrep -f \"[/]lib/so101_\"" "gre
 dry "-e ROS_DOMAIN_ID=77 control" "test/gt_stub.launch.py" "--episodes 3 " "--bags /ros2_ws/bags" \
   -- bench --stub -n 3 --bags /ros2_ws/bags
 echo "ok: bench runs on ROS domain 77 only, refuses a busy domain, real pipeline or stub, N episodes, bags"
+
+# From a terminal, bench gets one in the container (#58): with exec -T, Ctrl+C stopped only the docker client and
+# the bench went on inside; a pipe or CI keeps -T (a TTY there fails: "the input device is not a TTY").
+out=$("$so101" --dry-run bench --perception < /dev/null)
+grep -qF "exec -T -e ROS_DOMAIN_ID=77" <<< "$out" || fail "bench without a terminal: no exec -T in: $out"
+if command -v script > /dev/null; then  # util-linux: a pseudo-terminal for stdin (none in Git Bash on Windows)
+  out=$(script -qec "$so101 --dry-run bench --perception" /dev/null)
+  grep -qF "exec -e ROS_DOMAIN_ID=77" <<< "$out" || fail "bench from a terminal: still exec -T in: $out"
+  echo "ok: bench gets a terminal from a terminal (Ctrl+C reaches it), keeps exec -T otherwise"
+else
+  echo "skip: no script(1) here, the terminal case of bench is checked where it exists (CI)"
+fi
 dry "colcon build --symlink-install --packages-select so101_brain" "colcon test --packages-select so101_brain" \
   "colcon test-result --test-result-base build/so101_brain --verbose" -- test so101_brain
 dry "colcon test --executor sequential --packages-select so101_common so101_driver so101_brain so101_perception so101_bringup " -- test
