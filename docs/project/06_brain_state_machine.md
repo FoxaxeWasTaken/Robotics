@@ -87,7 +87,7 @@ stateDiagram-v2
 - **`PLAN` timeout 6 s** (step 4.2b; 2 s before): the planner's slowest answer, a cube out of reach, takes 1.7 s to fail, 2.4 s on the CI runner (2.0 s locally while the planner ran in a worker thread); with 2 s it showed as `ERROR:timeout:PLAN` instead of `ERROR:unreachable` [MES-40]. The arm is parked during `PLAN`, so a hung planner costs nothing more. `test_grasp_planner.py` keeps that failure under half the timeout.
 - **`APPROACH` waits for the open gripper** (step 4.2b): `DESCEND` must not bring closed jaws onto the cube. The other motions do not wait for it: in `TRANSPORT` the cube keeps the jaws from closing to 0 %.
 
-**Effort threshold**: in sim, the normalized gripper load is **0.12–0.19** when holding the cube vs **0** when empty [MES-10] → threshold 0.06 (×2 margin). It is a parameter, **to recalibrate on the real arm**.
+**Effort threshold**: in sim, the normalized gripper load is **0.12–0.19** when holding the cube vs **0** when empty [MES-10] → threshold 0.06 (×2 margin in `GRASP`). Measured where the FSM judges it, on the nightly's 40 scenes [MES-48]: the `GRASP` window never below 0.120, empty always 0.000, but **the end of `LIFT` drops to 0.087** (the jaws carry the cube instead of squeezing it against the table): the tightest margin is ×1.45 there. Kept at 0.06, which sorts all 120 measured grasps right: lowering it would only move the margin to the empty side, which is exactly 0 in sim only. It is a parameter, **to recalibrate on the real arm** (#69).
 
 ### 3.2 Why `VERIFY`?
 
@@ -143,7 +143,7 @@ Declared by `brain_node` (read-only, with ranges): `motion.*` since step 2.2; `g
 | `grasp.pregrasp_backoff_m` | 0.04 | [MES-09] |
 | `grasp.lift_dz_m` | 0.10 | 5 cm walls + margin |
 | `grasp.drop_tcp_z_m` | 0.09 | Failure observed at 0.11 [MES-09] |
-| `grasp.effort_threshold` | 0.06 | [MES-10] |
+| `grasp.effort_threshold` | 0.06 | [MES-10], [MES-48] |
 | `grasp.close_pct` / `open_pct` | 0 / 100 | LeRobot convention |
 | `grasp.gripper_tol_pct` | 3 % | `APPROACH` waits for the open gripper (§3.1) |
 | `motion.v_max_rad_s` | 1.0 (sim) / 0.5 (real) | Safety |
@@ -180,7 +180,8 @@ Declared by `brain_node` (read-only, with ranges): `motion.*` since step 2.2; `g
 | --- | --- |
 | Every transition of table §3.1 (simulated inputs, fake clock) | Unit `fsm.py` |
 | `/brain/stop` from every state → `STOPPED` | Unit |
-| Perception silent during `TRANSPORT` → the cycle still completes | Integration (launch_testing) |
+| The cube moved during `APPROACH` (`/sim/randomize`) → empty grasp, `RETRY`, a new lock, `DONE` | Scripted run against the stack (`experiences/exp_fault_scenarios.py approach`, #54) |
+| Perception container stopped during `TRANSPORT` → the cycle still completes (`VERIFY` → `DONE` with a warning) | Scripted run against the stack (`experiences/exp_fault_scenarios.py watch`, #54) |
 | Unreachable target (r = 0.5 m) → `ERROR:unreachable`, **no** command sent | Integration (`test_brain_launch.py`, test_9) |
 | A full cycle with the ground-truth stub: `DONE`, the cube in the box | System, sim (`so101_bringup/test/test_pick_place_gt_launch.py`) |
 | 50-episode evaluation bench (randomized cube and box) | System (`08`) |
@@ -199,8 +200,8 @@ The day-2 slides ask "is your code robust?" with five situations [BOOT2 p12]. Ea
 
 | Situation [BOOT2 p12] | Our answer | Where | Test |
 | --- | --- | --- | --- |
-| The object moves mid-action: recompute the movement? | The target is locked with the arm in PARK (out of view); a moved cube shows up as an **empty grasp** (effort) or in `VERIFY`, then `RETRY` re-acquires it and **replans**. Option, not planned: re-check while the cube is still visible during `APPROACH`, replan above 2 cm | §3, ADR-016, ADR-017 | `/sim/randomize` during `APPROACH` (ticket 4.4) |
+| The object moves mid-action: recompute the movement? | The target is locked with the arm in PARK (out of view); a moved cube shows up as an **empty grasp** (effort) or in `VERIFY`, then `RETRY` re-acquires it and **replans**. Option, not planned: re-check while the cube is still visible during `APPROACH`, replan above 2 cm | §3, ADR-016, ADR-017 | `/sim/randomize` during `APPROACH`: `RETRY` then `DONE` (`exp_fault_scenarios.py`, #54) |
 | The grasp fails: how do you know, what do you do? | Normalized gripper effort below threshold → `RETRY` (max 3), then `ERROR:grasp_failed`; the drop is checked by `VERIFY` | §3.1–§3.2, ADR-016 | Unit (FSM) + fault injection |
-| The object leaves the view: what does perception publish, is there a memory? | Perception publishes **nothing** when invalid; the brain keeps the last value with its age and only needs fresh data in `WAIT_TARGET` and `VERIFY` | §4, `05` §7, ADR-017 | Perception stopped during `TRANSPORT` → cycle completes |
+| The object leaves the view: what does perception publish, is there a memory? | Perception publishes **nothing** when invalid; the brain keeps the last value with its age and only needs fresh data in `WAIT_TARGET` and `VERIFY` | §4, `05` §7, ADR-017 | Perception stopped during `TRANSPORT` → cycle completes (`exp_fault_scenarios.py`, #54) |
 | Target out of reach: what does IK return, does the arm move anyway? | The planner returns `None` with a reason → `ERROR:unreachable`; **never** "move anyway" | `04` §5 and §8, ADR-009 | Target at r = 0.5 m → no command |
 | Lighting changes: does the color threshold hold? | Camera in manual exposure/white balance, runtime-tunable HSV thresholds, debug image to see the mask; YOLO-seg as fallback | `05` §2, `07` §4–§5, ADR-011 | Dimmed scene copy in sim (step 5.4), then a real image set under varied lighting (step 6.4) |

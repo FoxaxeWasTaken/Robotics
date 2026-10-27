@@ -58,7 +58,7 @@ class Params:
     motion_margin_s: float = 1.0  # not reached at T + margin -> ERROR:timeout:<state>
     open_pct: float = 100.0
     close_pct: float = 0.0
-    effort_threshold: float = 0.06  # gripper closing force above it: the cube is held [MES-10, MES-35]
+    effort_threshold: float = 0.06  # gripper closing force above it: cube held [MES-10, MES-35, MES-48]
     target_lock_n: int = 5
     target_lock_spread_m: float = 0.005  # the n detections within this distance of each other
     max_detection_age_s: float = 0.5

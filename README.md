@@ -13,14 +13,14 @@ A camera spots a red cube, the SO-ARM101 arm grasps it and drops it into a box �
 - **Sim ↔ real**: `USE_SIM` in `docker/.env`, plus a few documented values ([`01` §3.3](docs/project/01_architecture.md)).
 - **Phase 2** (planned): play Connect Four against the arm, which reads the grid with its camera and drops its own tokens ([design](docs/project/phase2/README.md)).
 
-## Status (2026-10-24)
+## Status (2026-10-27)
 
 | Done | Next (see [roadmap](docs/project/09_roadmap_step_by_step.md)) |
 | --- | --- |
 | Environment (Docker images, X11, DDS, usbipd), CI, hooks, design docs with measured spikes | The phase-1 criterion measured on our calibration, ≥ 45/50 (4.5b, #56): 50/50 in #166, still on the exact camera pose |
-| Driver: `/joint_states` at 30 Hz, `/joint_command`, speed limiter, joint-limit clamp, camera at 10 Hz with `camera_info`, `/sim/randomize`, ground truth for the bench only; real-arm safety and webcam | Robustness: truncation and outliers (3.5a), grasp verification and retries (4.4a), then ≥ 90 % over 50 episodes (4.5b) |
+| Driver: `/joint_states` at 30 Hz, `/joint_command`, speed limiter, joint-limit clamp, camera at 10 Hz with `camera_info`, `/sim/randomize`, ground truth for the bench only; real-arm safety and webcam | Robustness: truncation and outliers (3.5a), then ≥ 90 % over 50 episodes (4.5b) |
 | Perception: HSV detection, pixel → 3D, median filter, cube yaw, `/object_position` and `/drop_box_position`, debug image, our ArUco extrinsic calibration and the camera TF (3.4b–c, MES-47) | The real arm: commissioning (6.1b), camera and grasp calibration (6.2b–6.4), 10 real trials (6.5a) |
-| Brain: FK/IK (no self-collision), `/go_to_target`, grasp planner in a worker process, the full state machine, markers in RViz | Release v1.0.0, the simulation milestone (5.3a); phase 2 (stage 7) |
+| Brain: FK/IK (no self-collision), `/go_to_target`, grasp planner in a worker process, the full state machine, markers in RViz; grasp verification and retries checked on fault scenarios, effort threshold measured (4.4a, MES-48) | Release v1.0.0, the simulation milestone (5.3a); phase 2 (stage 7) |
 | Evaluation bench, E2E on every PR, nightly 50-episode bench with its report; `tools/so101` for the everyday commands | A newcomer's dry run of this README (5.1b) |
 
 ## Measured results (sim)

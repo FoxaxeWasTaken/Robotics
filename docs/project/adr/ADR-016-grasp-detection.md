@@ -36,3 +36,7 @@ The real signal does not separate the cases: rely on visual verification only, o
 ## Update (2026-10-17, step 1.3)
 
 Sign convention: the driver reports the gripper effort as its **closing force** (MuJoCo's raw value is negative when squeezing), so the brain keeps `effort > grasp.effort_threshold`. Measured in the team driver [MES-35]: 0.184 holding the cube, −0.001 empty; with the cube not turned to its tunnel, only 0.053, below the 0.06 threshold: the grasp planner must align the jaws with a tunnel.
+
+## Update (2026-10-27, step 4.4a)
+
+Threshold checked where the FSM judges it, on the nightly's 40 scenes [MES-48]: holding, the `GRASP` window never goes below 0.120 (aligned jaws or free roll), but the end of `LIFT` drops to 0.087, a ×1.45 margin instead of ×2; empty, 0.000. The 0.053 case of MES-35 never occurs with the planner. The threshold stays 0.06: it sorts all 120 grasps right, and lowering it would only shift the margin onto the empty side, exactly 0 in sim only. The real-arm recalibration (#69) checks both the `GRASP` window and the end of `LIFT`.
