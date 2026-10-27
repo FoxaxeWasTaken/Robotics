@@ -17,8 +17,8 @@ A camera spots a red cube, the SO-ARM101 arm grasps it and drops it into a box �
 
 | Done | Next (see [roadmap](docs/project/09_roadmap_step_by_step.md)) |
 | --- | --- |
-| Environment (Docker images, X11, DDS, usbipd), CI, hooks, design docs with measured spikes | The phase-1 criterion measured on our calibration, ≥ 45/50 (4.5b, #56): 50/50 in #166, still on the exact camera pose |
-| Driver: `/joint_states` at 30 Hz, `/joint_command`, speed limiter, joint-limit clamp, camera at 10 Hz with `camera_info`, `/sim/randomize`, ground truth for the bench only; real-arm safety and webcam | Robustness: truncation and outliers (3.5a), then ≥ 90 % over 50 episodes (4.5b) |
+| Environment (Docker images, X11, DDS, usbipd), CI, hooks, design docs with measured spikes; the phase-1 sim criterion met on our calibration, 50/50 (4.5b, C-42) | Performance trends in the nightly (5.1d, #60) |
+| Driver: `/joint_states` at 30 Hz, `/joint_command`, speed limiter, joint-limit clamp, camera at 10 Hz with `camera_info`, `/sim/randomize`, ground truth for the bench only; real-arm safety and webcam | Perception: a partly hidden cube not published (3.5c, #167) |
 | Perception: HSV detection, pixel → 3D, median filter, cube yaw, `/object_position` and `/drop_box_position`, debug image, our ArUco extrinsic calibration and the camera TF (3.4b–c, MES-47) | The real arm: commissioning (6.1b), camera and grasp calibration (6.2b–6.4), 10 real trials (6.5a) |
 | Brain: FK/IK (no self-collision), `/go_to_target`, grasp planner in a worker process, the full state machine, markers in RViz; grasp verification and retries checked on fault scenarios, effort threshold measured (4.4a, MES-48) | Release v1.0.0, the simulation milestone (5.3a); phase 2 (stage 7) |
 | Evaluation bench, E2E on every PR, nightly 50-episode bench with its report; `tools/so101` for the everyday commands | A newcomer's dry run of this README (5.1b) |

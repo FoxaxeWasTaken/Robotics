@@ -48,7 +48,7 @@ docker run --rm -v "$PWD/ros2_ws/src:/src:ro" tek5/control bash -lc '
 | **Measured TCP accuracy (C-41)** | < 1 cm | Sim: 0.1–0.3 mm closed loop [MES-09]; 0.13 mm through `/go_to_target` [MES-24] |
 | Object position error (perception) | < 5 mm (sim), < 1 cm (real) | Published by the node, moved camera, arm in PARK: mean 0.7 mm, p95 1.3 mm over 200 scenes, none above 2 cm [MES-46]; 1.6–1.8 mm induced by the ArUco calibration [MES-16], [MES-25] |
 | Detection rate (non-truncated) | 100 % | 100 % [MES-13] |
-| **Pick & place success (C-42), randomized cube + box** | **≥ 90 %** over 50 episodes | Ground-truth stub: 20/20 [MES-40]; real perception, moved camera: **50/50** on the nightly's scenes (`main` before #47: 40/50, the cubes cut by the image edge) [MES-46]; the nightly bench (below); 3/3 on every PR (`e2e-smoke`) |
+| **Pick & place success (C-42), randomized cube + box** | **≥ 90 %** over 50 episodes | Ground-truth stub: 20/20 [MES-40]; real perception, moved camera: **50/50** on the nightly's scenes (`main` before #47: 40/50, the cubes cut by the image edge) [MES-46]; on our calibration (#46): **50/50**, `results/bench_sim_2026-10-27.md` (4.5b); the nightly bench (below); 3/3 on every PR (`e2e-smoke`) |
 | Cycle duration | < 30 s | Ground-truth stub: median 14.6 s, max 17.7 [MES-40]; real perception: p50 14.5 s, p95 17.5 s over 50 episodes [MES-46]; p50 17.4 s, p95 18.0 s in CI (`e2e-smoke`, 2026-10-24) |
 | Ground truth used in the pipeline | **0** | CI grep |
 
