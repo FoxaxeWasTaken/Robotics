@@ -167,7 +167,7 @@ jobs:
               --pytest-with-coverage --event-handlers console_cohesion+ ; colcon test-result --verbose
             source install/setup.bash && mkdir -p trends &&
             python3 -m pytest -q -p no:cacheprovider src/so101_brain/test/test_benchmark.py --benchmark-json=trends/ik.json &&
-            python3 -m pytest -q -s -p no:cacheprovider src/so101_driver/test/test_driver_launch.py -k rate |
+            python3 -m pytest -q -s -p no:cacheprovider src/so101_driver/test/test_driver_launch.py |
               tee trends/control.log'
       - name: Coverage XML and trends.csv
         env:
