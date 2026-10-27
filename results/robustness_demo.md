@@ -60,12 +60,13 @@ Not fixed here (out of scope of #103: a weakness found by the demo becomes its o
 
 ## Clips
 
-One short clip per case (RViz and the perception debug image), stored outside Git (the 1 MB rule): **to record**.
+One clip per case, recorded on 2026-10-27: RViz (the arm, the external camera and the perception debug image) next to the demo's terminal (the command, the `/brain_state` sequence and the brain's reasons). Kept out of Git (the 1 MB rule), on the pre-release [`robustness-demo-2026-10-27`](https://github.com/FoxaxeWasTaken/Robotics/releases/tag/robustness-demo-2026-10-27).
 
-| Case | Clip |
-| --- | --- |
-| 1 | to record |
-| 2 | to record |
-| 3a, 3b | to record |
-| 4 | to record |
-| 5 (default, then `dim`) | to record |
+| Case | Clip | What it shows |
+| --- | --- | --- |
+| 1 | [`case_1_object_moved.mp4`](https://github.com/FoxaxeWasTaken/Robotics/releases/download/robustness-demo-2026-10-27/case_1_object_moved.mp4) (68 s) | `GRASP → RETRY (empty gripper: effort 0.000)`, *attempt 1/3 failed*, a new lock, `DONE` |
+| 2 | [`case_2_grasp_fails.mp4`](https://github.com/FoxaxeWasTaken/Robotics/releases/download/robustness-demo-2026-10-27/case_2_grasp_fails.mp4) (110 s) | `>>> randomize` at each `DESCEND`, *attempt 3/3 failed*, `ERROR:grasp_failed` |
+| 3a | [`case_3a_perception_lost_in_transport.mp4`](https://github.com/FoxaxeWasTaken/Robotics/releases/download/robustness-demo-2026-10-27/case_3a_perception_lost_in_transport.mp4) (65 s) | Perception stopped in `TRANSPORT`, `VERIFY → DONE` with the warning |
+| 3b | [`case_3b_perception_lost_before_cycle.mp4`](https://github.com/FoxaxeWasTaken/Robotics/releases/download/robustness-demo-2026-10-27/case_3b_perception_lost_before_cycle.mp4) (56 s) | `WAIT_TARGET → ERROR:object_lost`, the arm in PARK |
+| 4 | [`case_4_out_of_reach.mp4`](https://github.com/FoxaxeWasTaken/Robotics/releases/download/robustness-demo-2026-10-27/case_4_out_of_reach.mp4) (47 s) | The fake cube locked at (0.5, 0, 0.025), `ERROR:unreachable`, the arm in PARK |
+| 5 | [`case_5_dim_lighting.mp4`](https://github.com/FoxaxeWasTaken/Robotics/releases/download/robustness-demo-2026-10-27/case_5_dim_lighting.mp4) (50 s) | `lighting:=dim`: the debug image draws the floor's light squares as box, no target locked, the arm stays in PARK (the clip ends during the first cycle, before its `ERROR:object_lost`) |
