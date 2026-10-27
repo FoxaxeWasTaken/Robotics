@@ -10,3 +10,11 @@
 camera:
   pos: [0.458, 0.339, 0.363]
   xyaxes: [-0.7660, 0.6428, 0.0, -0.3687, -0.4394, 0.8192]
+# lighting: the robustness demo's lighting change (#103, case 5 of [BOOT2 p12]), chosen by the launch argument
+# lighting:=<name>; none by default. Every light of the scene, the headlight included, gets its diffuse, ambient
+# and specular colors multiplied by scale, then by tint per channel (R, G, B): dim is a darker, warmer
+# (incandescent-like) room light.
+lighting:
+  dim:
+    scale: 0.4
+    tint: [1.0, 0.8, 0.55]

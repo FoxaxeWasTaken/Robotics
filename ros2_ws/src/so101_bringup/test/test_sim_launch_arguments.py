@@ -6,6 +6,9 @@ import os
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
+import mujoco
+import numpy as np
+import pytest
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchContext
@@ -13,6 +16,7 @@ from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.utilities import perform_substitutions
 from launch_ros.actions import Node
 from launch_ros.utilities import evaluate_parameters
+from so101_sim import DEFAULT_SCENE
 
 SIM_LAUNCH = os.path.join(get_package_share_directory("so101_bringup"), "launch", "sim.launch.py")
 
@@ -47,6 +51,7 @@ def test_the_ground_truth_and_the_in_container_perception_are_off_by_default():
     assert defaults()["expose_ground_truth"] == "false"
     assert defaults()["perception"] == "false"
     assert defaults()["calibration"] == "false"
+    assert defaults()["lighting"] == ""  # the robustness demo's lighting change (#103): none by default
 
 
 def test_calibration_starts_the_driver_on_the_markers_scene_at_640x480():
@@ -79,3 +84,19 @@ def test_perception_is_included_only_when_asked():
     for value, included in (("false", False), ("true", True)):
         context.launch_configurations["perception"] = value
         assert include.condition.evaluate(context) is included
+
+
+def test_lighting_dim_gives_the_driver_the_dimmed_scene():
+    """#103, case 5: every light of the scene darker and tinted as sim_scene.yaml's dim says."""
+    _, values = driver_parameters(lighting="dim")
+    config = Path(get_package_share_directory("so101_bringup")) / "config" / "sim_scene.yaml"
+    dim = yaml.safe_load(config.read_text())["lighting"]["dim"]
+    provided = mujoco.MjModel.from_xml_path(str(DEFAULT_SCENE))
+    dimmed = mujoco.MjModel.from_xml_path(values["scene_path"])
+    factor = dim["scale"] * np.array(dim["tint"])
+    assert np.allclose(dimmed.light_diffuse, provided.light_diffuse * factor, atol=1e-6)
+
+
+def test_an_unknown_lighting_stops_the_launch():
+    with pytest.raises(ValueError, match="lighting 'disco'"):
+        driver_parameters(lighting="disco")

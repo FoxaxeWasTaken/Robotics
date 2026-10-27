@@ -132,3 +132,55 @@ def test_no_cube_or_box_of_randomize_is_cut_by_the_image_edge(moved):
         if cube in border or box in border or not (body == cube).any():
             cut.append(k)
     assert cut == []
+
+
+LIGHTING = yaml.safe_load((CONFIG / "sim_scene.yaml").read_text())["lighting"]
+
+
+def lights(model):
+    """Every light's (diffuse, ambient, specular), then the headlight's: what the renderer uses."""
+    head = model.vis.headlight
+    return np.array(
+        [
+            *zip(model.light_diffuse, model.light_ambient, model.light_specular, strict=True),
+            (head.diffuse, head.ambient, head.specular),
+        ]
+    )
+
+
+def external_image(sim):
+    renderer = mujoco.Renderer(sim.model, height=sim.camera_height, width=sim.camera_width)
+    renderer.update_scene(sim.data, camera=sim.camera_name)
+    return renderer.render().astype(float)
+
+
+@pytest.fixture(scope="module")
+def dim(tmp_path_factory):
+    """The moved-camera scene and the same with lighting dim (#103, case 5): their compiled models, images."""
+    scenes = []
+    for lighting in (None, LIGHTING["dim"]):
+        path = sim_scene.generate(tmp_path_factory.mktemp("lit"), camera=CAMERA, lighting=lighting)
+        sim = SO101Sim(scene_path=path)
+        sim.connect()
+        scenes.append((sim.model, external_image(sim)))
+    return scenes
+
+
+def test_dim_lighting_scales_and_tints_every_light(dim):
+    (default, _), (dimmed, _) = dim
+    factor = LIGHTING["dim"]["scale"] * np.array(LIGHTING["dim"]["tint"])
+    assert np.allclose(lights(dimmed), lights(default) * factor, atol=1e-6)
+
+
+def test_without_lighting_the_lights_are_the_provided_ones(dim):
+    (default, _), _ = dim
+    provided = mujoco.MjModel.from_xml_path(str(DEFAULT_SCENE))
+    assert np.allclose(lights(default), lights(provided))
+
+
+def test_the_dimmed_image_is_darker_and_warmer(dim):
+    """What perception sees: about the scale darker, and red over blue up (the tint)."""
+    (_, image), (_, dimmed) = dim
+    assert dimmed.mean() < 0.6 * image.mean()
+    ratio = dimmed[..., 0].mean() / dimmed[..., 2].mean()
+    assert ratio > 1.3 * image[..., 0].mean() / image[..., 2].mean()
