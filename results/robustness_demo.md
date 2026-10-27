@@ -41,9 +41,14 @@ The table gives the last run of each case, with the delivered code. Cases 1 to 4
 | Default | 5/5 in 4 runs, 4/5 in 1 (the one failure: the `/joint_states` stall below, not the light) | cube and box on every image (9–41 images) |
 | `dim` | **0/5**, in each of the 6 runs | cube on 99–100 % of the images, **box on 0** (86–136 images) |
 
-**Why** (MES-49, `docs/project/experiences/exp_lighting_hsv.py`): under `dim`, the box's brightness drops to V median **29**, below perception's `hsv_box_v_min` = 40; only **11 %** of its pixels pass, too few for a blob. The cube keeps V median 68 against its `hsv_cube_v_min` = 60 (81 % of its pixels pass): it survives, with little margin. The brain locks its target only with both the cube and the box, so it waits 10 s and stops with `ERROR:object_lost`, without moving: the failure is safe, but the task is not done. The lighting change shows in the perception debug image: the box loses its outline.
+**Why** (MES-49, `docs/project/experiences/exp_lighting_hsv.py`, and the debug image of the clip), two causes that add up:
 
-Not fixed here (out of scope of #103: a weakness found by the demo becomes its own ticket). Leads for that ticket: a lower `hsv_box_v_min`, a brightness-normalized threshold, or the camera's exposure on the real arm (`07` §4, step 6.4b).
+1. **The floor turns box-colored.** The warm light makes the grey checker (H 120, S 29) orange (H 14, S 99): **42 %** of the floor falls inside the box's HSV range. The box mask grows from 1,125 px (1,121 on the box) to **30,587 px, 29,864 of them on the floor**; in the debug image the light checker squares are drawn as box. Perception's shape guards reject such a blob.
+2. **The box gets too dark.** Its brightness drops to V median **29**, below `hsv_box_v_min` = 40: only **11 %** of its pixels stay in range (99 % before).
+
+The cube keeps V median 68 against its `hsv_cube_v_min` = 60 (81 % of its pixels in range): it survives, with little margin. The brain locks its target only with both the cube and the box, so it waits 10 s and stops with `ERROR:object_lost`, without moving: the failure is safe, but the task is not done.
+
+Not fixed here (out of scope of #103: a weakness found by the demo becomes its own ticket). Brightness no longer separates the box from the floor (box V 25–50, floor V 26–43); saturation still does (box S 198–207, floor S 93–106). Leads for that ticket: a higher `hsv_box_s_min` with a lower `hsv_box_v_min`, a brightness-normalized threshold, or the camera's exposure and white balance on the real arm (`07` §4, step 6.4b).
 
 ## Limits and observations
 
