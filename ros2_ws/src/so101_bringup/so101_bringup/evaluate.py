@@ -233,9 +233,8 @@ def main(argv=None) -> int:
     node = rclpy.create_node("evaluate")
     try:
         return run(args, Bench(node))
-    except (
-        KeyboardInterrupt
-    ):  # Ctrl-C from a terminal reaches the bench since #58: the CSV keeps the done ones
+    # Ctrl-C from a terminal reaches the bench since #58; the CSV already holds the finished episodes.
+    except KeyboardInterrupt:
         print(f"evaluate: stopped (Ctrl-C); the finished episodes are in {args.out}", file=sys.stderr)
         return 130
     finally:
