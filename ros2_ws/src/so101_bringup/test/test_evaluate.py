@@ -5,6 +5,7 @@ import inspect
 import re
 
 import pytest
+import rclpy
 from rclpy.task import Future
 
 from so101_bringup import evaluate
@@ -71,6 +72,51 @@ def test_the_first_call_waits_a_minute_for_the_driver_and_says_how_long_it_took(
     assert bench.first_wait == 60.0
     assert re.search(r"the driver answered in \d+\.\d s", capsys.readouterr().out)
     assert inspect.signature(Bench.call).parameters["timeout_s"].default == 10.0
+
+
+class Pipe:
+    """A stdout that is a pipe, as through `docker compose exec -T` (tools/so101 bench): what is written stays
+    in the buffer until flush()."""
+
+    def __init__(self):
+        self.buffer, self.shown = "", ""
+
+    def write(self, text):
+        self.buffer += text
+        return len(text)
+
+    def flush(self):
+        self.shown, self.buffer = self.shown + self.buffer, ""
+
+
+def test_each_episode_line_shows_before_the_next_episode_starts(tmp_path, monkeypatch):
+    """Through tools/so101 bench, stdout is a pipe: an unflushed line waited for the end of the run, the bench
+    looked stuck for minutes and a newcomer stopped it (#58)."""
+    out = Pipe()
+    monkeypatch.setattr("sys.stdout", out)
+    seen = []
+
+    class Watched(FakeBench):
+        def episode(self, number, seed, timeout_s):
+            seen.append(out.shown)
+            return super().episode(number, seed, timeout_s)
+
+    assert run(bench_args(tmp_path, episodes=3), Watched(pose=object())) == 0
+    assert "episode 1: DONE" in seen[1] and "episode 2: DONE" in seen[2]
+    assert "success 3/3" in out.shown  # the summary too, before the process ends
+
+
+def test_ctrl_c_stops_the_bench_cleanly(tmp_path, monkeypatch, capsys):
+    """From a terminal Ctrl-C now reaches evaluate (#58): rclpy's SIGINT handler shuts its context down and a
+    KeyboardInterrupt comes out of the spin. A short message and exit 130, not two tracebacks and exit 1."""
+
+    def interrupted(args, bench):
+        rclpy.shutdown()  # what rclpy's SIGINT handler does before the KeyboardInterrupt
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(evaluate, "run", interrupted)
+    assert evaluate.main(["--episodes", "3", "--out", str(tmp_path / "eval.csv")]) == 130
+    assert "stopped (Ctrl-C)" in capsys.readouterr().err
 
 
 def test_the_ground_truth_and_the_brain_pose_get_the_same_minute(tmp_path):

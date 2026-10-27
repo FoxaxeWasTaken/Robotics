@@ -204,10 +204,11 @@ def run(args, bench: Bench) -> int:
             writer.writerow(row)
             f.flush()
             rows.append(row)
-            print(
-                f"episode {number}: {row['final_state']}, {row['duration_s']} s, {row['cause'] or 'success'}"
+            print(  # flushed: through tools/so101 stdout is a pipe, the line would wait for the end (#58)
+                f"episode {number}: {row['final_state']}, {row['duration_s']} s, {row['cause'] or 'success'}",
+                flush=True,
             )
-    print(summary(rows))
+    print(summary(rows), flush=True)
     successes = sum(row["success"] for row in rows)
     if args.min_success is not None and successes < args.min_success:
         print(
@@ -232,9 +233,14 @@ def main(argv=None) -> int:
     node = rclpy.create_node("evaluate")
     try:
         return run(args, Bench(node))
+    # Ctrl-C from a terminal reaches the bench since #58; the CSV already holds the finished episodes.
+    except KeyboardInterrupt:
+        print(f"evaluate: stopped (Ctrl-C); the finished episodes are in {args.out}", file=sys.stderr)
+        return 130
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():  # rclpy's SIGINT handler has already shut its context down
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":

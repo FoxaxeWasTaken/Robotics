@@ -21,7 +21,7 @@ A camera spots a red cube, the SO-ARM101 arm grasps it and drops it into a box �
 | Driver: `/joint_states` at 30 Hz, `/joint_command`, speed limiter, joint-limit clamp, camera at 10 Hz with `camera_info`, `/sim/randomize`, ground truth for the bench only; real-arm safety and webcam | Perception: a partly hidden cube not published (3.5c, #167) |
 | Perception: HSV detection, pixel → 3D, median filter, cube yaw, `/object_position` and `/drop_box_position`, debug image, our ArUco extrinsic calibration and the camera TF (3.4b–c, MES-47) | The real arm: commissioning (6.1b), camera and grasp calibration (6.2b–6.4), 10 real trials (6.5a) |
 | Brain: FK/IK (no self-collision), `/go_to_target`, grasp planner in a worker process, the full state machine, markers in RViz; grasp verification and retries checked on fault scenarios, effort threshold measured (4.4a, MES-48) | Release v1.0.0, the simulation milestone (5.3a); phase 2 (stage 7) |
-| Evaluation bench, E2E on every PR, nightly 50-episode bench with its report; `tools/so101` for the everyday commands | A newcomer's dry run of this README (5.1b) |
+| Evaluation bench, E2E on every PR, nightly 50-episode bench with its report; `tools/so101` for the everyday commands; this README replayed by a member from a fresh clone, quickstart and demo in about 12 min (5.1b) | Phase 2: the store-bought grid measured, then the drop spike (P2.1, #75, #76) |
 
 ## Measured results (sim)
 
@@ -38,7 +38,7 @@ On the real arm: nothing measured yet (stage 6). Measurements and how to reprodu
 
 ## Prerequisites
 
-- **A Linux host** (x86_64) with **Docker**: Docker Engine with the Compose v2 plugin, or Docker Desktop. About 8 GB of disk for the two images (control 4.2 GB, perception 2.9 GB).
+- **A Linux host** (x86_64) with **Docker**: Docker Engine with the Compose v2 plugin, or Docker Desktop. About 8 GB of disk for the two images (control 4.2 GB, perception 2.9 GB), plus Docker's build cache, which grew to 16 GB on a member's machine: `docker builder prune` empties it (every project's cache; the next builds are slower). With Docker Desktop on Windows, that disk is on `C:`.
 - **An X server on the host for RViz**: X11, or Wayland with XWayland.
 - **git**, and **pre-commit** to contribute ([CONTRIBUTING §1](CONTRIBUTING.md#1-setup-once)).
 - **Real arm only**: the arm's serial port (`/dev/ttyACM*`) and the USB webcam (`/dev/video*`) visible on the host; compose passes them to the control container.
@@ -72,13 +72,14 @@ tools/so101 cycle                            # randomize the cube and the box, t
 tools/so101 bench --perception -n 10         # the evaluation bench: 10 episodes, success rate and durations
 ```
 
-The bench starts its own driver, brain and perception on ROS domain 77 (below), runs the episodes, prints one line per episode and the summary, then stops them. The CSV is in `ros2_ws/eval_bench.csv`; `--bags /ros2_ws/bags` keeps a rosbag of each failed episode in `ros2_ws/bags/`.
+The bench starts its own driver, brain and perception on ROS domain 77 (below), runs the episodes, prints one line per episode as it ends (about 15 s each; the first one also waits for the stack to start) and the summary, then stops them. Ctrl-C stops the bench and its stack. The CSV is in `ros2_ws/eval_bench.csv`; `--bags /ros2_ws/bags` keeps a rosbag of each failed episode in `ros2_ws/bags/`.
 
 ## Test the project
 
 ```bash
 tools/so101 test                             # all our packages: build, colcon test (each on its own free ROS domain)
 tools/so101 test so101_brain -k fsm          # one package; the options go to pytest: the fast loop on one test
+sudo apt install pre-commit                  # once (Ubuntu; or pipx install pre-commit: plain pip is refused)
 pre-commit run --all-files                   # host: lint, format, shellcheck, workflow checks, the scripts' tests
 bash tools/ci/guards.sh                      # host: the project rules (no ground truth in the pipeline, …)
 tools/so101 bench --stub -n 10               # driver and brain alone: the ground truth in place of perception

@@ -126,7 +126,11 @@ case \$s in DONE*|ERROR*|STOPPED*) break ;; esac; done"
     # container's own nodes, as a leftover bench's; "[/]" keeps pgrep from matching this command line) or nodes
     # elsewhere answer on it. The stack stops with the bench:
     # set -m puts it in its own process group, else a non-interactive shell starts it with SIGINT ignored.
-    ros -T -e ROS_DOMAIN_ID=$BENCH_DOMAIN "set -m; \
+    # From a terminal, a TTY in the container: Ctrl+C then stops the bench there (with exec -T it stopped only
+    # the docker client, the bench went on, #58) and its lines show as they come; a pipe or CI keeps -T.
+    tty=-T
+    [ -t 0 ] && tty=""
+    ros $tty -e ROS_DOMAIN_ID=$BENCH_DOMAIN "set -m; \
 busy=\$(for p in \$(pgrep -f \"[/]lib/so101_\"); do grep -qxz ROS_DOMAIN_ID=$BENCH_DOMAIN /proc/\$p/environ && echo \$p; done); \
 if [ -n \"\$busy\" ] || [ -n \"\$(ros2 node list --no-daemon --spin-time 3)\" ]; then \
 echo \"so101 bench: a stack already runs on ROS domain $BENCH_DOMAIN\" >&2; exit 1; fi; \
