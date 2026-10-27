@@ -171,6 +171,7 @@ The table below is the plan from 2026-10-15:
 flowchart LR
   S["cron 03:00 UTC<br/>or workflow_dispatch"] --> D["docs<br/>mermaid-cli + lychee"]
   S --> MC["main-changed<br/>main moved since the last bench?"]
+  MC -->|"yes, or workflow_dispatch"| Q["quality<br/>every test with coverage, trends.csv"]
   MC -->|"yes, or workflow_dispatch"| V["evaluation<br/>compose up control+perception+viz<br/>50 randomized episodes"]
   V --> R["artifacts<br/>eval.csv + failure rosbags (14 days)"]
   V --> B["report<br/>run summary + one comment on<br/>Nightly bench results"]
@@ -179,6 +180,7 @@ flowchart LR
   W --> I["one issue<br/>Course repository: new commits"]
 ```
 
+- **The quality job** (#60), when `main` changed, as the bench: every package's tests with coverage (perception's too, in the control image), the IK benchmarks (`so101_brain/test/test_benchmark.py`, pytest-benchmark) and the driver's launch test (its `TREND` line), then `tools/ci/trends.py` writes `trends.csv` (artifact `trends-<run>`, 90 days; values in `08` §2). No threshold: CI runners are too noisy for a gate.
 - The bench writes one CSV row per episode: poses, final state, duration, failure cause (`08` §3).
 - **The report** (#151, `tools/ci/bench_report.sh`, tested by `test_bench_report.sh`): each night the bench runs, its summary line (success rate, p50/p95 duration, failure causes), the commit of `main`, the target (≥ 90 %, informative: the nightly does not fail under it) and the run link go to the run summary and to one comment on the issue "Nightly bench results". A bench that stopped, or never started, comments that too. Skipped nights add nothing. The first report created it (#155), labeled `report` so the project views leave it out (it is not a work item), then pinned by hand; only this job can write issues.
 - The bench runs only when `main` changed (#146): `main-changed` (`tools/ci/evaluation_due.sh`) finds the newest nightly run whose bench gave a verdict, success or failure, and skips the bench when that run was on the same commit. Skipped nights are passed over, and so are cancelled or timed-out benches. Any doubt runs it: no verdict among the last 30 runs, or the API failing; the bench is then skipped only on an explicit `false`. A failed bench is not rerun on the same commit: it was reported that night, and `workflow_dispatch` always runs it.

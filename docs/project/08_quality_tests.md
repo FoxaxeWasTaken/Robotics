@@ -54,6 +54,8 @@ docker run --rm -v "$PWD/ros2_ws/src:/src:ro" tek5/control bash -lc '
 
 Phase-2 targets: `phase2/P2-01` §4.
 
+**Timing trends** (#60): recorded each night by the `quality` job (`trends.csv`, `14` §6), never a gate. First values, in a container on the development machine (2026-10-27): `ik_pos` median 10.1 ms, `ik_pose` 4.3 ms; the period of the driver's `/joint_states` timer, camera on, p50 39.9 ms and p99 40.9 ms for a 33.3 ms setting (30 Hz): the executor, which also runs the 50 Hz control step, slips under the camera's rendering (MES-34). The control step has no topic of its own: that timer is its proxy.
+
 **Where to read the bench results**: the issue ["Nightly bench results"](https://github.com/FoxaxeWasTaken/Robotics/issues?q=is%3Aissue+in%3Atitle+%22Nightly+bench+results%22), one comment per nightly bench with its success rate, durations and failure causes (`14` §6); the CSV and the failed episodes' rosbags are the run's artifact for 14 days.
 
 ## 3. Evaluation bench (sim)

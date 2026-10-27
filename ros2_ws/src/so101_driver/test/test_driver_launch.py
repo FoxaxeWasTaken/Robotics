@@ -10,6 +10,7 @@ import launch
 import launch_ros.actions
 import launch_testing.actions
 import launch_testing.asserts
+import numpy as np
 import pytest
 import rclpy
 from rcl_interfaces.msg import Log, ParameterType
@@ -163,10 +164,13 @@ class TestDriver(unittest.TestCase):
     def test_joint_states_rate_is_at_least_20_hz(self):
         self.wait_for_joint_states()
         start = len(self.msgs)
-        self.spin_for(3.0)
+        self.spin_for(5.0)
         stamps = [m.header.stamp.sec + m.header.stamp.nanosec * 1e-9 for m in self.msgs[start:]]
         rate = (len(stamps) - 1) / (stamps[-1] - stamps[0])
         print(f"/joint_states rate: {rate:.1f} Hz")
+        # the nightly trend (#60, 08 §2): the timer period, camera on; its executor runs the control step
+        p50, p99 = 1000 * np.percentile(np.diff(stamps), [50, 99])
+        print(f"TREND control_period_ms p50={p50:.2f} p99={p99:.2f}")
         self.assertGreaterEqual(rate, 20.0)
         effort = self.msgs[-1].effort  # normalized load, same order as name (03 §5)
         self.assertEqual(len(effort), 6)
