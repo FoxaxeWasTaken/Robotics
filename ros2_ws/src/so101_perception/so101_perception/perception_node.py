@@ -63,7 +63,7 @@ STARTUP = {
     "filter_jump_m": (0.02, "A detection this far from the median is a jump, m (05 §7)", 0.001, 0.2),
     "min_cube_area_ratio": (
         0.85,
-        "Cube blob area / a 5 cm face at its depth below which it is partly hidden, not published (05 §6)",
+        "Cube pixels / a whole cube's smallest silhouette; below, partly hidden: not published (05 §2.3)",
         0.0,
         2.0,
     ),
