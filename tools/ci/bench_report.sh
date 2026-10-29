@@ -12,9 +12,9 @@ body=$(mktemp)
   echo
   echo "\`$REF\` at \`${SHA:0:7}\`, $EPISODES episodes, randomized cube and box, real perception."
   echo
-  if [ -n "$line" ]; then
+  if [[ -n "$line" ]]; then
     rate=$(sed -E 's/^success [0-9]+\/[0-9]+ \(([0-9]+) %\).*/\1/' <<< "$line")
-    [ "$rate" -ge "$target" ] && verdict=met || verdict="not met"
+    [[ "$rate" -ge "$target" ]] && verdict=met || verdict="not met"
     echo "**$line**"
     echo
     echo "Target ≥ $target %: $verdict."

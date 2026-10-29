@@ -6,10 +6,11 @@ set -uo pipefail
 timeout_s=${1:-900}
 compose=(docker compose -f docker/docker-compose.yml)
 ready() {  # ready <service> <log line>
-  "${compose[@]}" logs "$1" 2>&1 | grep -q "$2"
+  local service=$1 line=$2
+  "${compose[@]}" logs "$service" 2>&1 | grep -q "$line"
 }
 until ready control "Driver node ready" && ready control "Brain node ready" && ready perception "Perception node ready"; do
-  if [ "$SECONDS" -ge "$timeout_s" ]; then
+  if [[ "$SECONDS" -ge "$timeout_s" ]]; then
     echo "The stack is not ready after ${timeout_s} s:"
     "${compose[@]}" logs --tail 40 control perception
     exit 1

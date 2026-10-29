@@ -24,6 +24,7 @@ def test_the_planner_runs_in_its_own_process_and_its_plan_comes_back():
     finally:
         pool.shutdown()
     expected, _ = GraspPlanner(Kinematics(URDF), lift_dz_m=0.12).plan(*request)
-    assert reason is None and seconds > 0.0
+    assert reason is None
+    assert seconds > 0.0
     for name in ("pre_grasp", "grasp", "lift", "drop"):
         np.testing.assert_allclose(getattr(plan, name), getattr(expected, name))

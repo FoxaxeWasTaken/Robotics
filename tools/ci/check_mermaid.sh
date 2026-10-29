@@ -19,11 +19,11 @@ print(f"{n} diagrams extracted")
 PY
 status=0
 for f in "$tmp"/*.mmd; do
-  [ -e "$f" ] || continue
+  [[ -e "$f" ]] || continue
   name=$(basename "$f")
   if ! docker run --rm -v "$tmp":/data "$IMAGE" -q -i "/data/$name" -o "/data/$name.svg" >"$tmp/$name.log" 2>&1; then
     echo "❌ $name"; sed 's/^/   /' "$tmp/$name.log" | head -20; status=1
   fi
 done
-[ $status -eq 0 ] && echo "✅ every Mermaid diagram renders"
+[[ $status -eq 0 ]] && echo "✅ every Mermaid diagram renders"
 exit $status

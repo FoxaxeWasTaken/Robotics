@@ -8,7 +8,7 @@ url=${1:-https://github.com/JasonChmn/content-lerobot-bras-students.git}
 title="Course repository: new commits"
 recorded=$(tr -d '[:space:]' < .github/upstream-sha)
 head=$(git ls-remote "$url" refs/heads/main | cut -f1)
-if [ "$head" = "$recorded" ]; then
+if [[ "$head" = "$recorded" ]]; then
   echo "The course repository is at the recorded commit ${recorded:0:7}: nothing to do"
   exit 0
 fi
@@ -31,7 +31,7 @@ body=$(mktemp)
   echo "Merge them with the procedure of \`docs/project/15\` §2, which updates \`.github/upstream-sha\`, then close this issue."
 } > "$body"
 number=$(gh issue list --state open --limit 100 --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)
-if [ -n "$number" ]; then
+if [[ -n "$number" ]]; then
   gh issue edit "$number" --body-file "$body"
   echo "Updated issue #$number"
 else

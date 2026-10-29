@@ -13,9 +13,9 @@ mkdir "$tmp/bin"
 cat > "$tmp/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >> "$GH_LOG"
-[ "$1 $2" = "issue list" ] && printf '%s\n' "${GH_OPEN:-}"
-[ "$1 $2" = "issue create" ] && echo "https://github.com/team/robotics/issues/42"
-prev=""; for a in "$@"; do [ "$prev" = --body-file ] && cp "$a" "$GH_LOG.body"; prev=$a; done
+[[ "$1 $2" = "issue list" ]] && printf '%s\n' "${GH_OPEN:-}"
+[[ "$1 $2" = "issue create" ]] && echo "https://github.com/team/robotics/issues/42"
+prev=""; for a in "$@"; do [[ "$prev" = --body-file ]] && cp "$a" "$GH_LOG.body"; prev=$a; done
 exit 0
 EOF
 chmod +x "$tmp/bin/gh"
