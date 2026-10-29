@@ -3,7 +3,7 @@
 import cv2
 import numpy as np
 
-from so101_perception.debug import LOST, OK, TRUNCATED, annotate, status
+from so101_perception.debug import LOST, OCCLUDED, OK, TRUNCATED, annotate, status
 from so101_perception.detection import Blob, detect
 
 
@@ -33,6 +33,7 @@ def test_the_status_of_the_cube():
     assert status(None) == LOST
     assert status(Blob(1.0, 2.0, True)) == TRUNCATED
     assert status(Blob(1.0, 2.0, False)) == OK
+    assert status(Blob(1.0, 2.0, False), occluded=True) == OCCLUDED  # partly hidden (#167)
 
 
 def test_the_masks_are_painted_cube_green_box_blue():

@@ -6,13 +6,18 @@ The masks (cube green, box blue), the centroids and the cube status, on a copy o
 import cv2
 import numpy as np
 
-OK, TRUNCATED, LOST = "OK", "TRUNCATED", "LOST"
+OK, TRUNCATED, OCCLUDED, LOST = "OK", "TRUNCATED", "OCCLUDED", "LOST"
 RED, GREEN, BLUE = (255, 0, 0), (0, 255, 0), (0, 0, 255)  # rgb8
 
 
-def status(cube) -> str:
-    """The cube's status: LOST (no valid blob), TRUNCATED (cut by the border, not published) or OK."""
-    return LOST if cube is None else TRUNCATED if cube.truncated else OK
+def status(cube, occluded: bool = False) -> str:
+    """The cube's status: LOST (no valid blob), TRUNCATED (cut by the border), OCCLUDED (partly hidden, #167),
+    neither published, or OK."""
+    if cube is None:
+        return LOST
+    if cube.truncated:
+        return TRUNCATED
+    return OCCLUDED if occluded else OK
 
 
 def annotate(rgb: np.ndarray, text: str, detection=None) -> np.ndarray:

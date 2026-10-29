@@ -13,6 +13,7 @@ from test_reference_images import LABELS
 from so101_perception.detection import detect
 from so101_perception.geometry import (
     Extrinsics,
+    cube_area_ratio,
     cube_yaw,
     from_mujoco,
     load_extrinsics,
@@ -149,3 +150,56 @@ def test_the_quaternion_of_the_camera_tf_gives_back_its_rotation(angle):
     R = cv2.Rodrigues(np.array([1.0, -2.0, 0.5]) / np.linalg.norm([1.0, -2.0, 0.5]) * angle)[0]
     q = quaternion(R)
     assert np.isclose(np.linalg.norm(q), 1.0) and np.allclose(rotation(*q), R, atol=1e-9)
+
+
+def blob(width, height):
+    """The outline of a filled width x height px rectangle centered on the principal point (0, 0), as
+    detection gives it."""
+    mask = np.zeros((200, 200), np.uint8)
+    mask[100 - height // 2 : 100 - height // 2 + height, 100 - width // 2 : 100 - width // 2 + width] = 255
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    return contours[0][:, 0, :] - 100
+
+
+DOWN = np.diag([1.0, -1.0, -1.0])  # optical frame looking straight down (z towards -z of base_link)
+K500 = np.diag([500.0, 500.0, 1.0])  # fx = 500, principal point at (0, 0)
+
+
+def test_a_whole_cube_seen_from_straight_above_has_a_ratio_of_1():
+    """The camera 1.025 m above the cube center: its top face, 1 m away, spans 25 px at any yaw."""
+    t = np.array([0.0, 0.0, 1.05])
+    assert cube_area_ratio(blob(25, 25), [0.0, 0.0, 0.025], K500, DOWN, t) == pytest.approx(1.0, rel=1e-3)
+
+
+def test_the_ratio_scales_with_the_depth_and_the_visible_part():
+    t = np.array([0.0, 0.0, 2.05])  # twice as far: 12.5 px
+    assert cube_area_ratio(blob(12, 12), [0.0, 0.0, 0.025], K500, DOWN, t) == pytest.approx(
+        144 / 156.25, rel=1e-3
+    )
+    t = np.array([0.0, 0.0, 1.05])
+    assert cube_area_ratio(blob(25, 12), [0.0, 0.0, 0.025], K500, DOWN, t) == pytest.approx(
+        0.48, rel=1e-3
+    )  # half
+
+
+def test_a_whole_cube_of_the_reference_images_has_a_ratio_of_about_1():
+    """Its own outline against the smallest silhouette over the yaws: at least about 1 (05 §6)."""
+    for image, found in ((i, detect(rgb(i))) for i in LABELS["images"] if i["cube_view"] == "full"):
+        if image["cube_visible"] < 1.0:
+            continue
+        p = pixel_to_world(found.cube.u, found.cube.v, K, R_LABELS, T_LABELS, 0.025)
+        assert 0.9 < cube_area_ratio(found.cube.contour, p, K, R_LABELS, T_LABELS) < 1.4, image["file"]
+
+
+def test_a_partly_hidden_cube_of_the_reference_images_is_below_the_threshold():
+    """#167: the cubes the arm or the box's walls hide (20-80 % visible) fall under perception.yaml's
+    min_cube_area_ratio, so the node publishes none of them."""
+    params = yaml.safe_load((Path(__file__).parents[1] / "config" / "perception.yaml").read_text())
+    threshold = params["so101_perception"]["ros__parameters"]["min_cube_area_ratio"]
+    hidden = [i for i in LABELS["images"] if i["cube_view"] == "occluded"]
+    assert len(hidden) >= 6
+    for image in hidden:
+        cube = detect(rgb(image)).cube
+        assert cube is not None and not cube.truncated, image["file"]
+        p = pixel_to_world(cube.u, cube.v, K, R_LABELS, T_LABELS, 0.025)
+        assert cube_area_ratio(cube.contour, p, K, R_LABELS, T_LABELS) < threshold, image["file"]

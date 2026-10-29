@@ -107,7 +107,7 @@ The ground truth (`/sim/ground_truth/*`) is published only by a driver started w
 - **The camera image** (`/external_cam/image_raw`) and **the perception debug image** (`/perception/debug_image`):
   - the cube's pixels in green, the box's in blue;
   - a red cross on each centroid;
-  - the cube's status in the top-left corner: `OK`, `TRUNCATED` (cut by the image edge, not published) or `LOST`.
+  - the cube's status in the top-left corner: `OK`, `TRUNCATED` (cut by the image edge, not published), `OCCLUDED` (partly hidden by the arm or the box, not published) or `LOST`.
 - **The 3D view**:
   - the arm and its TF;
   - the TCP pose (`/end_effector_pose`), the cube and box poses;

@@ -13,8 +13,10 @@ from ament_index_python.packages import get_package_share_directory
 from so101_sim import ARM_JOINTS, SO101Sim
 
 from so101_bringup import sim_scene
+from so101_driver.camera import opencv_intrinsics
 from so101_driver.randomize import sample_box_xy
 from so101_perception.detection import Thresholds, detect, hsv_ranges
+from so101_perception.geometry import cube_area_ratio, pixel_to_world
 
 PARK = [
     1.9,
@@ -29,6 +31,7 @@ SCENE = yaml.safe_load(
 )
 PERCEPTION = Path(get_package_share_directory("so101_perception")) / "config" / "perception.yaml"
 P = yaml.safe_load(PERCEPTION.read_text())["so101_perception"]["ros__parameters"]
+FLIP = np.diag([1.0, -1.0, -1.0])  # MuJoCo camera frame -> OpenCV optical frame
 THRESHOLDS = Thresholds(  # as perception_node builds them from its parameters
     cube=hsv_ranges(*(P[f"hsv_cube_{k}"] for k in ("h_min", "h_max", "s_min", "v_min"))),
     box=hsv_ranges(*(P[f"hsv_box_{k}"] for k in ("h_min", "h_max", "s_min", "v_min", "v_max"))),
@@ -38,8 +41,8 @@ THRESHOLDS = Thresholds(  # as perception_node builds them from its parameters
 
 
 def views(tmp_path_factory, lighting):
-    """For each scene: the detection, the segmented centroids of the cube and the box, and the box mask's
-    pixels off the box."""
+    """For each scene: the detection, the segmented centroids of the cube and the box, the box mask's pixels
+    off the box, and the cube's area ratio as perception computes it (#167; with the true camera pose)."""
     path = sim_scene.generate(tmp_path_factory.mktemp("lit"), camera=SCENE["camera"], lighting=lighting)
     sim = SO101Sim(scene_path=path)
     sim.connect()
@@ -49,6 +52,9 @@ def views(tmp_path_factory, lighting):
     segmentation.enable_segmentation_rendering()
     cube, box = m.body("pickup_object").id, m.body("drop_box").id
     sim._rng, box_rng = np.random.default_rng(0), np.random.default_rng(1)
+    K = opencv_intrinsics(sim.get_camera_intrinsics())
+    T = sim.get_camera_extrinsics()
+    R, t = T[:3, :3] @ FLIP, T[:3, 3]
     out = []
     for _ in range(SCENES):
         m.body_pos[box, :2] = (2.0, 0.0)  # as /sim/randomize: the box away while the cube settles
@@ -65,7 +71,12 @@ def views(tmp_path_factory, lighting):
             name: np.argwhere(body == i).mean(axis=0)[::-1] for name, i in (("cube", cube), ("box", box))
         }
         detection = detect(image.render(), THRESHOLDS)
-        out.append((detection, centroid, np.count_nonzero(detection.box_mask & (body != box))))
+        cube_blob = detection.cube
+        ratio = None
+        if cube_blob is not None:
+            p = pixel_to_world(cube_blob.u, cube_blob.v, K, R, t, 0.025)
+            ratio = cube_area_ratio(cube_blob.contour, p, K, R, t)
+        out.append((detection, centroid, np.count_nonzero(detection.box_mask & (body != box)), ratio))
     sim.disconnect()
     return out
 
@@ -81,7 +92,7 @@ def test_the_box_is_found_at_its_centroid(lit):
     name, scenes = lit
     found = [
         d.box is not None and np.hypot(d.box.u - c["box"][0], d.box.v - c["box"][1]) < 3.0
-        for d, c, _ in scenes
+        for d, c, *_ in scenes
     ]
     assert all(found), (
         f"{name}: box missed or off by 3 px or more in scenes {np.flatnonzero(~np.array(found))}"
@@ -92,7 +103,7 @@ def test_the_cube_is_found_at_its_centroid(lit):
     name, scenes = lit
     found = [
         d.cube is not None and np.hypot(d.cube.u - c["cube"][0], d.cube.v - c["cube"][1]) < 2.0
-        for d, c, _ in scenes
+        for d, c, *_ in scenes
     ]
     assert all(found), (
         f"{name}: cube missed or off by 2 px or more in scenes {np.flatnonzero(~np.array(found))}"
@@ -102,5 +113,12 @@ def test_the_cube_is_found_at_its_centroid(lit):
 def test_the_box_mask_stays_on_the_box(lit):
     """The dim floor turned box-colored (MES-49): 29,864 px of the box mask on the floor."""
     name, scenes = lit
-    off = max(outside for _, _, outside in scenes)
+    off = max(outside for _, _, outside, _ in scenes)
     assert off < 50, f"{name}: up to {off} px of the box mask off the box (the box covers about 1,350 px)"
+
+
+def test_whole_cubes_are_not_taken_for_partly_hidden_ones(lit):
+    """#167: the arm in PARK hides no cube here; each must clear perception.yaml's min_cube_area_ratio."""
+    name, scenes = lit
+    ratios = [ratio for *_, ratio in scenes]
+    assert min(ratios) >= P["min_cube_area_ratio"], f"{name}: ratios {np.round(ratios, 3).tolist()}"
