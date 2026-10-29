@@ -30,7 +30,7 @@ echo "ok: no path at all is not documentation (a failed git diff runs everything
 mkdir "$tmp/bin"
 cat > "$tmp/bin/gh" <<'EOF'
 #!/usr/bin/env bash
-[ -z "${GH_FAIL:-}" ] || exit 1
+[[ -z "${GH_FAIL:-}" ]] || exit 1
 case $2 in
   */actions/workflows/nightly.yml/runs*) printf '%s\n' "$RUNS" ;;
   */actions/runs/*/jobs*) id=${2#*/actions/runs/}; id=${id%%/*}; printf '%s\n' "$JOBS" | awk -v id="$id" '$1 == id {print $2}' ;;
@@ -40,8 +40,9 @@ EOF
 chmod +x "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH" GH_REPO=team/robotics
 due() {  # due <expected true|false> <sha of main> <runs> <jobs> [GH_FAIL]
-  out=$(RUNS=$3 JOBS=$4 GH_FAIL=${5:-} bash "$dir/evaluation_due.sh" "$2" 2> "$tmp/why") || fail "exit $?: $(cat "$tmp/why")"
-  [ "$out" = "evaluate=$1" ] || fail "expected evaluate=$1, got '$out' ($(cat "$tmp/why"))"
+  local expected=$1 sha=$2 runs=$3 jobs=$4 gh_fail=${5:-}
+  out=$(RUNS=$runs JOBS=$jobs GH_FAIL=$gh_fail bash "$dir/evaluation_due.sh" "$sha" 2> "$tmp/why") || fail "exit $?: $(cat "$tmp/why")"
+  [[ "$out" = "evaluate=$expected" ]] || fail "expected evaluate=$expected, got '$out' ($(cat "$tmp/why"))"
 }
 due false aaa "9 aaa" "9 success"
 echo "ok: the last bench passed on this commit of main: skipped"

@@ -23,8 +23,8 @@ git init -q -b main "$tmp/team" && mkdir "$tmp/team/.github" "$tmp/bin"
 cat > "$tmp/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >> "$GH_LOG"
-[ "$1 $2" = "issue list" ] && printf '%s\n' "${GH_OPEN:-}"
-prev=""; for a in "$@"; do [ "$prev" = --body-file ] && cp "$a" "$GH_LOG.body"; prev=$a; done
+[[ "$1 $2" = "issue list" ]] && printf '%s\n' "${GH_OPEN:-}"
+prev=""; for a in "$@"; do [[ "$prev" = --body-file ]] && cp "$a" "$GH_LOG.body"; prev=$a; done
 exit 0
 EOF
 chmod +x "$tmp/bin/gh"
@@ -36,7 +36,7 @@ run() {  # run <recorded sha> [open issue number]: the check, from our repositor
 }
 
 run "$(git -C "$tmp/work" rev-parse HEAD)"
-[ ! -s "$GH_LOG" ] || fail "up to date, yet gh was called: $(cat "$GH_LOG")"
+[[ ! -s "$GH_LOG" ]] || fail "up to date, yet gh was called: $(cat "$GH_LOG")"
 echo "ok: the recorded commit is the course's main: no issue"
 
 run "$first"
