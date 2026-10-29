@@ -6,6 +6,7 @@
   layout's convention puts it (so101_common.markers); the calibration (#45) finds the camera's pose."""
 
 import hashlib
+import subprocess
 from pathlib import Path
 
 import cv2
@@ -35,6 +36,20 @@ def tree_hash(folder):
     for path in sorted(p for p in Path(folder).rglob("*") if p.is_file()):
         digest.update(str(path.relative_to(folder)).encode() + path.read_bytes())
     return digest.hexdigest()
+
+
+def machine() -> str:
+    """What rendered and detected the view, for a failure's message (#187: a CI runner once gave 1.17 px and
+    unrefined corners, never reproduced on another machine, MES-54)."""
+    cpu = Path("/proc/cpuinfo").read_text()
+    model = next(
+        (line.split(":", 1)[1].strip() for line in cpu.splitlines() if line.startswith("model name")), "?"
+    )
+    isa = "avx512f" if " avx512f" in cpu else "avx2" if " avx2" in cpu else "no avx2"
+    query = ["dpkg-query", "-W", "-f", "${Version}", "libosmesa6"]
+    mesa = subprocess.run(query, capture_output=True, text=True).stdout or "?"
+    opencv = f"OpenCV {cv2.__version__} ({cv2.__file__})"
+    return f"{model} ({isa}); {opencv}, MuJoCo {mujoco.__version__}, OSMesa {mesa}"
 
 
 @pytest.fixture(scope="module")
@@ -67,13 +82,17 @@ def test_each_detected_corner_is_where_the_layout_puts_it(calibration_view):
         camera = (marker_corners(LAYOUT["markers"][i], LAYOUT["side_m"]) - t) @ R
         uv = (camera @ K.T)[:, :2] / camera[:, 2:]
         # corner detection on a small, oblique rendered marker: up to ~3 px; a wrong order: a side (>= 28 px)
-        assert np.abs(uv - detected).max() < 5.0, (i, uv.round(1).tolist(), detected.round(1).tolist())
+        offset = np.abs(uv - detected).max()
+        assert offset < 5.0, (i, uv.round(1).tolist(), detected.round(1).tolist(), machine())
 
 
 def test_the_calibration_finds_the_rendered_camera_within_5_mm_and_0_3_degrees(calibration_view):
     """3.4b (#45): the calibration tool's solve on the rendered view, against the camera MuJoCo renders."""
     sim, *_, found = calibration_view
-    T, error, ids = calibration.solve([found], LAYOUT, opencv_intrinsics(sim.get_camera_intrinsics()))
+    try:
+        T, error, ids = calibration.solve([found], LAYOUT, opencv_intrinsics(sim.get_camera_intrinsics()))
+    except calibration.CalibrationError as refused:
+        pytest.fail(f"{refused}; {machine()}")
     truth = sim.get_camera_extrinsics()  # test only
     position_mm = 1000 * np.linalg.norm(T[:3, 3] - truth[:3, 3])
     angle_deg = np.degrees(np.linalg.norm(cv2.Rodrigues(T[:3, :3].T @ truth[:3, :3] @ FLIP)[0]))
