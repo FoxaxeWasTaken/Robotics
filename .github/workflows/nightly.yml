@@ -143,6 +143,9 @@ jobs:
       vars.CI_ENABLED == 'true' && vars.E2E_ENABLED == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    permissions:
+      contents: read
+      issues: write  # the report: one comment per run on "Nightly bench results" (#179); it cannot push
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -186,3 +189,14 @@ jobs:
         uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      - name: Report (run summary, issue "Nightly bench results")
+        if: always()  # failed tests (no trends.csv) or a failed scan are reported too
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          REF: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ARTIFACT: trends-${{ github.run_number }}
+        run: bash tools/ci/quality_report.sh trends.csv .scannerwork/report-task.txt
