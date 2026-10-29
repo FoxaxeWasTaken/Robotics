@@ -10,7 +10,8 @@ host=https://sonarcloud.io
 project=$(sed -n 's/^sonar\.projectKey=//p' "$(dirname "${BASH_SOURCE[0]}")/../../sonar-project.properties")
 
 api() {  # api <path?query>: SonarCloud web API, JSON on stdout; fails on an HTTP error
-  curl -fsS --max-time 30 -u "$SONAR_TOKEN:" "$host/api/$1"
+  # the token through a config on stdin: not in the command line (ps) nor in the log
+  curl -fsS --max-time 30 -K - "$host/api/$1" <<< "header = \"Authorization: Bearer $SONAR_TOKEN\""
 }
 
 sonar() {  # sonar <report-task.txt>: the analysis as Markdown; errors on stderr, non-zero status
