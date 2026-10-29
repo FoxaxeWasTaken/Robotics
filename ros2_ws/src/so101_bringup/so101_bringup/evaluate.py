@@ -30,6 +30,7 @@ from rclpy.qos import DurabilityPolicy, QoSProfile
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
 
+BRAIN_START = "/brain/start"
 FOOTPRINT_HALF_M = 0.05  # half the box's inner side (08 §3)
 MAX_CUBE_Z_M = 0.06  # higher: on a wall, not in the box
 STARTUP_S = 60.0  # s, each check before episode 1: a fresh process may find the stack late in CI (#141)
@@ -89,8 +90,7 @@ class Bench:
             topic = f"/sim/ground_truth/{name}"
             node.create_subscription(PoseStamped, topic, lambda m, n=name: self.truth.__setitem__(n, m), 10)
         self.services = {
-            name: node.create_client(Trigger, name)
-            for name in ("/sim/randomize", "/brain/start", "/brain/stop")
+            name: node.create_client(Trigger, name) for name in ("/sim/randomize", BRAIN_START, "/brain/stop")
         }
 
     def spin_until(self, condition, timeout_s: float) -> bool:
@@ -126,14 +126,14 @@ class Bench:
 
     def episode(self, number: int, seed: int, timeout_s: float) -> dict:
         if self.states and self.states[-1].startswith("ERROR"):
-            self.trigger("/brain/start")  # re-arm after the previous episode's error
+            self.trigger(BRAIN_START)  # re-arm after the previous episode's error
         if not self.spin_until(lambda: self.states and self.states[-1] == "IDLE", 15.0):
             raise RuntimeError(f"/brain_state is {self.states[-1] if self.states else 'silent'}, not IDLE")
         self.trigger("/sim/randomize")
         seen = len(self.states)
         start = time.monotonic()
         ended = lambda: [s for s in self.states[seen:] if s == "DONE" or s.startswith("ERROR")]  # noqa: E731
-        if not self.trigger("/brain/start"):
+        if not self.trigger(BRAIN_START):
             final = "START_REJECTED"
         elif self.spin_until(ended, timeout_s):
             final = ended()[0]

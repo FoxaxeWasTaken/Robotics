@@ -102,7 +102,8 @@ def test_each_episode_line_shows_before_the_next_episode_starts(tmp_path, monkey
             return super().episode(number, seed, timeout_s)
 
     assert run(bench_args(tmp_path, episodes=3), Watched(pose=object())) == 0
-    assert "episode 1: DONE" in seen[1] and "episode 2: DONE" in seen[2]
+    assert "episode 1: DONE" in seen[1]
+    assert "episode 2: DONE" in seen[2]
     assert "success 3/3" in out.shown  # the summary too, before the process ends
 
 
@@ -244,8 +245,10 @@ def test_the_summary_gives_the_rate_the_durations_of_the_successes_and_the_cause
     ]
     text = summary(rows)
     assert "success 2/5 (40 %)" in text
-    assert "p50 15.0 s" in text and "p95 19.5 s" in text  # successes only: a timeout is not a duration
-    assert "unreachable: 2" in text and "bench_timeout: 1" in text
+    assert "p50 15.0 s" in text  # successes only: a timeout is not a duration
+    assert "p95 19.5 s" in text
+    assert "unreachable: 2" in text
+    assert "bench_timeout: 1" in text
 
 
 def test_the_summary_of_no_success_has_no_duration():

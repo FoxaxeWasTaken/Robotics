@@ -94,6 +94,17 @@ flowchart LR
 | CI | GitLab CI · Jenkins · **GitHub Actions** | **GitHub Actions** (ADR-025) | Repo on GitHub, free for public repos, built-in Docker cache |
 | CI environment | `ros-tooling/setup-ros` (native ROS on the runner) · `industrial_ci` · **our Docker images** | **Our images** | **Strict parity** with the dev workstation: mujoco, SO101Sim, numpy<2… only live in our Dockerfiles |
 
+**SonarQube Cloud triage** (#181, first analysis of `main` on 2026-10-28: 82 issues, the gate failed on security and on coverage of new code). The free plan has no custom quality profile or gate, so a rule we disagree with is answered issue by issue, in SonarCloud:
+
+- **Accepted**: S8707 "path traversal through a CLI argument" (7: `evaluate`, `calibrate_extrinsics`, `make_perception_dataset`, `trends.py`; tools the operator runs, writing where the operator says, no trust boundary); S3776 cognitive complexity 16–19 (5: the FSM's `step`, the planner, the driver's and the bench's main loops; tested state machines, not refactored for a metric); S117/S116 names `K`, `R`, `R_wc`, `T_base_cam` (17: the math notation of `04`/`05`; `T_base_cam` is also the key of the extrinsics file); S125 in `driver_node.py` (the commented `disable_torque()` of the provided `_connect_arm`, ADR-032).
+- **False positive**: S8495 in `detection.hsv_ranges` (a variable number of ranges by design, `tuple[HsvRange, ...]`); S7677 in `test_so101.sh` (an "ok" line that contains the word ERROR).
+- **Fixed** (50): `[[` in the bash scripts, positional parameters in local variables, a `case` default, two constants, split composite assertions, one call inside `pytest.raises`, `assertLessEqual`, nested conditionals, a `dict()` literal.
+- **Coverage**: `setup.py` out of the sources, launch files and `tools/` out of the coverage (`sonar-project.properties`); tests for `so101_common.markers`, `calibrate_extrinsics` (synthetic marker images) and `robustness_demo` (a fake stack in the same process).
+
+A new issue gets the same treatment in the PR that brings it: fix it, or accept it in SonarCloud and add it to this list.
+
+In the editor, the SonarQube for IDE extension in connected mode (`.sonarlint/connectedMode.json`: organization and project, no secret; each developer creates their own token from the extension) analyses with SonarCloud's rules and hides the issues triaged there: what it still shows in the files you changed is what the nightly would report.
+
 ## 5. Pull-request CI
 
 ### 5.1 Job graph
@@ -175,12 +186,14 @@ flowchart LR
   MC -->|"yes, or workflow_dispatch"| V["evaluation<br/>compose up control+perception+viz<br/>50 randomized episodes"]
   V --> R["artifacts<br/>eval.csv + failure rosbags (14 days)"]
   V --> B["report<br/>run summary + one comment on<br/>Nightly bench results"]
+  Q --> B
   B --> H["Humans: success-rate trend,<br/>failure-cause analysis"]
   S --> W["upstream<br/>course main vs .github/upstream-sha"]
   W --> I["one issue<br/>Course repository: new commits"]
 ```
 
 - **The quality job** (#60, #61), when `main` changed, as the bench: every package's tests with coverage (perception's too, in the control image), the IK benchmarks (`so101_brain/test/test_benchmark.py`, pytest-benchmark) and the driver's launch test (its `TREND` line), then `tools/ci/trends.py` writes `trends.csv` (artifact `trends-<run>`, 90 days; values in `08` §2), and the SonarQube Cloud scan (`sonar-project.properties`, secret `SONAR_TOKEN`). No threshold: CI runners are too noisy for a gate.
+- **The quality report** (#179, `tools/ci/quality_report.sh`, tested by `test_quality_report.sh`): the quality gate of this run's analysis (the scanner's `ceTaskId`, waited for until SonarCloud has processed it) and its failed conditions, the coverage (all and new code), the new and open issues, the rows of `trends.csv` and the links go to the run summary and to their own comment on "Nightly bench results", next to the bench's (one comment each: the jobs run in parallel). A failed SonarCloud call or a missing `trends.csv` is said, and the rest still posted. `tools/ci/post_report.sh` posts both reports.
 - The bench writes one CSV row per episode: poses, final state, duration, failure cause (`08` §3).
 - **The report** (#151, `tools/ci/bench_report.sh`, tested by `test_bench_report.sh`): each night the bench runs, its summary line (success rate, p50/p95 duration, failure causes), the commit of `main`, the target (≥ 90 %, informative: the nightly does not fail under it) and the run link go to the run summary and to one comment on the issue "Nightly bench results". A bench that stopped, or never started, comments that too. Skipped nights add nothing. The first report created it (#155), labeled `report` so the project views leave it out (it is not a work item), then pinned by hand; only this job can write issues.
 - The bench runs only when `main` changed (#146): `main-changed` (`tools/ci/evaluation_due.sh`) finds the newest nightly run whose bench gave a verdict, success or failure, and skips the bench when that run was on the same commit. Skipped nights are passed over, and so are cancelled or timed-out benches. Any doubt runs it: no verdict among the last 30 runs, or the API failing; the bench is then skipped only on an explicit `false`. A failed bench is not rerun on the same commit: it was reported that night, and `workflow_dispatch` always runs it.

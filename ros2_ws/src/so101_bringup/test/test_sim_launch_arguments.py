@@ -62,7 +62,8 @@ def test_calibration_starts_the_driver_on_the_markers_scene_at_640x480():
     size = yaml.safe_load(config.read_text())["so101_driver"]["ros__parameters"]
     assert (size["camera_width"], size["camera_height"]) == (640, 480)
     scene = Path(values["scene_path"])
-    assert scene.is_file() and "aruco_0" in scene.read_text()
+    assert scene.is_file()
+    assert "aruco_0" in scene.read_text()
 
 
 def test_without_calibration_the_driver_keeps_its_image_size_and_gets_the_moved_camera_only():
@@ -70,7 +71,8 @@ def test_without_calibration_the_driver_keeps_its_image_size_and_gets_the_moved_
     files, values = driver_parameters()
     assert files[-1] == "driver.yaml"
     scene = Path(values["scene_path"]).read_text()
-    assert "aruco_0" not in scene and 'name="external_cam"' in scene
+    assert "aruco_0" not in scene
+    assert 'name="external_cam"' in scene
 
 
 def test_the_real_arm_gets_no_generated_scene():

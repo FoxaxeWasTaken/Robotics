@@ -38,7 +38,9 @@ def test_every_parameter_has_a_description_and_every_number_a_range():
             node.destroy_node()
     finally:
         rclpy.shutdown()
-    assert "bus_retries" in names and "shutdown_velocity" in names and "shutdown_tolerance" in names
+    assert "bus_retries" in names
+    assert "shutdown_velocity" in names
+    assert "shutdown_tolerance" in names
     assert [d.name for d in descriptors if not d.description] == []
     assert [d.name for d in descriptors if d.type in RANGE and not getattr(d, RANGE[d.type])] == []
 

@@ -78,7 +78,8 @@ def test_the_calibration_finds_the_rendered_camera_within_5_mm_and_0_3_degrees(c
     position_mm = 1000 * np.linalg.norm(T[:3, 3] - truth[:3, 3])
     angle_deg = np.degrees(np.linalg.norm(cv2.Rodrigues(T[:3, :3].T @ truth[:3, :3] @ FLIP)[0]))
     print(f"calibration: {len(ids)} markers, {error:.2f} px, {position_mm:.2f} mm, {angle_deg:.3f} deg")
-    assert position_mm < 5.0 and angle_deg < 0.3
+    assert position_mm < 5.0
+    assert angle_deg < 0.3
 
 
 def test_the_scene_is_a_copy_and_sim_is_left_untouched(calibration_view):
