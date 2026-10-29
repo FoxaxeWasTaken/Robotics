@@ -1,0 +1,3 @@
+# False positives of gitleaks, by fingerprint (<commit>:<file>:<rule>:<line>); never a real secret.
+# 69b5fef, PR #183: `curl -u "$SONAR_TOKEN:"` read as a user and password; the next commit sends the token otherwise.
+69b5fef92edd2998dca991c15f7328b45b781d7d:tools/ci/quality_report.sh:curl-auth-user:13
