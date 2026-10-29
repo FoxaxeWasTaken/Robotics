@@ -14,7 +14,9 @@ flowchart LR
   C --> T{"touches the border?"}
   T -- yes --> X["mark TRUNCATED (do not publish, or far-edge estimate)"]
   T -- no --> G["centroid (moments) → ray K⁻¹ → plane z = 2.5 cm"]
-  G --> Y["yaw: contour back-projected on z = 5 cm → minAreaRect"]
+  G --> O{"cube: pixels < 0.85 × a whole cube's silhouette there?"}
+  O -- yes --> Z["mark OCCLUDED (do not publish)"]
+  O -- no --> Y["yaw: contour back-projected on z = 5 cm → minAreaRect"]
   Y --> F["temporal filter (median of 5) + outlier rejection"]
   F --> P["PoseStamped base_link → /object_position"]
 ```
@@ -54,6 +56,7 @@ ROS parameters (`config/perception.yaml`, read at each image, so `ros2 param set
 - Minimum area 15 px at 320×240 (the whole cube covers 330–620 px in the reference images).
 - **Truncation**: if the bounding box touches the image border, the detection is marked "truncated" (biased centroid, §6).
 - Solidity (area / convex hull area) > 0.6: rejects reflections and fragments.
+- **Occlusion** (cube, #167): the blob's pixels against the smallest silhouette of a whole 5 cm cube at its back-projected point, over the yaws (`geometry.cube_area_ratio`, the camera's K and pose). Below `min_cube_area_ratio` (0.85, a startup parameter, range 0–2) the cube is partly hidden, by the arm or the box's walls: marked "occluded" and not published, like a truncated one, since its center is pulled towards its visible part. Whole cubes give 0.92–1.1 at every position of `/sim/randomize` (0.94–1.07 under the dim light) [MES-53].
 - One object expected: keep the largest valid contour.
 
 ## 3. Camera model — THE main pitfall
@@ -189,7 +192,7 @@ With the provided camera at 320×240, over 2,000 positions drawn like `randomize
 
 - When the arm is above the cube, perception may lose it or see it truncated. **The brain locks the target** while the arm is in the `PARK` pose, off the workspace (`[1.9, −1.7, 1.5, 0.7, 0]`: the cube never hidden; the box at worst 9 % hidden over 50 scenes with the provided camera [MES-39], at worst 1 % with the moved one [MES-45]), and then no longer depends on perception until the final verification (C-33, ADR-017).
 - Perception **publishes nothing** when the detection is invalid (absent, truncated, outlier): freshness is carried by `header.stamp`, the brain judges its age.
-- **Measured** with the moved camera [MES-46]: arm in PARK, 200/200 scenes published, mean 0.7 mm, max 2.8 mm, none above 2 cm. **Limit**: a cube the arm *partly* hides is still published, its center pulled towards its visible part (up to 17.4 mm with the arm passing between the camera and the cube, 20.5 mm with the arm left there): only the image edge marks a blob as truncated. The target lock in PARK keeps the pick & place out of it; comparing the blob area with the cube's expected area at that distance would close the gap.
+- **Measured** with the moved camera [MES-46]: arm in PARK, 200/200 scenes published, mean 0.7 mm, max 2.8 mm, none above 2 cm. A cube the arm *partly* hid was still published, its center pulled towards its visible part (up to 17.4 mm with the arm passing between the camera and the cube, 20.5 mm with the arm left there). **Since #167** perception publishes nothing for it (the occlusion guard, §2.3): 200/200 still published in PARK (max 2.5 mm), the arm passing max **9.6 mm**, none above 2 cm; a cube lying in the box is published inside its footprint or not at all, from every 30° pose of MES-45 too (0/48 outside, 3–7/48 before). The cost: at our pose 30 of 48 cubes lying in the box are no longer published, so `VERIFY` waits its 2 s without a detection and ends in `DONE` (`06` §3.1): the bench's cycles take about 1 s more (p50 16.3 s, 15.2 s before) [MES-53].
 - **A held cube is still detected.** The mask only looks for red, so the cube in the jaws stays `OK` in the debug image and is published. Its position is wrong: the ray meets the plane z = 2.5 cm beyond the cube, about 12 cm off for a 10 cm lift (computed from the camera pose). It is harmless because the brain reads `/object_position` only at `PARK`, in `WAIT_TARGET` and `VERIFY` (06 §3); during the grasp it relies on the gripper effort (ADR-016). It is also why RViz shows the cube the brain locked rather than the live detection (§9).
 - Temporal filter: rolling median of 5; a measurement more than 2 cm away from the median is rejected (unless it persists 5 times = the object really moved). Implemented in `filter.py`, one filter per object; the window and the jump are `filter_size` and `filter_jump_m` since 5.1a; the box is filtered at z = 2.5 cm and published at its floor, z = 0.
 
@@ -207,7 +210,7 @@ With the provided camera at 320×240, over 2,000 positions drawn like `randomize
 **Reference images** (step 3.2a), in `so101_perception/test/data/`:
 
 - **Content**: 44 PNG at 320×240 (32 whole cubes, 8 cut by the border, 4 out of view; 2.2 MB, ADR-029) and `labels.json`.
-  - Per image: cube center and yaw (in [0, π/2)), box floor center, all in `base_link`; `cube_view` = `full`, `truncated` or `out_of_view` (the 8 projected cube corners against the image bounds); the fractions of the cube and of the box that the arm leaves visible.
+  - Per image: cube center and yaw (in [0, π/2)), box floor center, all in `base_link`; `cube_view` = `full`, `truncated` or `out_of_view` (the 8 projected cube corners against the image bounds), or `occluded` (#167: a whole view, 20–80 % of the cube hidden by the arm, put by IK between the camera and the cube, or by the box's walls; `occluder` says which, never published); the fractions of the cube and of the box that the arm leaves visible.
   - Once: K, the camera pose in the OpenCV optical frame, the arm joints and the seed.
 - **Scenes**: drawn as `/sim/randomize` draws them, with the arm at `PARK` (06 §6), where the brain locks its target. The arm never hides the cube there; it hides part of the box in 8 images (85 % visible at worst), from MuJoCo segmentation against the same scene with the arm lifted out of the picture.
 - **Generator**: `so101_bringup/tools/make_perception_dataset.py`. It lives in `so101_bringup`, since `so101_perception` may not touch the sim (C-05). The labels come from the sim state, so they belong in test data only (C-06).
@@ -225,7 +228,7 @@ With the provided camera at 320×240, over 2,000 positions drawn like `randomize
 
 ## 9. Visualization (C-24)
 
-- `/perception/debug_image`: the image with the masks painted (cube in green, box in blue), a red cross on each centroid and the cube status `OK`, `TRUNCATED` or `LOST`, same header, Best effort (`debug.py`).
+- `/perception/debug_image`: the image with the masks painted (cube in green, box in blue), a red cross on each centroid and the cube status `OK`, `TRUNCATED`, `OCCLUDED` (#167) or `LOST`, same header, Best effort (`debug.py`).
 - RViz: `Pose` display on `/object_position` and `/drop_box_position`, plus the box `Marker` (provided). The cube itself shows as the brain's locked target in `/brain/markers`, from `APPROACH` to `LIFT` (06 §7), not as a marker following `/object_position`, which would draw the held cube off (§7).
 - RViz `Camera` display (optional): overlays the 3D model on the image through the camera TF — an **excellent visual check** of the extrinsic calibration.
 

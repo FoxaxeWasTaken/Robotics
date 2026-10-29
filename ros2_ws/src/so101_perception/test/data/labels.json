@@ -4,7 +4,8 @@
  "counts": {
   "full": 32,
   "truncated": 8,
-  "out_of_view": 4
+  "out_of_view": 4,
+  "occluded": 8
  },
  "image_size": [
   320,
@@ -804,6 +805,150 @@
    "box_floor_center": [
     0.089548,
     -0.194026,
+    0.0
+   ],
+   "box_visible": 1.0
+  },
+  {
+   "file": "044.png",
+   "cube_view": "occluded",
+   "occluder": "arm",
+   "cube_center": [
+    0.171649,
+    -0.154943,
+    0.024973
+   ],
+   "cube_yaw": 1.350834,
+   "cube_visible": 0.306,
+   "box_floor_center": [
+    0.007721,
+    -0.271141,
+    0.0
+   ],
+   "box_visible": 0.333
+  },
+  {
+   "file": "045.png",
+   "cube_view": "occluded",
+   "occluder": "walls",
+   "cube_center": [
+    0.259141,
+    -0.101486,
+    0.024973
+   ],
+   "cube_yaw": 0.099143,
+   "cube_visible": 0.76,
+   "box_floor_center": [
+    0.259141,
+    -0.101486,
+    0.0
+   ],
+   "box_visible": 1.0
+  },
+  {
+   "file": "046.png",
+   "cube_view": "occluded",
+   "occluder": "arm",
+   "cube_center": [
+    0.22657,
+    -0.106772,
+    0.024973
+   ],
+   "cube_yaw": 1.127117,
+   "cube_visible": 0.64,
+   "box_floor_center": [
+    0.108326,
+    -0.236934,
+    0.0
+   ],
+   "box_visible": 0.337
+  },
+  {
+   "file": "047.png",
+   "cube_view": "occluded",
+   "occluder": "walls",
+   "cube_center": [
+    0.175902,
+    -0.194635,
+    0.024973
+   ],
+   "cube_yaw": 0.840254,
+   "cube_visible": 0.494,
+   "box_floor_center": [
+    0.21141,
+    -0.111127,
+    0.0
+   ],
+   "box_visible": 1.0
+  },
+  {
+   "file": "048.png",
+   "cube_view": "occluded",
+   "occluder": "arm",
+   "cube_center": [
+    0.159171,
+    -0.152662,
+    0.024973
+   ],
+   "cube_yaw": 1.321444,
+   "cube_visible": 0.446,
+   "box_floor_center": [
+    0.003039,
+    -0.191053,
+    0.0
+   ],
+   "box_visible": 0.57
+  },
+  {
+   "file": "049.png",
+   "cube_view": "occluded",
+   "occluder": "walls",
+   "cube_center": [
+    0.113975,
+    -0.219291,
+    0.030054
+   ],
+   "cube_yaw": 1.086463,
+   "cube_visible": 0.725,
+   "box_floor_center": [
+    0.113975,
+    -0.219291,
+    0.0
+   ],
+   "box_visible": 1.0
+  },
+  {
+   "file": "050.png",
+   "cube_view": "occluded",
+   "occluder": "arm",
+   "cube_center": [
+    0.105924,
+    0.183217,
+    0.024973
+   ],
+   "cube_yaw": 1.494535,
+   "cube_visible": 0.373,
+   "box_floor_center": [
+    0.187097,
+    -0.165197,
+    0.0
+   ],
+   "box_visible": 1.0
+  },
+  {
+   "file": "051.png",
+   "cube_view": "occluded",
+   "occluder": "walls",
+   "cube_center": [
+    0.246422,
+    0.026736,
+    0.029311
+   ],
+   "cube_yaw": 1.432458,
+   "cube_visible": 0.667,
+   "box_floor_center": [
+    0.282942,
+    0.102665,
     0.0
    ],
    "box_visible": 1.0

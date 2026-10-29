@@ -30,7 +30,7 @@ from so101_common.robot import BASE_FRAME, CAMERA_FRAME
 from so101_perception.debug import annotate, status
 from so101_perception.detection import Thresholds, detect, hsv_ranges
 from so101_perception.filter import MedianFilter
-from so101_perception.geometry import cube_yaw, load_extrinsics, pixel_to_world, quaternion
+from so101_perception.geometry import cube_area_ratio, cube_yaw, load_extrinsics, pixel_to_world, quaternion
 
 # Only the latest image matters; Best effort is compatible with the driver's Reliable publisher, and the
 # debug image is Best effort for RViz (docs/project/01 §3.1, ADR-004).
@@ -61,6 +61,12 @@ STARTUP = {
     ),
     "filter_size": (5, "Median filter window; a jump must also persist this many times (05 §7)", 1, 50),
     "filter_jump_m": (0.02, "A detection this far from the median is a jump, m (05 §7)", 0.001, 0.2),
+    "min_cube_area_ratio": (
+        0.85,
+        "Cube pixels / a whole cube's smallest silhouette; below, partly hidden: not published (05 §2.3)",
+        0.0,
+        2.0,
+    ),
 }
 
 
@@ -94,6 +100,7 @@ class PerceptionNode(rclpy.node.Node):
         self._bridge = CvBridge()
         self._image = None  # latest image not processed yet
         self._camera_info = None  # latest K
+        self._min_area_ratio = startup["min_cube_area_ratio"]
         self._filters = {
             name: MedianFilter(startup["filter_size"], startup["filter_jump_m"]) for name in ("cube", "box")
         }
@@ -145,20 +152,32 @@ class PerceptionNode(rclpy.node.Node):
         msg, self._image = self._image, None
         rgb = self._bridge.imgmsg_to_cv2(msg, desired_encoding="rgb8")
         found = detect(rgb, self._thresholds())
+        occluded = False
         info = self._camera_info
         if info is not None and info.k[0] > 0.0:  # no K, no ray
             K = np.array(info.k).reshape(3, 3)
             for name, blob, z in (("cube", found.cube, None), ("box", found.box, 0.0)):  # box: its floor
-                if blob is not None and not blob.truncated:
-                    self._publish(name, blob, K, msg.header.stamp, z)
-        debug = self._bridge.cv2_to_imgmsg(annotate(rgb, status(found.cube), found), encoding="rgb8")
+                if blob is None or blob.truncated:
+                    continue
+                p = pixel_to_world(blob.u, blob.v, K, self._R, self._t, PLANE_Z)
+                if p is None:
+                    continue
+                if (
+                    name == "cube"
+                    and cube_area_ratio(blob.contour, p, K, self._R, self._t) < self._min_area_ratio
+                ):
+                    occluded = True  # its center would be pulled towards its visible part (MES-46)
+                    continue
+                self._publish(name, blob, p, K, msg.header.stamp, z)
+        debug = self._bridge.cv2_to_imgmsg(
+            annotate(rgb, status(found.cube, occluded), found), encoding="rgb8"
+        )
         debug.header = msg.header
         self._pub_debug.publish(debug)
 
-    def _publish(self, name, blob, K, stamp, z):
-        """The filtered point of the blob on the plane, z replaced when given; nothing when rejected."""
-        p = pixel_to_world(blob.u, blob.v, K, self._R, self._t, PLANE_Z)
-        p = None if p is None else self._filters[name].update(p)
+    def _publish(self, name, blob, p, K, stamp, z):
+        """The filtered point p of the blob on the plane, z replaced when given; nothing when rejected."""
+        p = self._filters[name].update(p)
         if p is None:
             return
         pose = PoseStamped()

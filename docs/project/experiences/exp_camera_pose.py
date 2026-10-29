@@ -11,7 +11,8 @@ A. Projection: look-at poses on the work area, 30-40 degrees down (ADR-021), the
 B. Rendering of one pose (MuJoCo renders one model per process reliably: a later model in the same process
    gave blank detections): cubes cut by the image edge (any cube pixel on the border) over 300 /sim/randomize
    scenes; the cube and box pixels the parked arm hides over 50; and a cube lying in the box (16 boxes, 3
-   offsets): where perception puts it, since VERIFY needs it inside the box footprint, or unseen.
+   offsets): where perception puts it, since VERIFY needs it inside the box footprint, or unseen; since #167,
+   "hidden": the walls hide too much of it (min_cube_area_ratio), not published either.
 
 In the control image:
     python3 exp_camera_pose.py           # A: every pose, by name
@@ -32,7 +33,7 @@ for package in ("so101_common", "so101_driver", "so101_perception"):
     sys.path.insert(0, f"/ros2_ws/src/{package}")
 from so101_driver.randomize import sample_box_xy  # noqa: E402
 from so101_perception.detection import Thresholds, detect, hsv_ranges  # noqa: E402
-from so101_perception.geometry import pixel_to_world  # noqa: E402
+from so101_perception.geometry import cube_area_ratio, pixel_to_world  # noqa: E402
 
 W, H, FOVY, MARGIN = 320, 240, 52.0, 10
 PARK = [1.9, -1.7, 1.5, 0.7, 0.0]  # the brain's PARK (brain.yaml)
@@ -188,7 +189,10 @@ def render(name):
     K_sim[:2, 2] -= 0.5  # OpenCV pixel centers [MES-41]
     box_rng = np.random.default_rng(3)
     radius, azimuth = box_rng.uniform(0.18, 0.30, 16), np.radians(box_rng.uniform(-90, -10, 16))
-    verdict = {"inside": 0, "outside": 0, "unseen": 0}
+    min_ratio = yaml.safe_load(Path("/ros2_ws/src/so101_perception/config/perception.yaml").read_text())[
+        "so101_perception"
+    ]["ros__parameters"]["min_cube_area_ratio"]
+    verdict = {"inside": 0, "outside": 0, "unseen": 0, "hidden": 0}
     for bx, by in zip(radius * np.cos(azimuth), radius * np.sin(azimuth), strict=True):
         for dx, dy in ((0.0, 0.0), (0.015, 0.015), (-0.015, -0.015)):  # a cube lying in the box, off its center
             d.qpos[:] = 0.0
@@ -201,6 +205,9 @@ def render(name):
                 verdict["unseen"] += 1
                 continue
             p = pixel_to_world(found.u, found.v, K_sim, R_cv, t, 0.025)
+            if cube_area_ratio(found.contour, p, K_sim, R_cv, t) < min_ratio:
+                verdict["hidden"] += 1
+                continue
             verdict["inside" if np.abs(p[:2] - [bx, by]).max() < 0.05 else "outside"] += 1
     print(f"  a cube lying in the box (48 cases), as VERIFY reads it: {verdict}")
 

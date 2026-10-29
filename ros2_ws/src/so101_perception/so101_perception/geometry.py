@@ -14,6 +14,8 @@ import yaml
 from so101_common.robot import BASE_FRAME, CAMERA_FRAME
 
 FLIP = np.diag([1.0, -1.0, -1.0])  # MuJoCo camera (y up, looks along -z) -> OpenCV optical (05 §3.1)
+CUBE_CORNERS = 0.5 * np.array([[x, y, z] for x in (-1, 1) for y in (-1, 1) for z in (-1, 1)])
+YAWS = np.radians(np.arange(0.0, 90.0, 5.0))
 HEADER = (
     "# Pose of the external camera in base_link (docs/project/05 §3-§5), written by\n"
     "# so101_perception.geometry.save_extrinsics. T_base_cam maps a point of the camera's OpenCV optical\n"
@@ -50,6 +52,24 @@ def cube_yaw(contour, K, R_wc, t_wc, z_top=0.05) -> float:
     points = (pixel_to_world(u, v, K, R_wc, t_wc, z_top) for u, v in contour)
     xy = np.array([p[:2] for p in points if p is not None], np.float32)
     return (np.radians(cv2.minAreaRect(xy)[2]) + np.pi / 4) % (np.pi / 2) - np.pi / 4
+
+
+def cube_area_ratio(contour, p, K, R_wc, t_wc, side=0.05) -> float:
+    """The blob's pixels (its whole outline, as detection's CHAIN_APPROX_NONE gives it) against the smallest
+    silhouette of a whole cube of `side` m centered at p, its back-projected point, over the yaws (90°
+    symmetry): at least about 1 for a whole cube, less for a partly hidden one, whose center is then pulled
+    towards its visible part (#167, 05 §2.3)."""
+    silhouettes = []
+    for yaw in YAWS:
+        c, s = np.cos(yaw), np.sin(yaw)
+        corners = (
+            np.asarray(p, dtype=float) + side * CUBE_CORNERS @ np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]]).T
+        )
+        x = (corners - t_wc) @ R_wc @ K.T  # in the optical frame, then pixels
+        silhouettes.append(cv2.contourArea(cv2.convexHull(np.float32(x[:, :2] / x[:, 2:]))))
+    contour = np.asarray(contour, np.float32)
+    pixels = cv2.contourArea(contour) + len(contour) / 2 + 1  # Pick: the outline runs through pixel centers
+    return pixels / min(silhouettes)
 
 
 def world_to_pixel(p, K, R_wc, t_wc) -> np.ndarray:

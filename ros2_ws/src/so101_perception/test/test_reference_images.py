@@ -42,6 +42,7 @@ def test_the_set_has_whole_truncated_and_missing_cubes():
     assert views.count("full") >= 30
     assert views.count("truncated") >= 5
     assert views.count("out_of_view") >= 3
+    assert views.count("occluded") >= 6  # partly hidden by the arm or the box's walls (#167)
 
 
 def test_the_labels_agree_with_the_pixels():

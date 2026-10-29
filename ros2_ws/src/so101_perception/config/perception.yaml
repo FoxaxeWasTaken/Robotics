@@ -17,4 +17,7 @@ so101_perception:
     min_solidity: 0.6
     filter_size: 5        # median filter window; a jump must also persist this many times (05 §7)
     filter_jump_m: 0.02   # a detection this far from the median is a jump
+    # Cube blob pixels / the smallest silhouette of a whole cube at its point, below which it is partly hidden
+    # and not published (05 §6, #167): whole cubes 0.92-1.1 over 300 scenes, MES-53.
+    min_cube_area_ratio: 0.85
     # extrinsics_file: config/camera_extrinsics.yaml of the package share, by default (05 §5.1)

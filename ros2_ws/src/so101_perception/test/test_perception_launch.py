@@ -1,6 +1,7 @@
 """Component test (launch_testing): perception.launch.py alone, fed by a fake camera at 10 Hz (no driver,
 no sim) that replays reference images with their K. Each image comes back once on /perception/debug_image,
-annotated; the cube and box poses match the labels, and a truncated cube is never published (01 §3.1)."""
+annotated; the cube and box poses match the labels, and a truncated or a partly hidden cube is never published
+(01 §3.1, #167)."""
 
 import json
 import time
@@ -30,10 +31,11 @@ TIMEOUT = 20.0  # s
 IMAGES = 30  # sent after the first debug image
 DATA = Path(__file__).parent / "data"
 LABELS = json.loads((DATA / "labels.json").read_text())
-# Whole cube A, truncated cube, whole cube B (B then repeats): each far from the others, so the filter
+# Whole cube A, truncated cube, a cube the arm partly hides (050.png, 37 % visible, the box whole), whole
+# cube B (B then repeats): each far from the others, so the filter
 # rejects the first 4 frames after each change (05 §7). Each image is shown until the node has processed
 # that many frames of it, not sent: a loaded node starts late and drops frames (#157).
-SCRIPT = [("000.png", 15), ("015.png", 15), ("024.png", None)]
+SCRIPT = [("000.png", 15), ("015.png", 15), ("050.png", 15), ("024.png", None)]
 
 
 @pytest.mark.launch_test
@@ -143,7 +145,8 @@ class TestPerception(unittest.TestCase):
 
     def test_3_poses_match_the_labels_and_a_truncated_cube_is_never_published(self):
         """05 §8 and 01 §3.1: within 5 mm of the labels (cube center, box floor center), the cube yaw within
-        5°, in base_link, stamped with their image; nothing for the truncated cube (015.png)."""
+        5°, in base_link, stamped with their image; nothing for the truncated cube (015.png) nor for the
+        partly hidden one (050.png, #167)."""
         b_frames = lambda: sum(self.shown.get(k, {}).get("file") == "024.png" for k in self.sent)  # noqa: E731
         self.spin_until(lambda: b_frames() >= 10, "the fake camera did not reach image B")
         self.spin_until(
@@ -165,10 +168,14 @@ class TestPerception(unittest.TestCase):
                 error = (yaw - label["cube_yaw"] + np.pi / 4) % (np.pi / 2) - np.pi / 4
                 self.assertLess(abs(np.degrees(error)), 5.0, f"cube yaw of {label['file']}")
             error = np.linalg.norm(np.array([p.x, p.y, p.z]) - label[center])
-            limit = 0.01 if center == "box_floor_center" and label["file"] == "015.png" else 0.005
+            # the box of 015.png and 050.png (8.1 mm, measured): images for the cube, not the box
+            limit = (
+                0.01 if center == "box_floor_center" and label["file"] in ("015.png", "050.png") else 0.005
+            )
             self.assertLess(error, limit, f"{center} of {label['file']}: {error * 1e3:.1f} mm")
             seen.add((center, label["file"]))
         self.assertNotIn(("cube_center", "015.png"), seen, "a truncated cube was published")
+        self.assertNotIn(("cube_center", "050.png"), seen, "a partly hidden cube was published")
         self.assertLessEqual({("cube_center", "000.png"), ("box_floor_center", "000.png")}, seen)
 
     def test_4_the_camera_tf_is_the_pose_of_the_extrinsics_file(self):
