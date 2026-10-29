@@ -186,12 +186,14 @@ flowchart LR
   MC -->|"yes, or workflow_dispatch"| V["evaluation<br/>compose up control+perception+viz<br/>50 randomized episodes"]
   V --> R["artifacts<br/>eval.csv + failure rosbags (14 days)"]
   V --> B["report<br/>run summary + one comment on<br/>Nightly bench results"]
+  Q --> B
   B --> H["Humans: success-rate trend,<br/>failure-cause analysis"]
   S --> W["upstream<br/>course main vs .github/upstream-sha"]
   W --> I["one issue<br/>Course repository: new commits"]
 ```
 
 - **The quality job** (#60, #61), when `main` changed, as the bench: every package's tests with coverage (perception's too, in the control image), the IK benchmarks (`so101_brain/test/test_benchmark.py`, pytest-benchmark) and the driver's launch test (its `TREND` line), then `tools/ci/trends.py` writes `trends.csv` (artifact `trends-<run>`, 90 days; values in `08` §2), and the SonarQube Cloud scan (`sonar-project.properties`, secret `SONAR_TOKEN`). No threshold: CI runners are too noisy for a gate.
+- **The quality report** (#179, `tools/ci/quality_report.sh`, tested by `test_quality_report.sh`): the quality gate of this run's analysis (the scanner's `ceTaskId`, waited for until SonarCloud has processed it) and its failed conditions, the coverage (all and new code), the new and open issues, the rows of `trends.csv` and the links go to the run summary and to their own comment on "Nightly bench results", next to the bench's (one comment each: the jobs run in parallel). A failed SonarCloud call or a missing `trends.csv` is said, and the rest still posted. `tools/ci/post_report.sh` posts both reports.
 - The bench writes one CSV row per episode: poses, final state, duration, failure cause (`08` §3).
 - **The report** (#151, `tools/ci/bench_report.sh`, tested by `test_bench_report.sh`): each night the bench runs, its summary line (success rate, p50/p95 duration, failure causes), the commit of `main`, the target (≥ 90 %, informative: the nightly does not fail under it) and the run link go to the run summary and to one comment on the issue "Nightly bench results". A bench that stopped, or never started, comments that too. Skipped nights add nothing. The first report created it (#155), labeled `report` so the project views leave it out (it is not a work item), then pinned by hand; only this job can write issues.
 - The bench runs only when `main` changed (#146): `main-changed` (`tools/ci/evaluation_due.sh`) finds the newest nightly run whose bench gave a verdict, success or failure, and skips the bench when that run was on the same commit. Skipped nights are passed over, and so are cancelled or timed-out benches. Any doubt runs it: no verdict among the last 30 runs, or the API failing; the bench is then skipped only on an explicit `false`. A failed bench is not rerun on the same commit: it was reported that night, and `workflow_dispatch` always runs it.
