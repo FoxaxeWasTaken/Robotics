@@ -39,11 +39,13 @@ The box follows the same pattern (brown mask, centroid, plane z = 2.5 cm = mid-h
 
 | Object | Model color | Theoretical HSV | Ranges used |
 | --- | --- | --- | --- |
-| Cube (red PLA) | rgba (0.80, 0.05, 0.22) | H ≈ 173, S ≈ 239, V ≈ 204 (the scene notes ~(168, 185) **as seen by the real camera**) | **H ∈ [160, 180] ∪ [0, 8]**, S ≥ 100, V ≥ 60 — red wraps around 0/180, hence **two ranges** |
-| Box | rgba (0.35, 0.20, 0.12) | H ≈ 10, S ≈ 168, V ≈ 89 | H ∈ [5, 25], S ≥ 90, V ∈ [40, 220] |
+| Cube (red PLA) | rgba (0.80, 0.05, 0.22) | H ≈ 173, S ≈ 239, V ≈ 204 (the scene notes ~(168, 185) **as seen by the real camera**) | **H ∈ [160, 180] ∪ [0, 8]**, S ≥ 150, V ≥ 30 — red wraps around 0/180, hence **two ranges** |
+| Box | rgba (0.35, 0.20, 0.12) | H ≈ 10, S ≈ 168, V ≈ 89 | H ∈ [5, 25], S ≥ 140, V ∈ [20, 220] |
 | Floor, robot | Gray (S ≈ 0) | — | Excluded by the saturation threshold |
 
-Result in sim: **0 missed detection, 0 false positive** over 80 episodes [MES-13]. These thresholds are `perception.yaml`'s, replacing the course stub's yellow ones (old golden ball).
+**Under a dim, warm light** (`lighting:=dim`, the robustness demo's case 5) the grey floor turns orange (S 93–106) and the box dark (V 24–59) [MES-49]; saturation still separates them. Hence the S floors well above the lit floor and arm (S ≤ 113), under the box (S ≥ 164) and the cube (S ≥ 205), and V floors under their shaded sides: every object 96–100 % in its range under both lights, no floor pixel in either, over 20 placements of `/sim/randomize` [MES-52] (#175; `so101_bringup/test/test_lighting_detection.py`).
+
+Result in sim: **0 missed detection, 0 false positive** over 80 episodes [MES-13], with the first ranges (cube S ≥ 100, V ≥ 60; box S ≥ 90, V ≥ 40). These thresholds are `perception.yaml`'s, replacing the course stub's yellow ones (old golden ball).
 
 ROS parameters (`config/perception.yaml`, read at each image, so `ros2 param set` tunes them at runtime): `hsv_cube_h_min`, `hsv_cube_h_max`, `hsv_cube_s_min`, `hsv_cube_v_min`, `hsv_box_h_min`, `hsv_box_h_max`, `hsv_box_s_min`, `hsv_box_v_min`, `hsv_box_v_max`, `min_area_px`, `min_solidity`. A hue interval wraps around 180 when `h_min > h_max`: the red cube is `160`, `8`.
 
