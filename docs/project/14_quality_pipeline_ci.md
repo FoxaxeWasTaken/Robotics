@@ -103,6 +103,8 @@ flowchart LR
 
 A new issue gets the same treatment in the PR that brings it: fix it, or accept it in SonarCloud and add it to this list.
 
+In the editor, the SonarQube for IDE extension in connected mode (`.sonarlint/connectedMode.json`: organization and project, no secret; each developer creates their own token from the extension) analyses with SonarCloud's rules and hides the issues triaged there: what it still shows in the files you changed is what the nightly would report.
+
 ## 5. Pull-request CI
 
 ### 5.1 Job graph
