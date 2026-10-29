@@ -42,7 +42,9 @@ def cube_view(K, R, t, position, rotation, width, height):
     corners = (position + CORNERS @ rotation.T - t) @ R  # in the optical frame
     u, v = (corners @ K.T)[:, :2].T / corners[:, 2]
     inside = (corners[:, 2] > 0) & (u >= -0.5) & (u <= width - 0.5) & (v >= -0.5) & (v <= height - 0.5)
-    return "full" if inside.all() else "truncated" if inside.any() else "out_of_view"
+    if inside.all():
+        return "full"
+    return "truncated" if inside.any() else "out_of_view"
 
 
 def visible(segmentation, sim, box_too=False):

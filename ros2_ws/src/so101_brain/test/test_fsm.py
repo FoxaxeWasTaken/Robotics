@@ -149,7 +149,8 @@ def test_idle_waits_for_start_and_commands_nothing():
     for _ in range(100):
         world.step()
     assert world.fsm.label == "IDLE"
-    assert not world.commands and not world.grippers
+    assert not world.commands
+    assert not world.grippers
     world.step(start=True)
     assert world.fsm.label == "WAIT_TARGET"
 
@@ -168,7 +169,8 @@ def test_start_is_ignored_while_busy_and_the_fsm_says_so():
     assert not world.fsm.accepts_start
     world.step(start=True)
     assert world.fsm.label == "APPROACH"
-    assert World().fsm.accepts_start and reach("ERROR").fsm.accepts_start
+    assert World().fsm.accepts_start
+    assert reach("ERROR").fsm.accepts_start
 
 
 # --- WAIT_TARGET ---

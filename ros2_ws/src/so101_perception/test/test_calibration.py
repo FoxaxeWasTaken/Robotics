@@ -42,7 +42,8 @@ def seen(ids, noise_px=0.0, seed=0):
 def test_a_known_pose_is_recovered_from_its_exact_projection():
     T, error, ids = solve([seen(LAYOUT["markers"])], LAYOUT, K)
     assert np.allclose(T, T_TRUE, atol=1e-6)
-    assert error < 1e-6 and ids == sorted(LAYOUT["markers"])
+    assert error < 1e-6
+    assert ids == sorted(LAYOUT["markers"])
 
 
 def test_half_a_pixel_of_noise_on_6_spread_markers_stays_under_5_mm():
@@ -50,14 +51,16 @@ def test_half_a_pixel_of_noise_on_6_spread_markers_stays_under_5_mm():
     T, error, _ = solve(frames, LAYOUT, K)
     assert np.linalg.norm(T[:3, 3] - T_TRUE[:3, 3]) < 0.005
     angle = np.degrees(np.linalg.norm(cv2.Rodrigues(T[:3, :3].T @ T_TRUE[:3, :3])[0]))
-    assert angle < 0.3 and error < 1.0
+    assert angle < 0.3
+    assert error < 1.0
 
 
 @pytest.mark.parametrize("ids", [[0], [0, 2, 5]])
 def test_fewer_than_4_markers_are_refused(ids):
     """A single marker gives an ambiguous pose (MES-16: 1 m off): refused, not "best effort"."""
+    frames = [seen(ids)]
     with pytest.raises(CalibrationError, match="markers"):
-        solve([seen(ids)], LAYOUT, K)
+        solve(frames, LAYOUT, K)
 
 
 def test_markers_not_in_the_layout_are_ignored():
@@ -68,5 +71,6 @@ def test_markers_not_in_the_layout_are_ignored():
 
 def test_a_high_reprojection_error_is_refused():
     """Corners 3 px off on average (a moved marker, a wrong layout): above the 1 px of the sim."""
+    frames = [seen(LAYOUT["markers"], noise_px=4.0)]
     with pytest.raises(CalibrationError, match="reprojection"):
-        solve([seen(LAYOUT["markers"], noise_px=4.0)], LAYOUT, K)
+        solve(frames, LAYOUT, K)

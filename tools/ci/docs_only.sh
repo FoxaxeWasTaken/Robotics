@@ -11,4 +11,4 @@ while IFS= read -r path; do
     *) echo "Not documentation: '$path'"; exit 1 ;;
   esac
 done
-[ "$n" -gt 0 ] && echo "Documentation only ($n files)."
+[[ "$n" -gt 0 ]] && echo "Documentation only ($n files)."

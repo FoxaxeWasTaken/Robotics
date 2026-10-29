@@ -10,15 +10,16 @@ due() { echo "$1" >&2; echo "evaluate=true"; exit 0; }
 runs=$(gh api "repos/$GH_REPO/actions/workflows/nightly.yml/runs?branch=main&status=completed&per_page=30" \
   --jq '.workflow_runs[] | "\(.id) \(.head_sha)"') || due "Nightly runs not listed: the bench runs."
 while read -r id head; do
-  [ -n "$id" ] || continue
+  [[ -n "$id" ]] || continue
   verdict=$(gh api "repos/$GH_REPO/actions/runs/$id/jobs" \
     --jq '.jobs[] | select(.name == "Full evaluation bench") | .conclusion') || due "Run $id not read: the bench runs."
   case $verdict in
     success | failure)
-      [ "$head" = "$sha" ] || due "Last bench: run $id on $head; main is now $sha: the bench runs."
+      [[ "$head" = "$sha" ]] || due "Last bench: run $id on $head; main is now $sha: the bench runs."
       echo "The bench already ran on $sha (run $id, $verdict): skipped." >&2
       echo "evaluate=false"
       exit 0 ;;
+    *) ;;  # cancelled, skipped or still running: no verdict, an older run decides
   esac
 done <<< "$runs"
 due "No bench verdict among the last 30 nightly runs: the bench runs."

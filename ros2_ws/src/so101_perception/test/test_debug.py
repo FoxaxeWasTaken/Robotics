@@ -15,11 +15,13 @@ def image():
 def test_the_status_is_drawn_in_the_top_left_corner_only():
     rgb = image()
     out = annotate(rgb, LOST)
-    assert out.shape == rgb.shape and out.dtype == np.uint8
+    assert out.shape == rgb.shape
+    assert out.dtype == np.uint8
     changed = np.any(out != rgb, axis=2)
     rows, cols = np.nonzero(changed)
     assert changed.sum() > 200, "no visible text"
-    assert rows.max() < 30 and cols.max() < 160, "the text leaves the top-left corner"
+    assert rows.max() < 30, "the text leaves the top-left corner"
+    assert cols.max() < 160, "the text leaves the top-left corner"
 
 
 def test_the_input_image_is_left_untouched():

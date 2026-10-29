@@ -149,7 +149,8 @@ def test_the_quaternion_of_the_camera_tf_gives_back_its_rotation(angle):
     """#46: the static TF base_link -> camera carries the extrinsics' rotation as a unit quaternion."""
     R = cv2.Rodrigues(np.array([1.0, -2.0, 0.5]) / np.linalg.norm([1.0, -2.0, 0.5]) * angle)[0]
     q = quaternion(R)
-    assert np.isclose(np.linalg.norm(q), 1.0) and np.allclose(rotation(*q), R, atol=1e-9)
+    assert np.isclose(np.linalg.norm(q), 1.0)
+    assert np.allclose(rotation(*q), R, atol=1e-9)
 
 
 def blob(width, height):

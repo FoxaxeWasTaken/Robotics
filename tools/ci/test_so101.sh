@@ -13,11 +13,10 @@ chmod +x "$tmp/bin/docker"
 export PATH="$tmp/bin:$PATH"
 
 dry() {  # dry <expected substring>... -- <so101 arguments>: one printed command holding each substring
-  local expected=() out
-  while [ "$1" != -- ]; do expected+=("$1"); shift; done
-  shift
+  local expected=() out arg
+  for arg; do shift; [[ $arg == -- ]] && break; expected+=("$arg"); done
   out=$("$so101" --dry-run "$@") || fail "so101 $*: exit $?"
-  [ "$(grep -c '^+ docker compose -f .*/docker/docker-compose.yml ' <<< "$out")" = 1 ] || fail "so101 $*: $out"
+  [[ "$(grep -c '^+ docker compose -f .*/docker/docker-compose.yml ' <<< "$out")" = 1 ]] || fail "so101 $*: $out"
   for e in "${expected[@]}"; do grep -qF -- "$e" <<< "$out" || fail "so101 $*: no '$e' in: $out"; done
 }
 
@@ -56,8 +55,8 @@ chmod +x "$tmp/run/docker" "$tmp/run/ros2" "$tmp/run/awk"
 for final in DONE ERROR:grasp_failed STOPPED; do
   start=$SECONDS
   out=$(FINAL=$final PATH="$tmp/run:$PATH" timeout 10 "$so101" cycle 2> /dev/null) || fail "cycle did not return after $final (exit $?)"
-  [ $((SECONDS - start)) -le 3 ] || fail "cycle returned $((SECONDS - start)) s after it started ($final)"
-  [ "$(grep -v '^+ ' <<< "$out")" = "$(printf 'WAIT_TARGET\nPLAN\n%s' "$final")" ] || fail "cycle printed: $out"
+  [[ $((SECONDS - start)) -le 3 ]] || fail "cycle returned $((SECONDS - start)) s after it started ($final)"
+  [[ "$(grep -v '^+ ' <<< "$out")" = "$(printf 'WAIT_TARGET\nPLAN\n%s' "$final")" ]] || fail "cycle printed: $out"
 done
 echo "ok: cycle returns at DONE, ERROR or STOPPED, each state printed once"
 dry "-e ROS_DOMAIN_ID=77 control" "&& set -m;" "pgrep -f \"[/]lib/so101_\"" "grep -qxz ROS_DOMAIN_ID=77 /proc/" "a stack already runs on ROS domain 77" \
