@@ -79,6 +79,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Fixed
 
+- The sim calibration tests that failed once on a CI runner (#187, 1.17 px, two corners unrefined) now print the machine in their failure (CPU and instruction set, OpenCV and its path, MuJoCo, OSMesa); not reproduced on this side whatever the cube's pose, llvmpipe's settings, the Mesa version or OpenCV's CPU paths (MES-54, `05` §5).
 - Perception finds the cube and the box under the dim, warm light of the robustness demo's case 5 (3.5d, #175): saturation floors above the floor turned orange (box S ≥ 140, V ≥ 20; cube S ≥ 150, V ≥ 30). Case 5: 5/5 cycles in each of 2 runs (0/5 before); default-light bench 50/50 (MES-52, `05` §2.2, `results/robustness_demo.md`).
 - Perception stops cleanly on SIGINT (5.4c, #177): rclpy's handlers off and the spin loop ended on an event, as the driver (#158); 2/200 random stops ended with an error before, 0/200 after (MES-50, `exp_sigint_stop.py --perception`).
 - `tools/so101 cycle` really returns at the end of the cycle (#169): #164's `awk` is mawk in the control image, which reads a pipe in blocks, so it saw `DONE` only when `ros2 topic echo` ended at its 120 s timeout, and printed every state at once (the test ran on the host, whose `awk` is gawk). The filter is now a bash `read` loop; the test runs `cycle` with an `awk` that reads all its input first. On a stack: 24 s for the command, the states live (120 s before).
