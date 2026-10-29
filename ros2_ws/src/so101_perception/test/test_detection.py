@@ -82,12 +82,17 @@ def test_the_box_brown_is_not_a_cube():
 
 
 def test_neither_a_bright_nor_a_grayish_brown_is_the_box():
-    for hsv in ((12, 170, 240), (12, 60, 90), (30, 170, 90)):
+    """(14, 100, 42): the grey floor under the dim, warm light (MES-49), which the box range took (#175)."""
+    for hsv in ((12, 170, 240), (12, 60, 90), (30, 170, 90), (14, 100, 42)):
         assert detect(scene((100, 100, 30, 20), hsv=hsv)).box is None, hsv
 
 
+def test_the_box_under_the_dim_light_is_the_box():
+    assert detect(scene((100, 100, 30, 20), hsv=(10, 200, 29))).box is not None  # MES-49: V median 29
+
+
 def test_neither_purple_nor_a_dark_or_pale_red_is_a_cube():
-    for hsv in ((150, 230, 200), (175, 230, 50), (175, 80, 200)):
+    for hsv in ((150, 230, 200), (175, 230, 20), (175, 120, 200)):
         assert detect(scene((100, 100, 12, 12), hsv=hsv)).cube is None, hsv
 
 
@@ -133,5 +138,5 @@ def test_a_frame_takes_under_2_ms_at_320x240():
 
 def test_the_parameter_form_gives_the_default_ranges():
     """The ROS parameters (05 §2.2): one hue interval, wrapping around 180 when h_min > h_max."""
-    assert hsv_ranges(160, 8, 100, 60) == Thresholds().cube
-    assert hsv_ranges(5, 25, 90, 40, 220) == Thresholds().box
+    assert hsv_ranges(160, 8, 150, 30) == Thresholds().cube
+    assert hsv_ranges(5, 25, 140, 20, 220) == Thresholds().box

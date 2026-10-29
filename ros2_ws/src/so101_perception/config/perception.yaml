@@ -6,12 +6,12 @@ so101_perception:
     # A hue interval wraps around 180 when h_min > h_max: the red cube is [160, 180] U [0, 8].
     hsv_cube_h_min: 160
     hsv_cube_h_max: 8
-    hsv_cube_s_min: 100
-    hsv_cube_v_min: 60
+    hsv_cube_s_min: 150   # the cube S >= 205, the floor <= 106 under the dim light (#175, MES-52)
+    hsv_cube_v_min: 30    # its shaded side under the dim light (#175, MES-52)
     hsv_box_h_min: 5
     hsv_box_h_max: 25
-    hsv_box_s_min: 90
-    hsv_box_v_min: 40
+    hsv_box_s_min: 140    # the box S >= 164, the dim floor and arm <= 113 (#175, MES-52)
+    hsv_box_v_min: 20     # the box V 24 under the dim light
     hsv_box_v_max: 220
     min_area_px: 15.0  # blob guards (05 §2.3)
     min_solidity: 0.6

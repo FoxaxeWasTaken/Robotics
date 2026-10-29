@@ -50,6 +50,8 @@ The cube keeps V median 68 against its `hsv_cube_v_min` = 60 (81 % of its pixels
 
 Not fixed here (out of scope of #103: a weakness found by the demo becomes its own ticket). Brightness no longer separates the box from the floor (box V 25–50, floor V 26–43); saturation still does (box S 198–207, floor S 93–106). Leads for that ticket: a higher `hsv_box_s_min` with a lower `hsv_box_v_min`, a brightness-normalized threshold, or the camera's exposure and white balance on the real arm (`07` §4, step 6.4b).
 
+**Fixed by #175** (MES-52): saturation floors between the lit floor and arm (S ≤ 113) and the box (S ≥ 164) and cube (S ≥ 205), V floors under their shaded sides (box S ≥ 140, V ≥ 20; cube S ≥ 150, V ≥ 30). Case 5 rerun on `fix/175-dim-light-box` (from `main` at `cdbd1d5`), the same machine, its own container: **5/5 cycles in `DONE` in each of 2 runs** under `dim`, cube and box on every image while the brain waits (9–13 images); the default-light bench 50/50.
+
 ## Limits and observations
 
 - **3a, `VERIFY` with perception dead**: with no detection for 2 s, `VERIFY` ends in `DONE` with a warning, as `06` §3.1 specifies. A cube that left the table and a perception that stopped look the same; known and accepted.

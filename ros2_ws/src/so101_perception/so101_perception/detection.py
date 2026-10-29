@@ -18,8 +18,8 @@ class Thresholds:
     """05 §2.2 and §2.3. ROS parameters at 3.3b."""
 
     # Red wraps around H = 0/180: two ranges.
-    cube: tuple[HsvRange, ...] = (((160, 100, 60), (180, 255, 255)), ((0, 100, 60), (8, 255, 255)))
-    box: tuple[HsvRange, ...] = (((5, 90, 40), (25, 255, 220)),)
+    cube: tuple[HsvRange, ...] = (((160, 150, 30), (180, 255, 255)), ((0, 150, 30), (8, 255, 255)))
+    box: tuple[HsvRange, ...] = (((5, 140, 20), (25, 255, 220)),)
     min_area_px: float = 15.0  # at 320x240, the cube covers 300-600 px
     min_solidity: float = 0.6  # area / convex hull area: rejects reflections and fragments
 
