@@ -75,7 +75,13 @@ repos:
         name: bench_report.sh test (#151)
         entry: bash tools/ci/test_bench_report.sh
         language: system
-        files: ^tools/ci/(test_)?bench_report\.sh$
+        files: ^tools/ci/((test_)?bench_report|post_report)\.sh$
+        pass_filenames: false
+      - id: quality-report-test
+        name: quality_report.sh test (#179)
+        entry: bash tools/ci/test_quality_report.sh
+        language: system
+        files: ^tools/ci/((test_)?quality_report|post_report)\.sh$
         pass_filenames: false
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.4.0

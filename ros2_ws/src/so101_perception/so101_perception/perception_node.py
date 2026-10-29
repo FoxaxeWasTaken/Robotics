@@ -8,6 +8,8 @@ on the plane z = 2.5 cm, the temporal filter, and a PoseStamped in base_link wit
 detection; /perception/debug_image always comes.
 """
 
+import signal
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -18,8 +20,9 @@ from cv_bridge import CvBridge
 from geometry_msgs.msg import PoseStamped, TransformStamped
 from rcl_interfaces.msg import FloatingPointRange, IntegerRange, ParameterDescriptor
 from rclpy.clock import Clock, ClockType
-from rclpy.executors import ExternalShutdownException
+from rclpy.executors import SingleThreadedExecutor
 from rclpy.qos import QoSProfile, ReliabilityPolicy
+from rclpy.signals import SignalHandlerOptions
 from sensor_msgs.msg import CameraInfo, Image
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 
@@ -168,16 +171,21 @@ class PerceptionNode(rclpy.node.Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    # SIGINT and SIGTERM only set an event, as in the driver (#158, #177): rclpy's handlers raise at any
+    # bytecode, and one landing in take_message ended the node with a RuntimeError and exit 1.
+    rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
+    stop = threading.Event()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, lambda *_: stop.set())  # before the node: its "ready" log is the start
     node = PerceptionNode()
+    executor = SingleThreadedExecutor()
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
-    except (KeyboardInterrupt, ExternalShutdownException):
-        pass
+        while not stop.is_set():
+            executor.spin_once(timeout_sec=0.1)
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        rclpy.try_shutdown()
 
 
 if __name__ == "__main__":

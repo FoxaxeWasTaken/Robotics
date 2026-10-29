@@ -236,22 +236,22 @@ class BrainNode(rclpy.node.Node):
         tilts = list(self.declare_parameter("grasp.tilts_deg", list(d["tilts_deg"]), descriptor).value)
         if not tilts or not all(0.0 <= t < 90.0 for t in tilts):
             raise ValueError(f"grasp.tilts_deg {tilts}: {description}")
-        return dict(
-            tilts_deg=tilts,
-            pregrasp_backoff_m=self._declare(
+        return {
+            "tilts_deg": tilts,
+            "pregrasp_backoff_m": self._declare(
                 "grasp.pregrasp_backoff_m",
                 d["pregrasp_backoff_m"],
                 "Pre-grasp back-off along the approach, m",
                 0.01,
                 0.1,
             ),
-            lift_dz_m=self._declare(
+            "lift_dz_m": self._declare(
                 "grasp.lift_dz_m", d["lift_dz_m"], "Lift: TCP above the cube center, m", 0.05, 0.2
             ),
-            drop_tcp_z_m=self._declare(
+            "drop_tcp_z_m": self._declare(
                 "grasp.drop_tcp_z_m", d["drop_tcp_z_m"], "Drop: TCP above the box floor, m", 0.05, 0.2
             ),
-        )
+        }
 
     def _cb_joint_states(self, msg: JointState):
         """Stores the arm joints, the stamp, the reception time, the gripper effort (0 if not given) and the
