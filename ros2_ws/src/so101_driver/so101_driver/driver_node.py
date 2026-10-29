@@ -39,6 +39,7 @@ from so101_common.robot import ARM_JOINT_NAMES, BASE_FRAME, CAMERA_FRAME, JOINT_
 from so101_driver.camera import opencv_intrinsics
 from so101_driver.command import apply_command
 from so101_driver.effort import normalized_effort
+from so101_driver.late import LATE_WARN_S, TickClock
 from so101_driver.limiter import max_relative_target, step_towards
 from so101_driver.randomize import sample_box_xy
 from so101_driver.shutdown import move_to
@@ -177,6 +178,10 @@ class DriverNode(rclpy.node.Node):
         # Timers on the steady clock: the system clock can step back (WSL2: ~2 s every 30 s [MES-37]) and
         # would pause them. Stamps stay on the ROS clock.
         self._steady = Clock(clock_type=ClockType.STEADY_TIME)
+        self._ticks = {
+            "control step": TickClock(1.0 / self._p["control_rate_hz"]),
+            "/joint_states": TickClock(1.0 / self._p["joint_state_rate_hz"]),
+        }
         self.create_timer(1.0 / self._p["control_rate_hz"], self._control_step, clock=self._steady)
         self.create_timer(
             1.0 / self._p["joint_state_rate_hz"], self._publish_joint_states, clock=self._steady
@@ -313,6 +318,7 @@ class DriverNode(rclpy.node.Node):
         A bus error (ConnectionError, motor packet error) is retried at the next ticks; after bus_retries
         retries the driver stops the control and /joint_states, until it is restarted (03 §8).
         """
+        self._warn_if_late("control step")
         if self._bus_lost:
             return
         self._setpoint = step_towards(
@@ -347,6 +353,7 @@ class DriverNode(rclpy.node.Node):
 
         Silent once the bus is lost: the brain stops on stale /joint_states (ADR-017).
         """
+        self._warn_if_late("/joint_states")
         if self._bus_lost:
             return
         msg = JointState()
@@ -358,6 +365,12 @@ class DriverNode(rclpy.node.Node):
         ]
         msg.effort = self._effort
         self._pub_joint_states.publish(msg)
+
+    def _warn_if_late(self, tick: str):
+        """A tick held beyond LATE_WARN_S: the brain may stop on stale /joint_states (#176, 13)."""
+        late = self._ticks[tick].late(time.monotonic())
+        if late > LATE_WARN_S:
+            self.get_logger().warning(f"{tick} {late:.2f} s late: the driver's executor was held")
 
     def _srv_randomize(self, request, response):
         """Sim only: new cube pose (provided randomize_object), then a new box position (03 §7).
