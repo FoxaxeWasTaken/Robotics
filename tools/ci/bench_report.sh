@@ -14,9 +14,9 @@ body=$(mktemp)
   echo
   echo "\`$REF\` at \`${SHA:0:7}\`, $EPISODES episodes, randomized cube and box, real perception."
   echo
-  if [ -n "$line" ]; then
+  if [[ -n "$line" ]]; then
     rate=$(sed -E 's/^success [0-9]+\/[0-9]+ \(([0-9]+) %\).*/\1/' <<< "$line")
-    [ "$rate" -ge "$target" ] && verdict=met || verdict="not met"
+    [[ "$rate" -ge "$target" ]] && verdict=met || verdict="not met"
     echo "**$line**"
     echo
     echo "Target ≥ $target %: $verdict."
@@ -26,9 +26,9 @@ body=$(mktemp)
   echo
   echo "Run: $RUN_URL (CSV and the failed episodes' bags: artifact \`$ARTIFACT\`, kept 14 days)."
 } > "$body"
-[ -z "${GITHUB_STEP_SUMMARY:-}" ] || cat "$body" >> "$GITHUB_STEP_SUMMARY"
+[[ -z "${GITHUB_STEP_SUMMARY:-}" ]] || cat "$body" >> "$GITHUB_STEP_SUMMARY"
 number=$(gh issue list --state open --limit 100 --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)
-if [ -z "$number" ]; then
+if [[ -z "$number" ]]; then
   intro=$(mktemp)
   echo "One comment per nightly bench (\`.github/workflows/nightly.yml\`, \`tools/ci/bench_report.sh\`). Pin this issue." > "$intro"
   # label "report": the project views leave it out, it is not a work item

@@ -107,7 +107,7 @@ class TestPerception(unittest.TestCase):
         self.spin_until(lambda: len(self.sent) >= first + IMAGES, "the fake camera stalled")
         sent = set(self.sent)
         stamps = [key(msg.header.stamp) for msg in self.debug]
-        self.assertTrue(set(stamps) <= sent, "a debug image does not carry the stamp of an input image")
+        self.assertLessEqual(set(stamps), sent, "a debug image does not carry the stamp of an input image")
         self.assertEqual(len(stamps), len(set(stamps)), "an image was processed twice")
         later = set(self.sent[first:])
         back = sum(stamp in later for stamp in stamps)
@@ -169,7 +169,7 @@ class TestPerception(unittest.TestCase):
             self.assertLess(error, limit, f"{center} of {label['file']}: {error * 1e3:.1f} mm")
             seen.add((center, label["file"]))
         self.assertNotIn(("cube_center", "015.png"), seen, "a truncated cube was published")
-        self.assertTrue({("cube_center", "000.png"), ("box_floor_center", "000.png")} <= seen)
+        self.assertLessEqual({("cube_center", "000.png"), ("box_floor_center", "000.png")}, seen)
 
     def test_4_the_camera_tf_is_the_pose_of_the_extrinsics_file(self):
         """#46: perception publishes the static TF base_link -> camera of the file it loaded (01 §4)."""

@@ -8,6 +8,7 @@ through the ground truth (C-06): the pipeline still sees the scene through the c
 from dataclasses import dataclass
 
 END_STATES = ("DONE", "STOPPED", "ERROR")  # a cycle ends in one of them (ERROR with its cause)
+NOT_HANDLED = "not handled"
 MAX_RETRIES = 3  # fsm.max_retries in so101_bringup/config/brain.yaml: failed attempts before grasp_failed
 
 
@@ -100,13 +101,13 @@ def verdict(case: Case, states: list[str]) -> tuple[str, str]:
     """
     last = end_state(states)
     if last is None:
-        return "not handled", f"no end state ({states[-1] if states else 'nothing'} last)"
+        return NOT_HANDLED, f"no end state ({states[-1] if states else 'nothing'} last)"
     states = states[: states.index(last) + 1]
     for state in case.forbidden:
         if state in states:
-            return "not handled", f"went through {state}"
+            return NOT_HANDLED, f"went through {state}"
     if last != case.expected:
-        return "not handled", f"ended in {last}, expected {case.expected}"
+        return NOT_HANDLED, f"ended in {last}, expected {case.expected}"
     if case.required is not None:
         count = states.count(case.required)
         if count == 0:
@@ -121,4 +122,4 @@ def lighting_verdict(successes: int, episodes: int) -> tuple[str, str]:
     why = f"{successes}/{episodes} cycles ended in DONE"
     if successes == episodes:
         return "handled", why
-    return ("partly" if successes else "not handled"), why
+    return ("partly" if successes else NOT_HANDLED), why
