@@ -51,6 +51,6 @@ quadrantChart
 | R-15 | Accidental use of ground truth in the pipeline (C-06): non-compliance | 1 | 3 | 3 | — | CI grep guards; `expose_ground_truth` false by default | QA |
 | R-16 | Course kit updated by the teaching staff (conflicts) | 2 | 1 | 2 | New upstream commits (already happened: PR #1 and #2) | Never modify `sim/`, `core/`, `so101_description`; untouched provided files excluded from lint; `upstream` remote + regular merge; the nightly opens an issue on new course commits (#137) | OPS |
 | R-17 | Planning too slow, brain frozen | 1 | 2 | 2 | `PLAN` state lasting > 1 s | Worker process + timeout (a thread shared the GIL with the tick [MES-40]); Pinocchio if needed (20–50× faster) [MES-21] | KIN |
-| R-18 | Real-arm zero ≠ URDF zero (LeRobot's zero = middle of the recorded range): centimeter TCP errors [MES-30] | 2 | 3 | 6 | Rest-pose TCP computed below the table (z = −2.9 cm) | Ruler check of the rest pose; per-joint offset in the driver (`07` §4) | CTRL |
+| R-18 | Real-arm zero ≠ URDF zero (LeRobot's zero = middle of the recorded range): centimeter TCP errors [MES-30] | 2 | 3 | 6 | Rest-pose TCP computed below the table (z = −2.9 cm) | `joint_zero_offsets` in the driver (#196): the readings at the URDF zero, elbow 13.8° [MES-55]; measured again after each recalibration | CTRL |
 
 Phase-2 risks (Connect Four) have their own register: `phase2/P2-03` §2.
