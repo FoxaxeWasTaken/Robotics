@@ -6,3 +6,6 @@ so101_driver:
     camera_device: /dev/video0  # the webcam, MJPG (02 §5.2); no camera: the arm works without images
     camera_width: 640
     camera_height: 480
+    # rad, ARM_JOINT_NAMES order: each joint's reading at the URDF zero (arm stretched, horizontal), with the
+    # calibration of 2026-10-30 13:55; one placement by hand, to measure again on recalibration (#196, 07 §4)
+    joint_zero_offsets: [-0.028, 0.056, 0.241, -0.090, 0.019]

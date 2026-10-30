@@ -43,6 +43,7 @@ from so101_driver.late import LATE_WARN_S, TickClock
 from so101_driver.limiter import max_relative_target, step_towards
 from so101_driver.randomize import sample_box_xy
 from so101_driver.shutdown import move_to
+from so101_driver.zero_offsets import ZeroOffsets
 
 # Calibration file of the real arm, mounted by docker compose (CALIBRATION_FILE in docker/.env).
 CALIBRATION_FILE = Path("/calibration/arm.json")
@@ -71,8 +72,10 @@ PARAMETERS = {
     "bus_retries": (3, "Failed control ticks retried before the driver stops (03 §8)", 0, 20),
 }
 SHUTDOWN_POSE = [1.9, -1.7, 1.5, 0.7, 0.0]  # rad, ARM_JOINT_NAMES order: the brain's PARK (brain.yaml)
-# ros2 launch sends SIGTERM 5 s after SIGINT, then SIGKILL: the move ends before. Signals only stop the spin.
-SHUTDOWN_TIMEOUT = 4.0  # s
+# PARK from the farthest pose at shutdown_velocity: shoulder_pan 3.8 rad at 0.5 rad/s, plus the slow end
+# of the move (8.6 s for 3.4 rad on the real arm, #195). The entrypoint kills the stack 14 s after SIGINT,
+# ros2 launch the driver 17 s after; signals only stop the spin.
+SHUTDOWN_TIMEOUT = 11.0  # s
 GROUND_TRUTH_RATE_HZ = 10.0
 GROUND_TRUTH_BODIES = {"object": "pickup_object", "drop_box": "drop_box"}  # /sim/ground_truth/<key>: body
 PARKED_BOX_XY = (2.0, 0.0)  # m: the box waits there while the randomized cube settles
@@ -115,6 +118,16 @@ class DriverNode(rclpy.node.Node):
                 ParameterDescriptor(description="Rest pose reached before disconnect, rad", read_only=True),
             ).value
         )
+        zero_offsets = list(
+            self.declare_parameter(
+                "joint_zero_offsets",
+                [0.0] * len(ARM_JOINT_NAMES),
+                ParameterDescriptor(
+                    description="Real arm: each joint's reading at the URDF zero, rad (07 §4, #196)",
+                    read_only=True,
+                ),
+            ).value
+        )
         camera_device: str = self.declare_parameter(
             "camera_device",
             "",
@@ -138,6 +151,8 @@ class DriverNode(rclpy.node.Node):
                 read_only=True,
             ),
         ).value
+        if len(zero_offsets) != len(ARM_JOINT_NAMES):
+            raise ValueError(f"joint_zero_offsets needs {len(ARM_JOINT_NAMES)} values, got {zero_offsets}")
         if len(self._shutdown_pose) != len(ARM_JOINT_NAMES):
             raise ValueError(f"shutdown_pose needs {len(ARM_JOINT_NAMES)} values, got {self._shutdown_pose}")
         # ROS ignores a key no node declares: a typo in driver_real.yaml would keep the sim's value (#57).
@@ -163,6 +178,7 @@ class DriverNode(rclpy.node.Node):
             self._robot.config.max_relative_target = max_relative_target(
                 self._p["max_relative_target_arm"], self._p["max_relative_target_gripper"]
             )
+            self._robot = ZeroOffsets(self._robot, dict(zip(ARM_JOINT_NAMES, zero_offsets, strict=True)))
         self._backend_lock = threading.Lock()  # MuJoCo and the serial bus are not thread-safe (ADR-006)
 
         self._obs = self._robot.get_observation()
@@ -295,8 +311,8 @@ class DriverNode(rclpy.node.Node):
                 SHUTDOWN_TIMEOUT,
                 self._p["shutdown_tolerance"],
             )
-        except (OSError, RuntimeError) as error:
-            self.get_logger().error(f"Shutdown pose not reached, bus error: {error}")
+        except (OSError, RuntimeError, ValueError) as error:  # never skip disconnect(): torque left on (#194)
+            self.get_logger().error(f"Shutdown pose not reached: {error}")
             return
         if error <= self._p["shutdown_tolerance"]:
             self.get_logger().info(f"Shutdown pose reached in {elapsed:.1f} s.")

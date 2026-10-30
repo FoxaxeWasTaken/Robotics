@@ -42,7 +42,8 @@ shutdown() {
   # SIGINT to ros2 launch only: it forwards one to each node. Signalling the whole group gave each
   # node a second SIGINT that interrupted destroy_node() (KeyboardInterrupt traceback).
   for p in "${pids[@]}"; do kill -INT "$p" 2>/dev/null; done
-  ( sleep 5; for p in "${pids[@]}"; do kill -KILL -"$p" 2>/dev/null; done ) &
+  # after the driver's shutdown move (11 s at most, 03 §8, #195)
+  ( sleep 14; for p in "${pids[@]}"; do kill -KILL -"$p" 2>/dev/null; done ) &
   for p in "${pids[@]}"; do wait "$p"; done
   exit 0
 }

@@ -16,7 +16,7 @@ from launch_ros.utilities import evaluate_parameters
 
 SHARE = Path(get_package_share_directory("so101_bringup"))
 REAL_KEYS = {  # 01 §3.3: the parameters with a real value
-    "driver": {"max_joint_velocity", "camera_device", "camera_width", "camera_height"},
+    "driver": {"max_joint_velocity", "camera_device", "camera_width", "camera_height", "joint_zero_offsets"},
     "brain": {"motion.v_max_rad_s"},
 }
 
@@ -66,14 +66,25 @@ def parameter_files(use_sim):
 
 def test_the_sim_loads_the_base_files_and_the_real_arm_its_real_files_on_top():
     assert parameter_files("true") == {
-        # the third: driver_calibration.yaml with calibration:=true
-        "so101_driver": ["driver.yaml", "driver.yaml", "driver.yaml"],
+        # the second: driver_calibration.yaml with calibration:=true
+        "so101_driver": ["driver.yaml", "driver.yaml"],
         "so101_brain": ["brain.yaml", "brain.yaml"],
     }
     assert parameter_files("false") == {
-        "so101_driver": ["driver.yaml", "driver_real.yaml", "driver.yaml"],
+        "so101_driver": ["driver.yaml", "driver_real.yaml"],
         "so101_brain": ["brain.yaml", "brain_real.yaml"],
     }
+
+
+def test_the_real_arm_runs_with_the_values_of_its_real_files():
+    """#197: driver.yaml came again after driver_real.yaml, and the real arm ran at the sim's 1.5 rad/s."""
+    files = parameter_files("false")
+    for node, package in (("driver", "so101_driver"), ("brain", "so101_brain")):
+        running = {}
+        for name in files[package]:  # a later file wins, as in ROS
+            running.update(parameters(name.removesuffix(".yaml")))
+        real = parameters(f"{node}_real")
+        assert {key: running[key] for key in real} == real
 
 
 def test_real_launch_is_sim_launch_with_use_sim_false():

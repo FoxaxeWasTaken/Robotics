@@ -32,9 +32,10 @@ from so101_bringup.sim_scene import SimScene
 def generate_launch_description():
     config = PathJoinSubstitution([FindPackageShare("so101_bringup"), "config"])
 
-    def files(name):
-        """<name>.yaml, then <name>_real.yaml on the real arm, <name>.yaml again in sim (no change)."""
-        real = IfElseSubstitution(LaunchConfiguration("use_sim"), f"{name}.yaml", f"{name}_real.yaml")
+    def files(name, sim=None):
+        """<name>.yaml, then <name>_real.yaml on the real arm; in sim, sim (default: <name>.yaml again,
+        no change). One file on top of the base: a third one came last and undid driver_real.yaml (#197)."""
+        real = IfElseSubstitution(LaunchConfiguration("use_sim"), sim or f"{name}.yaml", f"{name}_real.yaml")
         return [PathJoinSubstitution([config, f"{name}.yaml"]), PathJoinSubstitution([config, real])]
 
     return LaunchDescription(
@@ -68,15 +69,13 @@ def generate_launch_description():
                 executable="driver",
                 name="so101_driver",
                 output="screen",
+                sigterm_timeout="12",  # SIGKILL 5 s later: after the shutdown move, 11 s at most (#195)
                 parameters=[
-                    *files("driver"),
-                    PathJoinSubstitution(
-                        [
-                            config,
-                            IfElseSubstitution(
-                                LaunchConfiguration("calibration"), "driver_calibration.yaml", "driver.yaml"
-                            ),
-                        ]
+                    *files(
+                        "driver",
+                        IfElseSubstitution(
+                            LaunchConfiguration("calibration"), "driver_calibration.yaml", "driver.yaml"
+                        ),
                     ),
                     {
                         "scene_path": ParameterValue(

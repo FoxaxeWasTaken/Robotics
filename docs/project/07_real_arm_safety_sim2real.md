@@ -81,7 +81,7 @@ flowchart TD
 | Intrinsics / distortion | Pixel → 3D error | Intrinsic calibration (ADR-014), `undistortPoints` |
 | Extrinsics | Pixel → 3D error growing with distance | ArUco + jig / touch probing (`05` §5.4, §10); startup self-check (6.3a) |
 | Actual table height ≠ 0 | Bias in z | The table **defines** z = 0 (base resting on it) |
-| **Calibration zero**: LeRobot's zero is the middle of the recorded range, not the pose held during calibration | For this arm, up to 23° on `shoulder_lift` if the URDF zero is the held pose: TCP off by centimeters (rest pose computed at z = −2.9 cm) [MES-30] | Measure the rest-pose TCP with a ruler (`exp_calibration_zero.py`); if confirmed, a per-joint offset in the driver, next to the provided `_connect_arm` |
+| **Calibration zero**: LeRobot's zero is the middle of the recorded range, not the pose held during calibration | For this arm, up to 23° on `shoulder_lift` if the URDF zero is the held pose: TCP off by centimeters (rest pose computed at z = −2.9 cm) [MES-30] | Measure the rest-pose TCP with a ruler (`exp_calibration_zero.py`); `joint_zero_offsets` in `driver_real.yaml` (#196): the driver subtracts them from what it reads and adds them to what it sends (`zero_offsets.py`, after the provided `_connect_arm`). Measured on 2026-10-30, the arm held at the URDF zero: elbow 0.241 rad (13.8°); to measure again after each recalibration |
 | Cube friction, gripper compliance | Grasp differs from sim | Tune grasp height and jaw alignment (more useful on the real arm than in sim) |
 | Effort signal | Different scale (`Present_Load`) | Recalibrate `grasp.effort_threshold` (empty / holding) |
 
