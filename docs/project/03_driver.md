@@ -3,25 +3,27 @@
 > Authors: [CTRL] Control & hardware · Reviewers: [ARC], [OPS], [QA]
 > Requirements: C-05, C-10 to C-15, C-51 · Decisions: ADR-006, ADR-007, ADR-016, ADR-018, ADR-023, ADR-032
 
-## 0. Code state (2026-10-16) and what to build
+## 0. What the driver does
 
-`driver_node.py` started from **the course stub** (provided `_connect_arm` and `destroy_node`, upstream PR #1 and #2), as the repository did (ADR-039). Step 1.0 added `/joint_states`, `/joint_command` and the speed limiter, step 1.2 the sim camera thread; the provided `_connect_arm` is unchanged, `destroy_node` first stops the camera thread. A **bootstrap prototype**, kept outside the repository, filled the `TODO`s during the bootstrap sessions and measured `/joint_states` at **30.0 Hz**, the image at **10.0 Hz**, a clean shutdown on SIGINT/SIGTERM and `/go_to_target` within **0.13 mm** [MES-24]. Use it as inspiration, not as code to paste.
+`driver_node.py` started from **the course stub** (provided `_connect_arm` and `destroy_node`, upstream PR #1 and #2), as the repository did (ADR-039). The provided `_connect_arm` is unchanged except its two `disable_torque()` lines (ADR-032).
 
-| Item | Repository | Bootstrap prototype | Roadmap step (`09`) |
-| --- | --- | --- | --- |
-| `use_sim` backend, provided `_connect_arm` (explicit failure on calibration mismatch) | ✅ provided | ✅ | — |
-| Upstream #2: `disable_torque()` right after connecting (limp arm, commands ignored) | Commented out (6.1a), after the clamp (1.1a), the real-arm speed (1.1b) and the shutdown move: the real arm obeys `/joint_command` (ADR-032, `07` §2) | Commented out | 6.1a; uncomment for a session where the arm is moved by hand (`07` §3.2, test 1) |
-| Partial commands by name; empty name list = `JOINT_NAMES` order | ✅ (step 1.0) | ✅ | 1.0 |
-| Speed limiter (1.5 rad/s; gripper 200 %/s) | ✅ `limiter.py`; parameters since step 1.1 | ✅ | 1.0, 1.1 |
-| `/joint_states` ≥ 20 Hz, gripper in rad, stamp = read time | ✅ 30.0 Hz (step 1.0) | ✅ 30.0 Hz (9 Hz before the camera fix) | 1.0 |
-| Sim camera: dedicated thread, render on a copy, backend lock | ✅ (step 1.2): 10 Hz, control p99 20.4 ms [MES-34] | ✅ (ADR-006) | 1.2 |
-| **Clamping to joint limits** (C-15): MuJoCo clamps via `ctrlrange` in sim, nothing else would protect the real arm | ✅ `command.py` (step 1.1) | ✅ in the working copy | 1.1 |
-| NaN/inf rejection | ✅ `command.py` (step 1.1) | ✅ in the working copy | 1.1 |
-| `effort` (grasp detection, ADR-016) | ✅ sim, `effort.py` (step 1.3); real: empty until 6.4a | ❌ | 1.3 |
-| `/external_cam/camera_info` (C-13); `frame_id` = optical frame (ADR-005) | ✅ (step 1.3) | ❌ (`frame_id = "external_cam"`) | 1.3 |
-| Real-arm shutdown: `disconnect()` cuts the torque, the arm falls | ✅ slow move to `PARK` first, 4 s at most (6.1a, §8) | ⚠ | 6.1 |
-| Per-motor `max_relative_target`; serial bus errors | ✅ (6.1a, §2, §8) | ❌ | 6.1 (ADR-023) |
-| Real camera | ✅ `camera_device`, MJPG, 10 Hz; `camera_info` from a calibration YAML (6.2a, §6) | ❌ | 6.2 (ADR-007) |
+| Item | State | Roadmap step (`09`) |
+| --- | --- | --- |
+| `use_sim` backend, provided `_connect_arm` (explicit failure on calibration mismatch) | ✅ provided | — |
+| Upstream #2: `disable_torque()` right after connecting (limp arm, commands ignored) | Commented out, after the clamp, the real-arm speed and the shutdown move: the real arm obeys `/joint_command` (ADR-032, `07` §2); uncomment for a session where the arm is moved by hand (`07` §3.2, test 1) | 6.1a |
+| Partial commands by name; empty name list = `JOINT_NAMES` order | ✅ `command.py` | 1.0 |
+| Speed limiter (1.5 rad/s; gripper 200 %/s), as parameters | ✅ `limiter.py` | 1.0, 1.1 |
+| `/joint_states` ≥ 20 Hz, gripper in rad, stamp = read time | ✅ 30.0 Hz | 1.0 |
+| Sim camera: dedicated thread, render on a copy, backend lock | ✅ 10 Hz, control p99 20.4 ms [MES-34] (ADR-006) | 1.2 |
+| **Clamping to joint limits** (C-15): MuJoCo clamps via `ctrlrange` in sim, nothing else would protect the real arm | ✅ `command.py` | 1.1 |
+| NaN/inf rejection | ✅ `command.py` | 1.1 |
+| `effort` (grasp detection, ADR-016) | ✅ sim, `effort.py`; real: empty until 6.4a | 1.3 |
+| `/external_cam/camera_info` (C-13); `frame_id` = optical frame (ADR-005) | ✅ `camera.py` | 1.3 |
+| `/sim/randomize`, `seed`, ground truth for the bench (§7) | ✅ `randomize.py` | 1.4 |
+| Real-arm shutdown: `disconnect()` cuts the torque, the arm falls | ✅ slow move to `PARK` first, 4 s at most (§8, `shutdown.py`) | 6.1a |
+| Per-motor `max_relative_target`; serial bus errors | ✅ (§2, §8; ADR-023) | 6.1a |
+| Real camera | ✅ `camera_device`, MJPG, 10 Hz; `camera_info` from a calibration YAML (§6; ADR-007) | 6.2a |
+| A warning for each late tick (#176) | ✅ `late.py` (§3) | 5.4b |
 
 ## 1. Responsibilities
 
@@ -36,18 +38,16 @@
 
 ## 2. Backend abstraction (C-10)
 
-> **2026-10-08 update (upstream pull, PR #1 `fix/connect_arm`)**: `_connect_arm` is now **provided by the course**. We **keep it as is** (ADR-032) and only add what is missing, **next to it**.
->
-> **2026-10-09 update (upstream PR #2)**: the provided `_connect_arm` now ends with `robot.bus.disable_torque()` and a "Torque disabled" log, with the instruction "Comment out this line to control the robot". The team keeps these lines **commented out**, the only change to the provided function (ADR-032 update); uncomment them for a session where the arm must be moved by hand. `destroy_node` is provided too (§8).
+`_connect_arm` and `destroy_node` (§8) are **provided by the course** (upstream PR #1 and #2). We **keep them as is** (ADR-032) and only add what is missing, **next to them**. The one change: the provided `_connect_arm` ends with `robot.bus.disable_torque()` and a "Torque disabled" log ("Comment out this line to control the robot"); the team keeps these lines **commented out** (ADR-032 update) and uncomments them for a session where the arm must be moved by hand.
 
 What the provided version does:
 
 | Mode | Provided `_connect_arm` |
 | --- | --- |
 | Sim | `SO101Sim()` then `connect()` |
-| Real | Checks that `CALIBRATION_FILE` (`/calibration/arm.json`) exists, else `RuntimeError`. Builds `SO101FollowerConfig(port, id=calib.stem, calibration_dir=calib.parent, use_radians=True)`, then `connect(calibrate=False)`. **If the motors do not match the file: `disconnect()` + `RuntimeError`** ("wrong file for this arm?"). Since #2, then `bus.disable_torque()`: commented out by the team (see above) |
+| Real | Checks that `CALIBRATION_FILE` (`/calibration/arm.json`) exists, else `RuntimeError`. Builds `SO101FollowerConfig(port, id=calib.stem, calibration_dir=calib.parent, use_radians=True)`, then `connect(calibrate=False)`. **If the motors do not match the file: `disconnect()` + `RuntimeError`** ("wrong file for this arm?"). Then `bus.disable_torque()` (upstream #2), commented out by the team (above) |
 
-What the team adds, without touching the provided function (6.1a):
+What the team adds, without touching the provided function:
 
 ```python
 self._robot = self._connect_arm(port)                # provided by the course, unchanged
@@ -116,7 +116,7 @@ sequenceDiagram
 - **Render threads**: OSMesa's llvmpipe renders with one thread per core by default; they starve the control tick (p99 24–25 ms). The driver sets `LP_NUM_THREADS` to half the cores at import, a value set in the environment wins: p99 20.4 ms, image 10 Hz [MES-34].
 - **Clocks**: the timers run on the steady clock. The system clock can step back (WSL2: about 2 s every 30 s) and would pause timers on the ROS clock; stamps stay on the ROS clock, they are compared across nodes [MES-37].
 - **Late ticks** (#176): the control step and the `/joint_states` timer share the executor; a tick that comes more than 0.25 s after its period (`late.py`, half the brain's `max_joint_state_age_s`) logs `<tick> <s> s late: the driver's executor was held`. A stall of `/joint_states` without that warning was not the driver's: the messages were late on the way, or the brain starved (`13` §2).
-- Shutdown: `destroy_node()` sets a stop event and joins the thread before `disconnect()`. SIGINT and SIGTERM only set an event that ends the spin loop of `main()` (#158): rclpy's own handlers are off, since they raised `KeyboardInterrupt` at any bytecode, and one landing while the executor built a `Task` printed a traceback at exit. The context stays valid until `destroy_node()` returns, so no publish fails during the stop (before #158, one caught by the shutdown was ignored once `rclpy.ok()` was false [MES-34]).
+- Shutdown: `destroy_node()` sets a stop event and joins the thread before `disconnect()`. SIGINT and SIGTERM only set an event that ends the spin loop of `main()` (#158): rclpy's own handlers are off, since they raised `KeyboardInterrupt` at any bytecode, and one landing while the executor built a `Task` printed a traceback at exit. The context stays valid until `destroy_node()` returns, so no publish fails during the stop.
 
 > Rendering a copy uses `sim.model`/`sim.data`: an internal access **confined to the driver's sim branch** — acceptable because camera rendering is sim-specific anyway (the real arm goes through OpenCV). The rest of the stack still ignores the backend.
 > Alternative considered: `MultiThreadedExecutor` + callback groups. Rejected for now: with a thread pool the OpenGL context could be used from different threads; a dedicated thread is simpler and was measured.
@@ -164,8 +164,8 @@ The brain recovers the gripper percentage with the inverse conversion from `so10
 
 | | Sim | Real |
 | --- | --- | --- |
-| Source | MuJoCo render of `external_cam` on a state copy (dedicated thread) | Since 6.2a, `camera_device` (`/dev/video0` in `driver_real.yaml`): `OpenCVCamera(index_or_path=camera_device, width=640, height=480, fourcc="MJPG")`, RGB, the camera's own frame rate; a driver thread publishes its newest frame at 10 Hz (`read_latest()`; older than 0.5 s: nothing published). Also with the sim arm: real images without the real arm (`13` §1). No camera: an error in the log, the driver runs without images |
-| K | `get_camera_intrinsics()` (fx = fy ≈ 246 px at 320×240), principal point moved to OpenCV pixel centers: cx = 159.5, cy = 119.5 (`camera.py`, [MES-41]) | `camera_info_file`: the ROS calibration YAML of the intrinsic calibration (6.2b, ADR-014), refused if its image size differs; empty until then: images without `camera_info`, perception waits |
+| Source | MuJoCo render of `external_cam` on a state copy (dedicated thread) | `camera_device` (`/dev/video0` in `driver_real.yaml`): `OpenCVCamera(index_or_path=camera_device, width=640, height=480, fourcc="MJPG")`, RGB, the camera's own frame rate; a driver thread publishes its newest frame at 10 Hz (`read_latest()`; older than 0.5 s: nothing published). Also with the sim arm: real images without the real arm (`13` §1). No camera: an error in the log, the driver runs without images |
+| K | `get_camera_intrinsics()` (fx = fy ≈ 246 px at 320×240), principal point moved to OpenCV pixel centers: cx = 159.5, cy = 119.5 (`camera.py`, [MES-41]) | `camera_info_file`: the ROS calibration YAML of the intrinsic calibration (6.2b, ADR-014), refused if its image size differs; empty: images without `camera_info`, perception waits |
 | D (distortion) | 0 | From calibration |
 | Publication | `Image` `rgb8` + `CameraInfo` with the **same `stamp`**, `frame_id = external_cam_optical_frame`, 10 Hz | Same |
 
@@ -177,28 +177,28 @@ The brain recovers the gripper percentage with the inverse conversion from `so10
   - position only: the box stays axis-aligned (it is square).
 - `seed` (int, default `0`): one seed, two independent streams (`numpy.random.SeedSequence`): the provided `randomize_object()` (set on `SO101Sim` after `_connect_arm`, which takes no seed) and the box sampler. Same seed, same sequence of `/sim/randomize` calls. The cube pose at startup stays unseeded (drawn inside `connect()`).
 - `expose_ground_truth` (**`false` by default**): when `true`, publishes `/sim/ground_truth/object` and `/sim/ground_truth/drop_box` (`PoseStamped`, 10 Hz, `base_link`, stamped at read time). The MuJoCo world is `base_link`: the robot base sits at the scene origin with no rotation (`test_sim_tools.py`). **Evaluation bench only**, never read by brain or perception (C-06, CI grep).
-- `scene_path` (since 3.4a, #44): loads one of our scenes (calibration scene with ArUco markers, ADR-013; Connect Four scene, ADR-036) without modifying `sim/`: right after the provided `_connect_arm`, the driver reconnects `SO101Sim` with that scene (ADR-036).
+- `scene_path` (#44): loads one of our scenes (calibration scene with ArUco markers, ADR-013; Connect Four scene, ADR-036) without modifying `sim/`: right after the provided `_connect_arm`, the driver reconnects `SO101Sim` with that scene (ADR-036).
 
 ## 8. Lifecycle and shutdown
 
 - **Sim**: stop the camera thread, then `disconnect()` (closes the renderer).
-- **Real**: ⚠ `disable_torque_on_disconnect=True` by default — **the arm falls** when torque is cut. `destroy_node()` (provided since upstream #2: disconnect + log) first stops the camera thread, then, since 6.1a, moves the arm to `shutdown_pose` (the brain's `PARK`) at `shutdown_velocity` (0.5 rad/s) at most, by direct backend calls (the ROS context is already down on SIGINT), until each arm joint is within `shutdown_tolerance` (0.05 rad) or 4 s have passed; then it disconnects. The gripper is not commanded: it keeps a held cube. Also active in sim, where it is tested (`test_shutdown.py`; the post-shutdown test of `test_driver_launch.py`).
-  - **4 s, not 5**: `ros2 launch` sends SIGTERM 5 s after its SIGINT, and the entrypoint kills the process group after 5 s. Since #158 a second signal no longer cuts the move, but that SIGKILL would.
+- **Real**: ⚠ `disable_torque_on_disconnect=True` by default — **the arm falls** when torque is cut. `destroy_node()` (provided by upstream #2: disconnect + log) first stops the camera thread, then moves the arm to `shutdown_pose` (the brain's `PARK`) at `shutdown_velocity` (0.5 rad/s) at most, by direct backend calls (the ROS context is already down on SIGINT), until each arm joint is within `shutdown_tolerance` (0.05 rad) or 4 s have passed; then it disconnects. The gripper is not commanded: it keeps a held cube. Also active in sim, where it is tested (`test_shutdown.py`; the post-shutdown test of `test_driver_launch.py`).
+  - **4 s, not 5**: `ros2 launch` sends SIGTERM 5 s after its SIGINT, and the entrypoint kills the process group after 5 s. A second signal does not cut the move (#158), but that SIGKILL would.
   - 0.5 rad/s × 4 s = 2 rad: from a far pose (pan −1 rad to `PARK`'s 1.9) the move stops short, logs "Shutdown pose not reached", and the arm falls from there. The joints under gravity (shoulder lift, elbow, wrist flex) move at the same time as the pan and usually get there: keep a hand ready to hold the forearm during the first sessions (`07` §2).
-  - The entrypoint sends SIGINT to `ros2 launch` only, so that `destroy_node()` runs once, and starts it with `--noninteractive`: compose gives the container a TTY (`tty: true`), and an interactive launch takes a SIGINT for a terminal Ctrl-C that its nodes got too, so it does not forward it. Until 6.1a the nodes never got it: killed by the entrypoint after 5 s (by compose after about 3.5 s), `destroy_node()` never ran. `stop_grace_period: 10s` on `control` covers the move.
+  - The entrypoint sends SIGINT to `ros2 launch` only, so that `destroy_node()` runs once, and starts it with `--noninteractive`: compose gives the container a TTY (`tty: true`), and an interactive launch takes a SIGINT for a terminal Ctrl-C that its nodes got too, so it does not forward it. `stop_grace_period: 10s` on `control` covers the move.
 - **Serial errors**: a bus error in a control tick (`ConnectionError`, a motor packet error `RuntimeError`, an `OSError` from the port) is retried at the next ticks; after `bus_retries` (3) retries (4 failed ticks in a row, 80 ms) the driver stops the control and `/joint_states` with a "Bus lost" error, until it is restarted. The brain detects missing data (freshness, ADR-017) and stops. On shutdown, a lost bus skips the move and a failed disconnect is logged: the node exits in every case. Faults injected in sim: `test_bus_errors.py`.
 
 ## 9. Tests (see `08` and `14`)
 
 | Test | Type | Criterion |
 | --- | --- | --- |
-| Gripper %↔rad conversion and out-of-range clamping | Unit (`so101_common/test/test_robot.py`) | Error < 1e-9 — **implemented** (step 0.3) |
-| `/joint_states` rate | `launch_testing` (`test_driver_launch.py`) | ≥ 20 Hz — **implemented** (step 1.0: 30.0 Hz) |
-| A partial `shoulder_pan` command only moves that joint, at the limited speed | `launch_testing` | Target within 0.02 rad, other joints move < 5 mrad, mean speed over 20–80 % < 2.0 rad/s (limiter in the loop: 1.48 rad/s, without it 3.9 rad/s [MES-33]) — **implemented** (step 1.0: 0.5000 rad) |
-| An unnamed command follows `JOINT_NAMES` order; the gripper comes back in rad | `launch_testing` | 100 % → 1.745 rad, 0 % → −0.175 rad (± 0.05) — **implemented** (step 1.0) |
-| Speed limiter | Unit (`test_limiter.py`) | One step of `v_max·dt`, no overshoot, gripper in %/s — **implemented** (step 1.0) |
-| Clamp + NaN rejection on the command-merge function | Unit | Edge cases covered — to add with the clamp |
-| `so101_common` names and limits = URDF | Unit (`so101_common/test/test_urdf.py`) | Limits equal within 1e-5, names in chain order — **implemented** (step 0.3) |
+| Gripper %↔rad conversion and out-of-range clamping | Unit (`so101_common/test/test_robot.py`) | Error < 1e-9 |
+| `so101_common` names and limits = URDF | Unit (`so101_common/test/test_urdf.py`) | Limits equal within 1e-5, names in chain order |
+| Command merge: partial commands, clamp, NaN/inf, unknown names, size mismatch | Unit and property (`test_command.py`) | Every goal within the limits for any command; clamping twice changes nothing |
+| Speed limiter | Unit (`test_limiter.py`) | One step of `v_max·dt`, no overshoot, gripper in %/s |
+| `/joint_states` rate; a partial `shoulder_pan` command only moves that joint, at the limited speed; an unnamed command follows `JOINT_NAMES` order | `launch_testing` (`test_driver_launch.py`) | ≥ 20 Hz (30.0 Hz); target within 0.02 rad, other joints < 5 mrad, mean speed over 20–80 % < 2.0 rad/s (1.48 rad/s, 3.9 without the limiter [MES-33]); gripper 100 % → 1.745 rad, 0 % → −0.175 rad (± 0.05) |
+| Effort, camera, `camera_info`, sim tools, parameters, steady timers, late ticks | Unit and `launch_testing` (`test_effort.py`, `test_camera.py`, `test_real_camera.py`, `test_sim_tools*.py`, `test_parameters.py`, `test_steady_timers.py`, `test_late_ticks.py`) | Each file's docstring |
+| Shutdown move and serial bus loss, in sim | Unit (`test_shutdown.py`, `test_bus_errors.py`) | `PARK` reached or 4 s; "Bus lost" after `bus_retries` |
 
 ## 10. Structure of the implemented node
 

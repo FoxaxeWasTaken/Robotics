@@ -27,7 +27,6 @@ flowchart LR
     PR["Pull request"] --> CI["PR CI<br/>lint · guards · build · tests"]
     CI --> RV["Review<br/>CODEOWNERS"]
     RV --> M["main (protected)"]
-    M --> CIM["CI on main"]
     M --> N["Nightly<br/>50-episode bench · docs"]
     M --> T["Tag vX.Y.Z<br/>Release + report"]
     M --> MI["mirror.yml<br/>to the school repo"]
@@ -103,7 +102,7 @@ flowchart LR
 
 A new issue gets the same treatment in the PR that brings it: fix it, or accept it in SonarCloud and add it to this list.
 
-In the editor, the SonarQube for IDE extension in connected mode (`.sonarlint/connectedMode.json`: organization and project, no secret; each developer creates their own token from the extension) analyses with SonarCloud's rules and hides the issues triaged there: what it still shows in the files you changed is what the nightly would report.
+In the editor, the SonarQube for IDE extension in connected mode (`.sonarlint/connectedMode.json`: organization and project, no secret; `.vscode/settings.json` binds the workspace to the connection named `foxaxewastaken`; each developer creates their own token from the extension) analyses with SonarCloud's rules and hides the issues triaged there: what it still shows in the files you changed is what the nightly would report.
 
 ## 5. Pull-request CI
 
@@ -126,7 +125,7 @@ flowchart LR
 | `PR title` (`pr-title.yml`) | The PR title is not `type(scope): description` | — |
 | `guards` | brain or perception imports the backend; ground truth or provided extrinsics appear in the pipeline | Offending lines |
 | `control` | `colcon build` fails or a test fails (`colcon test-result --verbose`); only packages with a `test/` folder are tested, one at a time (`--executor sequential`): in parallel, the brain's IK property tests starved the driver's camera test (2.7 Hz on the 4-vCPU runner) | Each package's `pytest.xml` |
-| `perception` | Same for the perception packages (separate build, ADR-002); **skipped until `COLCON_IGNORE` is removed** (step 3.1) | — |
+| `perception` | Same for the perception packages (separate build, ADR-002) | — |
 | `e2e-smoke` | PRs only (§5.4). The stack is not ready within 15 min (`tools/ci/wait_for_stack.sh`), or the bench stops (exit 2: no ground truth, no brain pose). Fewer than 3 successes out of 3 fail it too (`evaluate --min-success 3`, #156): it replays the same three scenes each time (driver seed 0, a fresh stack), all three visible to the camera (MES-12), and passed 11 runs out of 11 after #141 and #144. The 80 % per episode of random scenes does not apply to these three; the nightly's 50 random episodes stay informative (#151). On failure, the job prints `docker compose ps -a` (an exited container shows there) and the last 150 log lines of `control` and `perception`, then the nodes a fresh process finds and whether `/joint_states` and `/end_effector_pose` reach it (#141). The stack runs with `FASTDDS_BUILTIN_TRANSPORTS=DEFAULT`, as the control tests: under the compose default `LARGE_DATA`, a fresh process missed the driver or the brain for 60 s in 2 of 5 runs on the runner. | `eval.csv` |
 
 ### 5.2 Technical notes
@@ -150,7 +149,7 @@ GitHub bills each job rounded up to the minute. Measured on 2026-10-23 (#146), f
 | Draft or docs-only PR push (§5.4) | 3 min: lint, guards, PR title |
 | Push to `main` (a merge) | 1 min since #153, the mirror only (16 before: a PR push without the E2E job, the coverage comment and the PR title) |
 | Nightly, `main` unchanged | 5 to 6 min: docs 3–4, course watch 1, `main-changed` 1 |
-| Nightly, `main` changed | + about 20 min: build and 50 episodes (estimate, the first scheduled bench is the night of 2026-10-23) |
+| Nightly, `main` changed | + about 20 min: build and 50 episodes (estimate), plus the `quality` job |
 
 The table below is the plan from 2026-10-15:
 
@@ -221,13 +220,13 @@ flowchart TD
 | Rule | Detail |
 | --- | --- |
 | Location | `ros2_ws/src/<pkg>/test/`: `test_*.py` (unit), `test_*_launch.py` (component) |
-| Declaration | `setup.py`: `tests_require=["pytest"]`; `package.xml`: `<test_depend>python3-pytest</test_depend>`, `<test_depend>launch_testing_ros</test_depend>` (done for `so101_driver`) |
+| Declaration | `setup.py`: `tests_require=["pytest"]`; `package.xml`: `<test_depend>python3-pytest</test_depend>`, `<test_depend>launch_testing_ros</test_depend>` for the launch tests (all ours but `so101_common`) |
 | Running | `colcon test --packages-select <pkg> --event-handlers console_direct+` then `colcon test-result --verbose` |
 | Determinism | Fixed seed (`seed`); no test-order dependency; no network |
 | Timing tests | Measure over ≥ 3 s **after** a 1 s warm-up; explicit tolerances; values as parameters, not hard-coded |
 | ⚠ Masked by the sim | MuJoCo already clamps setpoints to `ctrlrange`: a sim test does **not** prove the driver clamps (C-15). The clamp is tested at **unit** level on the command-merge function |
 | Ground truth | Allowed **only** under `test/` and in the bench (C-06), enforced by the guards |
-| Flaky tests | Forbidden in `main`: `@pytest.mark.flaky_quarantine` marker, excluded from CI, issue opened with a 1-week fix deadline |
+| Flaky tests | Forbidden in `main`: a `bug` issue with the failing run, then the cause or the test fixed in its own PR, never rerun until green (CONTRIBUTING §5; the E2E job: one rerun at most) |
 | Test data | Small reference images (< 200 KB each) in `test/data/`, generated by a versioned script |
 
 ### 7.3 Example tests and what they revealed [MES-22], [MES-24]
@@ -287,5 +286,5 @@ Files are **in place at the repository root** (workflows, hooks, configurations)
 3. Private repo → Settings → Variables: `CI_ENABLED=true` (done) (CI and nightly are opt-in so they do not run on the school mirror, `16`).
 4. Settings → Rules (or Branches): protect `main` (PR required, 1 approval, required checks **by their displayed job names**: `Lint (pre-commit)`, `Project rules (C-05, C-06, C-23)`, `Build + tests (control image)`, `Build + tests (perception image)`, `PR title (conventional commit)`, and `E2E sim (3 episodes)` since #156). A private repository needs GitHub Pro for this (`15` §12.5). Done on 2026-10-15 (ruleset "main protection", no bypass).
 5. School mirror: `16` §5 (done; first run at the merge of PR #1).
-6. Step 3.1: the `perception` job enables itself once `COLCON_IGNORE` is removed from the package.
+6. The `perception` job runs since step 3.1 removed the package's `COLCON_IGNORE`.
 7. Variable `E2E_ENABLED=true` once the vertical slice works (4.3a): done on 2026-10-23, after #139. The E2E jobs set `EXPOSE_GROUND_TRUTH=true` for the bench, then wait for the stack.

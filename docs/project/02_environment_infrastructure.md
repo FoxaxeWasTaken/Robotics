@@ -55,9 +55,9 @@ Other possible hosts: native Linux (simplest, no usbipd), or a VM (USB passthrou
 
 ## 3. `docker-compose.yml` changes (ADR-002)
 
-### 3.1 Add the missing `perception` service
+### 3.1 The `perception` service
 
-**Since step 3.1** the service builds and starts the perception node with the command below (until then it stayed idle). C-04 shows in `ros2 node list` from `control`: `/so101_perception` appears next to `/so101_driver` and `/so101_brain`.
+Missing from the course's compose file, the service builds and starts the perception node with the command below. C-04 shows in `ros2 node list` from `control`: `/so101_perception` appears next to `/so101_driver` and `/so101_brain`.
 
 The current compose file forbids two concurrent `colcon build` on the same volume, so `perception` builds **into its own folders** (`build_perception/`, `install_perception/`) and **only the packages it needs**:
 
@@ -94,7 +94,7 @@ The current compose file forbids two concurrent `colcon build` on the same volum
       - 'c 81:* rmw'    # video4linux (camera)
 ```
 
-In `control_entrypoint.sh`, following the ttyACM pattern: `[ -e /dev/video$i ] || mknod /dev/video$i c 81 $i` (both in place since 6.2a, for `/dev/video0` to `video3`).
+In `control_entrypoint.sh`, following the ttyACM pattern: `[ -e /dev/video$i ] || mknod /dev/video$i c 81 $i` (both in place, for `/dev/video0` to `video3`).
 
 ### 3.3 `docker/.env`
 
@@ -147,7 +147,7 @@ xhost +local:docker   # once per session (native Linux; WSLg accepts it too)
 docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz"
 ```
 
-The RViz configuration is versioned (C-52) in `so101_bringup/rviz/so101.rviz`; with `--symlink-install`, saving it from RViz writes the versioned file. **Since step 1.5b**: Fixed Frame `base_link`; Grid, RobotModel (`/robot_description`, transient local, so RViz started after `viz` still gets it), TF, Pose `/end_effector_pose`, Pose `/object_position` and `/drop_box_position`, Marker `/drop_box_marker` (the course's `drop_box_marker_pub`, fed by `/drop_box_position`), MarkerArray `/brain/markers` twice ("Brain targets" without its `cube` namespace, "Cube (locked)" with that one only, so the cube has its own checkbox, #159), Image `/external_cam/image_raw` and `/perception/debug_image`. Both images are subscribed **Best effort, depth 1**: compatible with the Reliable camera publisher, and required by the best-effort debug stream (`01` §3.1). A display whose topic does not exist yet (the perception poses, the brain's markers) shows a "no messages" warning until its step; the perception debug image is published since step 3.1. ⚠ Unchecking a Pose display while it receives messages crashes RViz (`13`).
+The RViz configuration is versioned (C-52) in `so101_bringup/rviz/so101.rviz`; with `--symlink-install`, saving it from RViz writes the versioned file. It holds: Fixed Frame `base_link`; Grid, RobotModel (`/robot_description`, transient local, so RViz started after `viz` still gets it), TF, Pose `/end_effector_pose`, Pose `/object_position` and `/drop_box_position`, Marker `/drop_box_marker` (the course's `drop_box_marker_pub`, fed by `/drop_box_position`), MarkerArray `/brain/markers` twice ("Brain targets" without its `cube` namespace, "Cube (locked)" with that one only, so the cube has its own checkbox, #159), Image `/external_cam/image_raw` and `/perception/debug_image`. Both images are subscribed **Best effort, depth 1**: compatible with the Reliable camera publisher, and required by the best-effort debug stream (`01` §3.1). A display with no message yet shows a "no messages" warning: the perception poses until the cube and the box are seen, the brain's markers until the first plan. ⚠ Unchecking a Pose display while it receives messages crashes RViz (`13`).
 
 ## 8. Performance facts [MES-02], [MES-03], [MES-20]
 

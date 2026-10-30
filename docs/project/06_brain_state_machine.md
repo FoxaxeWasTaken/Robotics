@@ -8,7 +8,7 @@
 - **Inputs**: `/joint_states`, `/object_position`, `/drop_box_position`, services `/brain/start`, `/brain/stop`, `/go_to_target`.
 - **Outputs**: `/joint_command` (only channel to the motors, C-05), `/brain_state`, `/end_effector_pose`, `/brain/markers`.
 - **Phase 2** adds the `/brain/pick_place` action, served by the same motion code (ADR-037), and `/brain/set_gripper` for the token handover (ADR-038, `phase2/P2-02` §6).
-- **Starting point**: the course stub (ADR-039). The bootstrap prototype (outside the repository) had ikpy FK + `/end_effector_pose`, `/go_to_target` (position IK, rejected if error > 1 cm), the command sent **in one go** (the driver's speed limiter smoothed it): enough for C-41, not for pick & place, which needs trajectories (§5); target reached within 0.13 mm [MES-24].
+- **Starting point**: the course stub (ADR-039).
 - **Today**: the full cycle runs in sim with the real perception (4.3a, #139). `fsm.py` (§3) is driven by the node's 50 Hz tick, with `/brain/start`, `/brain/stop` and `/brain_state`; `PLAN` runs the planner in a worker process (§4); the plan and the locked cube show on `/brain/markers` (§7). The ground-truth stub (`so101_bringup/test/gt_stub.launch.py`, 4.2c, C-06) stays for development and for the tests that isolate the brain. The success rate: the nightly bench (`08` §2).
 
 ## 2. Code organization
@@ -81,11 +81,11 @@ stateDiagram-v2
 
 - **Lock age on the newest detection**: perception publishes valid detections only, so a dropped frame must not reset the lock; the 5 mm spread already rejects a cube that moved. Detections taken while the arm parks do not count (it crosses the view).
 - **Failed attempts**: `fsm.max_retries` = 3 counts failed attempts, so 3 attempts in all (the diagram's "3 attempts reached"); `/brain/start` resets the count.
-- **`HOME_RETRY`** had no row: it parks before the next lock (or the error), so the arm is never left low near the cube.
+- **`HOME_RETRY`** parks before the next lock (or the error), so the arm is never left low near the cube.
 - **`ERROR` freezes only a running motion**: `ERROR:unreachable` sends no command at all (§8, §10).
 - **Clock**: `Fsm.step(now, inputs)`, `now` from the node's steady clock; ages from the reception time on the same clock, never `time.time()` [MES-37].
-- **`PLAN` timeout 6 s** (step 4.2b; 2 s before): the planner's slowest answer, a cube out of reach, takes 1.7 s to fail, 2.4 s on the CI runner (2.0 s locally while the planner ran in a worker thread); with 2 s it showed as `ERROR:timeout:PLAN` instead of `ERROR:unreachable` [MES-40]. The arm is parked during `PLAN`, so a hung planner costs nothing more. `test_grasp_planner.py` keeps that failure under half the timeout.
-- **`APPROACH` waits for the open gripper** (step 4.2b): `DESCEND` must not bring closed jaws onto the cube. The other motions do not wait for it: in `TRANSPORT` the cube keeps the jaws from closing to 0 %.
+- **`PLAN` timeout 6 s**: the planner's slowest answer, a cube out of reach, takes 1.7 s to fail, 2.4 s on the CI runner; with 2 s it showed as `ERROR:timeout:PLAN` instead of `ERROR:unreachable` [MES-40]. The arm is parked during `PLAN`, so a hung planner costs nothing more. `test_grasp_planner.py` keeps that failure under half the timeout.
+- **`APPROACH` waits for the open gripper**: `DESCEND` must not bring closed jaws onto the cube. The other motions do not wait for it: in `TRANSPORT` the cube keeps the jaws from closing to 0 %.
 
 **Effort threshold**: in sim, the normalized gripper load is **0.12–0.19** when holding the cube vs **0** when empty [MES-10] → threshold 0.06 (×2 margin in `GRASP`). Measured where the FSM judges it, on the nightly's 40 scenes [MES-48]: the `GRASP` window never below 0.120, empty always 0.000, but **the end of `LIFT` drops to 0.087** (the jaws carry the cube instead of squeezing it against the table): the tightest margin is ×1.45 there. Kept at 0.06, which sorts all 120 measured grasps right: lowering it would only move the margin to the empty side, which is exactly 0 in sim only. It is a parameter, **to recalibrate on the real arm** (#69).
 
@@ -135,7 +135,7 @@ sequenceDiagram
 
 ## 6. Parameters (YAML `so101_bringup/config/brain.yaml`)
 
-Declared by `brain_node` (read-only, with ranges): `motion.*` since step 2.2; `grasp.effort_threshold`, `grasp.open_pct`, `grasp.close_pct` and `fsm.*` since step 4.2a (`fsm.park_pose` checked against the URDF limits at startup); the planner's `grasp.tilts_deg`, `grasp.pregrasp_backoff_m`, `grasp.lift_dz_m` and `grasp.drop_tcp_z_m` since step 4.2b (defaults: the planner's own). **Since 5.1a every value of `fsm.Params` is a parameter**: the timeouts of §3.1, the ages, the box footprint, the shortest motion and its margin (`test_parameters.py`). A key the node does not declare stops it at startup. On the real arm, `brain_real.yaml` sets `motion.v_max_rad_s` to 0.5 (`01` §3.3).
+Declared by `brain_node` (read-only, with ranges): every value of `motion.*`, `grasp.*` and `fsm.Params`, the timeouts of §3.1, the ages, the box footprint, the shortest motion and its margin included (`test_parameters.py`); `fsm.park_pose` is checked against the URDF limits at startup. A key the node does not declare stops it at startup. On the real arm, `brain_real.yaml` sets `motion.v_max_rad_s` to 0.5 (`01` §3.3).
 
 | Parameter | Default | Origin |
 | --- | --- | --- |
@@ -166,8 +166,8 @@ Declared by `brain_node` (read-only, with ranges): `motion.*` since step 2.2; `g
 
 - `/brain_state` (transient_local): the current state is always visible, even for late subscribers.
 - Log on every transition: `old → new (reason, time spent in state)`.
-- Log when leaving `PLAN` (step 4.2b): the planner's time and the longest tick period meanwhile, `PLAN: planner answered in 0.23 s; longest tick period 20.6 ms over 12 ticks` (C-33, MES-40).
-- `/brain/markers`: pre-grasp (yellow sphere), grasp (green), drop (blue), approach (arrow from the pre-grasp to the grasp). Since step 4.2b: published when the cycle follows a plan, at the TCP of each of its configurations. Since 3.3b (#129): the locked cube, a red 5 cm cube turned by its yaw (unturned when the yaw is unknown).
+- Log when leaving `PLAN`: the planner's time and the longest tick period meanwhile, `PLAN: planner answered in 0.23 s; longest tick period 20.6 ms over 12 ticks` (C-33, MES-40).
+- `/brain/markers`: pre-grasp (yellow sphere), grasp (green), drop (blue), approach (arrow from the pre-grasp to the grasp), published when the cycle follows a plan, at the TCP of each of its configurations; and the locked cube (#129), a red 5 cm cube turned by its yaw (unturned when the yaw is unknown).
   - **When it shows**: published with the plan when `APPROACH` starts, deleted on entering `LIFT` (about 5 s per cycle). From `LIFT` on, the arm model shows where the cube is, and a cube left at the pick place would be a ghost.
   - **In RViz** (#159): its own display, "Cube (locked)", with its checkbox in the Displays panel. It reads `/brain/markers` with only the `cube` namespace ticked, and "Brain targets" leaves `cube` out: one topic, never drawn twice. RViz applies the saved namespace states to a namespace before its first marker arrives.
   - **Why only then**: it is the target the brain locked, not a live detection. Perception still sees the cube in the jaws but places it about 12 cm off (`05` §7), so a marker following `/object_position` would draw a ghost during the transport.
@@ -180,8 +180,8 @@ Declared by `brain_node` (read-only, with ranges): `motion.*` since step 2.2; `g
 | --- | --- |
 | Every transition of table §3.1 (simulated inputs, fake clock) | Unit `fsm.py` |
 | `/brain/stop` from every state → `STOPPED` | Unit |
-| The cube moved during `APPROACH` (`/sim/randomize`) → empty grasp, `RETRY`, a new lock, `DONE` | Scripted run against the stack (`experiences/exp_fault_scenarios.py approach`, #54) |
-| Perception container stopped during `TRANSPORT` → the cycle still completes (`VERIFY` → `DONE` with a warning) | Scripted run against the stack (`experiences/exp_fault_scenarios.py watch`, #54) |
+| The cube moved during `APPROACH` (`/sim/randomize`) → empty grasp, `RETRY`, a new lock, `DONE` | Robustness demo, case 1 (`robustness_demo.launch.py`, #103; first scripted in `experiences/exp_fault_scenarios.py approach`, #54) |
+| Perception container stopped during `TRANSPORT` → the cycle still completes (`VERIFY` → `DONE` with a warning) | Robustness demo, case 3a (#103; first scripted in `experiences/exp_fault_scenarios.py watch`, #54) |
 | Unreachable target (r = 0.5 m) → `ERROR:unreachable`, **no** command sent | Integration (`test_brain_launch.py`, test_9) |
 | A full cycle with the ground-truth stub: `DONE`, the cube in the box | System, sim (`so101_bringup/test/test_pick_place_gt_launch.py`) |
 | 50-episode evaluation bench (randomized cube and box) | System (`08`) |
@@ -196,7 +196,7 @@ Declared by `brain_node` (read-only, with ranges): `motion.*` since step 2.2; `g
 
 ## 10. The course's robustness questions and our answers (C-36)
 
-The day-2 slides ask "is your code robust?" with five situations [BOOT2 p12]. Each one maps to a design element and a test; the teaching staff wants a quick demo of each (2026-10-16): step 5.4a (#103), one command per case, `ros2 launch so101_bringup robustness_demo.launch.py case:=<n>`, outcomes in `results/robustness_demo.md`. Cases 1 to 4 are handled; the lighting is not: under a dim, warm light the floor turns box-colored and the box too dark, so the box is lost [MES-49]:
+The day-2 slides ask "is your code robust?" with five situations [BOOT2 p12]. Each one maps to a design element and a test; the teaching staff wants a quick demo of each (2026-10-16): step 5.4a (#103), one command per case, `ros2 launch so101_bringup robustness_demo.launch.py case:=<n>`, outcomes in `results/robustness_demo.md`. All five are handled, the lighting since #175 [MES-52]:
 
 | Situation [BOOT2 p12] | Our answer | Where | Test |
 | --- | --- | --- | --- |

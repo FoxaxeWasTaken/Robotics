@@ -12,7 +12,7 @@ flowchart LR
   H --> M["3×3 morphological opening"]
   M --> C["external contours → largest, area/solidity filter"]
   C --> T{"touches the border?"}
-  T -- yes --> X["mark TRUNCATED (do not publish, or far-edge estimate)"]
+  T -- yes --> X["mark TRUNCATED (do not publish)"]
   T -- no --> G["centroid (moments) → ray K⁻¹ → plane z = 2.5 cm"]
   G --> O{"cube: pixels < 0.85 × a whole cube's silhouette there?"}
   O -- yes --> Z["mark OCCLUDED (do not publish)"]
@@ -47,7 +47,7 @@ The box follows the same pattern (brown mask, centroid, plane z = 2.5 cm = mid-h
 
 **Under a dim, warm light** (`lighting:=dim`, the robustness demo's case 5) the grey floor turns orange (S 93–106) and the box dark (V 24–59) [MES-49]; saturation still separates them. Hence the S floors well above the lit floor and arm (S ≤ 113), under the box (S ≥ 164) and the cube (S ≥ 205), and V floors under their shaded sides: every object 96–100 % in its range under both lights, no floor pixel in either, over 20 placements of `/sim/randomize` [MES-52] (#175; `so101_bringup/test/test_lighting_detection.py`).
 
-Result in sim: **0 missed detection, 0 false positive** over 80 episodes [MES-13], with the first ranges (cube S ≥ 100, V ≥ 60; box S ≥ 90, V ≥ 40). These thresholds are `perception.yaml`'s, replacing the course stub's yellow ones (old golden ball).
+Result in sim: **0 missed detection, 0 false positive** over 80 episodes [MES-13], with the first ranges (cube S ≥ 100, V ≥ 60; box S ≥ 90, V ≥ 40), before the S and V floors of the dim light above.
 
 ROS parameters (`config/perception.yaml`, read at each image, so `ros2 param set` tunes them at runtime): `hsv_cube_h_min`, `hsv_cube_h_max`, `hsv_cube_s_min`, `hsv_cube_v_min`, `hsv_box_h_min`, `hsv_box_h_max`, `hsv_box_s_min`, `hsv_box_v_min`, `hsv_box_v_max`, `min_area_px`, `min_solidity`. A hue interval wraps around 180 when `h_min > h_max`: the red cube is `160`, `8`.
 
@@ -114,7 +114,7 @@ def pixel_to_world(u, v, K, R_wc, t_wc, z0):        # so101_perception/geometry.
 
 On the reference images (`test_geometry.py`, exact camera pose of the labels): cube mean **0.8 mm**, max 1.6 mm over the 32 whole cubes (2.4 mm and 3.9 mm with the provided principal point, §3.2); box floor center mean **3.4 mm**, max 11.3 mm over 44, the worst where the arm hides 15 % of the box.
 
-**Cube yaw** (to align the jaws): back-project the contour points onto the top-face plane (z = 5 cm), then `cv2.minAreaRect` in metric coordinates → median error **1.3°**, p90 8.3° [MES-14] (modulo 90°, cube symmetry). **Since step 3.3c** `geometry.cube_yaw` does it on the detected contour, yaw in [−45°, 45°), published as the orientation of `/object_position` (a quaternion about z); on the 32 whole cubes of the reference images: median 0.46°, p90 2.62° (`test_geometry.py`).
+**Cube yaw** (to align the jaws): back-project the contour points onto the top-face plane (z = 5 cm), then `cv2.minAreaRect` in metric coordinates → median error **1.3°**, p90 8.3° [MES-14] (modulo 90°, cube symmetry). `geometry.cube_yaw` does it on the detected contour, yaw in [−45°, 45°), published as the orientation of `/object_position` (a quaternion about z); on the 32 whole cubes of the reference images: median 0.46°, p90 2.62° (`test_geometry.py`).
 
 > Rejected alternatives: **known size** (distance from apparent size) is less accurate at 320×240 (1 px error on ~15 px side ≈ 7 % of the distance); **depth camera** unavailable in sim; **stereo** out of scope.
 
@@ -145,7 +145,7 @@ flowchart TD
 
 **The tool** (3.4b, #45): `ros2 run so101_perception calibrate_extrinsics --markers <layout.yaml> --out <file>` grabs 10 frames and the driver's `camera_info` (K with OpenCV pixel centers [MES-41], and D), detects the markers with **sub-pixel corners** (without: 1.17 px of mean reprojection on the sim scene), solves on all the frames (`so101_perception.calibration`, pure) and writes the file. The arm goes to PARK first: at its start pose it hides 2 of the 8 sim markers (in sim, `ros2 topic pub -r 10 /joint_command sensor_msgs/msg/JointState "{position: [1.9, -1.7, 1.5, 0.7, 0.0, 0.0]}"` for a few seconds). It refuses, exit 1 and nothing written, under 4 markers of the layout or at a mean reprojection at or above the layout's `max_reprojection_px` (1 px in `markers_sim.yaml`, 2 px for the real jig). The layout file: `dictionary`, `side_m`, the centers in `base_link`, `max_reprojection_px`. Measured in sim [MES-47]: 8 markers, 0.87 px, **0.53 mm / 0.024°**. The same 0.868 px whatever the cube's pose, llvmpipe's threads and vector width, the Mesa version (24.0.5 to 25.2.8) and OpenCV's CPU paths [MES-54]; one CI runner once gave 1.17 px, two corners of marker 3 unrefined, gone on the rerun (#187): `test_sim_scene.py` then prints the machine (CPU, OpenCV, MuJoCo, OSMesa) in its failure.
 
-**The file** (`geometry.save_extrinsics` and `load_extrinsics`): `T_base_cam`, the 4×4 transform from the camera's OpenCV optical frame to `base_link`; `parent_frame: base_link`; `child_frame: external_cam_optical_frame`; `method`; `date`; `reprojection_error_px` (`null` without a calibration). `load_extrinsics` refuses other frames and a transform that is not rigid. Since step 3.4c (#46), the file is **our calibration** of the sim camera of `so101_bringup/config/sim_scene.yaml` (the tool on the calibration scene, the arm in PARK: 8 markers, 0.868 px), no longer a copy of the camera pose; at startup perception publishes it as the **static TF** `base_link → external_cam_optical_frame` (01 §4), which RViz's "Camera overlay (calibration check)" display uses to draw the robot over the image. `so101_bringup/test/test_sim_scene.py` fails if it is 5 mm or 0.3° from the camera the sim renders: moving the sim camera needs a new calibration. Perception with it [MES-47]: 50/50 scenes published, mean 0.9 mm, max 1.8 mm (0.7 mm with the exact pose, MES-46).
+**The file** (`geometry.save_extrinsics` and `load_extrinsics`): `T_base_cam`, the 4×4 transform from the camera's OpenCV optical frame to `base_link`; `parent_frame: base_link`; `child_frame: external_cam_optical_frame`; `method`; `date`; `reprojection_error_px` (`null` without a calibration). `load_extrinsics` refuses other frames and a transform that is not rigid. The file is **our calibration** of the sim camera of `so101_bringup/config/sim_scene.yaml` (#46: the tool on the calibration scene, the arm in PARK, 8 markers, 0.868 px); at startup perception publishes it as the **static TF** `base_link → external_cam_optical_frame` (01 §4), which RViz's "Camera overlay (calibration check)" display uses to draw the robot over the image. `so101_bringup/test/test_sim_scene.py` fails if it is 5 mm or 0.3° from the camera the sim renders: moving the sim camera needs a new calibration. Perception with it [MES-47]: 50/50 scenes published, mean 0.9 mm, max 1.8 mm (0.7 mm with the exact pose, MES-46).
 
 ### 5.2 Measured results in sim [MES-16]
 
@@ -162,7 +162,7 @@ Review conclusions:
 
 ### 5.3 Sim implementation without touching `sim/`
 
-- **Since 3.4a (#44)**: `ros2 launch so101_bringup sim.launch.py calibration:=true` (on its own `ROS_DOMAIN_ID` next to a running stack) starts the driver at 640×480 on the calibration scene.
+- `ros2 launch so101_bringup sim.launch.py calibration:=true` (#44) (on its own `ROS_DOMAIN_ID` next to a running stack) starts the driver at 640×480 on the calibration scene.
 - The scene is **generated at launch** by `so101_bringup.sim_scene`: a copy of the provided scene folder, edited with `mujoco.MjSpec`, with an ArUco-textured plane per marker. The driver loads it through its `scene_path` parameter, by reconnecting `SO101Sim` right after the provided `_connect_arm`, which stays untouched (ADR-036).
 - **The layout**: `so101_bringup/config/markers_sim.yaml`, the single source of truth (`DICT_4X4_50`, 7.5 cm squares on 10 cm planes, centers in `base_link`), chosen for the camera's view: spread over the image, each ≥ 28 px wide at 640×480, not behind the arm in PARK, clear of every cube and box position. Seen from above, a marker image's up is +x and its right −y: `so101_common.markers.marker_corners` gives the four corners in `cv2.aruco`'s order, for the scene and the calibration tool.
 - **Checked** by `so101_bringup/test/test_sim_scene.py`: ≥ 5 markers detected at 640×480 with the arm in PARK (8/8 with the provided camera and, laid out again for it in #47, 8/8 with the camera of `sim_scene.yaml`), each corner within 5 px (about 3 px measured) of where the layout puts it, `sim/` untouched.
@@ -171,7 +171,7 @@ Review conclusions:
 
 - Print the markers at 100 % scale (check the side with a caliper) on a **jig mat** that also carries the robot base outline → marker positions in `base_link` known by construction.
 - More accurate variant, **touch probing**: bring the TCP (pointer in the gripper) onto the marker corners and read the FK → corners in `base_link` without manual measurement.
-- **Startup self-check**: perception detects the still-visible markers and computes the reprojection error with the stored extrinsics → above 3 px: warning "camera moved, recalibrate".
+- **Startup self-check** (to build, 6.3a): perception detects the still-visible markers and computes the reprojection error with the stored extrinsics → above 3 px: warning "camera moved, recalibrate".
 
 ## 6. Field of view: 21 % of cube positions were truncated [MES-12], none since the camera moved [MES-45]
 
@@ -183,8 +183,8 @@ With the provided camera at 320×240, over 2,000 positions drawn like `randomize
 
 **Mitigations, in order of preference**:
 
-1. **Move the sim camera** (allowed by the teaching staff, 2026-10-16), **done in #47**: `so101_bringup/config/sim_scene.yaml`, applied by `so101_bringup.sim_scene` to a copy of the scene edited with `mujoco.MjSpec` (ADR-036), never in `sim/`. The pose, chosen by projection then checked by rendering [MES-45]: (0.458, 0.339, 0.363), on the provided camera's side (azimuth 50°), 35° down, 0.59 m from the work area. Every corner of every cube and box of `/sim/randomize` stays ≥ 10 px inside the image: **0 cube cut over 300 scenes, against 57 (19 %) with the provided pose**; the cube shows 23.2 px wide (18.1 before); the arm in PARK hides neither the cube nor, at 99 %, the box. **Not lower**: at 30° down the box's walls hide most of a cube lying in it, and perception read it outside the box footprint in 3 of 48 cases, so `VERIFY` sent the brain back to grasp it in the box (8 failures in a 50-episode bench); at 35°, 48/48. `test_sim_scene.py` checks the edge on 200 scenes. Perception's extrinsics are our calibration of this camera since step 3.4c (#46); the reference images of the tests keep the provided pose that rendered them, in their own file (`so101_perception/test/data/camera_extrinsics.yaml`). The evaluation is not settled, but partial occlusions by the robot should be handled when possible (§7).
-2. **Far-edge** method for truncated detections: the top edge (opposite the camera) is still visible → back-project it on z = 5 cm, then step back 2.5 cm along the viewing direction projected on the floor. Less accurate; needs a dedicated test.
+1. **Move the sim camera** (allowed by the teaching staff, 2026-10-16), **done in #47**: `so101_bringup/config/sim_scene.yaml`, applied by `so101_bringup.sim_scene` to a copy of the scene edited with `mujoco.MjSpec` (ADR-036), never in `sim/`. The pose, chosen by projection then checked by rendering [MES-45]: (0.458, 0.339, 0.363), on the provided camera's side (azimuth 50°), 35° down, 0.59 m from the work area. Every corner of every cube and box of `/sim/randomize` stays ≥ 10 px inside the image: **0 cube cut over 300 scenes, against 57 (19 %) with the provided pose**; the cube shows 23.2 px wide (18.1 before); the arm in PARK hides neither the cube nor, at 99 %, the box. **Not lower**: at 30° down the box's walls hide most of a cube lying in it, and perception read it outside the box footprint in 3 of 48 cases, so `VERIFY` sent the brain back to grasp it in the box (8 failures in a 50-episode bench); at 35°, 48/48. `test_sim_scene.py` checks the edge on 200 scenes. Perception's extrinsics are our calibration of this camera (#46); the reference images of the tests keep the provided pose that rendered them, in their own file (`so101_perception/test/data/camera_extrinsics.yaml`). A cube the arm or the box partly hides is not published either (#167, §7).
+2. **Far-edge** method for truncated detections, not built (no cube is cut since the move): the top edge (opposite the camera) is still visible → back-project it on z = 5 cm, then step back 2.5 cm along the viewing direction projected on the floor. Less accurate; needs a dedicated test.
 3. A higher resolution (640×480) does **not** change the field of view, only accuracy.
 4. On the **real** arm: place the camera to cover the whole area **with margin** (ADR-021).
 
@@ -194,7 +194,7 @@ With the provided camera at 320×240, over 2,000 positions drawn like `randomize
 - Perception **publishes nothing** when the detection is invalid (absent, truncated, outlier): freshness is carried by `header.stamp`, the brain judges its age.
 - **Measured** with the moved camera [MES-46]: arm in PARK, 200/200 scenes published, mean 0.7 mm, max 2.8 mm, none above 2 cm. A cube the arm *partly* hid was still published, its center pulled towards its visible part (up to 17.4 mm with the arm passing between the camera and the cube, 20.5 mm with the arm left there). **Since #167** perception publishes nothing for it (the occlusion guard, §2.3): 200/200 still published in PARK (max 2.5 mm), the arm passing max **9.6 mm**, none above 2 cm; a cube lying in the box is published inside its footprint or not at all, from every 30° pose of MES-45 too (0/48 outside, 3–7/48 before). The cost: at our pose 30 of 48 cubes lying in the box are no longer published, so `VERIFY` waits its 2 s without a detection and ends in `DONE` (`06` §3.1): the bench's cycles take about 1 s more (p50 16.3 s, 15.2 s before) [MES-53].
 - **A held cube is still detected.** The mask only looks for red, so the cube in the jaws stays `OK` in the debug image and is published. Its position is wrong: the ray meets the plane z = 2.5 cm beyond the cube, about 12 cm off for a 10 cm lift (computed from the camera pose). It is harmless because the brain reads `/object_position` only at `PARK`, in `WAIT_TARGET` and `VERIFY` (06 §3); during the grasp it relies on the gripper effort (ADR-016). It is also why RViz shows the cube the brain locked rather than the live detection (§9).
-- Temporal filter: rolling median of 5; a measurement more than 2 cm away from the median is rejected (unless it persists 5 times = the object really moved). Implemented in `filter.py`, one filter per object; the window and the jump are `filter_size` and `filter_jump_m` since 5.1a; the box is filtered at z = 2.5 cm and published at its floor, z = 0.
+- Temporal filter: rolling median of 5; a measurement more than 2 cm away from the median is rejected (unless it persists 5 times = the object really moved). Implemented in `filter.py`, one filter per object; the window and the jump are `filter_size` and `filter_jump_m`; the box is filtered at z = 2.5 cm and published at its floor, z = 0.
 
 ## 8. Tests
 
@@ -209,7 +209,7 @@ With the provided camera at 320×240, over 2,000 positions drawn like `randomize
 
 **Reference images** (step 3.2a), in `so101_perception/test/data/`:
 
-- **Content**: 44 PNG at 320×240 (32 whole cubes, 8 cut by the border, 4 out of view; 2.2 MB, ADR-029) and `labels.json`.
+- **Content**: 52 PNG at 320×240 (32 whole cubes, 8 cut by the border, 4 out of view, 8 partly hidden; 2.5 MB, ADR-029), `labels.json` and the camera pose that rendered them, `camera_extrinsics.yaml` (the provided pose, §6).
   - Per image: cube center and yaw (in [0, π/2)), box floor center, all in `base_link`; `cube_view` = `full`, `truncated` or `out_of_view` (the 8 projected cube corners against the image bounds), or `occluded` (#167: a whole view, 20–80 % of the cube hidden by the arm, put by IK between the camera and the cube, or by the box's walls; `occluder` says which, never published); the fractions of the cube and of the box that the arm leaves visible.
   - Once: K, the camera pose in the OpenCV optical frame, the arm joints and the seed.
 - **Scenes**: drawn as `/sim/randomize` draws them, with the arm at `PARK` (06 §6), where the brain locks its target. The arm never hides the cube there; it hides part of the box in 8 images (85 % visible at worst), from MuJoCo segmentation against the same scene with the arm lifted out of the picture.
@@ -224,7 +224,7 @@ With the provided camera at 320×240, over 2,000 positions drawn like `randomize
 
   - `so101_perception` checks the size budget, and that the labels agree with the pixels: no red pixel when out of view, red on the border exactly when truncated, blob centroid within 3 px of the projected center.
   - `test_detection.py` runs `detection.py` on every image: each whole cube within 2 px of its projected center (0.7 px at worst), each truncated cube flagged, no red pixel out of view, the box within 4 px (2.8 px with 15 % hidden by the arm). Synthetic scenes cover the red on both sides of H = 0, the box limits, the guards and the four borders. Median 0.6 ms per frame.
-  - `test_geometry.py`: the FLIP on a MuJoCo camera of known pose, the round trip over the workspace (< 1e-9 m), no point for a ray that misses the table, the cube and box errors of §4, the extrinsics file (round trip, refused files), and the committed file within 5 mm / 0.3° of the labels' camera pose: still true once 3.4 replaces it.
+  - `test_geometry.py`: the FLIP on a MuJoCo camera of known pose, the round trip over the workspace (< 1e-9 m), no point for a ray that misses the table, the cube and box errors of §4, the extrinsics file (round trip, refused files), and the reference images' own file within 5 mm / 0.3° of the labels' camera pose.
 
 ## 9. Visualization (C-24)
 

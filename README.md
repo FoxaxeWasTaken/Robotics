@@ -32,7 +32,7 @@ A camera spots a red cube, the SO-ARM101 arm grasps it and drops it into a box โ
 | Pick & place, real perception, randomized cube and box | Each night `main` changes, 50 episodes: [latest results](https://github.com/FoxaxeWasTaken/Robotics/issues?q=is%3Aissue+in%3Atitle+%22Nightly+bench+results%22). Since the sim camera moved (#47), no cube is cut by the image edge any more (21 % were): 50/50 on the nightly's scenes in a local bench | MES-45, MES-46, [`08` ยง2](docs/project/08_quality_tests.md) |
 | Full cycle with the ground truth in place of perception | 20/20 in the box, cycle median 14.6 s | MES-40 |
 | Grasp chain in closed loop (IK, planner, min-jerk) | 40/40 in the box | MES-38 |
-| IK accuracy (FK of the solution against the target) | mean 0.161 mm, max 0.218 mm | MES-43 |
+| IK accuracy in closed loop (`/go_to_target` on 20 targets, MuJoCo's TCP against the target) | mean 0.161 mm, max 0.218 mm | MES-43 |
 | Cube localization on the table plane (exact camera pose) | mean 0.50 mm, max 1.00 mm | MES-41 |
 | Robustness, the five questions of the slides | All five handled: the cube moved mid-action, failed grasps, perception lost, a target out of reach, a dim, warm light (5/5 cycles in each of 2 runs; 0/5 before #175) | [`results/robustness_demo.md`](results/robustness_demo.md), MES-49, MES-52 |
 
@@ -145,6 +145,7 @@ Details: [`01`](docs/project/01_architecture.md). All the design docs: [docs/pro
 | `docker/` | Images and compose (`control`, `perception`, `viz`) |
 | `tools/` | `so101` (everyday commands), `ci/` (the CI scripts and their tests) |
 | `docs/project/` | Design, decisions (ADRs), roadmap, measurements |
+| `results/` | Milestone reports: the 50-episode bench, the calibration, the IK accuracy, the robustness demo |
 | `core/`, `sim/`, `so101_description/` | Course kit (unmodified) |
 
 ## Contributing

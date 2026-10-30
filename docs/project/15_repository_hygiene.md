@@ -119,8 +119,8 @@ flowchart LR
 | `CODEOWNERS` | Automatic reviewers per lane | `.github/` | — |
 | `PULL_REQUEST_TEMPLATE.md` | PR checklist (Definition of Done) — **a single global template**: with several PR templates GitHub shows no chooser and requires a `?template=` URL parameter | `.github/` | markdownlint |
 | `ISSUE_TEMPLATE.md` | **A single issue template**: the ticket anatomy of §12, also used for bugs. "New issue" opens it directly: no template chooser, no `?template=` in the URL | `.github/` | markdownlint |
-| `dependabot.yml` | Monthly GitHub Actions updates | `.github/` | valid YAML |
-| `.vscode/*.json` | Shared extensions and settings (ruff on save, Mermaid) | `.vscode/` | — |
+| `dependabot.yml` | Monthly GitHub Actions updates, a release a week old at least | `.github/` | valid YAML |
+| `.vscode/*.json` | Shared extensions and settings (ruff on save, Mermaid, the SonarQube Cloud binding, `14` §4) | `.vscode/` | — |
 
 ## 5. Root README: target structure
 
@@ -169,7 +169,7 @@ gitGraph
 | Types | `feat` `fix` `docs` `test` `refactor` `perf` `build` `ci` `chore` `revert` | — |
 | PR merges | **Squash merge**: 1 PR = 1 commit on `main`, author = PR author, co-authors kept (`Co-authored-by`) | Linear history, always attributable (C-07) |
 | `main` branch | Protected: PR, 1 approval, green CI, no force-push (private repo: needs GitHub Pro, §12.5) | — |
-| Versions | SemVer tags per **functional milestone** | `v0.1.0` driver · `v0.2.0` IK · `v0.3.0` perception · `v1.0.0` sim pick & place validated · `v1.1.0` real arm · `v2.x` phase 2 |
+| Versions | SemVer tags per **functional milestone** | `v1.0.0` sim pick & place validated · `v1.1.0` real arm · `v2.x` phase 2 (no `v0.x` tag was made, ADR-028 update) |
 | Release | One GitHub Release per tag: notes (CHANGELOG), bench report, **link** to the video | — |
 | Changelog | [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), updated in the PR preparing the tag | Option: generated from commits (git-cliff) |
 | Language | **English** for code, commits, docs and presentations | Consistency with the conventional commits and the defense |

@@ -39,13 +39,13 @@ flowchart LR
 
 | Package | Type | Container | Content | Status |
 | --- | --- | --- | --- | --- |
-| `so101_driver` | ament_python | control | `driver_node`: sim/real backend, control loop, camera, sim services | Base driver (step 1.0): `/joint_states`, `/joint_command`, speed limiter; sim camera thread (step 1.2); clamp, parameters, `camera_info`, effort (1.1, 1.3); `/sim/randomize`, `seed`, ground truth (1.4); provided `_connect_arm` unchanged (ADR-032) |
-| `so101_brain` | ament_python | control | `brain_node` + pure modules: `kinematics.py`, `grasp_planner.py`, `trajectory.py`, `fsm.py` | FK/IK in `kinematics.py` (step 2.1), min-jerk `trajectory.py` (2.2); `/end_effector_pose`, `/go_to_target` streaming a trajectory; orientation IK (2.1b), `grasp_planner.py` validated in closed loop (2.4); pure `fsm.py` (4.1) driven by a 50 Hz tick, `/brain/start`, `/brain/stop`, `/brain_state` (4.2a); planning worker, `/brain/markers` (4.2b): full cycle in sim with the ground-truth stub (4.2c) |
-| `so101_perception` | ament_python | perception | `perception_node` + pure modules: `detection.py`, `geometry.py`, `calibration.py` (offline tool) | `/object_position` and `/drop_box_position` from the HSV detection, the provisional camera pose and the median filter (3.3b), the cube yaw from `minAreaRect` (3.3c); `/perception/debug_image` with masks, centroids and status; reference images with labels in `test/data/` (3.2a) |
+| `so101_driver` | ament_python | control | `driver_node`: sim/real backend, control loop, camera, sim services | **Exists**: `/joint_states`, `/joint_command` (partial, clamped, speed-limited), the sim camera thread, `camera_info`, effort, `/sim/randomize`, `seed`, ground truth for the bench; real-arm safety (shutdown move, bus loss) and webcam; a warning for each late tick; provided `_connect_arm` unchanged (ADR-032) |
+| `so101_brain` | ament_python | control | `brain_node` + pure modules: `kinematics.py`, `grasp_planner.py`, `trajectory.py`, `fsm.py` | **Exists**: FK/IK (no self-collision), min-jerk trajectories, `/end_effector_pose`, `/go_to_target`, the grasp planner in a worker process, the pure `fsm.py` driven by a 50 Hz tick, `/brain/start`, `/brain/stop`, `/brain_state`, `/brain/markers` |
+| `so101_perception` | ament_python | perception | `perception_node` + pure modules: `detection.py`, `geometry.py`, `calibration.py` (offline tool) | **Exists**: `/object_position` and `/drop_box_position` from the HSV detection, our extrinsic calibration (`calibrate_extrinsics`) and the median filter; the cube yaw from `minAreaRect`; a cube cut by the image edge or partly hidden is not published; `/perception/debug_image` with masks, centroids and status; reference images with labels in `test/data/` |
 | `so101_interfaces` | ament_cmake | both | `.srv` (existing); phase 2 adds `Connect4Board.msg`, `DropToken.srv` and the `PickPlace` action (ADR-037) | Existing |
 | `so101_description` | ament_python | viz | URDF, meshes, `viz.launch.py`. **Do not modify** (C-08) | Provided |
 | **`so101_common`** | ament_python (pure Python, no dependency) | both | **Single source of truth**: joint names, limits, gripper %↔rad conversion, frame names | **Exists** (ADR-003, step 0.3) |
-| **`so101_bringup`** | ament_python | control | Top-level launch files (`sim.launch.py`, `real.launch.py`), `config/*.yaml`, RViz config, tools (`evaluate`, calibration) | **Exists** (step 0.3): `sim.launch.py`, `config/driver.yaml` and `brain.yaml`, `rviz/so101.rviz`; since 5.1a `real.launch.py`, `driver_real.yaml` and `brain_real.yaml`; the calibration tools later |
+| **`so101_bringup`** | ament_python | control | Top-level launch files (`sim.launch.py`, `real.launch.py`), `config/*.yaml`, RViz config, the sim scene, the evaluation bench | **Exists**: `sim.launch.py`, `real.launch.py`, the robustness demo's launch file, `config/*.yaml` (driver, brain, the sim scene and its markers), `rviz/so101.rviz`, the sim scene generator, the evaluation bench (`evaluate`), the sim-backed tests |
 | **`so101_connect4`** | ament_python | perception + control | Phase 2: pure `game.py` and `board.py`, `board_reader_node`, `game_node` | **Planned** (ADR-037) |
 
 > **Why `so101_common`?** Without it, the gripper 0–100 % ↔ rad mapping, the limits and the joint names would be duplicated in the driver, the brain and the tests — the number-one source of silent bugs in robotics (a joint clamped differently on each side).
@@ -58,7 +58,7 @@ This table is **the contract** between team members. Any change goes through a P
 
 | Topic | Type | Producer → consumers | Rate | Units and content | Frame (`frame_id`) | Publisher QoS |
 | --- | --- | --- | --- | --- | --- | --- |
-| `/joint_states` | `sensor_msgs/JointState` | driver → brain, RSP | **30 Hz** target (≥ 20 imposed; the bootstrap prototype measured 30 Hz) | `name` = 6 joints; `position` in **rad**, gripper included (converted % → rad for RSP); `effort` = normalized load in [-1, 1] (ADR-016): positive towards larger angles, except the gripper, positive when squeezing (03 §5) | — | Reliable, depth 10 |
+| `/joint_states` | `sensor_msgs/JointState` | driver → brain, RSP | **30 Hz** (≥ 20 imposed) | `name` = 6 joints; `position` in **rad**, gripper included (converted % → rad for RSP); `effort` = normalized load in [-1, 1] (ADR-016): positive towards larger angles, except the gripper, positive when squeezing (03 §5) | — | Reliable, depth 10 |
 | `/joint_command` | `sensor_msgs/JointState` | brain (or human) → driver | Event-driven; 50 Hz during trajectories | `name` = subset of the 6 joints; `position` in **rad**, **gripper in % (0–100)** | — | Reliable, depth 10 |
 | `/external_cam/image_raw` | `sensor_msgs/Image` (`rgb8`) | driver → perception, RViz | **10 Hz** | Raw image (320×240 in sim) | `external_cam_optical_frame` | **Reliable**, depth 2 |
 | `/external_cam/camera_info` | `sensor_msgs/CameraInfo` | driver → perception | 10 Hz, **same `stamp`** as the image | K, D, P, size | `external_cam_optical_frame` | Reliable, depth 2 |
@@ -82,7 +82,7 @@ This table is **the contract** between team members. Any change goes through a P
 
 ### 3.3 Main parameters
 
-Declared with descriptors (description, range, read-only: read at startup) in each node, loaded from `so101_bringup/config/*.yaml`. The driver declares `use_sim`, `port` and, since step 1.1, the rates, speed limits and image size, since step 1.4 `seed` and `expose_ground_truth`, since 6.1a `shutdown_pose` and the per-motor `max_relative_target_*`, since 6.2a `camera_device` and `camera_info_file`, since 5.1a `shutdown_velocity`, `shutdown_tolerance` and `bus_retries`.
+Declared with descriptors (description, range, read-only: read at startup) in each node, loaded from `so101_bringup/config/*.yaml`. The driver declares `use_sim`, `port`, the rates, speed limits and image size, `seed`, `expose_ground_truth`, `shutdown_pose`, `shutdown_velocity`, `shutdown_tolerance`, `bus_retries`, the per-motor `max_relative_target_*`, `camera_device` and `camera_info_file`.
 
 - **Every tunable is in the base files** (`driver.yaml`, `brain.yaml`, `perception.yaml`), with its sim value.
 - **A node stops at startup on a key it does not declare.** ROS would ignore it, so a typo in a real file would keep the sim's value.
@@ -115,7 +115,7 @@ Declared with descriptors (description, range, read-only: read at startup) in ea
 | driver | `camera_info_file` | empty | Webcam: ROS calibration YAML (6.2b); empty: no `camera_info` |
 | perception | `extrinsics_file` | `config/camera_extrinsics.yaml` | Produced by calibration |
 | perception | `hsv_*`, `min_area_px`, `min_solidity` | see `05` | Tunable at runtime |
-| perception | `process_rate_hz`, `filter_size`, `filter_jump_m` | 20 Hz, 5, 0.02 m | Read at startup; the median filter (`05` §7) |
+| perception | `process_rate_hz`, `filter_size`, `filter_jump_m`, `min_cube_area_ratio` | 20 Hz, 5, 0.02 m, 0.85 | Read at startup; the median filter (`05` §7), the partly hidden cube (`05` §2.3) |
 | brain | `grasp.*`, `motion.*`, `fsm.*` | see `06` §6 | Heights, speeds, thresholds, timeouts; `motion.v_max_rad_s` 1.0 rad/s, 0.5 on the real arm |
 
 **Real arm** (`real.launch.py`, or `use_sim:=false`): `driver_real.yaml` and `brain_real.yaml` load on top of the base files. They change only these keys (`test_real_config.py`):
@@ -176,9 +176,9 @@ sequenceDiagram
 
 | Command | Effect |
 | --- | --- |
-| `docker compose up -d control perception viz` | `control` builds the workspace then starts `so101_bringup sim.launch.py` (driver + brain); `perception` stays idle until step 3.1, then waits for its build and starts `perception_node`; `viz` starts RSP + static TF + marker |
+| `docker compose up -d control perception viz` | `control` builds the workspace then starts `so101_bringup sim.launch.py` (driver + brain); `perception` waits for its build and starts `perception_node`; `viz` starts RSP + static TF + marker |
 | `USE_SIM=false` in `docker/.env` | The entrypoint starts `real.launch.py`: `sim.launch.py` with `use_sim:=false`, which adds `driver_real.yaml` and `brain_real.yaml` (§3.3); nothing else changes (C-10) |
-| `ros2 service call /brain/start std_srvs/srv/Trigger` | Starts a cycle: the arm parks and waits for its target (step 4.2a); the full cycle once perception (3.3) and the planning worker (4.2b) are in |
+| `ros2 service call /brain/start std_srvs/srv/Trigger` | Starts a full pick & place cycle (`06` §3); `tools/so101 cycle` does it after `/sim/randomize` |
 
 The entrypoint (`docker/control_entrypoint.sh`) starts `so101_bringup sim.launch.py`, or `real.launch.py` with `REAL_ROBOT_PORT` as `port:=` when `USE_SIM=false` (`docker/.env`). The course's `driver.launch.py` and `brain.launch.py` stay, to start one node alone.
 

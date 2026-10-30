@@ -151,14 +151,14 @@ Deliberately excluded; may come back in phase 2.
 
 ## 7. Global Definition of Done (phase 1)
 
-Phase 1 is done when **every** box is ticked, with evidence:
+Phase 1 is done when **every** box is ticked, with evidence. Ticked on 2026-10-30, for the sim release `v1.0.0`:
 
-- [ ] C-01 to C-08: compliant architecture, checked by `ros2 node list`, CI and code review.
-- [ ] Driver: `/joint_states` ≥ 20 Hz (target 30–50 Hz), image ~10 Hz, `camera_info`, partial commands, clamping. Launch tests green.
-- [ ] IK: **measured** error < 1 cm on ≥ 20 random targets (sim: < 1 mm expected [MES-09]).
-- [ ] Perception: mean error < 1 cm on object and box, **with our own calibration** (no `get_camera_extrinsics`).
-- [ ] Brain: explicit state machine, `/brain_state`, `/brain/start`, `/brain/stop`, never blocking.
-- [ ] Evaluation bench: **≥ 90 % success over 50 episodes** with randomized cube **and** box, no ground truth in the pipeline.
+- [x] C-01 to C-08: compliant architecture, checked by `ros2 node list`, CI and code review (the guards of `tools/ci/guards.sh` on every PR).
+- [x] Driver: `/joint_states` ≥ 20 Hz (target 30–50 Hz), image ~10 Hz, `camera_info`, partial commands, clamping. Launch tests green (`03` §0).
+- [x] IK: **measured** error < 1 cm on ≥ 20 random targets (sim: < 1 mm expected [MES-09]): 20 targets, mean 0.161 mm, max 0.218 mm [MES-43].
+- [x] Perception: mean error < 1 cm on object and box, **with our own calibration** (no `get_camera_extrinsics`): the cube within 0.9 mm on average, 1.8 mm at most, over 50 scenes [MES-47]; the box has no error measure of its own, but every drop of the 50-episode bench landed in it.
+- [x] Brain: explicit state machine, `/brain_state`, `/brain/start`, `/brain/stop`, never blocking (`06`; the robustness demo, `results/robustness_demo.md`).
+- [x] Evaluation bench: **≥ 90 % success over 50 episodes** with randomized cube **and** box, no ground truth in the pipeline: 50/50 (4.5b, `results/bench_sim_2026-10-27.md`), and each night `main` changes.
 - [ ] Real arm: filmed pick & place (team target ≥ 7/10; the brief: "real robot preferred").
 - [ ] Documented repo, each member's Git history visible, 30 s video.
 

@@ -73,7 +73,7 @@ flowchart LR
 
 ## 3. Code review (2026-10-08)
 
-Summary of the gaps found by [CTRL] and [QA] (details in `03` §0 and `06` §1):
+Summary of the gaps [CTRL] and [QA] found in the code of that date (the course stubs merged with the bootstrap work), kept as a record: every one is fixed since (`03` §0 for the driver, `04` and `06` for the brain).
 
 | Block | Compliant | Blocking gaps | Gaps to fix |
 | --- | --- | --- | --- |
