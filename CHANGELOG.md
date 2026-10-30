@@ -4,6 +4,10 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-31
+
+The simulation milestone (step 5.3, `15` §6): the whole pick & place cycle in MuJoCo with the team's driver, perception and brain, on our own camera calibration. The phase-1 criterion met, 50/50 seeded episodes with the cube and the box randomized (4.5b, C-42); the five robustness cases of the slides handled (5.4a). The GitHub Release of `v1.0.0` links the nightly bench of the tagged commit. The real arm comes in `v1.1.0`.
+
 ### Added
 
 - Perception publishes nothing for a partly hidden cube (3.5c, #167): its blob against the smallest silhouette of a whole cube at its point (`geometry.cube_area_ratio`); below `min_cube_area_ratio` (0.85, `perception.yaml`) it is `OCCLUDED`, like a truncated one. The arm passing in front: max error 9.6 mm (17.4 before); a cube lying in the box is never read outside it, from any 30° pose of MES-45; bench 50/50, cycles about 1 s longer (`VERIFY` waits for a cube the box hides). 8 reference images of hidden cubes (`make_perception_dataset --occluded`). MES-53, `05` §2.3, §7, §8.
@@ -99,3 +103,6 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 - Driver and brain: timers and motion time on the steady clock. On WSL2 the system clock steps back ~2.6 s every 30 s: `/joint_states` stopped and motions froze for 2.6 s at each step; largest `/joint_states` gap now 37 ms [MES-37].
 - Control container shutdown: SIGINT goes to `ros2 launch` only, which forwards one to each node; signalling the whole process group gave each node a second SIGINT that interrupted `destroy_node()` (traceback on every `docker compose stop`).
 - Driver: SIGINT or SIGTERM while a timer callback publishes no longer ends in a traceback and exit code 1 (seen once in 40 SIGTERM stops).
+
+[Unreleased]: https://github.com/FoxaxeWasTaken/Robotics/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/FoxaxeWasTaken/Robotics/releases/tag/v1.0.0
