@@ -79,6 +79,7 @@ SHUTDOWN_TIMEOUT = 11.0  # s
 GROUND_TRUTH_RATE_HZ = 10.0
 GROUND_TRUTH_BODIES = {"object": "pickup_object", "drop_box": "drop_box"}  # /sim/ground_truth/<key>: body
 PARKED_BOX_XY = (2.0, 0.0)  # m: the box waits there while the randomized cube settles
+JOINT_STATES = "/joint_states"
 
 # OSMesa's llvmpipe renders with one thread per core by default; they starve the 50 Hz control tick
 # (p99 up to 25.4 ms). Half the cores keep it at 20.4 ms with the image at 10 Hz [MES-34]. A value set in the
@@ -189,14 +190,14 @@ class DriverNode(rclpy.node.Node):
         self._bus_errors = 0  # consecutive failed control ticks
         self._bus_lost = False
 
-        self._pub_joint_states = self.create_publisher(JointState, "/joint_states", 10)
+        self._pub_joint_states = self.create_publisher(JointState, JOINT_STATES, 10)
         self.create_subscription(JointState, "/joint_command", self._cb_joint_command, 10)
         # Timers on the steady clock: the system clock can step back (WSL2: ~2 s every 30 s [MES-37]) and
         # would pause them. Stamps stay on the ROS clock.
         self._steady = Clock(clock_type=ClockType.STEADY_TIME)
         self._ticks = {
             "control step": TickClock(1.0 / self._p["control_rate_hz"]),
-            "/joint_states": TickClock(1.0 / self._p["joint_state_rate_hz"]),
+            JOINT_STATES: TickClock(1.0 / self._p["joint_state_rate_hz"]),
         }
         self.create_timer(1.0 / self._p["control_rate_hz"], self._control_step, clock=self._steady)
         self.create_timer(
@@ -369,7 +370,7 @@ class DriverNode(rclpy.node.Node):
 
         Silent once the bus is lost: the brain stops on stale /joint_states (ADR-017).
         """
-        self._warn_if_late("/joint_states")
+        self._warn_if_late(JOINT_STATES)
         if self._bus_lost:
             return
         msg = JointState()

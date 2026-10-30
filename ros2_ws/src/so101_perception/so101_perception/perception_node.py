@@ -155,25 +155,31 @@ class PerceptionNode(rclpy.node.Node):
         occluded = False
         info = self._camera_info
         if info is not None and info.k[0] > 0.0:  # no K, no ray
-            K = np.array(info.k).reshape(3, 3)
-            for name, blob, z in (("cube", found.cube, None), ("box", found.box, 0.0)):  # box: its floor
-                if blob is None or blob.truncated:
-                    continue
-                p = pixel_to_world(blob.u, blob.v, K, self._R, self._t, PLANE_Z)
-                if p is None:
-                    continue
-                if (
-                    name == "cube"
-                    and cube_area_ratio(blob.contour, p, K, self._R, self._t) < self._min_area_ratio
-                ):
-                    occluded = True  # its center would be pulled towards its visible part (MES-46)
-                    continue
-                self._publish(name, blob, p, K, msg.header.stamp, z)
+            occluded = self._locate(found, info, msg.header.stamp)
         debug = self._bridge.cv2_to_imgmsg(
             annotate(rgb, status(found.cube, occluded), found), encoding="rgb8"
         )
         debug.header = msg.header
         self._pub_debug.publish(debug)
+
+    def _locate(self, found, info, stamp):
+        """Publishes the poses of the valid detections; True when the cube is partly hidden: unpublished."""
+        occluded = False
+        K = np.array(info.k).reshape(3, 3)
+        for name, blob, z in (("cube", found.cube, None), ("box", found.box, 0.0)):  # box: its floor
+            if blob is None or blob.truncated:
+                continue
+            p = pixel_to_world(blob.u, blob.v, K, self._R, self._t, PLANE_Z)
+            if p is None:
+                continue
+            if (
+                name == "cube"
+                and cube_area_ratio(blob.contour, p, K, self._R, self._t) < self._min_area_ratio
+            ):
+                occluded = True  # its center would be pulled towards its visible part (MES-46)
+                continue
+            self._publish(name, blob, p, K, stamp, z)
+        return occluded
 
     def _publish(self, name, blob, p, K, stamp, z):
         """The filtered point p of the blob on the plane, z replaced when given; nothing when rejected."""
