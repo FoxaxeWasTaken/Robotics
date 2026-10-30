@@ -22,6 +22,7 @@ def move_to(robot, setpoint, goal, rate_hz, velocity, timeout, tolerance):
         elapsed = time.monotonic() - start
         if error <= tolerance or elapsed >= timeout:
             return elapsed, error
-        setpoint = step_towards(setpoint, goal, 1.0 / rate_hz, velocity, 0.0)
+        # every motor: the real arm checks each action against one max_relative_target per motor (#194)
+        setpoint = {**setpoint, **step_towards(setpoint, goal, 1.0 / rate_hz, velocity, 0.0)}
         robot.send_action({f"{name}.pos": value for name, value in setpoint.items()})
         time.sleep(1.0 / rate_hz)

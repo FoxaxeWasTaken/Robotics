@@ -20,7 +20,7 @@
 | `effort` (grasp detection, ADR-016) | ✅ sim, `effort.py`; real: empty until 6.4a | 1.3 |
 | `/external_cam/camera_info` (C-13); `frame_id` = optical frame (ADR-005) | ✅ `camera.py` | 1.3 |
 | `/sim/randomize`, `seed`, ground truth for the bench (§7) | ✅ `randomize.py` | 1.4 |
-| Real-arm shutdown: `disconnect()` cuts the torque, the arm falls | ✅ slow move to `PARK` first, 4 s at most (§8, `shutdown.py`) | 6.1a |
+| Real-arm shutdown: `disconnect()` cuts the torque, the arm falls | ✅ slow move to `PARK` first, 11 s at most (§8, `shutdown.py`) | 6.1a |
 | Per-motor `max_relative_target`; serial bus errors | ✅ (§2, §8; ADR-023) | 6.1a |
 | Real camera | ✅ `camera_device`, MJPG, 10 Hz; `camera_info` from a calibration YAML (§6; ADR-007) | 6.2a |
 | A warning for each late tick (#176) | ✅ `late.py` (§3) | 5.4b |
@@ -62,7 +62,7 @@ if not self._use_sim:
 
 Real-arm critical points:
 
-- `max_relative_target` triggers a `Present_Position` read at each `send_action` (a few ms on the bus), compatible with 50 Hz. The dict must contain **all 6 motors** (the driver always sends 6 targets).
+- `max_relative_target` triggers a `Present_Position` read at each `send_action` (a few ms on the bus), compatible with 50 Hz. The dict must contain **all 6 motors**, and so must every action: the control loop and the shutdown move always send 6 targets (a shutdown move of the 5 arm joints raised a `ValueError` on the real arm, #194).
 - ⚠ **By default `connect()` may call `calibrate()`, which waits for keyboard `input()`** — it would block the node in the container. The provided version calls `connect(calibrate=False)` and **fails explicitly** on mismatch: safer than writing offsets into the motors (a file from another arm would produce wrong motions). What to do: `07` §3.1.
 - Backend imports are **module-level** (provided code): harmless, since the driver only runs in the `control` image, which contains both `so101_sim` and `lerobot`.
 - **Do not** put the camera in `SO101FollowerConfig.cameras`: `get_observation()` would read the camera inside the control loop (§6).
@@ -183,8 +183,8 @@ The brain recovers the gripper percentage with the inverse conversion from `so10
 
 - **Sim**: stop the camera thread, then `disconnect()` (closes the renderer).
 - **Real**: ⚠ `disable_torque_on_disconnect=True` by default — **the arm falls** when torque is cut. `destroy_node()` (provided by upstream #2: disconnect + log) first stops the camera thread, then moves the arm to `shutdown_pose` (the brain's `PARK`) at `shutdown_velocity` (0.5 rad/s) at most, by direct backend calls (the ROS context is already down on SIGINT), until each arm joint is within `shutdown_tolerance` (0.05 rad) or 4 s have passed; then it disconnects. The gripper is not commanded: it keeps a held cube. Also active in sim, where it is tested (`test_shutdown.py`; the post-shutdown test of `test_driver_launch.py`).
-  - **4 s, not 5**: `ros2 launch` sends SIGTERM 5 s after its SIGINT, and the entrypoint kills the process group after 5 s. A second signal does not cut the move (#158), but that SIGKILL would.
-  - 0.5 rad/s × 4 s = 2 rad: from a far pose (pan −1 rad to `PARK`'s 1.9) the move stops short, logs "Shutdown pose not reached", and the arm falls from there. The joints under gravity (shoulder lift, elbow, wrist flex) move at the same time as the pan and usually get there: keep a hand ready to hold the forearm during the first sessions (`07` §2).
+  - **11 s**: `PARK` from the farthest pose, `shoulder_pan` 3.8 rad from it at 0.5 rad/s, plus the slow end of the move (the real arm took 8.6 s for 3.4 rad, #195). The entrypoint kills the process group 14 s after its SIGINT, `ros2 launch` the driver 17 s after (`sigterm_timeout` 12 s, then SIGKILL 5 s later), compose 18 s after `stop` (`stop_grace_period`). A second signal does not cut the move (#158), a SIGKILL would.
+  - If the move still falls short (a blocked joint), it logs "Shutdown pose not reached" and the arm falls from there. The joints under gravity (shoulder lift, elbow, wrist flex) move at the same time as the pan and usually get there: keep a hand ready to hold the forearm during the first sessions (`07` §2).
   - The entrypoint sends SIGINT to `ros2 launch` only, so that `destroy_node()` runs once, and starts it with `--noninteractive`: compose gives the container a TTY (`tty: true`), and an interactive launch takes a SIGINT for a terminal Ctrl-C that its nodes got too, so it does not forward it. `stop_grace_period: 10s` on `control` covers the move.
 - **Serial errors**: a bus error in a control tick (`ConnectionError`, a motor packet error `RuntimeError`, an `OSError` from the port) is retried at the next ticks; after `bus_retries` (3) retries (4 failed ticks in a row, 80 ms) the driver stops the control and `/joint_states` with a "Bus lost" error, until it is restarted. The brain detects missing data (freshness, ADR-017) and stops. On shutdown, a lost bus skips the move and a failed disconnect is logged: the node exits in every case. Faults injected in sim: `test_bus_errors.py`.
 
@@ -198,7 +198,7 @@ The brain recovers the gripper percentage with the inverse conversion from `so10
 | Speed limiter | Unit (`test_limiter.py`) | One step of `v_max·dt`, no overshoot, gripper in %/s |
 | `/joint_states` rate; a partial `shoulder_pan` command only moves that joint, at the limited speed; an unnamed command follows `JOINT_NAMES` order | `launch_testing` (`test_driver_launch.py`) | ≥ 20 Hz (30.0 Hz); target within 0.02 rad, other joints < 5 mrad, mean speed over 20–80 % < 2.0 rad/s (1.48 rad/s, 3.9 without the limiter [MES-33]); gripper 100 % → 1.745 rad, 0 % → −0.175 rad (± 0.05) |
 | Effort, camera, `camera_info`, sim tools, parameters, steady timers, late ticks | Unit and `launch_testing` (`test_effort.py`, `test_camera.py`, `test_real_camera.py`, `test_sim_tools*.py`, `test_parameters.py`, `test_steady_timers.py`, `test_late_ticks.py`) | Each file's docstring |
-| Shutdown move and serial bus loss, in sim | Unit (`test_shutdown.py`, `test_bus_errors.py`) | `PARK` reached or 4 s; "Bus lost" after `bus_retries` |
+| Shutdown move and serial bus loss, in sim | Unit (`test_shutdown.py`, `test_bus_errors.py`) | `PARK` reached or 11 s, every motor in each command (#194), time for the farthest pose (#195); "Bus lost" after `bus_retries` |
 
 ## 10. Structure of the implemented node
 

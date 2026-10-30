@@ -14,6 +14,7 @@ so101_driver:
     shutdown_velocity: 0.5      # rad/s, capped by max_joint_velocity; the move has 4 s (ros2 launch's SIGTERM)
     shutdown_tolerance: 0.05    # rad: shutdown_pose reached
     bus_retries: 3              # failed control ticks retried before the driver stops (03 §8)
+    joint_zero_offsets: [0.0, 0.0, 0.0, 0.0, 0.0]  # rad, ARM_JOINT_NAMES order: none in sim (07 §4)
     max_relative_target_arm: 0.2       # real arm only: LeRobot's max delta per command, rad (07 §2)
     max_relative_target_gripper: 25.0  # real arm only: same, gripper, %
     expose_ground_truth: false  # true for the evaluation bench only (C-06)

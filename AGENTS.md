@@ -64,4 +64,5 @@ bash tools/ci/guards.sh           # host, repo root (needs the git repo): projec
 - Files written in the containers (`build/`, `install/`, `log/`, `__pycache__`) belong to root: delete them from inside a container.
 - `pyproject.toml` excludes course files still identical to upstream, each by name: remove a file from `extend-exclude` when you rewrite it, or it is never linted; never add a glob, it catches the team's files too (#161).
 - ikpy knows no collision volumes: `Kinematics._solve` rejects the solutions `self_collides` flags (the arm folded onto its shoulder or base, `04` §8) [MES-43]; keep every IK call behind `_solve`, and still seed from a bent pose (q = 0 is singular).
+- Real arm: the driver gives LeRobot one `max_relative_target` per motor, so every `send_action` must name the 6 motors or LeRobot raises a `ValueError` (#194); a ROS parameter file loaded later wins, so `driver_real.yaml` comes last (#197); LeRobot's joint zeros are not the URDF's: `joint_zero_offsets` (#196). The sim checks none of these.
 - More: `docs/project/13` (runbook) and `04` §8 (kinematics pitfalls).

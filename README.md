@@ -11,7 +11,7 @@ A camera spots a red cube, the SO-ARM101 arm grasps it and drops it into a box �
 ## What it does today
 
 - **In simulation, the whole cycle runs on its own.** `/brain/start` parks the arm out of the camera's view. Perception then locates the cube and the box: HSV detection, pixel → 3D, median filter, cube yaw. The brain plans a grasp, approaches, grasps, checks the grip, carries the cube, drops it, checks it is in the box, and comes back to rest.
-- **The real arm**: the driver is ready (speed limits, slow park before the torque is cut, stop on a lost serial bus, the USB webcam, the real-arm parameters). Commissioning with the team comes next (stage 6).
+- **The real arm**: the driver is ready (speed limits, slow park before the torque is cut, stop on a lost serial bus, the USB webcam, the real-arm parameters, the joint zeros corrected). Commissioning started on 2026-10-30: tests 1 to 3 of `07` §3.2 passed, the shutdown move checked from the far side; the camera calibration and the grasp come next (stage 6).
 - **Sim ↔ real**: `USE_SIM` in `docker/.env`, plus a few documented values ([`01` §3.3](docs/project/01_architecture.md)).
 - **Phase 2** (planned): play Connect Four against the arm, which reads the grid with its camera and drops its own tokens ([design](docs/project/phase2/README.md)).
 

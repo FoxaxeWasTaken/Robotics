@@ -30,6 +30,8 @@ Produced images (camera views, masks, ArUco) are written to `/tmp/exp_out`.
 | `exp_connect4_kinematics.py` | Phase 2: can the arm drop a token into a vertical grid? Edge-on vs facing, clearance (with and without a riser), drop-pose method, cell size in the image | MES-27 to 29, 31, 32 | ~3 min |
 | `exp_driver_speed.py` | How fast does a joint move behind the driver's speed limiter (sim time, with and without it)? | MES-33 | < 1 min |
 | `exp_calibration_zero.py` | Real arm: is LeRobot's zero the URDF zero? FK of the rest pose under both hypotheses | MES-30 | < 1 min |
+| `exp_zero_offsets.py` | Real arm: each joint's reading at the URDF zero, read-only: the `joint_zero_offsets` line | MES-55 | < 1 min |
+| `exp_gripper_load.py` | Real arm: the gripper's load open, closed empty and on the cube (only the gripper moves) | MES-56 | 1 min |
 | `exp_park_pose.py` | Is PARK reached within 0.01 rad through the actuators? Does the parked arm hide the cube or the box? | MES-39 | < 1 min |
 | `exp_gt_cycles.py` | Does a full pick & place cycle run in sim with the ground-truth stub, and how long does it take? What does planning cost the brain's tick? | MES-40 | 6 min (20 cycles) |
 | `exp_ik_self_collision.py` | Which position-IK solutions collide with the arm itself? From which seed does `test_ik_accuracy` get none? | MES-43 | < 1 min |
