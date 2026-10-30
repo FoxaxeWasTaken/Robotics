@@ -35,3 +35,7 @@ Component tests make CI too slow: mark them `slow` and run them nightly only.
 ## Update (2026-10-16, ticket 0.3d)
 
 DDS isolation of tests: the images include colcon-ros-domain-id-coordinator, so `colcon test` gives each package a free `ROS_DOMAIN_ID`, never the current one. Measured: two parallel runs next to a stack on domain 42 got domains 18 and 59 and stayed green; without it they received 82 Hz of mixed `/joint_states` and one failed (`14` §4).
+
+## Update (2026-10-30, #189)
+
+The flaky-test rule is now CONTRIBUTING §5: a flaky test gets a `bug` issue with the failing run, then the cause or the test is fixed in its own PR, as #141, #142 and #187 did; never rerun until green. The E2E job is the one exception: one rerun of the failed job at most. No quarantine marker was made.

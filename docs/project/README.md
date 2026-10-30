@@ -2,7 +2,7 @@
 
 This folder gathers **every choice** of the project, its rationale (imposed by the brief or decided by the team, with evidence), and **the step-by-step path** to complete the project cleanly.
 
-> Written by a virtual team of experts who **checked each other's work** (`11_cross_review_and_measurements.md`). Disagreements were settled by **32 reproducible measurements** (`experiences/`, tools actually run): out of 44 objections, **36 initial proposals were changed**. The folder contains **40 diagrams** (plus one in the root README), all rendered and checked by mermaid-cli.
+> Written by a virtual team of experts who **checked each other's work** (`11_cross_review_and_measurements.md`). Disagreements were settled by **reproducible measurements** (`experiences/`, tools actually run; 32 for the cross-review, 54 in all, `11` §4): out of 44 objections, **36 initial proposals were changed**. The folder contains **40 diagrams** (plus one in the root README), all rendered and checked by mermaid-cli.
 
 ## Where to start?
 
@@ -85,7 +85,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | 1 | ROS 2 Jazzy, Python, 3 nodes in 2 containers (+ viz); **`perception` service added**, missing from the compose file | Imposed + decided | Inter-container `talker` [MES-18] |
 | 2 | Driver: 50 Hz tick = 2 backend calls, the **sim runs in real time**; **sim camera in a dedicated thread rendering a state copy** | Decided | 9 Hz → 30 Hz [MES-22], [MES-24]; jitter p99 25 ms [MES-20] |
-| 3 | Provided `_connect_arm` kept (explicit failure on calibration mismatch); partial commands, speed limiter; **clamp** and `camera_info` still to add | Imposed + decided | ADR-032; C-13, C-15 |
+| 3 | Provided `_connect_arm` kept (explicit failure on calibration mismatch); partial commands, speed limiter, **clamp** to the joint limits and `camera_info` (`03` §0) | Imposed + decided | ADR-032; C-13, C-15 |
 | 4 | **IK: ikpy** (the team's choice, confirmed) behind a façade; seeds `pan = −azimuth` from the pan axis | Decided (revised) | 100 % position, 97 % pointing [MES-21]; pan sign [MES-06] |
 | 5 | Grasp **as vertical as possible (0 → 30°)**, best-effort jaw alignment, transport with position-only IK | Decided | **39/40** sim pick & place, TCP error 0.1–0.3 mm [MES-09] |
 | 6 | **Minimum-jerk** trajectories streamed at 50 Hz by the brain | Decided | [MES-09] |
@@ -95,7 +95,7 @@ flowchart LR
 | 10 | **Grasp detected by gripper effort** (position is useless) + visual verification | Decided (revised) | 0.12–0.19 vs 0 [MES-10] |
 | 11 | `/sim/randomize` (cube **and** box) in the driver, **without modifying `sim/`**; ground truth only for the bench | Decided | C-42, C-06 |
 | 12 | Layered safety; **PARK before cutting torque**; webcam in **MJPG** | Decided | [MES-17]; LeRobot code review |
-| 13 | Quality: **ruff + pre-commit + markdownlint + conventional commits**; **GitHub Actions CI inside our Docker images** (parity), opt-in; project-rule guards; 50-episode nightly | Decided | Tooling executed, 13/13 hooks green [MES-23]; CI would have caught C-11 [MES-22] |
+| 13 | Quality: **ruff + pre-commit + markdownlint + conventional commits**; **GitHub Actions CI inside our Docker images** (parity), opt-in; project-rule guards; 50-episode nightly; SonarQube Cloud in the nightly, on trial (`14` §4) | Decided | Tooling executed, 13/13 hooks green [MES-23]; CI would have caught C-11 [MES-22] |
 | 14 | Repository: **private team repo + `upstream` without push + school mirror** (`main` + tags, forced exact copy, key in a `main`-only environment); squash merge, SemVer tags per milestone; no LFS; English everywhere; license to decide | Decided / open | `git remote -v`; ADR-027 to 033 |
 | 15 | **Phase 2: Connect Four against the robot** (validated by the staff): store-bought grid placed edge-on, the arm on a riser, depth guide, tokens handed over, drop poses with the wrist roll locked, wrist camera if needed, `PickPlace` action in the brain | Decided | [MES-27] to [MES-29], [MES-31], [MES-32]; ADR-034 to 038 |
 | 16 | **Starting code: the course stubs**; the bootstrap prototype stays outside the repository, as a reference (every line goes through a reviewed PR, C-50) | Decided | ADR-039; [MES-24] for what the prototype proved |

@@ -22,7 +22,7 @@
 | **2. Kinematics and motion** | 2.1 → 2.4 | Measured IK < 1 cm (C-41), trajectories, grasp planner |
 | **3. Perception** | 3.1 → 3.5 | Object and box localized with **our** calibration |
 | **4. Brain and pick & place (sim)** | 4.1 → 4.5 | Full cycle, ≥ 90 % over 50 randomized episodes (C-42) |
-| **5. Hardening** | 5.1 → 5.2 | Clean configuration, documentation, shared understanding |
+| **5. Hardening** | 5.1 → 5.4 | Clean configuration, documentation, shared understanding, the `v1.0.0` release, the robustness demo |
 | **6. Real arm** | 6.1 → 6.5 | Filmed real pick & place (C-43); 6.1 starts right after stage 1 |
 | **7. Phase 2: go further** | 7.1 → 7.2 | Own application on top of phase 1: pitched, built, filmed (C-54). Chosen and validated: Connect Four ([`phase2/`](phase2/README.md)), own roadmap [`phase2/P2-04`](phase2/P2-04_roadmap.md) |
 | **8. Delivery** | 8.1 | Demo videos, defense, final release (C-53) |
@@ -92,35 +92,37 @@ The owners are those of `.github/CODEOWNERS` (0.1d), which requests their review
   - [x] School mirror (`16`, ADR-033): key on a member's account (no admin rights on the school repository), secret in the `main`-only `school-mirror` environment, `SCHOOL_REPO_SSH_URL`, `CI_ENABLED=true`; first run at the merge of PR #1.
   - [x] Starting code decided (2026-10-15): the course stubs as shipped (upstream PR #1 and #2 included); the bootstrap prototype stays outside the repository as a reference (ADR-039).
   - [x] Protect `main` (ruleset "main protection": PR, 1 approval, 5 required checks, squash only, no bypass).
-  - [ ] GitHub Project set up (`15` §12): one epic per stage, one PR-sized ticket per sub-step (sub-issues, *blocked by* relationships), milestones = SemVer versions.
-  - [ ] Assign the lanes (§1.2); set a 30-minute weekly sync.
+  - [x] GitHub Project set up (2026-10-15, `15` §12): one epic per stage, one PR-sized ticket per sub-step (sub-issues, *blocked by* relationships), milestones = SemVer versions.
+  - [x] Assign the lanes (§1.2).
+  - [ ] Set a 30-minute weekly sync.
 - **Done when**: all three members pushed a commit through a reviewed PR; the first mirror run is green.
 
 ### Step 0.2 — Working environment for everyone
 
 - **Tasks**: checklist of `02` §10 on **every** machine, `.env` created, `talker` received in the other container (C-04), RViz open.
-- **Done when**: `ros2 topic echo /chatter` works from `control` to `perception` on all three machines; `ros2 node list` shows the driver and the brain (the course stubs start and stay idle; the sim arm moves from step 1.0).
+- **Done when**: `ros2 topic echo /chatter` works from `control` to `perception` on all three machines; `ros2 node list` shows the driver and the brain.
 - **Pitfalls**: no `colcon build` outside containers; webcam/arm held by Windows (`02` §5).
 
 ### Step 0.3 — Common base and continuous integration
 
 - **Tasks**
   - [x] Governance and CI files **in place at the repository root** (ruff, pre-commit, markdownlint, editorconfig, gitattributes, gitignore, CONTRIBUTING, README, CODEOWNERS, PR template, issue template, CI/nightly/mirror workflows) — validated (`14`, [MES-23]).
-  - [ ] Replace the handles in `CODEOWNERS`; everyone runs `pre-commit install`.
+  - [x] Replace the handles in `CODEOWNERS` (#130).
+  - [ ] Everyone runs `pre-commit install`.
   - [x] `so101_common` package: `JOINT_NAMES`, `ARM_JOINT_NAMES`, `JOINT_LIMITS`, `GRIPPER_RANGE_RAD`, `pct_to_rad`/`rad_to_pct`, frame names; tests comparing names and limits to the URDF.
   - [x] `so101_bringup` package: `sim.launch.py` (driver + brain), `config/*.yaml`, `rviz/so101.rviz`.
-  - [x] `perception` service in `docker-compose.yml` (idle; its separate build comes with step 3.1, `02` §3.1).
+  - [x] `perception` service in `docker-compose.yml`, with its own build folders (`02` §3.1).
 - **Done when**: CI is green on `main`; `docker compose up -d control perception viz` starts all three services.
 
 ---
 
 ## Stage 1 — Complete driver (sim)
 
-> Starting point: the course stub (`03` §0, ADR-039). The bootstrap prototype (outside the repository) did steps 1.0 and 1.2: a reference, not code to paste.
+> Starting point: the course stub (`03` §0, ADR-039).
 
 ### Step 1.0 — Base driver
 
-- **Tasks**: control loop (50 Hz) with the speed limiter; `/joint_states` (rad, gripper in rad, ≥ 20 Hz, target 30 Hz); `/joint_command` (partial commands by name, empty name list = `JOINT_NAMES` order, gripper in %); gripper %↔rad conversion; pytest declared in the package (AGENTS.md trap) and a first `launch_testing` test. The provided `disable_torque()` lines stay active: the real arm can be read, not moved, until 6.1a (`07` §2).
+- **Tasks**: control loop (50 Hz) with the speed limiter; `/joint_states` (rad, gripper in rad, ≥ 20 Hz, target 30 Hz); `/joint_command` (partial commands by name, empty name list = `JOINT_NAMES` order, gripper in %); gripper %↔rad conversion; pytest declared in the package (AGENTS.md trap) and a first `launch_testing` test. The provided `disable_torque()` lines stayed active until 6.1a commented them out (`07` §2).
 - **Done when**: `test_driver_launch.py` is green in CI: `/joint_states` ≥ 20 Hz; a partial command moves only the named joint.
 
 ### Step 1.1 — Command compliance
@@ -128,7 +130,7 @@ The owners are those of `.github/CODEOWNERS` (0.1d), which requests their review
 - **Tasks**: clamping to the limits (`so101_common`), NaN/inf rejection, command-merge logic extracted into a pure function, unit tests.
 - **Done when**: `pytest` covers partial, out-of-range, NaN, unknown-name and size-mismatch commands.
 
-### Step 1.2 — Execution model and non-blocking camera (prototype: 30 Hz with the camera on [MES-24])
+### Step 1.2 — Execution model and non-blocking camera
 
 - **Tasks**: camera in a dedicated thread, render on a state copy, backend lock.
 - **Done when**: with the image at 10 Hz, the control period has **p99 ≤ 25 ms** and `test_driver_launch.py` (≥ 20 Hz) is green in CI.
@@ -136,7 +138,7 @@ The owners are those of `.github/CODEOWNERS` (0.1d), which requests their review
 ### Step 1.3 — `camera_info`, effort, frames
 
 - **Tasks**: `CameraInfo` with the image's `stamp`; `frame_id = external_cam_optical_frame`; normalized `effort` (sim: `actuator_force/forcerange`).
-- **Done when**: `ros2 topic echo --once /external_cam/camera_info` shows K = [[246,0,160],[0,246,120],[0,0,1]]; the gripper effort rises to ~0.15 when closing on the cube (scripted test).
+- **Done when**: `ros2 topic echo --once /external_cam/camera_info` shows K = [[246,0,159.5],[0,246,119.5],[0,0,1]] (OpenCV pixel centers, [MES-41]); the gripper effort rises to ~0.15 when closing on the cube (scripted test).
 
 ### Step 1.4 — Sim tools for evaluation
 
@@ -154,7 +156,7 @@ The owners are those of `.github/CODEOWNERS` (0.1d), which requests their review
 
 ### Step 2.1 — `kinematics.py` module
 
-- **Tasks**: FK/IK (ikpy) in a testable façade used by `brain_node.py`: FK published on `/end_effector_pose`, `/go_to_target` (position IK, rejected if the error is > 1 cm, as the prototype did); add `ik_point` (`orientation_mode="Z"`) and `ik_pose` (`"all"`); seeds `pan = −azimuth from the pan axis`; multi-start; FK verification.
+- **Tasks**: FK/IK (ikpy) in a testable façade used by `brain_node.py`: FK published on `/end_effector_pose`, `/go_to_target` (position IK, rejected if FK misses the target by more than 1 mm); add `ik_point` (`orientation_mode="Z"`) and `ik_pose` (`"all"`); seeds `pan = −azimuth from the pan axis`; multi-start; FK verification.
 - **Done when**: tests pass: FK = MuJoCo site within 0.01 mm; 100 % position success on 200 targets; ≥ 95 % vertical pointing for z ≤ 6 cm [MES-21].
 - **Pitfalls**: pan sign, MuJoCo site orientation rotated by 90° (`04` §8).
 

@@ -6,5 +6,13 @@
   },
   "files.eol": "\n",
   "files.insertFinalNewline": true,
-  "files.exclude": { "ros2_ws/build*": true, "ros2_ws/install*": true, "ros2_ws/log": true }
+  "files.exclude": {
+    "ros2_ws/build*": true,
+    "ros2_ws/install*": true,
+    "ros2_ws/log": true
+  },
+  "sonarlint.connectedMode.project": {
+    "connectionId": "foxaxewastaken",
+    "projectKey": "FoxaxeWasTaken_Robotics"
+  }
 }

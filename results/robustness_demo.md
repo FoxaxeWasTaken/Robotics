@@ -30,7 +30,7 @@ Run on `feat/103-robustness-demo` (from `main` at `ebf5d87`), Windows 11 + WSL2 
 | **3a. The object leaves the view** (during the transport) | The perception node stopped on entering `TRANSPORT` | The cycle completes on the last known values (C-33) | `TRANSPORT` → `RELEASE` → `HOME` → `VERIFY` → `DONE` (*warning: cube not seen for 2 s, assumed in the box*) | **Handled** |
 | **3b. The object leaves the view** (before the cycle) | The perception node stopped before `/brain/start` | No target, no motion beyond `PARK` | `WAIT_TARGET` → `ERROR:object_lost` (*no target locked 10 s after PARK*), no `APPROACH` | **Handled** |
 | **4. The target is out of reach** | Perception stopped, a fake cube published at r = 0.5 m (as `test_9` of `so101_brain`) | `ERROR:unreachable`, no command beyond `PARK` | `WAIT_TARGET` → `PLAN` → `ERROR:unreachable` (*no plan*, 1.5 s in `PLAN`), no `APPROACH` | **Handled** |
-| **5. The lighting changes** | `lighting:=dim`: every light ×0.4, tinted (1.0, 0.8, 0.55), a darker, warmer room | The color thresholds still hold | **0/5** cycles: each one `ERROR:object_lost`; while the brain waits for its target, the cube is detected on every image, **the box on none** (below) | **Not handled** |
+| **5. The lighting changes** | `lighting:=dim`: every light ×0.4, tinted (1.0, 0.8, 0.55), a darker, warmer room | The color thresholds still hold | **0/5** cycles: each one `ERROR:object_lost`; while the brain waits for its target, the cube is detected on every image, **the box on none** (below) | **Not handled** on this date; **handled** since #175: 5/5 cycles in each of 2 runs (MES-52, below) |
 
 The table gives the last run of each case, with the delivered code. Cases 1 to 4 behave as `06` §10 says in every run (case 1: 8 runs, case 4: 7, cases 2, 3a and 3b: 4 each), except one case-1 run stopped by the `/joint_states` stall described below, before the fault mattered.
 
@@ -40,6 +40,7 @@ The table gives the last run of each case, with the delivered code. Cases 1 to 4
 | --- | --- | --- |
 | Default | 5/5 in 4 runs, 4/5 in 1 (the one failure: the `/joint_states` stall below, not the light) | cube and box on every image (9–41 images) |
 | `dim` | **0/5**, in each of the 6 runs | cube on 99–100 % of the images, **box on 0** (86–136 images) |
+| `dim`, since #175 | **5/5**, in each of the 2 runs | cube and box on every image (9–13 images) |
 
 **Why** (MES-49, `docs/project/experiences/exp_lighting_hsv.py`, and the debug image of the clip), two causes that add up:
 
@@ -57,8 +58,8 @@ Not fixed here (out of scope of #103: a weakness found by the demo becomes its o
 - **3a, `VERIFY` with perception dead**: with no detection for 2 s, `VERIFY` ends in `DONE` with a warning, as `06` §3.1 specifies. A cube that left the table and a perception that stopped look the same; known and accepted.
 - **3b stops perception** rather than hiding the cube from the camera: to the brain it is the same (nothing published), and moving the cube out of view would need a new sim service in the driver (out of scope).
 - **Cases 1 and 2**: `/sim/randomize` moves the box too; the brain locks both again after `RETRY`.
-- **A `/joint_states` stall on this machine**: twice in about 80 cycles, the brain saw no `/joint_states` for 0.5 s (two stacks sharing the CPU) or 1.36 s (the demo stack alone), and stopped with `ERROR:no_joint_states`, the arm frozen. The driver logged nothing. The nightly bench (Linux runner) has 50/50, so it may be specific to Windows + WSL2 + Docker Desktop (see the WSL2 clock steps of MES-37); not investigated here.
-- **Perception does not always stop cleanly on SIGINT**: in one of the 15 runs that stop it (the last case-4 run), the node died with `RuntimeError: Unable to convert call argument '0'` in `take_message`, exit code 1, instead of a clean stop. The demo's outcome does not depend on it (perception is meant to stop there). It is the rclpy SIGINT race of AGENTS.md, which the driver handles since #158 and the perception node not yet.
+- **A `/joint_states` stall on this machine**: twice in about 80 cycles, the brain saw no `/joint_states` for 0.5 s (two stacks sharing the CPU) or 1.36 s (the demo stack alone), and stopped with `ERROR:no_joint_states`, the arm frozen. The driver logged nothing. The nightly bench (Linux runner) has 50/50, so it may be specific to Windows + WSL2 + Docker Desktop (see the WSL2 clock steps of MES-37); not investigated here. Since then the driver names its late ticks (#176); the stall did not come back in the runs of #176 and #178 (MES-51), and #178 was closed as not reproduced.
+- **Perception does not always stop cleanly on SIGINT**: in one of the 15 runs that stop it (the last case-4 run), the node died with `RuntimeError: Unable to convert call argument '0'` in `take_message`, exit code 1, instead of a clean stop. The demo's outcome does not depend on it (perception is meant to stop there). It is the rclpy SIGINT race of AGENTS.md, which the driver handles since #158 and the perception node since #177 (MES-50).
 
 ## Clips
 

@@ -34,7 +34,7 @@ cd /ros2_ws && colcon build --symlink-install && source install/setup.bash
 ros2 node list ; ros2 topic list ; ros2 topic hz /joint_states
 ros2 topic info -v /external_cam/image_raw     # QoS of publishers and subscribers
 ros2 topic echo --once /object_position
-ros2 service call /brain/start std_srvs/srv/Trigger    # parks, then WAIT_TARGET (full cycle: perception, or the stub below)
+ros2 service call /brain/start std_srvs/srv/Trigger    # a full cycle (tools/so101 cycle randomizes first)
 ros2 service call /sim/randomize std_srvs/srv/Trigger  # sim: new cube and box positions
 rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz
 
@@ -106,10 +106,10 @@ Per-symptom details:
 | `colcon`: "Permission denied" on `build/`/`install/` | Files created by root in the container | `sudo rm -rf ros2_ws/{build,install,log}`; never build outside the container |
 | Editing `sim/` code changes nothing | `so101_sim` is installed **non-editable** in the image | Do not modify `sim/` (ADR-018); otherwise `docker compose build` |
 | RViz: "could not connect to display" | X11 not allowed | `xhost +local:docker`; `DISPLAY` passed by compose |
-| Irregular `/joint_states` while the camera runs | Rendering (~50 ms) in the control thread | Render on a copy in a dedicated thread (ADR-006) — done in the bootstrap prototype; keep it when writing step 1.2 |
+| Irregular `/joint_states` while the camera runs | Rendering (~50 ms) in the control thread | Render on a copy in a dedicated thread (ADR-006): what the driver does (`03` §3); a regression if it changes |
 | IK "unreachable" on nearby targets | Seeds with the wrong pan sign, or azimuth taken from the origin | `pan = −azimuth` from the pan axis, x = 3.88 cm (ADR-005) |
 | Perceived positions mirrored / behind the camera | MuJoCo/OpenCV convention not converted | `R = R_mj @ diag(1, −1, −1)` (`05` §3.1) |
-| Cube off by a few cm near the bottom of the image | Truncated detection (21 % of cases) | Mark and do not publish, or far-edge method (`05` §6) |
+| Cube off by a few cm near the bottom of the image | Truncated detection (21 % of the cubes with the provided camera, none with ours [MES-45]) | Perception marks it `TRUNCATED` and publishes nothing (`05` §2.3); check the camera pose (`05` §6) |
 | Gripper closed "on nothing", but holds the cube | Gripper position is not a reliable indicator | Use the normalized effort (ADR-016) |
 | `usbipd attach`: "Device busy (exported)" | Windows uses the device (Teams, Discord, browser) | Close the app; last resort `usbipd bind --force` |
 | Webcam: `select() timeout`, 0 frames | YUYV through usbip | `fourcc="MJPG"` (ADR-007) |
@@ -141,8 +141,8 @@ Per-symptom details:
 | pre-commit: markdownlint fails to install (`libatomic.so.1`) | Minimal image without libatomic | `apt-get install libatomic1` (present on Ubuntu and GitHub runners) |
 | `pip install pre-commit`: "externally-managed-environment" | Ubuntu 24.04 refuses pip outside a virtual environment (PEP 668) | `sudo apt install pre-commit`, or `pipx install pre-commit` (CONTRIBUTING §1) |
 | A build or `up` fails on Windows; Docker Desktop stops or its disk is full | Docker Desktop's virtual disk lives on `C:`; the build cache alone reached 16.6 GB, beyond the images' 7 GB (#58) | `docker builder prune` (every project's cache: the next builds are slower); free space on `C:` |
-| `tools/so101 bench` prints `the driver answered…` and nothing for minutes | Before #58: the episode lines waited for the end of the run (stdout a pipe through `docker compose exec -T`); the bench was running | Fixed: one line per episode as it ends (~15 s each). Episode 1 also waits for the stack to start |
-| `tools/so101 bench`: "a stack already runs on ROS domain 77" right after a Ctrl-C | Before #58, Ctrl-C stopped only the docker client and the bench went on in the container; or a bench stack still stopping | Fixed from a terminal (the bench gets a TTY, Ctrl-C reaches it). Otherwise wait for the end (CSV in `ros2_ws/eval_bench.csv`) or a few seconds, then again |
+| `tools/so101 bench` prints `the driver answered…`, then nothing for a minute | Episode 1 waits for the stack to start; then one line per episode as it ends, about 15 s each (#58) | Wait |
+| `tools/so101 bench`: "a stack already runs on ROS domain 77" right after a Ctrl-C | The previous bench's stack is still stopping | Wait a few seconds, then again. From a terminal, Ctrl-C reaches the bench in the container (#58) |
 | A launch test times out ("did not answer"), or `ERROR:no_joint_states` in a cycle | The CPU is shared: RViz (~290 % CPU in software rendering), a second stack, the robustness demo; on WSL2 `/joint_states` also stalled 0.5–1.4 s twice in about 80 cycles (#103), not reproduced by a stack alone [MES-51] | Run the tests alone (`tools/so101 down`, RViz closed); after `ERROR:no_joint_states`, `/brain/start` re-arms. The driver's log tells who stalled: `… s late: the driver's executor was held` is the driver (#176); no such line, the messages were late on the way or the brain starved |
 | The robustness demo prints "2 drivers on this ROS domain" | It runs next to another stack on its domain | `tools/so101 down`, then the command of `results/robustness_demo.md` (its own container and domain) |
-| Under a dim, warm light the perception debug image paints the floor as box, and every cycle ends `ERROR:object_lost` | The tinted floor falls in the box's HSV range and the box gets too dark [MES-49] | Known, not handled (#103, `results/robustness_demo.md`); on the real arm, fixed exposure and white balance (`07` §4) |
+| Under a dim, warm light the perception debug image paints the floor as box, and every cycle ends `ERROR:object_lost` | The tinted floor falls in the box's HSV range and the box gets too dark [MES-49] | Fixed in sim by #175: saturation floors keep the lit floor out of the box's range [MES-52]. If it comes back (another light, the real camera), measure the colors with `exp_lighting_hsv.py` and adjust the HSV floors of `perception.yaml`; on the real arm, fixed exposure and white balance (`07` §4) |

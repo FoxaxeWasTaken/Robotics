@@ -37,3 +37,7 @@ The teaching staff publishes an official compose file with `perception`: align w
 ## Update (2026-10-16, teaching staff)
 
 The staff confirms the `perception` service is expected (the Dockerfile is provided, the service was missing from the compose file) and that the Docker files and the nodes may be adapted freely.
+
+## Update (2026-10-30, #189)
+
+The stack keeps perception in its own container (C-02). Two test tools start a stack of their own instead, in the `control` container and on their own ROS domain: the evaluation bench (`sim.launch.py expose_ground_truth:=true perception:=true`, domain 77, `08` §3) and the robustness demo (`robustness_demo.launch.py`, `results/robustness_demo.md`). They never share a domain with the everyday stack.

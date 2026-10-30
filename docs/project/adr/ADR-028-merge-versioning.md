@@ -31,3 +31,7 @@ Repository hygiene review (`15` §6).
 ## Reconsider if
 
 The team prefers keeping every work commit (rebase + fast-forward).
+
+## Update (2026-10-30, the first tag)
+
+No `v0.x` tag was made: the driver, IK and perception milestones went by without one. The first tag is `v1.0.0`, the simulation milestone (#63); the next ones follow the decision (`v1.1.0` real arm, `v2.x` phase 2).

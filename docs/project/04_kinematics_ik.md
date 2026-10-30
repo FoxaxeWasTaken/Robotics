@@ -32,17 +32,17 @@ flowchart LR
 | `shoulder_pan` sign | **pan > 0 ⇒ the TCP moves towards −y**: pan ≈ −azimuth [MES-06] | IK seeds must use `pan = −azimuth`; with +azimuth the IK diverges |
 | `shoulder_pan` axis | Vertical, at **(x, y) = (0.0388, 0)** in `base_link` [MES-06] | The arm-plane azimuth is computed **from that axis**, not from the origin (fixing this took pick & place from 29/40 to 39/40) |
 | TCP at q = 0 | (0.391, 0, 0.226) m — arm stretched horizontally | q = 0 is not a rest pose |
-| Joint limits | See `03` §4 | Bounded by the IK; the driver clamp is still to add (`03` §0) |
+| Joint limits | See `03` §4 | Bounded by the IK; the driver also clamps every command (`03` §0) |
 
 ## 2. Forward kinematics (FK)
 
 - ikpy `forward_kinematics` (or Pinocchio `framesForwardKinematics`): negligible cost.
-- The brain publishes `/end_effector_pose` (`PoseStamped`, `base_link`) from `/joint_states` at 30 Hz, stamped with their read time — implemented at step 2.1.
+- The brain publishes `/end_effector_pose` (`PoseStamped`, `base_link`) from `/joint_states` at 30 Hz, stamped with their read time.
 - **Test**: FK = MuJoCo site within 0.01 mm: `so101_bringup/test/test_kinematics_vs_sim.py`, worst 0.0033 mm over 50 random configurations. Sim-backed, so in `so101_bringup`: no `so101_sim` under `so101_brain`, tests included (C-05).
 
 ## 3. Inverse kinematics (ADR-008)
 
-### 3.0 Chosen solver: **ikpy** (already used in `brain_node.py`), Pinocchio as an option
+### 3.0 Chosen solver: **ikpy**, Pinocchio as an option
 
 The cross-review compared both libraries on the **same 100 targets** of the grasp area [MES-21]:
 
@@ -52,7 +52,7 @@ The cross-review compared both libraries on the **same 100 targets** of the gras
 | **ikpy** `inverse_kinematics(p, [0,0,-1], orientation_mode="Z")` | — | **97 %** | 6 ms |
 | Pinocchio DLS, single seed | 100 % | 91 % | 0.3 / 0.8 ms |
 
-**Decision**: **keep ikpy**. It is the team's existing choice, it is robust, and its orientation modes (`"Z"` = approach axis, `"X"` = jaw axis, `"all"` = full pose) cover all our tasks. Pinocchio's 20–50× speed is not needed (a full plan stays well under 1 s and runs in a worker thread). The solver sits behind a `Kinematics` façade (§9) so it can be swapped for Pinocchio without touching the rest. Pinocchio 4.1.0 comes from `ros-jazzy-pinocchio`: `import pinocchio` only works after `source /opt/ros/jazzy/setup.bash`. [MES-21] was reproduced identically on 2026-10-09; phase 2 adds a jaw-axis task (`phase2/P2-02` §2.2, [MES-29]).
+**Decision**: **keep ikpy**. It is the team's existing choice, it is robust, and its orientation modes (`"Z"` = approach axis, `"X"` = jaw axis, `"all"` = full pose) cover all our tasks. Pinocchio's 20–50× speed is not needed (a full plan stays well under 1 s and runs in a worker process, `06` §4). The solver sits behind a `Kinematics` façade (§9) so it can be swapped for Pinocchio without touching the rest. Pinocchio 4.1.0 comes from `ros-jazzy-pinocchio`: `import pinocchio` only works after `source /opt/ros/jazzy/setup.bash`. Phase 2 adds a jaw-axis task (`phase2/P2-02` §2.2, [MES-29]).
 
 The pseudo-code below describes the generic algorithm (DLS) used by the experiment scripts; ikpy does the equivalent with bounded optimization (scipy). The seed, verification and multi-start rules apply **whatever the solver**.
 
@@ -143,7 +143,7 @@ drop     : ik_point(p_box + (0, 0, h_drop), a(θ) in the arm's plane, roll of th
 | Robustness to jaw misalignment | Grasp succeeds up to **44°** of misalignment w.r.t. the faces (the cube's tunnels help) |
 | Single failure | Released 11 cm above the box: the cube bounced out. Fix: **release lower** (TCP ≈ 9 cm) and **verify the drop** |
 
-**Implemented** (steps 2.1b, 2.4a, 2.4b) [MES-38]:
+**In the repository** [MES-38]:
 
 - `grasp_planner.py`: 200 random scenes (cube and box areas of `/sim/randomize`) all planned, every configuration verified by FK: 170 aligned, 154 vertical and 46 at 10°, p95 0.37 s.
 - Closed loop, `so101_bringup/test/test_grasp_closed_loop.py`: the repository's planner and trajectories behind the driver's tick and limiter, cube and box randomized: **40/40** in the box on 3 seeds, 15 s per run.
@@ -167,7 +167,7 @@ drop     : ik_point(p_box + (0, 0, h_drop), a(θ) in the arm's plane, roll of th
 - **Duration** from the most constrained joint: `T = max(T_min, max_j |Δq_j| · 1.875 / v_max)` (1.875 = normalized peak velocity of the quintic), `v_max` = 1.0 rad/s in sim, 0.5 rad/s on the real arm to start with.
 - **Streaming**: the brain publishes `/joint_command` at **50 Hz** during the motion; the driver just follows (its limiter only kicks in on anomalies).
 - **Descent/lift**: short segment (4 cm); joint interpolation is nearly straight in sim. Recommended for the real arm: **Cartesian interpolation** with 5–10 IK waypoints along the approach axis, to guarantee a straight descent.
-- **Implemented** (step 2.2): `/go_to_target` streams the trajectory from the measured joints; `motion.v_max_rad_s` and `motion.reach_tol_rad` in `brain.yaml`. Commanded peak 1.00 rad/s for `v_max` = 1.0; measured joints peak at 1.19 rad/s, the sim actuator oscillating around the ramp as behind the driver limiter [MES-33]. 0.10 mm from the IK solution at the end. Timers and motion time run on the steady clock: a step back of the system clock neither pauses nor rewinds a motion [MES-37].
+- **In the repository**: `/go_to_target` streams the trajectory from the measured joints; `motion.v_max_rad_s` and `motion.reach_tol_rad` in `brain.yaml`. Commanded peak 1.00 rad/s for `v_max` = 1.0; measured joints peak at 1.19 rad/s, the sim actuator oscillating around the ramp as behind the driver limiter [MES-33]. 0.10 mm from the IK solution at the end. Timers and motion time run on the steady clock: a step back of the system clock neither pauses nor rewinds a motion [MES-37].
 - **End of motion**: target reached when `max_j |q_meas − q_target| < 0.01 rad` (gripper: < 3 %), or a `T + 1 s` timeout → error.
 
 ## 7. Accuracy measurement protocol (C-41: "< 1 cm, measured")
@@ -175,11 +175,11 @@ drop     : ik_point(p_box + (0, 0, h_drop), a(θ) in the arm's plane, roll of th
 **In sim** (automated, `test/test_ik_accuracy.py`):
 
 1. Draw 20 random XYZ targets in the workspace (z ∈ [3, 12] cm).
-2. Call the `/go_to_target` service (`so101_interfaces/GoToTarget`, implemented) and wait for settling.
+2. Call the `/go_to_target` service (`so101_interfaces/GoToTarget`) and wait for settling.
 3. Measure the `gripperframe` site position (ground truth, allowed in tests) → error.
-4. Report mean, p95, max. Expected < 1 mm (driver + brain smoke test: 0.13 mm [MES-24]).
+4. Report mean, p95, max. Expected < 1 mm.
 
-**Implemented** (step 2.3): `so101_bringup/test/test_ik_accuracy.py` (sim-backed, so in `so101_bringup`: C-05 guard). The true TCP is MuJoCo's FK of the **measured** joints, independent of the ikpy/URDF model. Targets: r 0.16–0.30 m, azimuth −90° to 60°, z 3–12 cm, seeded. At these heights the cube and the box are obstacles (a target over the box missed by 56 mm, the arm resting on a wall): a seeded `/sim/randomize` puts them at known places, read from the ground truth, and targets closer than 8 cm (cube) or 12 cm (box) are drawn again. Result: **mean 0.17 mm, p95 0.23 mm, max 0.25 mm** (`results/ik_accuracy_sim_2026-10-18.md`, max 0.22–0.25 mm over 4 runs); gripper at 0/50/100 % within 1.8 %. Some motions last up to 9.5 s: the position-only IK leaves `wrist_roll` free and sometimes turns it by more than 4 rad, which sets the min-jerk duration. Keeping the measured roll would shorten them (median 2.1 s, max 5.3 s), but one target 3.9 cm above the floor then stayed blocked 20 mm above it ("target not reached"; probably the gripper on the floor, not checked) [MES-38]: `/go_to_target` keeps the free roll, the planner keeps the roll for its lift and drop only (§5). **Since #142**: each target starts from HOME (0, −1.0, 0.7, 0, 0), so the IK gets the same seed in every run [MES-43]. Chained, the seeds drifted and so did the solutions, and some fold the elbow to its limit, where the lower arm hits the shoulder in MuJoCo: the arm stops short, as once in CI (13.9 mm). The blocked target above (MES-38) has the same signature. The start pose q = 0 is no seed either: straight, it is singular. **Since #145** the IK never returns such a solution (§8): from the startup pose, the 20 targets get 0 folded solutions (1/20 before); HOME stays the seed, for the same solutions run after run. MES-38's blocked target was not replayed: it came with the measured roll kept, a mode `/go_to_target` does not use. The obstacles are read from the ground truth stamped after `/sim/randomize` replied: read after the call, they were the old ones in 2 runs out of 6.
+**In the repository**: `so101_bringup/test/test_ik_accuracy.py` (sim-backed, so in `so101_bringup`: C-05 guard). The true TCP is MuJoCo's FK of the **measured** joints, independent of the ikpy/URDF model. Targets: r 0.16–0.30 m, azimuth −90° to 60°, z 3–12 cm, seeded. At these heights the cube and the box are obstacles (a target over the box missed by 56 mm, the arm resting on a wall): a seeded `/sim/randomize` puts them at known places, read from the ground truth stamped after `/sim/randomize` replied (read right after the call, they were the old ones in 2 runs out of 6), and targets closer than 8 cm (cube) or 12 cm (box) are drawn again. Each target starts from HOME (0, −1.0, 0.7, 0, 0), so the IK gets the same seed in every run (#142): chained, the seeds drifted, and some solutions folded the elbow until the lower arm hit the shoulder, where the arm stopped short (13.9 mm once in CI). The IK no longer returns such solutions (#145, §8); q = 0 is no seed either: straight, it is singular. Result: **mean 0.161 mm, max 0.218 mm**, the same in 3 runs [MES-43] (the first campaign, before #142: mean 0.17 mm, max 0.25 mm, `results/ik_accuracy_sim_2026-10-18.md`); gripper at 0/50/100 % within 1.8 %. Some motions last up to 9.5 s: the position-only IK leaves `wrist_roll` free and sometimes turns it by more than 4 rad, which sets the min-jerk duration. Keeping the measured roll would shorten them, but one target then stayed blocked 20 mm above the floor [MES-38]: `/go_to_target` keeps the free roll, the planner keeps the roll for its lift and drop only (§5).
 
 **On the real arm**:
 
@@ -203,9 +203,9 @@ drop     : ik_point(p_box + (0, 0, h_drop), a(θ) in the arm's plane, roll of th
 - [ ] With the roll fixed, the approach can only tilt in the arm's own plane (azimuth −pan), not the target's: the TCP sits 8 mm off the roll axis.
 - [ ] Aligned grasp tilted by θ: the jaw axis (TCP x) is the face normal projected perpendicular to the approach. The cube's 90° symmetry hides a jaw axis off by 90°: test the convention itself.
 
-## 9. Proposed API (`so101_brain/kinematics.py`, ROS-free, testable)
+## 9. API (`so101_brain/kinematics.py`, ROS-free, testable)
 
-The brain starts from the course stub (ADR-039): FK/IK go **directly** into this module (step 2.1), tested without ROS; `brain_node.py` only wires it to ROS. The bootstrap prototype had them inside `brain_node.py`.
+FK/IK live in this module, tested without ROS; `brain_node.py` only wires it to ROS.
 
 ```python
 class Kinematics:                                    # façade: ikpy inside, Pinocchio possible
@@ -221,7 +221,7 @@ class GraspPlanner:
     def plan(self, cube_position, cube_yaw, box_position, q_current): ...   # (GraspPlan, None) | (None, reason)
 ```
 
-Implemented: `fk`, `ik_pos`, `arm_azimuth` (step 2.1); `ik_point`, `ik_pose`, `ik_pos(roll=…)` (2.1b); `GraspPlanner` in `grasp_planner.py` (2.4a). `cube_yaw=None` (unknown) plans a free grasp only; the failure reasons, usable as FSM error causes, are `unreachable`, `lift_unreachable` and `drop_unreachable`. `ik_jaw_normal` comes with phase 2.
+Everything above exists except `ik_jaw_normal`, which comes with phase 2 (P2.5a); `GraspPlanner` is in `grasp_planner.py`. `cube_yaw=None` (unknown) plans a free grasp only; the failure reasons, usable as FSM error causes, are `unreachable`, `lift_unreachable` and `drop_unreachable`.
 
 ## 10. State of the art and evolution paths
 

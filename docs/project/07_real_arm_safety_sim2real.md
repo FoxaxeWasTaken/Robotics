@@ -25,7 +25,7 @@ flowchart LR
 | 6. Stop | `/brain/stop` → arm frozen; Ctrl-C → back to PARK, then torque off | — |
 | 7. Physical | Power switch / plug | — |
 
-> **State of this repository (2026-10-23)**: layers 3 (clamp and NaN rejection since 1.1a, speed limiter; 0.8 rad/s on the real arm, `driver_real.yaml`; the brain's motions at 0.5 rad/s, `brain_real.yaml`, since 5.1a), 4 (per-motor `max_relative_target`) and 6 (slow move to `PARK` before the torque is cut, 4 s at most) are in the driver since 6.1a, and a lost serial bus stops it (`03` §8). The provided `disable_torque()` lines are commented out, last of 6.1a: **the real arm holds its pose and obeys `/joint_command` as soon as the driver starts with `USE_SIM=false`**. To move it by hand (test 1 of §3.2, taught poses), uncomment them for that session only, never in a commit. The bootstrap prototype had these changes and passed tests 1–3 of §3.2.
+> **State of the driver**: layers 3 (clamp and NaN rejection, speed limiter; 0.8 rad/s on the real arm, `driver_real.yaml`; the brain's motions at 0.5 rad/s, `brain_real.yaml`), 4 (per-motor `max_relative_target`) and 6 (slow move to `PARK` before the torque is cut, 4 s at most) are in the driver, and a lost serial bus stops it (`03` §8). The provided `disable_torque()` lines are commented out: **the real arm holds its pose and obeys `/joint_command` as soon as the driver starts with `USE_SIM=false`**. To move it by hand (test 1 of §3.2, taught poses), uncomment them for that session only, never in a commit. Tests 1–3 of §3.2 passed on 2026-10-09 with the bootstrap prototype, which had the same safety layers (the project history of the design index; check the calibration zero first, [MES-30]); with this repository's driver they are step 6.1b (#65).
 
 ⚠ **Torque off = the arm falls.** `disable_torque_on_disconnect=True` by default: the driver brings the arm to the rest pose **before** `disconnect()`. During the first sessions, keep a hand ready to hold the forearm.
 
@@ -42,7 +42,7 @@ flowchart LR
    - To (re)calibrate yourself (no `lerobot-calibrate` CLI in the image): `docker compose exec control python3`, then `SO101Follower(SO101FollowerConfig(port=..., id="arm", calibration_dir=Path("/ros2_ws/calibration"))).connect()` and follow the prompts. **Torque must be off while moving the arm by hand.**
 4. `USE_SIM=false` and `REAL_ROBOT_PORT=/dev/ttyACM0` in `.env`, then `docker compose up -d control viz`.
 5. Logs: "Mode: hardware", no calibration error.
-6. Torque: since upstream #2 the provided `_connect_arm` ends with `robot.bus.disable_torque()` and its log, which leave the arm limp. The repository comments them out since 6.1a (ADR-032): ⚠ **the arm holds its pose and obeys `/joint_command` from the first start**. To move the arm by hand for test 1, uncomment them for that session only, never in a commit.
+6. Torque: the provided `_connect_arm` ends with `robot.bus.disable_torque()` and its log (upstream #2), which leave the arm limp. The repository comments them out (ADR-032): ⚠ **the arm holds its pose and obeys `/joint_command` from the first start**. To move the arm by hand for test 1, uncomment them for that session only, never in a commit.
 
 ### 3.2 Checks before any autonomous motion
 
@@ -79,7 +79,7 @@ flowchart TD
 | Bus / camera latency | Tens of ms of delay | Target locked with the arm still; moderate speeds |
 | **Lighting** | Invalid HSV thresholds, reflections | **Manual exposure, gain, white balance** (`v4l2-ctl`); thresholds tuned on recorded real images; diffuse lighting |
 | Intrinsics / distortion | Pixel → 3D error | Intrinsic calibration (ADR-014), `undistortPoints` |
-| Extrinsics | Pixel → 3D error growing with distance | ArUco + jig / touch probing (`05` §5.4, §10); startup self-check |
+| Extrinsics | Pixel → 3D error growing with distance | ArUco + jig / touch probing (`05` §5.4, §10); startup self-check (6.3a) |
 | Actual table height ≠ 0 | Bias in z | The table **defines** z = 0 (base resting on it) |
 | **Calibration zero**: LeRobot's zero is the middle of the recorded range, not the pose held during calibration | For this arm, up to 23° on `shoulder_lift` if the URDF zero is the held pose: TCP off by centimeters (rest pose computed at z = −2.9 cm) [MES-30] | Measure the rest-pose TCP with a ruler (`exp_calibration_zero.py`); if confirmed, a per-joint offset in the driver, next to the provided `_connect_arm` |
 | Cube friction, gripper compliance | Grasp differs from sim | Tune grasp height and jaw alignment (more useful on the real arm than in sim) |
@@ -88,7 +88,7 @@ flowchart TD
 ## 5. Real camera (ADR-007, ADR-021)
 
 - **Type**: 720p/1080p USB UVC webcam with MJPG (tested: integrated webcam at 27.5 fps 640×480 MJPG through usbipd [MES-17]). **Rigid** mount (tripod or arm clamped to the table).
-- **Placement**: reproduce the sim viewpoint (high, on the side, ~30–40° down). The **whole** grasp area, the box **and** the markers must be visible with margin — this avoids the 21 % truncation seen in sim [MES-12].
+- **Placement**: reproduce the sim viewpoint (high, on the side, ~30–40° down). The **whole** grasp area, the box **and** the markers must be visible with margin: the provided sim camera cut 21 % of the cubes [MES-12], ours none [MES-45].
 - **Locked settings** (auto-exposure ruins HSV thresholds):
 
 ```bash
@@ -98,7 +98,7 @@ v4l2-ctl -d /dev/video0 -c auto_exposure=1 -c exposure_time_absolute=200 \
 ```
 
 - **Format**: `fourcc="MJPG"` mandatory through usbip.
-- **Recalibrate** the extrinsics if the camera is bumped (the startup self-check reports it).
+- **Recalibrate** the extrinsics if the camera is bumped (the startup self-check of `05` §5.4, to build in 6.3a, will report it).
 - **Phase 2**: a second webcam faces the Connect Four grid at about 45 cm (`phase2/P2-02` §8); optionally a wrist camera, its cable with slack for a ±90° wrist roll (`phase2/P2-02` §3.1).
 
 ## 6. Real accuracy measurement (C-41, real version)

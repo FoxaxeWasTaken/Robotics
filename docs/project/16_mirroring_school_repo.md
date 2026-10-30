@@ -24,7 +24,7 @@ flowchart LR
 
 | Option | Pros | Cons | Choice |
 | --- | --- | --- | --- |
-| **`mirror.yml` GitHub Action** on pushes to `main` (tags go with it) | Automatic, traceable, workstation-independent; only pushes what passed review | One key to configure once | **Yes** |
+| **`mirror.yml` GitHub Action** on pushes to `main`, and on demand (tags go with the next run: no tag trigger, a tag can point at unreviewed code) | Automatic, traceable, workstation-independent; only pushes what passed review | One key to configure once | **Yes** |
 | Local double push URL (`git remote set-url --add --push origin <school>`) | No GitHub configuration | Depends on every workstation; also pushes work branches; easy to forget | Fallback |
 | `git push --mirror` | Exact copy of every ref | Pushes work branches, **deletes** on the school side what no longer exists; fails on read-only `refs/pull/*` | No |
 | GitLab native push mirroring | Built-in | Only if the private repository is on GitLab | If GitLab |
@@ -68,12 +68,13 @@ ssh-keygen -t ed25519 -N "" -C "mirror-ci" -f ~/.ssh/school_mirror   # dedicated
 git ls-remote origin refs/heads/main ; git ls-remote <school-url> refs/heads/main   # same SHA expected
 ```
 
-**If the school forbids deploy keys**: a *fine-grained token* limited to the school repository (*Contents: write*, short expiry) stored in the secret, with an HTTPS URL. As a last resort, push by hand at each milestone: `git push school main --tags` (never `--force`).
+**If the school forbids deploy keys**: a *fine-grained token* limited to the school repository (*Contents: write*, short expiry) stored in the secret, with an HTTPS URL. Never push to the school repository by hand (CONTRIBUTING §3).
 
 ## 6. Diagnosis
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
+| A new tag (a release) is missing on the school side | The mirror runs on `main` pushes, not on tags | Actions → *Mirror* → **Run workflow** after the tag, then `git ls-remote --tags <school-url>` |
 | A change made on the school side disappeared | The mirror force-pushes `main` | Never push to the school repository: make the change through a PR on the private one |
 | `Permission denied (publickey)` | Key not added or without write access | §5 step 1 |
 | `Host key verification failed` | Wrong `SCHOOL_GIT_HOST` | Fix the variable |

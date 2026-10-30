@@ -112,6 +112,11 @@ The safety modules also have mutation testing (mutmut, run by hand, `docs/projec
 
 ## 6. Decisions and documentation
 
+- **A PR updates every doc it makes wrong, in the same PR**, not only the doc of the file it changes. Before opening it, `git grep` what the change touches (the parameter, topic, file, state, ticket number) in `README.md`, `AGENTS.md`, `docs/project/` and `results/`, and fix:
+  - the status tables: the README's Status and Measured results, `01` §2, `03` §0, `00` §7, the roadmap's checkboxes;
+  - what the change settles elsewhere: "not handled", "to add", "planned" in a risk (`10`), a runbook row (`13`) or a report's verdict (`results/`, as a dated note);
+  - the counts and the indexes: `docs/project/README.md`, `experiences/README.md`.
+- **Docs say what exists, in the present** ("the driver clamps every command"), never the path to it ("since step 1.1", "until 6.1a"): the CHANGELOG and git keep the history. Dated records stay dated: the project history, the cross-review log, the `results/` reports.
 - A structural choice gets an **ADR** (`docs/project/adr/`, template in `adr/README.md`). Accepted ADRs are not rewritten: add an *Update* section, or a new ADR that supersedes them.
 - A new measurement gets a `MES-xx` row in `docs/project/11` §4, its script in `docs/project/experiences/`; update the counts in `docs/project/README.md`.
 - Changing the **interface contract** (`docs/project/01` §3) requires both sides' owners to agree.

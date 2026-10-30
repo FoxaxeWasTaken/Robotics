@@ -23,7 +23,7 @@ flowchart TB
 | **Component** (one node) | `/joint_states` rate, partial command, clamping, `camera_info`, service answers | `launch_testing` + `pytest` | `<pkg>/test/test_*_launch.py` | Every PR (CI) |
 | **Sim-backed** (needs `so101_sim`) | Closed-loop grasp, IK accuracy against MuJoCo, the launch files, a full cycle with the ground-truth stub | `pytest`, `launch_testing` | `so101_bringup/test/` only: never under `so101_brain` or `so101_perception` (CI guard) | Every PR (CI) |
 | **Scripts** (CI and tooling) | `tools/so101`, the nightly report, the CI skip rules, the course watch: their behavior without network or Docker (fake `gh`, `--dry-run`) | `bash` | `tools/ci/test_*.sh` | Every commit that changes them (pre-commit) |
-| **System** (full stack in sim) | Evaluation bench: N randomized pick & place episodes | `ros2 run so101_bringup evaluate` + test-only ground truth | `so101_bringup/so101_bringup/evaluate.py` | Every PR touching brain/perception/driver (N small), nightly (N = 50) |
+| **System** (full stack in sim) | Evaluation bench: N randomized pick & place episodes | `ros2 run so101_bringup evaluate` + test-only ground truth | `so101_bringup/so101_bringup/evaluate.py` | Every PR (N = 3, `e2e-smoke`; not a draft or a docs-only PR), nightly (N = 50) |
 | **Real-arm acceptance** | Manual protocol (`07` §3.2) + accuracy measurement | Checklist | — | Every session on the arm |
 
 **Mutation testing** of the modules that protect the arm (step 5.1c, [MES-42]): mutmut injects small bugs into `so101_driver/command.py` (merge, clamp, NaN) and `so101_brain/fsm.py`, and counts those no test catches. Its configuration is the `[mutmut]` section of each package's `setup.cfg`: mutmut runs from the package folder, where the module names resolve. By hand, from the repository root, about 1 min:
@@ -41,11 +41,11 @@ docker run --rm -v "$PWD/ros2_ws/src:/src:ro" tek5/control bash -lc '
 
 | Metric | Target | Measured (this repository, unless marked) |
 | --- | --- | --- |
-| `/joint_states` rate | ≥ 20 Hz (imposed); target 30–50 Hz | **30.0 Hz** (bootstrap prototype) [MES-24] |
+| `/joint_states` rate | ≥ 20 Hz (imposed); target 30–50 Hz | **30.0 Hz** (`test_driver_launch.py`, `03` §0) |
 | Control loop jitter (p99) | ≤ 25 ms | Driver, camera on: 20.3–20.4 ms [MES-34]; brain tick during `PLAN`: 24.4 ms [MES-40] |
 | Image / `camera_info` | 10 Hz, same `stamp` | Image 10.0 Hz [MES-34]; `camera_info` shares each image's header (`test_driver_launch.py`) |
 | IK success in the workspace | 100 % (position) | 100 % [MES-07], [MES-21] |
-| **Measured TCP accuracy (C-41)** | < 1 cm | Sim: 0.1–0.3 mm closed loop [MES-09]; 0.13 mm through `/go_to_target` [MES-24] |
+| **Measured TCP accuracy (C-41)** | < 1 cm | Sim: 0.1–0.3 mm closed loop [MES-09]; through `/go_to_target`, mean 0.161 mm, max 0.218 mm over 20 targets [MES-43] |
 | Object position error (perception) | < 5 mm (sim), < 1 cm (real) | Published by the node, moved camera, arm in PARK: mean 0.7 mm, p95 1.3 mm over 200 scenes, none above 2 cm [MES-46]; 1.6–1.8 mm induced by the ArUco calibration [MES-16], [MES-25] |
 | Detection rate (non-truncated, not occluded) | 100 % | 100 % [MES-13]; whole cubes never taken for hidden ones, 300/300 and PARK 200/200 since #167 [MES-53] |
 | **Pick & place success (C-42), randomized cube + box** | **≥ 90 %** over 50 episodes | Ground-truth stub: 20/20 [MES-40]; real perception, moved camera: **50/50** on the nightly's scenes (`main` before #47: 40/50, the cubes cut by the image edge) [MES-46]; on our calibration (#46): **50/50**, `results/bench_sim_2026-10-27.md` (4.5b); with the occlusion guard (#167): 50/50 [MES-53]; the nightly bench (below); 3/3 on every PR (`e2e-smoke`) |
@@ -109,8 +109,8 @@ print success rate, p50/p95 duration, failure-cause breakdown
 | Short branches named after their ticket: `feat/12-driver-camera-info`, `fix/34-ik-pan-sign`… (CONTRIBUTING §2) | Continuous integration, few conflicts; the branch points to its ticket |
 | **Everyone commits their own work**; when pairing, add a `Co-authored-by:` trailer | **C-07**: each member's history must be visible |
 | Conventional commits (`feat:`, `fix:`, `test:`, `docs:`, `refactor:`) | Readable history, changelog |
-| Squash merge; tags per functional milestone (`v0.1.0` driver … `v1.0.0` sim pick & place, `v1.1.0` real, `v2.0.0` phase 2 and final defense) | Rollback, demos |
-| Course slides stay in `docs/` (versioned by the course); no other PDF/media added | Clean repo (C-53) |
+| Squash merge; tags per functional milestone (`v1.0.0` sim pick & place, `v1.1.0` real, `v2.0.0` phase 2 and final defense; no `v0.x` tag was made, ADR-028 update) | Rollback, demos |
+| Course slides stay in `docs/` (versioned by the course); no other PDF; media: the README's GIF only (under 1 MB, `15` §7), videos in a GitHub Release | Clean repo (C-53) |
 | GitHub Project: one epic per roadmap stage, one PR-sized ticket per sub-step of `09`, PR `Closes #N` (`15` §12, CONTRIBUTING §8) | Visible progress, work an AI agent can pick up too |
 
 ### Definition of Done for a PR

@@ -4,7 +4,9 @@
 
 A camera spots a red cube, the SO-ARM101 arm grasps it and drops it into a box — in MuJoCo simulation, then on the real robot — with a ROS 2 stack written by the team.
 
-<!-- Demo: a 5–10 s GIF (≤ 5 MB) or a clickable thumbnail linking to the video, once recorded (8.1a) -->
+<img src="docs/project/media/demo_sim_cycle.gif" width="480" alt="One pick and place in simulation, seen by the scene camera: the cube in green and the box in blue as perception detects them, the brain's state in the bottom-right corner">
+
+*One randomized cycle in simulation, 2× speed: the scene camera with perception's detections (`/perception/debug_image`) and the brain's state, from `WAIT_TARGET` to the cube in the box. RViz shows the same cycle in 3D ([What RViz shows](#what-rviz-shows)).*
 
 ## What it does today
 
@@ -13,15 +15,15 @@ A camera spots a red cube, the SO-ARM101 arm grasps it and drops it into a box �
 - **Sim ↔ real**: `USE_SIM` in `docker/.env`, plus a few documented values ([`01` §3.3](docs/project/01_architecture.md)).
 - **Phase 2** (planned): play Connect Four against the arm, which reads the grid with its camera and drops its own tokens ([design](docs/project/phase2/README.md)).
 
-## Status (2026-10-27)
+## Status (2026-10-30)
 
 | Done | Next (see [roadmap](docs/project/09_roadmap_step_by_step.md)) |
 | --- | --- |
-| Environment (Docker images, X11, DDS, usbipd), CI, hooks, design docs with measured spikes; the phase-1 sim criterion met on our calibration, 50/50 (4.5b, C-42) | Performance trends in the nightly (5.1d, #60) |
-| Driver: `/joint_states` at 30 Hz, `/joint_command`, speed limiter, joint-limit clamp, camera at 10 Hz with `camera_info`, `/sim/randomize`, ground truth for the bench only; real-arm safety and webcam | Perception: a partly hidden cube not published (3.5c, #167) |
-| Perception: HSV detection, pixel → 3D, median filter, cube yaw, `/object_position` and `/drop_box_position`, debug image, our ArUco extrinsic calibration and the camera TF (3.4b–c, MES-47) | The real arm: commissioning (6.1b), camera and grasp calibration (6.2b–6.4), 10 real trials (6.5a) |
-| Brain: FK/IK (no self-collision), `/go_to_target`, grasp planner in a worker process, the full state machine, markers in RViz; grasp verification and retries checked on fault scenarios, effort threshold measured (4.4a, MES-48) | Release v1.0.0, the simulation milestone (5.3a); phase 2 (stage 7) |
-| Evaluation bench, E2E on every PR, nightly 50-episode bench with its report; `tools/so101` for the everyday commands; this README replayed by a member from a fresh clone, quickstart and demo in about 12 min (5.1b) | Phase 2: the store-bought grid measured, then the drop spike (P2.1, #75, #76) |
+| Environment (Docker images, X11, DDS, usbipd), CI, hooks, design docs with measured spikes; the phase-1 sim criterion met on our calibration, 50/50 (4.5b, C-42) | Release v1.0.0, the simulation milestone (5.3a, #63) |
+| Driver: `/joint_states` at 30 Hz, `/joint_command`, speed limiter, joint-limit clamp, camera at 10 Hz with `camera_info`, `/sim/randomize`, ground truth for the bench only; real-arm safety and webcam; a warning for each late tick, a clean stop on SIGINT (#158, #176) | The real arm: commissioning (6.1b), camera and grasp calibration (6.2b–6.4), 10 real trials (6.5a) |
+| Perception: HSV detection that holds under a dim, warm light, pixel → 3D, median filter, cube yaw, `/object_position` and `/drop_box_position`, debug image, our ArUco extrinsic calibration and the camera TF; a cube cut by the image edge or partly hidden is not published (3.4b–c, 3.5c, MES-47, MES-52, MES-53) | The nightly's trends and SonarQube Cloud: recorded each night since #174; they close with two nightlies of values and the SonarQube decision of `14` §4, by 2026-11-10 (5.1d–e, #60, #61) |
+| Brain: FK/IK (no self-collision), `/go_to_target`, grasp planner in a worker process, the full state machine, markers in RViz; grasp verification and retries checked on fault scenarios, effort threshold measured (4.4a, MES-48) | The shared-understanding session (5.2a, #62) |
+| Evaluation bench, E2E on every PR, nightly 50-episode bench with its report, and the nightly's quality job: coverage, trends, the SonarQube Cloud gate (#174, #179); the robustness demo, the five cases of the slides handled (5.4a, #103, #175); `tools/so101` for the everyday commands; this README replayed by a member from a fresh clone, quickstart and demo in about 12 min (5.1b) | Phase 2: the store-bought grid measured, then the drop spike (P2.1, #75, #76) |
 
 ## Measured results (sim)
 
@@ -30,9 +32,9 @@ A camera spots a red cube, the SO-ARM101 arm grasps it and drops it into a box �
 | Pick & place, real perception, randomized cube and box | Each night `main` changes, 50 episodes: [latest results](https://github.com/FoxaxeWasTaken/Robotics/issues?q=is%3Aissue+in%3Atitle+%22Nightly+bench+results%22). Since the sim camera moved (#47), no cube is cut by the image edge any more (21 % were): 50/50 on the nightly's scenes in a local bench | MES-45, MES-46, [`08` §2](docs/project/08_quality_tests.md) |
 | Full cycle with the ground truth in place of perception | 20/20 in the box, cycle median 14.6 s | MES-40 |
 | Grasp chain in closed loop (IK, planner, min-jerk) | 40/40 in the box | MES-38 |
-| IK accuracy (FK of the solution against the target) | mean 0.161 mm, max 0.218 mm | MES-43 |
+| IK accuracy in closed loop (`/go_to_target` on 20 targets, MuJoCo's TCP against the target) | mean 0.161 mm, max 0.218 mm | MES-43 |
 | Cube localization on the table plane (exact camera pose) | mean 0.50 mm, max 1.00 mm | MES-41 |
-| Robustness, the five questions of the slides | Handled: the cube moved mid-action, failed grasps, perception lost, a target out of reach. Not handled: a dim, warm light (the box is lost, 0/5 cycles, the arm stays still) | [`results/robustness_demo.md`](results/robustness_demo.md), MES-49 |
+| Robustness, the five questions of the slides | All five handled: the cube moved mid-action, failed grasps, perception lost, a target out of reach, a dim, warm light (5/5 cycles in each of 2 runs; 0/5 before #175) | [`results/robustness_demo.md`](results/robustness_demo.md), MES-49, MES-52 |
 
 On the real arm: nothing measured yet (stage 6). Measurements and how to reproduce them: [`11` §4](docs/project/11_cross_review_and_measurements.md); milestone reports in [`results/`](results/).
 
@@ -143,6 +145,7 @@ Details: [`01`](docs/project/01_architecture.md). All the design docs: [docs/pro
 | `docker/` | Images and compose (`control`, `perception`, `viz`) |
 | `tools/` | `so101` (everyday commands), `ci/` (the CI scripts and their tests) |
 | `docs/project/` | Design, decisions (ADRs), roadmap, measurements |
+| `results/` | Milestone reports: the 50-episode bench, the calibration, the IK accuracy, the robustness demo |
 | `core/`, `sim/`, `so101_description/` | Course kit (unmodified) |
 
 ## Contributing

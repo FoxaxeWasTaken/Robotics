@@ -36,6 +36,7 @@ bash tools/ci/guards.sh           # host, repo root (needs the git repo): projec
 - Logic in pure modules with pytest tests; ROS callbacks only store messages, no `sleep` inside.
 - Interface contract (topics, QoS, frames): `docs/project/01` §3. Changing it needs both owners' approval.
 - A referenced doc is ambiguous? Decide, say so in the PR, update that doc in the same PR.
+- A PR updates every doc it makes wrong (CONTRIBUTING §6): `git grep` the parameter, topic, file or ticket it touches in `README.md`, `docs/project/` and `results/`; fix the status tables, the "not handled" / "to add" it settles, the counts. Write what exists, in the present, never "since step X".
 - Docs, commits and code comments in English.
 - Every PR shows its evidence: the commands run and their output, or the measurement (CONTRIBUTING §8).
 - Spikes and measurement scripts go in `docs/project/experiences/`, never in a package; a new measurement gets a `MES-xx` row in `docs/project/11` §4. New ADR or MES: update its index and the counts in `docs/project/README.md`.

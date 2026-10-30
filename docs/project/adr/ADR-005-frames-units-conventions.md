@@ -35,3 +35,7 @@ Positions must be expressed "in the robot frame"; angles in rad (REP-103) except
 ## Reconsider if
 
 A faster-than-real-time sim becomes useful (RL training in phase 2): switch to `use_sim_time`.
+
+## Update (2026-10-30, #189)
+
+Stamps stay on the ROS clock (they are compared across nodes), but the timers run on the **steady clock** and durations use `time.monotonic()`: on WSL2 the system clock steps back about 2 s every 30 s, which paused `/joint_states` and froze motions on the ROS clock [MES-37]. Still no `use_sim_time`.

@@ -30,7 +30,7 @@
 | **Optical frame** | Camera convention: z forward, x right, y down (different from MuJoCo) |
 | **Minimum jerk** | Quintic trajectory profile, zero velocity and acceleration at both ends |
 | **FSM** | *Finite State Machine* |
-| **Ground truth** | Exact sim values (`get_object_position`…): tests only |
+| **Ground truth** | Exact sim values (`get_object_position`…): tests and the evaluation bench only (C-06) |
 | **Spike** | Throwaway experiment answering a technical question by measurement |
 | **Vertical slice** | First end-to-end version of the whole chain, even simplistic |
 | **rosbag2** | Recording and replay of ROS 2 topics |
