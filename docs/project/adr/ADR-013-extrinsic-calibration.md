@@ -43,3 +43,13 @@ The provided `_connect_arm` builds `SO101Sim()` with the default scene: `scene_p
 ## Update (2026-10-16, teaching staff)
 
 Our own calibration scene is allowed, and so are markers other than ArUco if they work better. The sim camera may be moved (`05` §6): recalibrate after any move.
+
+## Update (2026-10-30, #189)
+
+Built (steps 3.4a–c):
+
+- the calibration scene is **generated at launch** by `so101_bringup.sim_scene` with `mujoco.MjSpec`, from the layout `markers_sim.yaml` (8 markers), not a `scene_calib.xml` file (#44, ADR-036);
+- the tool, `ros2 run so101_perception calibrate_extrinsics` (#45), solves on **10 frames** (`--frames`), with **sub-pixel corners** (without them: 1.17 px, refused by the 1 px gate);
+- perception loads our calibration of the moved sim camera: 8 markers, 0.868 px, 0.53 mm / 0.024° from the rendered camera; perception on it within 0.9 mm on average [MES-47] (#46).
+
+The robot validation (the TCP on 4 known points) is for the real arm, step 6.3a.

@@ -35,3 +35,7 @@ A learning dataset is needed (phase 2, LeRobot policies): Hugging Face Hub, not 
 ## Update
 
 The course now versions the PDF slides in `docs/` (upstream commit `76c55ee`). Rule unchanged for the team: **do not add** other PDFs/media; root copies are duplicates ignored by `/*.pdf`. The provided `docs/` content is excluded from the hooks, so the large-file check never blocks upstream syncs.
+
+## Update (2026-10-30, #189)
+
+One medium joins Git: the README's demo GIF, under 1 MB (the hook's limit), in `docs/project/media/` (#189, `15` §7). Videos stay in a GitHub Release or behind a link, as the robustness demo's clips are.

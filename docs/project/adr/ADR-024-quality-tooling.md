@@ -44,3 +44,7 @@ Added after a CI review: **actionlint**, **zizmor** (workflow security), **shell
 ## Update (2026-10-16, ticket 0.3d)
 
 Coverage joins the tooling: `colcon test --pytest-with-coverage` in the CI `control` job and a non-blocking comment on each PR (python-coverage-comment-action, no external service, `14` §4). Hypothesis is available for property tests (`08` §5).
+
+## Update (2026-10-30, #189)
+
+SonarQube Cloud is in place: the nightly's `quality` job analyzes `main` with the coverage of every package's tests (#61, #174), comments its gate on "Nightly bench results" (#179), and its issues were triaged (#181, `14` §4). It is on trial and **not a required check**: keep it, add PR analyses, or drop it, by 2026-11-10.

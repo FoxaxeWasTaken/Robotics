@@ -33,3 +33,7 @@ HSV: cube **H ∈ [160, 180] ∪ [0, 8]** (red wraps around 0/180), S ≥ 100, V
 ## Reconsider if
 
 Real thresholds fail despite locked settings, or phase 2 brings multiple/non-colored objects: YOLO-seg.
+
+## Update (2026-10-30, #189)
+
+The ranges of the decision held under the default light only. Under the robustness demo's dim, warm light the floor fell in the box's range and the box under its V floor [MES-49]. The ranges are now saturation floors well above the lit floor and arm (S ≤ 113) and V floors under the shaded sides: **cube S ≥ 150, V ≥ 30; box S ≥ 140, V ∈ [20, 220]**, hues unchanged; every object 96–100 % in range under both lights, no floor pixel in either [MES-52] (#175). One guard added: a **partly hidden cube** (its blob under 0.85 of a whole cube's silhouette at its point) is not published, like a truncated one [MES-53] (#167). `05` §2.

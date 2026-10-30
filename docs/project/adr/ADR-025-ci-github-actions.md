@@ -41,3 +41,13 @@ The job command as first written (`colcon test --packages-skip so101_perception`
 ## Update (2026-10-15)
 
 Actions pinned by commit SHA and updated by Dependabot (7-day cooldown); `persist-credentials: false` on every checkout; runs on `main` are never cancelled; `ament_xmllint` in the control job; required checks: the four jobs plus `PR title (conventional commit)` (ruleset "main protection").
+
+## Update (2026-10-30, #189)
+
+Since this decision (`14` §5):
+
+- **no CI on a push to `main`** (#153): the ruleset requires a PR up to date with `main`, so `main` gets the tree its CI tested; `main` pushes run the mirror only;
+- a **draft** or a **docs-only** PR runs lint, the guards and the PR title only (#146);
+- `E2E sim (3 episodes)` is a **required check**, 3 successes out of 3 (#156);
+- the nightly runs its bench and its `quality` job only when `main` changed (#146), and reports both on "Nightly bench results" (#151, #179);
+- the quota is GitHub Pro's 3,000 min/month, not 2,000.
