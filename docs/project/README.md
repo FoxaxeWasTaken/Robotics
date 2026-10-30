@@ -85,7 +85,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | 1 | ROS 2 Jazzy, Python, 3 nodes in 2 containers (+ viz); **`perception` service added**, missing from the compose file | Imposed + decided | Inter-container `talker` [MES-18] |
 | 2 | Driver: 50 Hz tick = 2 backend calls, the **sim runs in real time**; **sim camera in a dedicated thread rendering a state copy** | Decided | 9 Hz → 30 Hz [MES-22], [MES-24]; jitter p99 25 ms [MES-20] |
-| 3 | Provided `_connect_arm` kept (explicit failure on calibration mismatch); partial commands, speed limiter; **clamp** and `camera_info` still to add | Imposed + decided | ADR-032; C-13, C-15 |
+| 3 | Provided `_connect_arm` kept (explicit failure on calibration mismatch); partial commands, speed limiter, **clamp** to the joint limits and `camera_info` (`03` §0) | Imposed + decided | ADR-032; C-13, C-15 |
 | 4 | **IK: ikpy** (the team's choice, confirmed) behind a façade; seeds `pan = −azimuth` from the pan axis | Decided (revised) | 100 % position, 97 % pointing [MES-21]; pan sign [MES-06] |
 | 5 | Grasp **as vertical as possible (0 → 30°)**, best-effort jaw alignment, transport with position-only IK | Decided | **39/40** sim pick & place, TCP error 0.1–0.3 mm [MES-09] |
 | 6 | **Minimum-jerk** trajectories streamed at 50 Hz by the brain | Decided | [MES-09] |

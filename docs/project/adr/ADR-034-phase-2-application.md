@@ -40,3 +40,7 @@ The drop spike is a no-go (→ level 0, tic-tac-toe), or the staff changes the p
 ## Update (2026-10-09, ADR-038)
 
 Hardware changed: store-bought grid on a riser, depth guide, tokens handed over by the human, wrist camera (ADR-038). The plan moved to its own roadmap, `phase2/P2-04` (the drop spike is still step P2.1).
+
+## Update (2026-10-16, staff answers)
+
+The questions of `phase2/P2-03` §4 were asked and answered on 2026-10-16: the answers are there.

@@ -68,16 +68,18 @@ The school mirror is described in `16`.
 ├── AGENTS.md  CLAUDE.md         ← instructions for AI coding agents (CLAUDE.md imports AGENTS.md) [team]
 ├── LICENSE                      ← to be decided (ADR-031)                                     [OPEN]
 ├── pyproject.toml               ← ruff configuration                                          [team]
-├── .pre-commit-config.yaml  .markdownlint-cli2.yaml  .hadolint.yaml  .lycheeignore  .editorconfig  .gitattributes  .gitignore
+├── .pre-commit-config.yaml  .markdownlint-cli2.yaml  .hadolint.yaml  .lycheeignore  .editorconfig  .gitattributes  .gitignore  .gitleaksignore
+├── sonar-project.properties  .sonarlint/connectedMode.json   ← SonarQube Cloud analysis and its IDE binding (14 §4)
 ├── .git-blame-ignore-revs       ← purely mechanical commits (formatting)
 ├── .github/
 │   ├── workflows/ci.yml  pr-title.yml  nightly.yml  mirror.yml
 │   ├── CODEOWNERS  PULL_REQUEST_TEMPLATE.md  dependabot.yml
 │   └── ISSUE_TEMPLATE.md
-├── .vscode/extensions.json  settings.json   ← shared recommendations (everything else ignored)
-├── tools/ci/guards.sh  check_mermaid.sh
+├── .vscode/extensions.json  settings.json   ← shared recommendations and the SonarQube binding (everything else ignored)
+├── tools/so101                  ← the everyday commands (stack, cycle, bench, tests)          [team]
+├── tools/ci/                    ← the CI scripts (guards.sh, check_mermaid.sh, reports…) and their tests [team]
 ├── docs/                        ← SUJET.md + PDF slides (versioned by the course)           [provided, untouched]
-│   └── project/                 ← design, ADRs, roadmap, measurements; phase2/ = Connect Four  [team]
+│   └── project/                 ← design, ADRs, roadmap, measurements; phase2/ = Connect Four; media/ = the README GIF [team]
 ├── results/                     ← milestone evaluation reports (light CSV/MD)                 [team]
 ├── docker/                      ← Dockerfiles, compose, entrypoint                            [provided → extended]
 ├── core/                        ← real-arm driver extracted from LeRobot                      [provided, untouched]
@@ -89,7 +91,7 @@ The school mirror is described in `16`.
         ├── so101_common/        ← constants, conversions                                       [team]
         ├── so101_driver/  so101_brain/  so101_perception/   (+ test/ in each)                 [team]
         ├── so101_connect4/      ← phase 2: engine, board reader, game node (planned, ADR-037)  [team]
-        └── so101_bringup/       ← launch, YAML config, RViz; later: evaluate, calibration     [team]
+        └── so101_bringup/       ← launch, YAML config, RViz, sim scenes, the bench, sim-backed tests [team]
 ```
 
 ### 3.1 Three zones, three rules
@@ -182,6 +184,7 @@ flowchart TD
   Q -- "reference test images<br/>(under 200 KB each)" --> G3["Git<br/>pkg/test/data/"]
   Q -- "rosbags, raw nightly CSVs" --> A["CI artifacts (14 days)<br/>or local disk"]
   Q -- "demo videos" --> V["GitHub Release<br/>or YouTube (link in the README)"]
+  Q -- "the README demo GIF<br/>(under 1 MB)" --> G4["Git<br/>docs/project/media/"]
   Q -- "course PDFs" --> N["Already versioned by the course in docs/<br/>do not add more; duplicates ignored by /*.pdf"]
   Q -- ".env, tokens, keys" --> S["Never in Git<br/>(.gitignore + detect-private-key)"]
 ```

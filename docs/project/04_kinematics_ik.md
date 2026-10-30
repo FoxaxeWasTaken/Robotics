@@ -32,7 +32,7 @@ flowchart LR
 | `shoulder_pan` sign | **pan > 0 ⇒ the TCP moves towards −y**: pan ≈ −azimuth [MES-06] | IK seeds must use `pan = −azimuth`; with +azimuth the IK diverges |
 | `shoulder_pan` axis | Vertical, at **(x, y) = (0.0388, 0)** in `base_link` [MES-06] | The arm-plane azimuth is computed **from that axis**, not from the origin (fixing this took pick & place from 29/40 to 39/40) |
 | TCP at q = 0 | (0.391, 0, 0.226) m — arm stretched horizontally | q = 0 is not a rest pose |
-| Joint limits | See `03` §4 | Bounded by the IK; the driver clamp is still to add (`03` §0) |
+| Joint limits | See `03` §4 | Bounded by the IK; the driver also clamps every command (`03` §0) |
 
 ## 2. Forward kinematics (FK)
 
