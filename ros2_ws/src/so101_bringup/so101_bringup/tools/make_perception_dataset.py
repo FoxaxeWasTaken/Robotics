@@ -79,6 +79,28 @@ def set_arm(sim, q):
     mujoco.mj_forward(sim.model, sim.data)
 
 
+def place_occluder(sim, cube, camera_xy, n, rng, kinematics):
+    """Hides part of the cube, in turn (n even, odd) behind the arm, its TCP put by IK between the camera and
+    the cube, and behind the box's walls, the cube in the box or just behind its front wall: the occluder's
+    name, None when the IK finds no pose."""
+    m, d = sim.model, sim.data
+    to_camera = camera_xy - cube.xpos[:2]  # on the table
+    towards = to_camera / np.linalg.norm(to_camera)
+    if n % 2 == 0:
+        target = cube.xpos + np.array([*(rng.uniform(0.06, 0.14) * towards), rng.uniform(0.02, 0.12)])
+        q = kinematics.ik_pos(target, BENT)
+        if q is None:
+            return None
+        set_arm(sim, q)
+        return "arm"
+    box = m.body("drop_box").id
+    half = max(abs(m.geom_pos[g][0]) + m.geom_size[g][0] for g in range(m.ngeom) if m.geom_bodyid[g] == box)
+    gap = rng.choice([0.0, half + 0.025 + rng.uniform(0.002, 0.02)])
+    m.body_pos[box, :2] = cube.xpos[:2] + gap * towards
+    mujoco.mj_forward(m, d)
+    return "walls"
+
+
 def make_dataset(out, seed=0, full=32, truncated=8, out_of_view=4, occluded=8):
     """Renders the scenes into out/ (NNN.png + labels.json) and returns the labels."""
     out = Path(out)
@@ -132,7 +154,6 @@ def make_dataset(out, seed=0, full=32, truncated=8, out_of_view=4, occluded=8):
         str(Path(get_package_share_directory("so101_description")) / "urdf" / "so101.urdf")
     )
     rng = np.random.default_rng(occluder_seed)
-    half = max(abs(m.geom_pos[g][0]) + m.geom_size[g][0] for g in range(m.ngeom) if m.geom_bodyid[g] == box)
     hidden = 0
     while hidden < occluded:
         m.body_pos[box, :2] = PARKED_BOX_XY
@@ -143,18 +164,9 @@ def make_dataset(out, seed=0, full=32, truncated=8, out_of_view=4, occluded=8):
         rotation = cube.xmat.reshape(3, 3)
         if cube_view(K, R, t, cube.xpos, rotation, sim.camera_width, sim.camera_height) != "full":
             continue
-        towards = (t[:2] - cube.xpos[:2]) / np.linalg.norm(t[:2] - cube.xpos[:2])  # the camera, on the table
-        occluder = "arm" if hidden % 2 == 0 else "walls"
-        if occluder == "arm":
-            target = cube.xpos + np.array([*(rng.uniform(0.06, 0.14) * towards), rng.uniform(0.02, 0.12)])
-            q = kinematics.ik_pos(target, BENT)
-            if q is None:
-                continue
-            set_arm(sim, q)
-        else:  # in the box, or just behind its front wall
-            gap = rng.choice([0.0, half + 0.025 + rng.uniform(0.002, 0.02)])
-            m.body_pos[box, :2] = cube.xpos[:2] + gap * towards
-            mujoco.mj_forward(m, d)
+        occluder = place_occluder(sim, cube, t[:2], hidden, rng, kinematics)
+        if occluder is None:
+            continue
         cube_visible, box_visible = visible(segmentation, sim, box_too=True)
         if not 0.2 <= cube_visible <= 0.8:
             continue

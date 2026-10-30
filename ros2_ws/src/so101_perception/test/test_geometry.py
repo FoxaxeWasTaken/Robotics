@@ -201,6 +201,7 @@ def test_a_partly_hidden_cube_of_the_reference_images_is_below_the_threshold():
     assert len(hidden) >= 6
     for image in hidden:
         cube = detect(rgb(image)).cube
-        assert cube is not None and not cube.truncated, image["file"]
+        assert cube is not None, image["file"]
+        assert not cube.truncated, image["file"]
         p = pixel_to_world(cube.u, cube.v, K, R_LABELS, T_LABELS, 0.025)
         assert cube_area_ratio(cube.contour, p, K, R_LABELS, T_LABELS) < threshold, image["file"]
