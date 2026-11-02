@@ -8,6 +8,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 - `tools/so101 robustness <case> [--lighting NAME] [-n N]` (5.1, #191): a case of the robustness demo in one command, in a new control container on ROS domain 78; it refuses to start while the everyday stack runs, and `--dry-run` prints the `docker compose run` line. `tools/ci/test_so101.sh` covers each case and the refusals. `results/robustness_demo.md`, `13` §1–§2, README.
 - `tools/so101-arm` (6.1b, #199), the real arm's commands, run by a human with the stack stopped: `calibrate` backs up `CALIBRATION_FILE`, then runs LeRobot's `calibrate()` on the bus alone (no `configure()`, so no torque) in a throwaway container with only the arm's port, and prints each joint's range and middle; `zero-offsets [-n N]` reads the arm held at the URDF zero and prints the `joint_zero_offsets` line for `driver_real.yaml`, writing nothing to the motors. Both refuse while the stack runs; `tools/ci/test_so101_arm.sh` (pre-commit) checks the dry runs and the refusals. `07` §3.1 and §4, `13`, `15` §3, README.
+- The intermediate review's deck as presented on 2026-10-31 (#201): `docs/project/presentations/`, a 17-slide PDF (0.64 MB, Canva's export compressed with Ghostscript) and an index linking its video, the `v1.0.0` release asset `sim_full_cycle.mp4`. `docs/project/README.md`, `15` §3 and §7.
 
 ## [1.0.0] - 2026-10-31
 
