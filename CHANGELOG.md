@@ -4,6 +4,10 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ## [Unreleased]
 
+### Changed
+
+- SonarQube Cloud, the 36 issues of 2026-11-02 (#220): `[[` in the shell scripts of #208 and #215 (`tools/release.sh`, `tools/ci/`), positional parameters in local variables in `test_release.sh`; no behavior change, `14` §4.
+
 ## [1.1.0] - 2026-11-02
 
 Ready for the real arm, and a team workflow that no longer depends on memory (milestone `v1.1.0`). The brain judges a grasp by the jaws' gap where the real arm has no usable load, and RViz draws the driver's setpoint as a ghost arm. `tools/so101-arm` calibrates the real arm and reads its joint zeros, and `tools/so101 robustness` runs a demo case in one command. On the workflow side: Claude Code skills for the recurring procedures, PR checks that cannot be raced, releases tied to milestones with `tools/release.sh`, and a school copy kept to `main` and the tags. The real-arm measurements (the grasp's contact opening, the joint zeros, the remaining commissioning tests) are done by humans, then the real camera in `v1.2.0`.

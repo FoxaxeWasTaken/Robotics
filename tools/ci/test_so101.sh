@@ -99,7 +99,7 @@ grep -qF -- "-v $tmp/media:/out " <<< "$out" || fail "run --out: $out"
 grep -qF "ros2 launch so101_bringup sim.launch.py > /tmp/stack.log 2>&1 &" <<< "$out" || fail "run --stack: $out"
 grep -qF "/end_effector_pose" <<< "$out" || fail "run --stack does not wait for the brain: $out"
 grep -qF "chown -R $(id -u):$(id -g) /out" <<< "$out" || fail "run --out: the files stay root's: $out"
-[ ! -e "$tmp/media" ] || fail "a dry run made the --out folder"
+[[ ! -e "$tmp/media" ]] || fail "a dry run made the --out folder"
 echo "ok: run builds our packages in a throwaway container (no network, domain 79, the repository read-only), --stack, --out"
 
 for case in 1 2 3a 3b 4 5; do

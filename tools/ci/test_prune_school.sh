@@ -15,8 +15,8 @@ git remote add school "$tmp/school.git"
 git push -q school HEAD:refs/heads/main --tags
 for b in dependabot/github_actions/actions/setup-python-7.1.0 feature main-old mainx; do git push -q school "HEAD:refs/heads/$b"; done
 bash "$src/tools/ci/prune_school.sh" school > "$tmp/out.log" || fail "exit $?: $(cat "$tmp/out.log")"
-[ "$(git ls-remote --heads school | cut -f2)" = refs/heads/main ] || fail "left: $(git ls-remote --heads school | cut -f2 | tr '\n' ' ')"
-[ "$(git ls-remote --tags school | cut -f2)" = refs/tags/v1.0.0 ] || fail "the tag went"
+[[ "$(git ls-remote --heads school | cut -f2)" = refs/heads/main ]] || fail "left: $(git ls-remote --heads school | cut -f2 | tr '\n' ' ')"
+[[ "$(git ls-remote --tags school | cut -f2)" = refs/tags/v1.0.0 ]] || fail "the tag went"
 grep -qF "dependabot/github_actions/actions/setup-python-7.1.0" "$tmp/out.log" || fail "the deleted branches are not listed: $(cat "$tmp/out.log")"
 bash "$src/tools/ci/prune_school.sh" school > "$tmp/out.log" || fail "a second run, nothing to delete: exit $?"
 echo "ok: prune_school.sh deletes every branch of the school copy but main (main-old and mainx too), keeps the tags, and is a no-op when clean"
