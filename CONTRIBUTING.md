@@ -140,12 +140,13 @@ All planned work lives in **one GitHub Project** (board + backlog) linked to thi
 
 - **One ticket = a few hours to two days of work**. Bigger? Split it. A PR closes one ticket or a **group of related tickets** (same files or same roadmap step: fewer conflicts and re-reviews), with one commit and one `Closes #<n>` line per ticket. Tickets are grouped under one **epic per roadmap stage** (sub-issues; *phase 1 / phase 2* are the brief's parts, `docs/project/12`) and carry the roadmap step in their title: `[1.3a] Publish camera_info and use the optical frame`.
 - **Statuses**: Backlog → **Ready** → In progress → In review → Done. At most **five tickets In progress per person**.
+- **Milestone**: the version the ticket ships in (`v1.2.0`…; ADR-028 Update, `docs/project/15` §6), set when the ticket is created. A PR cannot merge while a ticket it closes has none.
 - **Fields**: Lane (A, B, C, Shared, `docs/project/09` §1.2), Priority (P0 critical path · P1 needed for the final defense · P2 optional), Size (XS < 2 h · S ≤ ½ day · M ≤ 1 day · L ≤ 2–3 days). Dependencies use GitHub's native **blocked by** relationship, not labels.
 - **Labels**: `task`, `bug`, `epic`, `safety` (moves the real arm: [SAFE] review, sim first, `docs/project/07` §7), `staff-question`, and one or more `area:*`. `report` marks an automatic report, not a work item (the pinned "Nightly bench results"): the project views leave it out.
 
 **Anatomy of a ticket** (the issue template, `.github/ISSUE_TEMPLATE.md`): Roadmap step · Goal · Scope · Out of scope · **Done when** · Files and interfaces · References · Review focus. Write it so that **a teammate or an AI agent can do it without asking**: exact paths, checkable criteria (a command, a test, a threshold), what not to touch.
 
-**Definition of Ready** (Backlog → Ready): every *blocked by* ticket is Done; *Done when* is checkable; files and interface impact are named; open questions answered or listed in the ticket.
+**Definition of Ready** (Backlog → Ready): it has a milestone; every *blocked by* ticket is Done; *Done when* is checkable; files and interface impact are named; open questions answered or listed in the ticket.
 
 **Definition of Done** (applies to every ticket, on top of its own *Done when*):
 

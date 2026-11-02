@@ -3,7 +3,8 @@ One PR-sized ticket of a roadmap step (docs/project/09), written so that a teamm
 without asking you: exact files, checkable criteria, what not to touch. Anatomy and Definition of Ready: CONTRIBUTING §8.
 Bug? Same sections: Goal = observed vs expected (sim or real arm, commit `git rev-parse --short HEAD`, commands),
 Scope = the fix, Done when = the reproduction passes; logs, rosbag or screenshots under References.
-Label `task` (or `bug`); lane, priority and size on the GitHub Project; parent epic and "blocked by" under Relationships.
+Label `task` (or `bug`); the milestone of the version it ships in (CONTRIBUTING §8); lane, priority and size on the GitHub Project;
+parent epic and "blocked by" under Relationships.
 -->
 
 #### Roadmap step
