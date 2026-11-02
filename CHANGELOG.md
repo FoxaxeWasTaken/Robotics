@@ -4,6 +4,10 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-02
+
+Ready for the real arm, and a team workflow that no longer depends on memory (milestone `v1.1.0`). The brain judges a grasp by the jaws' gap where the real arm has no usable load, and RViz draws the driver's setpoint as a ghost arm. `tools/so101-arm` calibrates the real arm and reads its joint zeros, and `tools/so101 robustness` runs a demo case in one command. On the workflow side: Claude Code skills for the recurring procedures, PR checks that cannot be raced, releases tied to milestones with `tools/release.sh`, and a school copy kept to `main` and the tags. The real-arm measurements (the grasp's contact opening, the joint zeros, the remaining commissioning tests) are done by humans, then the real camera in `v1.2.0`.
+
 ### Added
 
 - Claude Code skills for the team's recurring workflows (0.3, #203), in `.claude/skills/`: `new-ticket` (with the board's field ids in `board.json` and the command that refreshes them), `open-pr`, `measure`, `isolated-stack`, `release`, `nightly-triage`. Each gives the order of the steps and points to the doc that holds the procedure; the permanent rules stay in `AGENTS.md`. `tools/so101 run [--stack] [--out DIR] '<command>'`: a command in a throwaway control container next to a running stack (no network, ROS domain 79, the repository read-only, our packages built there), tested by `test_so101.sh`. AGENTS.md, CONTRIBUTING §2, `13` §1, `15` §3, README.
@@ -11,7 +15,6 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 - `tools/so101-arm` (6.1b, #199), the real arm's commands, run by a human with the stack stopped: `calibrate` backs up `CALIBRATION_FILE`, then runs LeRobot's `calibrate()` on the bus alone (no `configure()`, so no torque) in a throwaway container with only the arm's port, and prints each joint's range and middle; `zero-offsets [-n N]` reads the arm held at the URDF zero and prints the `joint_zero_offsets` line for `driver_real.yaml`, writing nothing to the motors. Both refuse while the stack runs; `tools/ci/test_so101_arm.sh` (pre-commit) checks the dry runs and the refusals. `07` §3.1 and §4, `13`, `15` §3, README.
 - The ghost arm (6.1c, #200): the driver publishes the setpoint it sends at each control step on `/joint_setpoint` (the 6 joints in rad, after the clamp and the limiter; Reliable, depth 1, since `robot_state_publisher` subscribes Reliable); `sim.launch.py` (so `real.launch.py` too) draws it as the `ghost/` TF tree with a second `robot_state_publisher`, and RViz shows it translucent in the display "Commanded arm (ghost)", unchecked by default. The gap to the measured arm is the tracking error on the real arm. Tests: `command.setpoint_positions` (order, gripper % → rad), and in sim `/joint_setpoint` reaching a commanded pan with the TF `base_link → ghost/gripper_frame_link`. `01` §3.1 (new topic, diagram), `03` §5, `06` §7, `07` §3.2, `13`, README.
 - The intermediate review's deck as presented on 2026-10-31 (#201): `docs/project/presentations/`, a 17-slide PDF (0.64 MB, Canva's export compressed with Ghostscript) and an index linking its video, the `v1.0.0` release asset `sim_full_cycle.mp4`. `docs/project/README.md`, `15` §3 and §7.
-
 - The release flow (5.1q, #211):
   - `tools/release.sh vX.Y.Z` refuses a milestone with open tickets, a commit without a nightly bench report that met its target, a failed quality gate or a missing CHANGELOG section; otherwise it tags `origin/main`, creates the Release, closes the milestone, opens the next one and dispatches the mirror;
   - a required check "Linked tickets have a milestone" on every PR;
@@ -19,7 +22,6 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
   - shared logic in `tools/ci/milestone.sh`, all tested offline by `test_release.sh` and `test_bench_report.sh`.
 
   `14` §3, §5.4, §6; `15` §6; `16`; the `release` and `nightly-triage` skills.
-
 - The mirror keeps the school repository to `main` and the tags (5.1r, #216): it deletes every other branch there at each run and daily (`tools/ci/prune_school.sh`, tested by `test_prune_school.sh`), so a Dependabot PR or any PR opened there closes by itself. ADR-033 Update, `16` §3 and §6, README.
 
 ### Changed
@@ -30,7 +32,6 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 ### Fixed
 
 - The sim calibration tests pass on AMD EPYC runners (3.4e, #217): one gave 1.11 px and a corner 5.8 px off (AVX2, no AVX-512), #187's runner 1.17 px and 6.4 px, where an i7-11800H gives 0.868 px and 2.52 px. The sim gate of `markers_sim.yaml` becomes 1.5 px (was 1.0) and the corner bound of `test_sim_scene.py` 8 px (was 5); the accuracy test (5 mm, 0.3°) unchanged. MES-54, `05` §5.
-
 - CI: the heavy jobs follow the PR's draft state when the run executes, not the event's (5.1o, #209, `tools/ci/heavy.sh`, tested in `test_ci_skips.sh`). A push while draft and a "ready" in the same second, or a rerun of an old draft run, left a ready PR mergeable with its build, tests and E2E skipped (#207). `14` §5.4, CONTRIBUTING §2.
 
 ## [1.0.0] - 2026-10-31
