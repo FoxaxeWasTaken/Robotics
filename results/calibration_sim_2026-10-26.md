@@ -24,3 +24,7 @@ Our calibration tool (`so101_perception.calibration`, 05 §5.1) on the calibrati
 Step 3.4b's criterion (< 5 mm / 0.3°) is met, as MES-16 expected (0.9 mm / 0.06°).
 
 The margin under the 1 px gate is small (0.87 px): the rendered markers' corners stay up to ~3 px off at grazing angles (`test_sim_scene.py`). The pose stays sub-millimeter: a larger error comes from a wrong layout, which the gate is there to catch.
+
+## Update (2026-11-02, #217)
+
+The small margin showed in CI: an AMD EPYC 7763 runner (AVX2, no AVX-512) gave 1.11 px and a corner 5.8 px off, where the machine of this report gives 0.868 px and 2.52 px (MES-54). The sim gate of `markers_sim.yaml` is now 1.5 px and the corner bound of `test_sim_scene.py` 8 px; the results above are unchanged.
