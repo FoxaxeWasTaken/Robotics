@@ -63,7 +63,7 @@ tools/so101 cycle                            # one full pick & place: the states
 tools/so101 down
 ```
 
-`tools/so101` prints each `docker compose` command it runs; `--dry-run` only prints it, `--help` lists them all. Real arm: read [`07`](docs/project/07_real_arm_safety_sim2real.md) first, its safety checklist above all.
+`tools/so101` prints each `docker compose` command it runs; `--dry-run` only prints it, `--help` lists them all. Real arm: read [`07`](docs/project/07_real_arm_safety_sim2real.md) first, its safety checklist above all; `tools/so101-arm` calibrates the arm and measures its joint zeros, the stack stopped (`07` §3.1).
 
 ## Demo
 

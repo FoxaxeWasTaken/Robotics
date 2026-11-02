@@ -70,6 +70,10 @@ docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && expo
 # 640x480 images themselves ros2 topic hz reads lower: it deserializes each 0.9 MB image in Python
 "/mnt/c/Program Files/usbipd-win/usbipd.exe" detach --busid <X-Y>
 
+# Real arm, the stack stopped (tools/so101 down), port and file from docker/.env (07 §3.1, #199)
+tools/so101-arm calibrate                 # back up CALIBRATION_FILE, then LeRobot's calibration and its prompts
+tools/so101-arm zero-offsets -n 3         # read-only, the arm held at the URDF zero: the joint_zero_offsets line
+
 # Local quality checks (host, repo root)
 pre-commit run --all-files && bash tools/ci/guards.sh
 ```
@@ -117,12 +121,12 @@ Per-symptom details:
 | Webcam: `select() timeout`, 0 frames | YUYV through usbip | `fourcc="MJPG"` (ADR-007) |
 | Several `/dev/video*` | Capture, metadata, infrared | `cat /sys/class/video4linux/video*/name` and `index` (0 = capture) |
 | Real driver stuck at startup | `calibrate()` waits for `input()` | `connect(calibrate=False)` (provided code); provide the calibration file |
-| Real driver: "does not match the motors: wrong file for this arm?" | Calibration file from another arm, or reconfigured motors | Check the file (arm ID); otherwise recalibrate (`07` §3.1). Never force-write the calibration |
+| Real driver: "does not match the motors: wrong file for this arm?" | Calibration file from another arm, or reconfigured motors | Check the file (arm ID); otherwise recalibrate (`tools/so101-arm calibrate`, `07` §3.1). Never force-write the calibration |
 | Real arm limp, ignores `/joint_command`; log "Torque disabled" | The provided `disable_torque()` lines of upstream #2 are uncommented (a session moving the arm by hand) | Comment them out again (`07` §3.1 step 6, ADR-032) |
 | "No calibration" although `CALIBRATION_FILE` is set | Path does not exist: compose created an **empty root-owned directory** | Fix the path; `sudo rm -rf` the created directory |
 | Real arm: the driver dies on `stop` with `ValueError: max_relative_target keys must match`, torque left on | A shutdown move that sent the 5 arm joints only (fixed, #194) | Update; meanwhile hold the arm and cut its power |
 | Real arm: moves at 1.5 rad/s, no webcam images (`ros2 param get /so101_driver max_joint_velocity` gives 1.5) | `driver.yaml` loaded after `driver_real.yaml` (fixed, #197) | Update; check `max_joint_velocity` is 0.8 after each start |
-| Real arm: RViz shows links inside each other, the elbow cannot reach `PARK` (`Relative goal position magnitude had to be clamped`) | The joint zeros of LeRobot differ from the URDF's (`07` §4) | Measure the readings at the URDF zero, put them in `joint_zero_offsets` (`driver_real.yaml`, #196) |
+| Real arm: RViz shows links inside each other, the elbow cannot reach `PARK` (`Relative goal position magnitude had to be clamped`) | The joint zeros of LeRobot differ from the URDF's (`07` §4) | The stack stopped, the arm held at the URDF zero: `tools/so101-arm zero-offsets -n 3`, its line in `joint_zero_offsets` (`driver_real.yaml`, #196) |
 | The real arm collapses on shutdown; log "Shutdown pose not reached" | The move to `PARK` before `disconnect()` ran out of its 11 s (a blocked joint), or the bus was lost (no move) | Stop the arm near `PARK` (the brain parks it after each cycle); hold the forearm (`03` §8) |
 | Real arm: `/joint_states` stops; log "Bus lost after 3 retries" | Serial bus: cable, servo board power, usbipd detached (`ls /dev/ttyACM*`) | Fix the link, then restart the driver (`docker compose restart control`) |
 | Driver log "No camera image: Failed to open" | Webcam not attached (`usbipd attach`), or `camera_device` is not its color capture node (index 0) | `02` §5.2; `cat /sys/class/video4linux/video*/name` |
