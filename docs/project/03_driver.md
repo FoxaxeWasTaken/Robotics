@@ -17,7 +17,7 @@
 | Sim camera: dedicated thread, render on a copy, backend lock | ✅ 10 Hz, control p99 20.4 ms [MES-34] (ADR-006) | 1.2 |
 | **Clamping to joint limits** (C-15): MuJoCo clamps via `ctrlrange` in sim, nothing else would protect the real arm | ✅ `command.py` | 1.1 |
 | NaN/inf rejection | ✅ `command.py` | 1.1 |
-| `effort` (grasp detection, ADR-016) | ✅ sim, `effort.py`; real: empty until 6.4a | 1.3 |
+| `effort` (grasp detection, ADR-016) | ✅ sim, `effort.py`; real: empty, `Present_Load` cannot tell a held cube [MES-56] | 1.3 |
 | `/external_cam/camera_info` (C-13); `frame_id` = optical frame (ADR-005) | ✅ `camera.py` | 1.3 |
 | `/sim/randomize`, `seed`, ground truth for the bench (§7) | ✅ `randomize.py` | 1.4 |
 | Real-arm shutdown: `disconnect()` cuts the torque, the arm falls | ✅ slow move to `PARK` first, 11 s at most (§8, `shutdown.py`) | 6.1a |
@@ -156,7 +156,7 @@ on_joint_command(msg):
 | `name` | `[shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll, gripper]` (exact URDF names, otherwise RViz shows the arm "in pieces") |
 | `position` | rad; gripper converted % → rad: `rad = lo + pct/100·(hi − lo)`, `(lo, hi) = (−0.174533, 1.74533)` — what `robot_state_publisher` expects |
 | `velocity` | Optional (filtered finite difference) or empty |
-| `effort` | **Normalized load in [−1, 1]** (fraction of max torque). Sim: `actuator_force / forcerange` (`effort.py`); real: `Present_Load / 1000` (6.4a, empty until then). Sign: positive towards larger angles, except the **gripper: positive = squeezing** (it closes towards smaller angles), so holding the cube reads 0.18 and an empty grasp 0 [MES-35]. Used for grasp detection (ADR-016). Deliberate deviation from REP-103 (N·m): hobby-servo load is not a calibrated torque |
+| `effort` | **Normalized load in [−1, 1]** (fraction of max torque). Sim: `actuator_force / forcerange` (`effort.py`); real: empty, by decision (#69): `Present_Load / 1000` reads +0.11 closed on nothing, as much as the sim's held cube, so the brain judges the real grasp by the jaws' gap instead [MES-56]. Sign: positive towards larger angles, except the **gripper: positive = squeezing** (it closes towards smaller angles), so holding the cube reads 0.18 and an empty grasp 0 [MES-35]. Used for grasp detection (ADR-016). Deliberate deviation from REP-103 (N·m): hobby-servo load is not a calibrated torque |
 
 The brain recovers the gripper percentage with the inverse conversion from `so101_common`.
 

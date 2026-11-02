@@ -281,7 +281,7 @@ The owners are those of `.github/CODEOWNERS` (0.1d), which requests their review
 
 ### Step 6.4 — Sim → real adjustment
 
-- **Tasks**: record a rosbag of real images; tune HSV offline; gripper effort threshold (empty/holding); accuracy measurement on the grid (real C-41); test 5 of `07`.
+- **Tasks**: record a rosbag of real images; tune HSV offline; grasp check by the jaws' gap: the contact opening, `close_pct` and `hold_gap_pct` (empty/holding, #69); accuracy measurement on the grid (real C-41); test 5 of `07`.
 - **Done when**: reliable detection on 20 varied real images; measured TCP error < 1 cm.
 
 ### Step 6.5 — Real pick & place

@@ -184,7 +184,7 @@ class DriverNode(rclpy.node.Node):
 
         self._obs = self._robot.get_observation()
         self._obs_stamp = self.get_clock().now().to_msg()  # /joint_states stamp = read time (03 §5)
-        self._effort = []  # normalized load per joint; empty on the real arm until 6.4a
+        self._effort = []  # normalized load per joint; empty on the real arm (#69, MES-56)
         self._goal = {name: self._obs[f"{name}.pos"] for name in JOINT_NAMES}  # startup pose: no jump to 0
         self._setpoint = dict(self._goal)
         self._bus_errors = 0  # consecutive failed control ticks
