@@ -71,6 +71,7 @@ The school mirror is described in `16`.
 ├── .pre-commit-config.yaml  .markdownlint-cli2.yaml  .hadolint.yaml  .lycheeignore  .editorconfig  .gitattributes  .gitignore  .gitleaksignore
 ├── sonar-project.properties  .sonarlint/connectedMode.json   ← SonarQube Cloud analysis and its IDE binding (14 §4)
 ├── .git-blame-ignore-revs       ← purely mechanical commits (formatting)
+├── .claude/skills/               ← the Claude Code skills of the team's procedures (CONTRIBUTING §2); settings.local.json ignored [team]
 ├── .github/
 │   ├── workflows/ci.yml  pr-title.yml  nightly.yml  mirror.yml
 │   ├── CODEOWNERS  PULL_REQUEST_TEMPLATE.md  dependabot.yml

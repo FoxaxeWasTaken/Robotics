@@ -7,6 +7,7 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 compose=(docker compose -f "$root/docker/docker-compose.yml")
 BENCH_DOMAIN=77  # the bench's own ROS domain: the ground truth never reaches the everyday stack's (C-06)
 ROBUSTNESS_DOMAIN=78  # the robustness demo's own ROS domain (results/robustness_demo.md)
+RUN_DOMAIN=79  # tools/so101 run's domain; its container has no network anyway
 PACKAGES="so101_common so101_driver so101_brain so101_perception so101_bringup"  # ours, each with tests
 dry=false
 
@@ -29,6 +30,11 @@ Usage: tools/so101 [--dry-run] <command> [options]
   robustness <case> [--lighting NAME] [-n N]
                         a case of the robustness demo (1, 2, 3a, 3b, 4 or 5) in a new control container on
                         ROS domain $ROBUSTNESS_DOMAIN, the stack stopped; case 5: --lighting dim, N cycles (5)
+  run [--stack] [--out DIR] '<command>'
+                        <command> in a throwaway control container, next to a running stack without touching
+                        it: no network, ROS domain $RUN_DOMAIN, the repository read-only at /repo, our packages
+                        copied and built there; --stack starts sim.launch.py first and waits for the brain;
+                        DIR (made if missing) is mounted at /out for what the command writes
   test [package [pytest options]]
                         build and test one package, or all of ours, in a new control container (colcon
                         test, its own free ROS domain); the options go to pytest: test so101_brain -k fsm.
@@ -160,6 +166,36 @@ ros2 run so101_bringup evaluate --episodes $episodes --out /ros2_ws/eval_bench.c
     run "${compose[@]}" run --rm --no-deps -e ROS_DOMAIN_ID=$ROBUSTNESS_DOMAIN control bash -lc \
       "source /ros2_ws/install/setup.bash && ros2 launch so101_bringup robustness_demo.launch.py case:=$case\
 ${lighting:+ lighting:=$lighting}${episodes:+ episodes:=$episodes}"
+    ;;
+  run)
+    stack="" out="" chown=""
+    while [ $# -gt 0 ]; do
+      case $1 in
+        --stack)  # nodes started with & in a non-interactive shell ignore SIGINT: the container's end stops them
+          stack="(ros2 launch so101_bringup sim.launch.py > /tmp/stack.log 2>&1 &) && \
+timeout 120 ros2 topic echo --once /end_effector_pose geometry_msgs/msg/PoseStamped > /dev/null || { tail -n 30 /tmp/stack.log; exit 1; }; "
+          ;;
+        --out) out=${2:-}; shift ;;
+        -*) die "run: unknown option $1" ;;
+        *) break ;;
+      esac
+      shift
+    done
+    [ $# -eq 1 ] || die "run: one command, quoted"
+    [[ $out =~ ^[A-Za-z0-9_./-]*$ ]] || die "run: --out takes a plain path"
+    volumes=(-v "$root:/repo:ro")
+    if [ -n "$out" ]; then
+      "$dry" || mkdir -p "$out"
+      out=$(realpath -m "$out")
+      volumes+=(-v "$out:/out")
+      chown="; status=\$?; chown -R $(id -u):$(id -g) /out; exit \$status"  # the container runs as root
+    fi
+    tty=""
+    [ -t 0 ] && tty=-t
+    run docker run --rm -i ${tty:+"$tty"} --network none -e ROS_DOMAIN_ID=$RUN_DOMAIN -e MUJOCO_GL=osmesa "${volumes[@]}" \
+      tek5/control bash -lc "mkdir -p /tmp/ws && cp -r /repo/ros2_ws/src /tmp/ws/ && cd /tmp/ws && \
+source /opt/ros/jazzy/setup.bash && colcon build --packages-up-to $PACKAGES > /tmp/build.log 2>&1 \
+|| { tail -n 30 /tmp/build.log; exit 1; }; source install/setup.bash && $stack$1$chown"
     ;;
   test)
     # In a fresh container: the tests need no stack, and the timing ones (the planner's p95) need its CPU, so stop

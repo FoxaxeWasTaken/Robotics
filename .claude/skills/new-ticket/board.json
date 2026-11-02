@@ -1,0 +1,38 @@
+{
+  "Lane": {
+    "id": "PVTSSF_lAHOBXafxM4BnNpezhlzSrI",
+    "options": {
+      "A — driver/infra/hardware": "d567cfc4",
+      "B — kinematics/brain": "a35a5fb6",
+      "C — perception/calibration": "99101aa8",
+      "Shared": "a57d5cbd"
+    }
+  },
+  "Priority": {
+    "id": "PVTSSF_lAHOBXafxM4BnNpezhlzSsw",
+    "options": {
+      "P0": "26f44baf",
+      "P1": "9c89ada7",
+      "P2": "71a3eb2b"
+    }
+  },
+  "Size": {
+    "id": "PVTSSF_lAHOBXafxM4BnNpezhlzSs4",
+    "options": {
+      "L": "5b750bb2",
+      "M": "cccd5dce",
+      "S": "53b29b36",
+      "XS": "55d99254"
+    }
+  },
+  "Status": {
+    "id": "PVTSSF_lAHOBXafxM4BnNpezhlzSko",
+    "options": {
+      "Backlog": "f75ad846",
+      "Done": "98236657",
+      "In Progress": "47fc9ee4",
+      "In review": "b9720827",
+      "Ready": "49229a77"
+    }
+  }
+}

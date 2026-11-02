@@ -70,6 +70,8 @@ Any member may review and approve any PR. The author requests the reviews (step 
   - the branch up to date with `main`, and squash merge only;
   - new commits dismiss the approvals: after a push (an *Update branch* included), check that the approval is still there, else ask again.
 
+The recurring procedures (a ticket, a PR, a measurement or an ADR, a run next to someone's stack, a release, the nightly triage) also exist as Claude Code skills in `.claude/skills/`: each gives the order of the steps and points to this file or to `docs/project/`, which stay the reference.
+
 ## 3. Non-negotiable rules (from the project brief)
 
 - Motor commands go **only** through `/joint_command`; brain and perception **never** import the backend (C-05).

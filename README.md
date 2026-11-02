@@ -102,6 +102,7 @@ tools/so101 bench --perception -n 10         # the real pipeline
 | 69 (`docker/.env`) | The everyday stack: driver, brain, perception, RViz | The team's value |
 | 77 | `tools/so101 bench` | Its own driver publishes the ground truth that scores the bench |
 | 78 | `tools/so101 robustness` | The demo runs alone: next to another driver it sees "2 drivers on this ROS domain" |
+| 79 | `tools/so101 run` | A throwaway container with no network: tests, a scenario or a capture next to a running stack |
 | Free, picked per package | `colcon test` (colcon-ros-domain-id-coordinator) | Tests never talk to a running stack |
 
 The ground truth (`/sim/ground_truth/*`) is published only by a driver started with `expose_ground_truth:=true`, which only the bench and the CI's E2E jobs do (C-06). On domain 77, it never reaches the everyday stack: perception and the brain on 69 cannot use it, even by mistake. The bench refuses to start when a stack already runs on 77.
