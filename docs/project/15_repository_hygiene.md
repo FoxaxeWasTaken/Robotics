@@ -172,7 +172,7 @@ gitGraph
 | PR merges | **Squash merge**: 1 PR = 1 commit on `main`, author = PR author, co-authors kept (`Co-authored-by`) | Linear history, always attributable (C-07) |
 | `main` branch | Protected: PR, 1 approval, green CI, no force-push (private repo: needs GitHub Pro, §12.5) | — |
 | Versions | SemVer, a **minor version per usable increment**, a patch for a fix that matters; one GitHub **milestone** per version, every ticket in one (ADR-028 Update of 2026-11-02) | `v1.0.0` sim pick & place · `v1.1.0` real-arm tooling · `v1.2.0` real camera · `v1.3.0` real pick & place · `v2.x` phase 2 (no `v0.x` tag was made) |
-| Release | One GitHub Release per tag: notes (CHANGELOG), bench report, **link** to the video. It needs its milestone's other tickets closed, a nightly on the exact commit and the quality gate passed; it closes the milestone and opens the next one (the `release` skill) | — |
+| Release | One GitHub Release per tag: notes (CHANGELOG), bench report, **link** to the video. It needs its milestone's other tickets closed, a nightly on the exact commit and the quality gate passed; it closes the milestone and opens the next one: `tools/release.sh vX.Y.Z` checks all of it and does the writes (#211, the `release` skill) | — |
 | Changelog | [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), updated in the PR preparing the tag | Option: generated from commits (git-cliff) |
 | Language | **English** for code, commits, docs and presentations | Consistency with the conventional commits and the defense |
 

@@ -1,5 +1,6 @@
 # Squash merge turns the PR title into the commit message on main: it must be a conventional commit
-# (same types as the local commit-msg hook in .pre-commit-config.yaml). Details: docs/project/14 §5.
+# (same types as the local commit-msg hook in .pre-commit-config.yaml). And every ticket the PR closes must have a
+# milestone, the version it ships in (#211); `edited` reruns both when the title or the body changes. Details: docs/project/14 §5.
 name: PR title
 
 on:
@@ -25,3 +26,20 @@ jobs:
             echo "::error::Not a conventional commit title, expected 'type(scope): description': $TITLE"
             exit 1
           fi
+
+  milestones:  # every ticket a PR closes belongs to a version (ADR-028 Update, #211)
+    if: ${{ vars.CI_ENABLED == 'true' || (github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'FoxaxeWasTaken/Robotics') }}
+    name: Linked tickets have a milestone
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: The Closes/Fixes/Resolves tickets of the PR body, each with a milestone
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash tools/ci/linked_milestones.sh "$GITHUB_REPOSITORY" <<< "$BODY"

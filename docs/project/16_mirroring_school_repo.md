@@ -74,7 +74,7 @@ git ls-remote origin refs/heads/main ; git ls-remote <school-url> refs/heads/mai
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| A new tag (a release) is missing on the school side | The mirror runs on `main` pushes, not on tags | Actions → *Mirror* → **Run workflow** after the tag, then `git ls-remote --tags <school-url>` |
+| A new tag (a release) is missing on the school side | The mirror runs on `main` pushes, not on tags | `tools/release.sh` dispatches it after the tag (#211); otherwise Actions → *Mirror* → **Run workflow**, then `git ls-remote --tags <school-url>` |
 | A change made on the school side disappeared | The mirror force-pushes `main` | Never push to the school repository: make the change through a PR on the private one |
 | `Permission denied (publickey)` | Key not added or without write access | §5 step 1 |
 | `Host key verification failed` | Wrong `SCHOOL_GIT_HOST` | Fix the variable |

@@ -78,10 +78,16 @@ repos:
         files: ^tools/(so101-arm|so101_arm\.py|ci/test_so101_arm\.sh)$
         pass_filenames: false
       - id: bench-report-test
-        name: bench_report.sh test (#151)
+        name: bench_report.sh test (#151, #211)
         entry: bash tools/ci/test_bench_report.sh
         language: system
-        files: ^tools/ci/((test_)?bench_report|post_report)\.sh$
+        files: ^tools/ci/((test_)?bench_report|post_report|milestone)\.sh$
+        pass_filenames: false
+      - id: release-test
+        name: release.sh, milestone.sh and the milestone check test (#211)
+        entry: bash tools/ci/test_release.sh
+        language: system
+        files: ^tools/(release|ci/(milestone|linked_milestones|test_release))\.sh$
         pass_filenames: false
       - id: quality-report-test
         name: quality_report.sh test (#179)

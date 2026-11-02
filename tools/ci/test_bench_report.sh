@@ -13,6 +13,14 @@ mkdir "$tmp/bin"
 cat > "$tmp/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >> "$GH_LOG"
+if [[ "$1" = api ]]; then  # the release line (#211): the latest Release, the milestones, the oldest one's issues
+  case $2 in
+    */releases/latest) echo '{"tag_name": "v1.0.0"}' ;;
+    */milestones*) echo '[{"number": 5, "title": "v1.1.0 — Tooling", "state": "open"}]' ;;
+    */issues\?milestone=5*) echo "${GH_ISSUES:-[]}" ;;
+  esac
+  exit 0
+fi
 [[ "$1 $2" = "issue list" ]] && printf '%s\n' "${GH_OPEN:-}"
 [[ "$1 $2" = "issue create" ]] && echo "https://github.com/team/robotics/issues/42"
 prev=""; for a in "$@"; do [[ "$prev" = --body-file ]] && cp "$a" "$GH_LOG.body"; prev=$a; done
@@ -38,12 +46,18 @@ for e in "success 46/50 (92 %)" "p95 17.4 s" "object_lost: 4" "\`main\` at \`012
   grep -qF "$e" "$GH_LOG.body" || fail "no '$e' in the comment: $(cat "$GH_LOG.body")"
 done
 cmp -s "$GH_LOG.body" "$tmp/summary.md" || fail "the run summary differs from the comment: $(cat "$tmp/summary.md")"
+grep -qE 'Release: latest `v1.0.0`, [0-9]+ entries in `\[Unreleased\]`; `v1.1.0 — Tooling`: \*\*releasable\*\*' "$GH_LOG.body" \
+  || fail "release line: $(cat "$GH_LOG.body")"
 echo "ok: a finished bench comments its summary line, commit, target and run on the open issue, and in the run summary"
+GH_ISSUES='[{"number": 67, "title": "Intrinsics", "labels": []}, {"number": 212, "title": "Release v1.1.0", "labels": []}]' run "$FULL" 12
+grep -qF '`v1.1.0 — Tooling`: not yet, open #67' "$GH_LOG.body" || fail "release line with open tickets: $(cat "$GH_LOG.body")"
+echo "ok: the release line: releasable when the bench met its target and the oldest version has no open ticket"
 
 REF=docs/1-a-branch run "success 40/50 (80 %); duration p50 15.0 s, p95 17.0 s; causes: object_lost: 10" 12
 grep -qF '`docs/1-a-branch` at `0123456`' "$GH_LOG.body" || fail "a dispatch on a branch named as main: $(cat "$GH_LOG.body")"
 grep -qF "Target ≥ 90 %: not met." "$GH_LOG.body" || fail "$(cat "$GH_LOG.body")"
-echo "ok: under the target, it says so"
+grep -qF '`v1.1.0 — Tooling`: not yet, the bench missed its target' "$GH_LOG.body" || fail "release line: $(cat "$GH_LOG.body")"
+echo "ok: under the target, it says so, and the version is not releasable"
 
 run "evaluate: no /end_effector_pose: the brain does not see /joint_states" 12
 grep -q '^issue comment 12 ' "$GH_LOG" && grep -qF "did not finish" "$GH_LOG.body" && grep -qF "$RUN_URL" "$GH_LOG.body" ||

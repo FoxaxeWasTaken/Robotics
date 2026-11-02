@@ -12,6 +12,14 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 - The ghost arm (6.1c, #200): the driver publishes the setpoint it sends at each control step on `/joint_setpoint` (the 6 joints in rad, after the clamp and the limiter; Reliable, depth 1, since `robot_state_publisher` subscribes Reliable); `sim.launch.py` (so `real.launch.py` too) draws it as the `ghost/` TF tree with a second `robot_state_publisher`, and RViz shows it translucent in the display "Commanded arm (ghost)", unchecked by default. The gap to the measured arm is the tracking error on the real arm. Tests: `command.setpoint_positions` (order, gripper % → rad), and in sim `/joint_setpoint` reaching a commanded pan with the TF `base_link → ghost/gripper_frame_link`. `01` §3.1 (new topic, diagram), `03` §5, `06` §7, `07` §3.2, `13`, README.
 - The intermediate review's deck as presented on 2026-10-31 (#201): `docs/project/presentations/`, a 17-slide PDF (0.64 MB, Canva's export compressed with Ghostscript) and an index linking its video, the `v1.0.0` release asset `sim_full_cycle.mp4`. `docs/project/README.md`, `15` §3 and §7.
 
+- The release flow (5.1q, #211):
+  - `tools/release.sh vX.Y.Z` refuses a milestone with open tickets, a commit without a nightly bench report that met its target, a failed quality gate or a missing CHANGELOG section; otherwise it tags `origin/main`, creates the Release, closes the milestone, opens the next one and dispatches the mirror;
+  - a required check "Linked tickets have a milestone" on every PR;
+  - a "Release:" line in the nightly bench report, "releasable" or what is left;
+  - shared logic in `tools/ci/milestone.sh`, all tested offline by `test_release.sh` and `test_bench_report.sh`.
+
+  `14` §3, §5.4, §6; `15` §6; `16`; the `release` and `nightly-triage` skills.
+
 ### Changed
 
 - Releases (5.1p, #210): a minor version per usable increment, a patch for a fix that matters; one GitHub milestone per version, every ticket in one from its creation, and each open milestone with its release ticket (#212 `v1.1.0`, #213 `v1.2.0`, #214 `v1.3.0`, #99 `v2.0.0`). The milestones put in order: `v0.1.0`–`v0.3.0` and `v1.0.0` closed, each closed ticket filed under the version it shipped in. ADR-028 Update, `15` §6 and §12, CONTRIBUTING §8, the issue template, the `new-ticket` and `release` skills.
