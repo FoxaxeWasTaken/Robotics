@@ -73,6 +73,12 @@ PARAMETERS = {
         0.0,
         1.0,
     ),
+    "grasp.hold_gap_pct": (
+        "hold_gap_pct",
+        "Or the jaws stopped this far above close_pct: the cube is held (the real arm, #69), %",
+        0.5,
+        50.0,
+    ),
     "fsm.target_lock_n": ("target_lock_n", "Consistent detections that lock the target", 1, 50),
     "fsm.target_lock_spread_m": (
         "target_lock_spread_m",
@@ -100,10 +106,10 @@ PARAMETERS = {
         120.0,
     ),
     "fsm.plan_timeout_s": ("plan_timeout_s", "No plan within this time: ERROR:timeout:PLAN, s", 1.0, 60.0),
-    "fsm.grasp_wait_s": ("grasp_wait_s", "GRASP: closing time before the effort is judged, s", 0.1, 5.0),
+    "fsm.grasp_wait_s": ("grasp_wait_s", "GRASP: closing time before the grasp is judged, s", 0.1, 5.0),
     "fsm.grasp_timeout_s": (
         "grasp_timeout_s",
-        "GRASP: the effort still below the threshold: RETRY, s",
+        "GRASP: still not held (effort, jaws gap): RETRY, s",
         0.2,
         10.0,
     ),
@@ -258,7 +264,9 @@ class BrainNode(rclpy.node.Node):
         gripper opening (None if not given)."""
         positions = dict(zip(msg.name, msg.position, strict=True))
         if all(name in positions for name in ARM_JOINT_NAMES):
-            efforts = dict(zip(msg.name, msg.effort, strict=False))  # effort is empty on the real arm (6.4a)
+            efforts = dict(
+                zip(msg.name, msg.effort, strict=False)
+            )  # no effort on the real arm: the jaws' gap judges the grasp (#69)
             q = np.array([positions[name] for name in ARM_JOINT_NAMES])
             gripper = rad_to_pct(positions["gripper"]) if "gripper" in positions else None
             self._joints = (q, msg.header.stamp, self._now(), float(efforts.get("gripper", 0.0)), gripper)

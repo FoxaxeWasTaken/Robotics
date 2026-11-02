@@ -59,6 +59,7 @@ class Params:
     open_pct: float = 100.0
     close_pct: float = 0.0
     effort_threshold: float = 0.06  # gripper closing force above it: cube held [MES-10, MES-35, MES-48]
+    hold_gap_pct: float = 3.0  # or jaws stopped this far above close_pct: the real arm's signal [MES-57]
     target_lock_n: int = 5
     target_lock_spread_m: float = 0.005  # the n detections within this distance of each other
     max_detection_age_s: float = 0.5
@@ -166,16 +167,16 @@ class Fsm:
             case State.APPROACH | State.DESCEND | State.TRANSPORT | State.HOME:
                 if self._follow():
                     self._go(*AFTER_MOTION[self.state])
-            case State.GRASP if t >= p.grasp_wait_s and i.effort > p.effort_threshold:
-                self._go(State.LIFT, f"holding: effort {i.effort:.3f}")
+            case State.GRASP if t >= p.grasp_wait_s and self._held():
+                self._go(State.LIFT, f"holding: {self._grip()}")
             case State.GRASP if t >= p.grasp_timeout_s:
-                self._go(State.RETRY, f"empty gripper: effort {i.effort:.3f}")
+                self._go(State.RETRY, f"empty gripper: {self._grip()}")
             case State.LIFT:
                 if self._follow():
-                    if i.effort > p.effort_threshold:
-                        self._go(State.TRANSPORT, f"lifted, effort {i.effort:.3f}")
+                    if self._held():
+                        self._go(State.TRANSPORT, f"lifted: {self._grip()}")
                     else:
-                        self._go(State.RETRY, f"object lost during the lift: effort {i.effort:.3f}")
+                        self._go(State.RETRY, f"object lost during the lift: {self._grip()}")
             case State.RELEASE if t >= p.release_wait_s:
                 self._go(State.HOME, "released")
             case State.VERIFY:
@@ -317,6 +318,17 @@ class Fsm:
     def _in_box(self, cube, box) -> bool:
         """The cube's center within the box footprint (08 §3): a placed cube, for VERIFY and for the lock."""
         return bool(np.all(np.abs(cube[:2] - box[:2]) < self.p.box_half_size_m))
+
+    def _held(self):
+        """The cube is in the jaws: the sim's effort (ADR-016), or jaws the cube stopped above their goal (the
+        real arm publishes no effort, #69). In sim the jaws close on a tunnel wall: no gap there [MES-57]."""
+        i, p = self._in, self.p
+        stopped = i.gripper is not None and i.gripper - p.close_pct >= p.hold_gap_pct
+        return i.effort > p.effort_threshold or stopped
+
+    def _grip(self):
+        opening = "unknown" if self._in.gripper is None else f"{self._in.gripper:.1f} %"
+        return f"effort {self._in.effort:.3f}, gripper {opening}"
 
     def _verify(self, t):
         """A cube seen since PARK: in the box footprint -> DONE, elsewhere -> RETRY; unseen -> DONE."""

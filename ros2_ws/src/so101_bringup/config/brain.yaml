@@ -12,7 +12,8 @@ so101_brain:
       pregrasp_backoff_m: 0.04  # back along the approach axis [MES-09]
       lift_dz_m: 0.10           # TCP above the cube center: 5 cm walls + margin
       drop_tcp_z_m: 0.09        # TCP above the box floor; failure observed at 0.11 [MES-09]
-      effort_threshold: 0.06  # normalized gripper closing force: held above it; recalibrate on the real arm
+      effort_threshold: 0.06  # normalized gripper closing force: held above it (sim; the real arm publishes none)
+      hold_gap_pct: 3.0       # or the jaws stopped this far above close_pct: held (the real arm, #69); never in sim [MES-57]
       open_pct: 100.0
       close_pct: 0.0
       gripper_tol_pct: 3.0      # APPROACH also waits for the measured gripper this close to open_pct
@@ -24,8 +25,8 @@ so101_brain:
       max_retries: 3               # failed attempts before ERROR:grasp_failed
       wait_target_s: 10.0          # no lock this long after PARK: ERROR:object_lost
       plan_timeout_s: 6.0          # slowest answer, a cube out of reach: 1.7 s, 2.4 s on CI [MES-40]
-      grasp_wait_s: 0.8            # GRASP: closing time before the effort is judged
-      grasp_timeout_s: 1.5         # GRASP: the effort still below the threshold: RETRY
+      grasp_wait_s: 0.8            # GRASP: closing time before the grasp is judged
+      grasp_timeout_s: 1.5         # GRASP: still not held (effort, jaws gap): RETRY
       release_wait_s: 0.5          # RELEASE: opening time before HOME
       verify_timeout_s: 2.0        # VERIFY: no detection this long: DONE with a warning
       box_half_size_m: 0.05        # in the box: cube center within this of the box center, per axis (08 §3)
