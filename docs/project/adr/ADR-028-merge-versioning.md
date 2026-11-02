@@ -35,3 +35,14 @@ The team prefers keeping every work commit (rebase + fast-forward).
 ## Update (2026-10-30, the first tag)
 
 No `v0.x` tag was made: the driver, IK and perception milestones went by without one. The first tag is `v1.0.0`, the simulation milestone (#63); the next ones follow the decision (`v1.1.0` real arm, `v2.x` phase 2).
+
+## Update (2026-11-02, #210): a minor version per usable increment, one milestone per version
+
+One tag in a month (`v1.0.0`) was too few: a version was a large functional milestone, with no ticket and no workflow step to bring it up, and the `v0.x` milestones went by unnoticed. The rule from now on:
+
+- **A minor version per usable increment**: what a member or the defense can use once it is merged and the nightly passed it. Planned: `v1.1.0` real-arm tooling, `v1.2.0` real camera and perception, `v1.3.0` real pick & place (C-43), `v2.x` phase 2. A **patch** for a fix that matters on its own.
+- **Each version is a GitHub milestone**. Every task ticket belongs to one from its creation (CONTRIBUTING §8), and each open milestone has its "Release vX.Y.Z" ticket.
+- **A release** (`15` §6) closes its milestone once its other tickets are closed, and opens the next minor's if it is missing.
+- **Enforced by #211**: a PR cannot merge when a ticket it closes has no milestone; `tools/release.sh` refuses a milestone with open tickets; the nightly report says when `main` is releasable.
+
+The milestones were put in order on 2026-11-02: `v0.1.0`–`v0.3.0` (never tagged) and `v1.0.0` (released) closed, with each closed ticket filed under the version it shipped in.

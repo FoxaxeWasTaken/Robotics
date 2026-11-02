@@ -1,7 +1,7 @@
 """MES-54: does the sim calibration view render the same on every machine (#187)? The view of
 test_sim_scene.py's calibration tests (our scene with the ArUco markers, 640x480, the arm in PARK), rendered
 by OSMesa (llvmpipe), then the calibration's detection and solve: the image's hash, the mean reprojection
-error against the 1.0 px gate of markers_sim.yaml, and the worst detected corner against its projection.
+error against the gate of markers_sim.yaml (1.5 px since #217), and the worst detected corner against its projection.
 
 llvmpipe compiles its shaders for the host CPU: a runner with another instruction set may render other
 pixels. Run it in one process per llvmpipe setting, e.g. LP_NATIVE_VECTOR_WIDTH=128 (what a CPU without
@@ -86,7 +86,7 @@ SEEDS = int(sys.argv[1]) if len(sys.argv) > 1 else 0
 bad = []
 for seed in range(SEEDS):
     _, found, error, (offset, worst), cube = view(seed)
-    if error is None or error >= LAYOUT["max_reprojection_px"] or offset >= 5.0 or len(found) < len(LAYOUT["markers"]):
+    if error is None or error >= LAYOUT["max_reprojection_px"] or offset >= 8.0 or len(found) < len(LAYOUT["markers"]):
         bad.append((seed, cube, sorted(found), error and round(error, 3), worst, round(offset, 2)))
 if SEEDS:
     print(f"{len(bad)}/{SEEDS} seeds fail the tests' bounds (reprojection < 1 px, every corner within 5 px):")

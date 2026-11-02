@@ -81,9 +81,10 @@ def test_each_detected_corner_is_where_the_layout_puts_it(calibration_view):
     for i, detected in found.items():
         camera = (marker_corners(LAYOUT["markers"][i], LAYOUT["side_m"]) - t) @ R
         uv = (camera @ K.T)[:, :2] / camera[:, 2:]
-        # corner detection on a small, oblique rendered marker: up to ~3 px; a wrong order: a side (>= 28 px)
+        # corner detection on a small, oblique rendered marker: 2.5 px, up to 6.4 on some CI CPUs
+        # (MES-54, #217); a wrong order: a side (>= 28 px)
         offset = np.abs(uv - detected).max()
-        assert offset < 5.0, (i, uv.round(1).tolist(), detected.round(1).tolist(), machine())
+        assert offset < 8.0, (i, uv.round(1).tolist(), detected.round(1).tolist(), machine())
 
 
 def test_the_calibration_finds_the_rendered_camera_within_5_mm_and_0_3_degrees(calibration_view):

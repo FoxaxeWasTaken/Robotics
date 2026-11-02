@@ -34,7 +34,7 @@ Prerequisites (a Linux host with Docker and an X server; Windows through WSL2) a
 5. Commit with a **conventional message**: `feat(driver): publish camera_info` (§2.1; the hook rejects anything else). One commit per ticket.
 6. Open the PR with one `Closes #<issue#>` line per ticket, assign yourself and **request the review of the other members**: `.github/CODEOWNERS` is indicative, any member may approve (`docs/project/14` §10). Fill in the checklist and show the **evidence**: the commands run and their output, or the measurement (§8). The ticket moves to **In review**.
    - Open it **ready for review**. It stays a **draft** only when it is stacked on another open PR (its branch starts from that PR's branch).
-   - A draft runs only lint, the guards and the PR title check; marking it ready runs the build, the tests and the E2E job. A PR that only touches documentation never runs them (`docs/project/14` §5.4).
+   - A draft runs only lint, the guards and the PR title check; marking it ready runs the build, the tests and the E2E job. A PR that only touches documentation never runs them (`docs/project/14` §5.4). Before ticking "CI is green", check that the run's "Build, tests and E2E needed?" step printed `heavy=true` (unless documentation only): the run a draft made is not the ready PR's CI.
 7. **Prepare the merge**: merge `main` into the branch (`git fetch origin && git merge origin/main`, or *Update branch* on GitHub; never rebase or force-push), wait for the CI to pass on the merged tree, then **squash merge** once the PR is approved. GitHub refuses the merge while the branch is behind `main`, and `main` gets no CI of its own (`docs/project/14` §5.4). A stacked draft: once the PR below it is merged, merge `main` into its branch, then mark it ready.
 8. The squash commit takes the **PR title**, so it must be conventional too (§2.1), CI checks it. The ticket closes and moves to **Done**, the branch is deleted.
 
@@ -140,12 +140,13 @@ All planned work lives in **one GitHub Project** (board + backlog) linked to thi
 
 - **One ticket = a few hours to two days of work**. Bigger? Split it. A PR closes one ticket or a **group of related tickets** (same files or same roadmap step: fewer conflicts and re-reviews), with one commit and one `Closes #<n>` line per ticket. Tickets are grouped under one **epic per roadmap stage** (sub-issues; *phase 1 / phase 2* are the brief's parts, `docs/project/12`) and carry the roadmap step in their title: `[1.3a] Publish camera_info and use the optical frame`.
 - **Statuses**: Backlog → **Ready** → In progress → In review → Done. At most **five tickets In progress per person**.
+- **Milestone**: the version the ticket ships in (`v1.2.0`…; ADR-028 Update, `docs/project/15` §6), set when the ticket is created. A PR cannot merge while a ticket it closes has none.
 - **Fields**: Lane (A, B, C, Shared, `docs/project/09` §1.2), Priority (P0 critical path · P1 needed for the final defense · P2 optional), Size (XS < 2 h · S ≤ ½ day · M ≤ 1 day · L ≤ 2–3 days). Dependencies use GitHub's native **blocked by** relationship, not labels.
 - **Labels**: `task`, `bug`, `epic`, `safety` (moves the real arm: [SAFE] review, sim first, `docs/project/07` §7), `staff-question`, and one or more `area:*`. `report` marks an automatic report, not a work item (the pinned "Nightly bench results"): the project views leave it out.
 
 **Anatomy of a ticket** (the issue template, `.github/ISSUE_TEMPLATE.md`): Roadmap step · Goal · Scope · Out of scope · **Done when** · Files and interfaces · References · Review focus. Write it so that **a teammate or an AI agent can do it without asking**: exact paths, checkable criteria (a command, a test, a threshold), what not to touch.
 
-**Definition of Ready** (Backlog → Ready): every *blocked by* ticket is Done; *Done when* is checkable; files and interface impact are named; open questions answered or listed in the ticket.
+**Definition of Ready** (Backlog → Ready): it has a milestone; every *blocked by* ticket is Done; *Done when* is checkable; files and interface impact are named; open questions answered or listed in the ticket.
 
 **Definition of Done** (applies to every ticket, on top of its own *Done when*):
 

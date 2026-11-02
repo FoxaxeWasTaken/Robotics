@@ -65,6 +65,13 @@ tools/so101 down
 
 `tools/so101` prints each `docker compose` command it runs; `--dry-run` only prints it, `--help` lists them all. Real arm: read [`07`](docs/project/07_real_arm_safety_sim2real.md) first, its safety checklist above all; `tools/so101-arm` calibrates the arm and measures its joint zeros, the stack stopped (`07` §3.1).
 
+The real arm's calibration and joint zeros, the stack stopped (one program on the serial bus), with the port and the calibration file from `docker/.env`:
+
+```bash
+tools/so101-arm calibrate                    # back up CALIBRATION_FILE, then LeRobot's calibration and its prompts
+tools/so101-arm zero-offsets -n 3            # the arm held at the URDF zero: the joint_zero_offsets line (driver_real.yaml)
+```
+
 ## Demo
 
 ```bash
@@ -82,6 +89,7 @@ The bench starts its own driver, brain and perception on ROS domain 77 (below), 
 ```bash
 tools/so101 test                             # all our packages: build, colcon test (each on its own free ROS domain)
 tools/so101 test so101_brain -k fsm          # one package; the options go to pytest: the fast loop on one test
+tools/so101 run 'colcon test --packages-select so101_brain'  # next to someone's stack: a throwaway container
 sudo apt install pre-commit                  # once (Ubuntu; or pipx install pre-commit: plain pip is refused)
 pre-commit run --all-files                   # host: lint, format, shellcheck, workflow checks, the scripts' tests
 bash tools/ci/guards.sh                      # host: the project rules (no ground truth in the pipeline, …)
@@ -90,6 +98,7 @@ tools/so101 bench --perception -n 10         # the real pipeline
 ```
 
 - The packages: `so101_common`, `so101_driver`, `so101_brain`, `so101_perception`, `so101_bringup` (the sim-backed tests: closed loop, IK accuracy, launch files).
+- `tools/so101 run '<command>'` runs a command in a throwaway control container: no network, ROS domain 79, the repository read-only, our packages built inside it. It leaves a teammate's running stack and the shared `ros2_ws/build/` alone. `--stack` starts the simulation first, `--out DIR` gets back what the command writes.
 - `tools/so101 test` runs in a new control container: the stack need not run. For a full run, stop it first (`tools/so101 down`): the grasp planner's timing tests (p95 under 1 s) fail when the simulation shares the CPU.
 - **Every PR** runs lint, the guards, the build and tests of both images, and a 3-episode E2E bench (a draft or a docs-only change: lint and guards only). The nightly runs 50 episodes each night `main` changes.
 - Code quality: [SonarQube Cloud](https://sonarcloud.io/project/overview?id=FoxaxeWasTaken_Robotics), `main` analyzed each night it changes, on trial until 2026-11-10 (`14` §4; members of the SonarCloud organization only).
@@ -167,6 +176,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Planned work and progress: the team's Gi
 The lanes say who knows a part best ([`09` §1.2](docs/project/09_roadmap_step_by_step.md)). `.github/CODEOWNERS` follows them but is indicative: any member may review and approve any PR.
 
 ## Links
+
+- This repository has a copy on the school's GitHub, overwritten from the team's at each merge and every day: branches and pull requests opened on that copy are deleted and closed automatically. Contact the team instead (`docs/project/16`).
 
 - The course repository this one comes from (kit, slides, brief): [JasonChmn/content-lerobot-bras-students](https://github.com/JasonChmn/content-lerobot-bras-students), the `upstream` remote ([CONTRIBUTING §7](CONTRIBUTING.md#7-syncing-with-the-course-kit)).
 - The design docs: [docs/project/README.md](docs/project/README.md).

@@ -2,7 +2,7 @@
 ADR-013). Pure: no ROS.
 
 The layout is a markers file (so101_bringup/config/markers_sim.yaml in sim): dictionary, side_m, the
-centers in base_link, and max_reprojection_px, the quality gate of that setup (1 px in sim, 2 px on the real
+centers in base_link, and max_reprojection_px, the quality gate of that setup (1.5 px in sim, 2 px on the real
 jig).
 """
 
