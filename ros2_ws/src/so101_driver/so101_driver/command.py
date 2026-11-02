@@ -1,8 +1,9 @@
-"""Merge of a /joint_command into the driver goal (docs/project/03 §4, C-14, C-15). Pure, no ROS."""
+"""Merge of a /joint_command into the driver goal (docs/project/03 §4, C-14, C-15), and the setpoint it
+publishes on /joint_setpoint (#200). Pure, no ROS."""
 
 import math
 
-from so101_common.robot import JOINT_LIMITS, JOINT_NAMES
+from so101_common.robot import ARM_JOINT_NAMES, JOINT_LIMITS, JOINT_NAMES, pct_to_rad
 
 
 def apply_command(goal: dict, names: list, positions: list) -> tuple[dict, str | None]:
@@ -24,3 +25,8 @@ def apply_command(goal: dict, names: list, positions: list) -> tuple[dict, str |
         lo, hi = (0.0, 100.0) if name == "gripper" else JOINT_LIMITS[name]
         new[name] = min(max(float(value), lo), hi)
     return new, None
+
+
+def setpoint_positions(setpoint: dict) -> list[float]:
+    """/joint_setpoint positions: JOINT_NAMES order, rad, the gripper converted from % (what RSP expects)."""
+    return [*(setpoint[name] for name in ARM_JOINT_NAMES), pct_to_rad(setpoint["gripper"])]

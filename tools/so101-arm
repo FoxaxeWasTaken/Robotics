@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# so101-arm - the real arm's commands (docs/project/07 §3.1), run by a human with the stack stopped. Each prints the
+# docker command it runs; --dry-run only prints. Nothing here commands the arm: calibrate is LeRobot's calibrate()
+# (torque off, the joints moved by hand), zero-offsets only reads. tools/so101 stays simulation only (#191).
+# The Python side is tools/so101_arm.py. Tested by tools/ci/test_so101_arm.sh.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+compose=(docker compose -f "$root/docker/docker-compose.yml")
+dry=false
+
+usage() {
+  cat <<EOF
+Usage: tools/so101-arm [--dry-run] <command> [options]
+
+The arm's port and calibration file come from docker/.env (REAL_ROBOT_PORT, CALIBRATION_FILE), as for the driver.
+Each command refuses to start while the stack runs: two programs on the bus garble it ("Bus lost").
+
+  calibrate             back up CALIBRATION_FILE, then LeRobot's calibration and its prompts; prints each joint's
+                        range and its middle against 2047
+  zero-offsets [-n N]   read-only, the arm held by hand at the URDF zero (stretched, horizontal): N readings (1),
+                        their mean and spread per joint, and the joint_zero_offsets line for driver_real.yaml
+
+  --dry-run             print the commands without running them
+EOF
+}
+
+die() {
+  echo "so101-arm: $*" >&2
+  exit 2
+}
+
+show() {  # the command as it can be pasted: an argument with spaces or shell characters in single quotes
+  local out="+" arg
+  for arg in "$@"; do
+    [[ $arg =~ [[:space:]\"\$\&\|\;\<\>\(\)\*] ]] && arg="'$arg'"
+    out+=" $arg"
+  done
+  echo "$out"
+}
+
+run() {
+  show "$@"
+  "$dry" || "$@"
+}
+
+env_value() {  # env_value NAME: its last value in docker/.env, quotes removed: what the driver gets
+  local value
+  value=$(sed -n "s/^$1=//p" "$root/docker/.env" 2> /dev/null | tail -n 1)
+  value=${value%\"}
+  echo "${value#\"}"
+}
+
+while [ $# -gt 0 ]; do
+  case $1 in
+    --dry-run) dry=true ;;
+    -h | --help) usage; exit 0 ;;
+    *) break ;;
+  esac
+  shift
+done
+[ $# -gt 0 ] || { usage >&2; exit 2; }
+command=$1
+shift
+[[ $command =~ ^(calibrate|zero-offsets)$ ]] || die "unknown command $command (--help)"
+readings=1
+while [ $# -gt 0 ]; do
+  case $command:$1 in
+    zero-offsets:-n) readings=${2:-}; shift ;;
+    *) die "$command: unknown option $1" ;;
+  esac
+  shift
+done
+[[ $readings =~ ^[1-9][0-9]*$ ]] || die "zero-offsets: -n takes a number of readings"
+
+calibration=$(env_value CALIBRATION_FILE)
+port=$(env_value REAL_ROBOT_PORT)
+port=${port:-/dev/ttyACM0}
+[[ $calibration =~ ^/[A-Za-z0-9_./-]+\.json$ ]] \
+  || die "CALIBRATION_FILE in docker/.env: the absolute path of the arm's .json, no ~ (07 §3.1)"
+[[ $port =~ ^/dev/tty[A-Za-z0-9]+$ ]] || die "REAL_ROBOT_PORT in docker/.env: a /dev/tty device"
+folder=$(dirname "$calibration")
+name=$(basename "$calibration" .json)
+[ -d "$folder" ] || die "no folder $folder for CALIBRATION_FILE"
+[ ! -d "$calibration" ] || die "$calibration is a directory: Docker Compose made it for a missing file, remove it (07 §3.1)"
+[ -z "$("${compose[@]}" ps -q control)" ] || die "the stack runs: tools/so101 down first (one program on the bus)"
+tty=""
+[ -t 0 ] && tty=-t  # calibrate's prompts
+container=(docker run --rm -i ${tty:+"$tty"} --network none --device "$port")
+helper=(-v "$root/tools:/tools:ro" tek5/control python3 /tools/so101_arm.py)
+
+case $command in
+  calibrate)
+    [ ! -f "$calibration" ] || run cp -p "$calibration" "$folder/$name.$(date +%Y%m%d-%H%M%S).json"
+    run "${container[@]}" -v "$folder:/calibration" "${helper[@]}" calibrate "$port" "$name"
+    ;;
+  zero-offsets)
+    [ -f "$calibration" ] || die "no calibration file $calibration: tools/so101-arm calibrate first"
+    run "${container[@]}" -v "$folder:/calibration:ro" "${helper[@]}" zero-offsets "$port" "$name" "$readings"
+    ;;
+esac

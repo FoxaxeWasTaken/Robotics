@@ -71,6 +71,12 @@ repos:
         language: system
         files: ^tools/(so101|ci/test_so101\.sh)$
         pass_filenames: false
+      - id: so101-arm-test
+        name: tools/so101-arm dry-run test (#199)
+        entry: bash tools/ci/test_so101_arm.sh
+        language: system
+        files: ^tools/(so101-arm|so101_arm\.py|ci/test_so101_arm\.sh)$
+        pass_filenames: false
       - id: bench-report-test
         name: bench_report.sh test (#151)
         entry: bash tools/ci/test_bench_report.sh

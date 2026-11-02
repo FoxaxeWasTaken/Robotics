@@ -6,8 +6,8 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from so101_common.robot import ARM_JOINT_NAMES, JOINT_LIMITS, JOINT_NAMES
-from so101_driver.command import apply_command
+from so101_common.robot import ARM_JOINT_NAMES, JOINT_LIMITS, JOINT_NAMES, pct_to_rad
+from so101_driver.command import apply_command, setpoint_positions
 
 GOAL = {**dict.fromkeys(ARM_JOINT_NAMES, 0.0), "gripper": 50.0}  # arm in rad, gripper in %
 NON_FINITE = (math.nan, math.inf, -math.inf)
@@ -112,3 +112,13 @@ def test_a_message_with_a_non_finite_value_never_moves_a_joint(cmd, bad, where):
     goal, reason = apply_command(GOAL, names, values)
     assert goal == GOAL
     assert reason
+
+
+def test_the_setpoint_is_published_in_urdf_order_in_rad():
+    """/joint_setpoint (#200): every joint, JOINT_NAMES order whatever the dict's, the gripper % -> rad."""
+    setpoint = {"gripper": 100.0, **{name: 0.1 * (i + 1) for i, name in enumerate(reversed(ARM_JOINT_NAMES))}}
+    positions = setpoint_positions(setpoint)
+    assert len(positions) == len(JOINT_NAMES)
+    assert positions[:-1] == [setpoint[name] for name in ARM_JOINT_NAMES]
+    assert positions[-1] == pytest.approx(pct_to_rad(100.0))
+    assert setpoint_positions({**setpoint, "gripper": 0.0})[-1] == pytest.approx(pct_to_rad(0.0))

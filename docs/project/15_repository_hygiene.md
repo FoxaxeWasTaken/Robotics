@@ -77,7 +77,8 @@ The school mirror is described in `16`.
 │   ├── CODEOWNERS  PULL_REQUEST_TEMPLATE.md  dependabot.yml
 │   └── ISSUE_TEMPLATE.md
 ├── .vscode/extensions.json  settings.json   ← shared recommendations and the SonarQube binding (everything else ignored)
-├── tools/so101                  ← the everyday commands (stack, cycle, bench, tests)          [team]
+├── tools/so101                  ← the everyday commands (stack, cycle, bench, robustness demo, tests) [team]
+├── tools/so101-arm, so101_arm.py ← the real arm's calibration and joint zeros (07 §3.1)     [team]
 ├── tools/ci/                    ← the CI scripts (guards.sh, check_mermaid.sh, reports…) and their tests [team]
 ├── docs/                        ← SUJET.md + PDF slides (versioned by the course)           [provided, untouched]
 │   └── project/                 ← design, ADRs, roadmap, measurements; phase2/ = Connect Four; media/ = the README GIF; presentations/ = the review decks [team]

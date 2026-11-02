@@ -46,6 +46,7 @@ class World:
         self.blocked = False
         self.gripper = 0.0  # measured, %; None: not in /joint_states
         self.gripper_blocked = False
+        self.gripper_floor = None  # the jaws stop at this opening, %: the cube between them; None: no cube
         self.answer = (PLAN, None)  # the planner's answer; None: it never answers
         self.joints_received = -np.inf
         self.seen = {"cube": None, "box": None}  # last detection of each, as the node stores them
@@ -93,7 +94,9 @@ class World:
         if out.gripper is not None:
             self.grippers.append((out.state, out.gripper))
             if not self.gripper_blocked:
-                self.gripper = out.gripper
+                self.gripper = (
+                    out.gripper if self.gripper_floor is None else max(out.gripper, self.gripper_floor)
+                )
         if out.transition is not None:
             self.transitions.append(out.transition)
             self.reached.append((before, self.q.copy()))
@@ -400,6 +403,60 @@ def test_the_effort_threshold_is_injected():
     world.run_until("RETRY", within=1.5 + DT)
 
 
+# The real arm (#69, MES-56): no effort in /joint_states, so the cube is held when it stops the jaws at least
+# hold_gap_pct above their goal; close_pct sits just below the cube's contact opening.
+REAL_GRASP = {"close_pct": 20.0, "hold_gap_pct": 3.0}
+
+
+def real_grasp(floor):
+    """A world on the real arm's grasp parameters, no effort, the jaws stopped at `floor` (None: no cube)."""
+    world = World(**REAL_GRASP)
+    world.effort = EMPTY
+    world.gripper_floor = floor
+    world.step(start=True)
+    world.run_until("GRASP")
+    return world
+
+
+@pytest.mark.parametrize("floor", [23.0, 26.0])  # hold_gap_pct above the goal, or more
+def test_jaws_stopped_by_the_cube_hold_it_without_any_effort(floor):
+    world = real_grasp(floor)
+    assert world.grippers[-1] == ("GRASP", 20.0)
+    assert abs(world.run_until("LIFT") - 0.8) <= DT + EPS
+    assert f"(holding: effort 0.000, gripper {floor:.1f} %, " in world.transitions[-1]
+
+
+@pytest.mark.parametrize(
+    "floor", [None, 22.9]
+)  # the jaws reach their goal, or stop under hold_gap_pct above it
+def test_jaws_closing_to_their_goal_are_an_empty_gripper(floor):
+    world = real_grasp(floor)
+    assert abs(world.run_until("RETRY") - 1.5) <= DT + EPS
+    assert "(empty gripper: effort 0.000, gripper " in world.transitions[-1]
+
+
+def test_an_unknown_gripper_opening_never_holds():
+    world = real_grasp(floor=26.0)
+    world.gripper_blocked, world.gripper = True, None  # no gripper in /joint_states
+    world.run_until("RETRY", within=1.5 + DT)
+
+
+def test_a_cube_slipping_out_of_the_jaws_during_the_lift_retries():
+    world = real_grasp(floor=26.0)
+    world.run_until("LIFT")
+    world.gripper_floor = None  # the jaws close on nothing
+    world.gripper = REAL_GRASP["close_pct"]
+    world.run_until("RETRY")
+    near(world.reached[-1][1], PLAN.lift)  # judged once lifted
+    assert "(object lost during the lift: effort 0.000, gripper 20.0 %, " in world.transitions[-1]
+
+
+def test_a_cube_still_in_the_jaws_after_the_lift_is_transported():
+    world = real_grasp(floor=26.0)
+    world.run_until("TRANSPORT")
+    assert "(lifted: effort 0.000, gripper 26.0 %, " in world.transitions[-1]
+
+
 # --- RELEASE, VERIFY, DONE ---
 
 
@@ -546,7 +603,8 @@ def test_the_time_in_idle_counts_from_the_first_step():
 def test_each_transition_logs_the_reason_and_the_time_in_the_old_state():
     world = reach("GRASP")
     world.run_until("LIFT")
-    log = r"GRASP → LIFT \(holding: effort 0\.150, 0\.8[02] s in GRASP\)"  # 0.82: float rounding
+    # 0.82: float rounding
+    log = r"GRASP → LIFT \(holding: effort 0\.150, gripper 0\.0 %, 0\.8[02] s in GRASP\)"
     assert re.fullmatch(log, world.transitions[-1])
 
 
@@ -582,8 +640,8 @@ def test_a_full_cycle_logs_the_reason_of_each_transition(aligned):
         f"plan: tilt 10°, {'aligned' if aligned else 'free roll'}",
         "pre-grasp reached",
         "grasp pose reached",
-        f"holding: effort {HOLDING:.3f}",
-        f"lifted, effort {HOLDING:.3f}",
+        f"holding: effort {HOLDING:.3f}, gripper 0.0 %",
+        f"lifted: effort {HOLDING:.3f}, gripper 0.0 %",
         "above the box",
         "released",
         "PARK reached",

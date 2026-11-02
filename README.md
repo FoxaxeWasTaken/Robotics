@@ -63,7 +63,7 @@ tools/so101 cycle                            # one full pick & place: the states
 tools/so101 down
 ```
 
-`tools/so101` prints each `docker compose` command it runs; `--dry-run` only prints it, `--help` lists them all. Real arm: read [`07`](docs/project/07_real_arm_safety_sim2real.md) first, its safety checklist above all.
+`tools/so101` prints each `docker compose` command it runs; `--dry-run` only prints it, `--help` lists them all. Real arm: read [`07`](docs/project/07_real_arm_safety_sim2real.md) first, its safety checklist above all; `tools/so101-arm` calibrates the arm and measures its joint zeros, the stack stopped (`07` §3.1).
 
 ## Demo
 
@@ -72,6 +72,7 @@ tools/so101 up
 tools/so101 rviz                             # RViz keeps this terminal: the next commands in a second one
 tools/so101 cycle                            # randomize the cube and the box, then a full cycle
 tools/so101 bench --perception -n 10         # the evaluation bench: 10 episodes, success rate and durations
+tools/so101 down && tools/so101 robustness 3a  # a case of the robustness demo, alone (results/robustness_demo.md)
 ```
 
 The bench starts its own driver, brain and perception on ROS domain 77 (below), runs the episodes, prints one line per episode as it ends (about 15 s each; the first one also waits for the stack to start) and the summary, then stops them. Ctrl-C stops the bench and its stack. The CSV is in `ros2_ws/eval_bench.csv`; `--bags /ros2_ws/bags` keeps a rosbag of each failed episode in `ros2_ws/bags/`.
@@ -100,6 +101,7 @@ tools/so101 bench --perception -n 10         # the real pipeline
 | --- | --- | --- |
 | 69 (`docker/.env`) | The everyday stack: driver, brain, perception, RViz | The team's value |
 | 77 | `tools/so101 bench` | Its own driver publishes the ground truth that scores the bench |
+| 78 | `tools/so101 robustness` | The demo runs alone: next to another driver it sees "2 drivers on this ROS domain" |
 | 79 | `tools/so101 run` | A throwaway container with no network: tests, a scenario or a capture next to a running stack |
 | Free, picked per package | `colcon test` (colcon-ros-domain-id-coordinator) | Tests never talk to a running stack |
 
@@ -115,7 +117,8 @@ The ground truth (`/sim/ground_truth/*`) is published only by a driver started w
   - the arm and its TF;
   - the TCP pose (`/end_effector_pose`), the cube and box poses;
   - the brain's markers (`/brain/markers`): pre-grasp in yellow, grasp in green, drop in blue, the approach arrow (display "Brain targets");
-  - the locked cube, a red 5 cm cube from `APPROACH` until it is lifted, in its own display "Cube (locked)": untick it to hide the cube.
+  - the locked cube, a red 5 cm cube from `APPROACH` until it is lifted, in its own display "Cube (locked)": untick it to hide the cube;
+  - the ghost arm, display "Commanded arm (ghost)", unchecked by default: the setpoint the driver sends to the motors (`/joint_setpoint`), translucent over the measured arm; the gap is the tracking error, useful on the real arm.
 - **The large red translucent block is the drop box** (the course's marker), not the cube.
 
 ## Common problems

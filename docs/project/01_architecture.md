@@ -10,6 +10,7 @@ flowchart LR
   subgraph control["control container (tek5/control)"]
     DRV["driver_node<br/>so101_driver"]
     BRN["brain_node<br/>so101_brain"]
+    GST["ghost robot_state_publisher<br/>(ghost/ TF tree)"]
   end
   subgraph perception["perception container (tek5/perception)"]
     PER["perception_node<br/>so101_perception"]
@@ -31,6 +32,7 @@ flowchart LR
   PER -- "/drop_box_position (10 Hz)" --> BRN
   PER -- "/drop_box_position" --> MRK
   BRN -- "/joint_command (50 Hz while moving)" --> DRV
+  DRV -- "/joint_setpoint (50 Hz)" --> GST
 ```
 
 **Guiding principle**: the driver is the **only** component that knows the hardware (C-05, C-10). Perception and brain only speak standard ROS messages, SI units and explicit frames. Switching sim → real changes a single parameter.
@@ -39,7 +41,7 @@ flowchart LR
 
 | Package | Type | Container | Content | Status |
 | --- | --- | --- | --- | --- |
-| `so101_driver` | ament_python | control | `driver_node`: sim/real backend, control loop, camera, sim services | **Exists**: `/joint_states`, `/joint_command` (partial, clamped, speed-limited), the sim camera thread, `camera_info`, effort, `/sim/randomize`, `seed`, ground truth for the bench; real-arm safety (shutdown move, bus loss) and webcam; a warning for each late tick; provided `_connect_arm` unchanged (ADR-032) |
+| `so101_driver` | ament_python | control | `driver_node`: sim/real backend, control loop, camera, sim services | **Exists**: `/joint_states`, `/joint_command` (partial, clamped, speed-limited), the sim camera thread, `camera_info`, effort, `/sim/randomize`, `seed`, ground truth for the bench; real-arm safety (shutdown move, bus loss) and webcam; a warning for each late tick; `/joint_setpoint` for the ghost arm (#200); provided `_connect_arm` unchanged (ADR-032) |
 | `so101_brain` | ament_python | control | `brain_node` + pure modules: `kinematics.py`, `grasp_planner.py`, `trajectory.py`, `fsm.py` | **Exists**: FK/IK (no self-collision), min-jerk trajectories, `/end_effector_pose`, `/go_to_target`, the grasp planner in a worker process, the pure `fsm.py` driven by a 50 Hz tick, `/brain/start`, `/brain/stop`, `/brain_state`, `/brain/markers` |
 | `so101_perception` | ament_python | perception | `perception_node` + pure modules: `detection.py`, `geometry.py`, `calibration.py` (offline tool) | **Exists**: `/object_position` and `/drop_box_position` from the HSV detection, our extrinsic calibration (`calibrate_extrinsics`) and the median filter; the cube yaw from `minAreaRect`; a cube cut by the image edge or partly hidden is not published; `/perception/debug_image` with masks, centroids and status; reference images with labels in `test/data/` |
 | `so101_interfaces` | ament_cmake | both | `.srv` (existing); phase 2 adds `Connect4Board.msg`, `DropToken.srv` and the `PickPlace` action (ADR-037) | Existing |
@@ -60,6 +62,7 @@ This table is **the contract** between team members. Any change goes through a P
 | --- | --- | --- | --- | --- | --- | --- |
 | `/joint_states` | `sensor_msgs/JointState` | driver → brain, RSP | **30 Hz** (≥ 20 imposed) | `name` = 6 joints; `position` in **rad**, gripper included (converted % → rad for RSP); `effort` = normalized load in [-1, 1] (ADR-016): positive towards larger angles, except the gripper, positive when squeezing (03 §5) | — | Reliable, depth 10 |
 | `/joint_command` | `sensor_msgs/JointState` | brain (or human) → driver | Event-driven; 50 Hz during trajectories | `name` = subset of the 6 joints; `position` in **rad**, **gripper in % (0–100)** | — | Reliable, depth 10 |
+| `/joint_setpoint` | `sensor_msgs/JointState` | driver → the ghost `robot_state_publisher` (RViz, #200) | 50 Hz, each control step, also while the bus is retried; none once it is lost | The setpoint **sent** to the motors, after the clamp and the speed limiter: the 6 joints in **rad**, the gripper converted from % (what RSP expects). Read-only: nothing commands the arm from it | — | Reliable, depth 1 (RSP subscribes Reliable, ADR-004) |
 | `/external_cam/image_raw` | `sensor_msgs/Image` (`rgb8`) | driver → perception, RViz | **10 Hz** | Raw image (320×240 in sim) | `external_cam_optical_frame` | **Reliable**, depth 2 |
 | `/external_cam/camera_info` | `sensor_msgs/CameraInfo` | driver → perception | 10 Hz, **same `stamp`** as the image | K, D, P, size | `external_cam_optical_frame` | Reliable, depth 2 |
 | `/object_position` | `geometry_msgs/PoseStamped` | perception → brain | 10 Hz, **only when the detection is valid** | Cube center (m); orientation = cube yaw (quaternion about z) | `base_link` | Reliable, depth 1 |

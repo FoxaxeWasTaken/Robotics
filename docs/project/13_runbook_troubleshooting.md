@@ -18,6 +18,8 @@ tools/so101 down                          # SIGINT → destroy_node() → clean 
 tools/so101 cycle                         # /sim/randomize, /brain/start, then /brain_state until DONE or ERROR
 tools/so101 bench --perception -n 10      # evaluation bench, real pipeline, on ROS domain 77 (below)
 tools/so101 bench --stub -n 10            # the same with the ground-truth stub in place of perception
+tools/so101 robustness 3a                 # a case of the robustness demo, on ROS domain 78, the stack stopped
+tools/so101 robustness 5 --lighting dim   # case 5 under the dim light (-n N cycles, 5 by default)
 tools/so101 test                          # all our packages, in a new control container (no stack needed)
 tools/so101 test so101_brain -k fsm       # one package; the options go to pytest: the fast loop on one test
 tools/so101 run 'colcon test --packages-select so101_brain'   # next to someone's stack: a throwaway container,
@@ -70,6 +72,10 @@ docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && expo
 # 640x480 images themselves ros2 topic hz reads lower: it deserializes each 0.9 MB image in Python
 "/mnt/c/Program Files/usbipd-win/usbipd.exe" detach --busid <X-Y>
 
+# Real arm, the stack stopped (tools/so101 down), port and file from docker/.env (07 §3.1, #199)
+tools/so101-arm calibrate                 # back up CALIBRATION_FILE, then LeRobot's calibration and its prompts
+tools/so101-arm zero-offsets -n 3         # read-only, the arm held at the URDF zero: the joint_zero_offsets line
+
 # Local quality checks (host, repo root)
 pre-commit run --all-files && bash tools/ci/guards.sh
 ```
@@ -117,14 +123,16 @@ Per-symptom details:
 | Webcam: `select() timeout`, 0 frames | YUYV through usbip | `fourcc="MJPG"` (ADR-007) |
 | Several `/dev/video*` | Capture, metadata, infrared | `cat /sys/class/video4linux/video*/name` and `index` (0 = capture) |
 | Real driver stuck at startup | `calibrate()` waits for `input()` | `connect(calibrate=False)` (provided code); provide the calibration file |
-| Real driver: "does not match the motors: wrong file for this arm?" | Calibration file from another arm, or reconfigured motors | Check the file (arm ID); otherwise recalibrate (`07` §3.1). Never force-write the calibration |
+| Real driver: "does not match the motors: wrong file for this arm?" | Calibration file from another arm, or reconfigured motors | Check the file (arm ID); otherwise recalibrate (`tools/so101-arm calibrate`, `07` §3.1). Never force-write the calibration |
 | Real arm limp, ignores `/joint_command`; log "Torque disabled" | The provided `disable_torque()` lines of upstream #2 are uncommented (a session moving the arm by hand) | Comment them out again (`07` §3.1 step 6, ADR-032) |
 | "No calibration" although `CALIBRATION_FILE` is set | Path does not exist: compose created an **empty root-owned directory** | Fix the path; `sudo rm -rf` the created directory |
 | Real arm: the driver dies on `stop` with `ValueError: max_relative_target keys must match`, torque left on | A shutdown move that sent the 5 arm joints only (fixed, #194) | Update; meanwhile hold the arm and cut its power |
 | Real arm: moves at 1.5 rad/s, no webcam images (`ros2 param get /so101_driver max_joint_velocity` gives 1.5) | `driver.yaml` loaded after `driver_real.yaml` (fixed, #197) | Update; check `max_joint_velocity` is 0.8 after each start |
-| Real arm: RViz shows links inside each other, the elbow cannot reach `PARK` (`Relative goal position magnitude had to be clamped`) | The joint zeros of LeRobot differ from the URDF's (`07` §4) | Measure the readings at the URDF zero, put them in `joint_zero_offsets` (`driver_real.yaml`, #196) |
+| Real arm: RViz shows links inside each other, the elbow cannot reach `PARK` (`Relative goal position magnitude had to be clamped`) | The joint zeros of LeRobot differ from the URDF's (`07` §4) | The stack stopped, the arm held at the URDF zero: `tools/so101-arm zero-offsets -n 3`, its line in `joint_zero_offsets` (`driver_real.yaml`, #196) |
 | The real arm collapses on shutdown; log "Shutdown pose not reached" | The move to `PARK` before `disconnect()` ran out of its 11 s (a blocked joint), or the bus was lost (no move) | Stop the arm near `PARK` (the brain parks it after each cycle); hold the forearm (`03` §8) |
+| Real arm: a joint stays short of the ghost arm ("Commanded arm (ghost)" ticked) at rest | Gravity sag or the servo's P gain on that joint (#200); a gap that grows with speed is a lag | Note the gap per joint; a large steady gap: check the load and the calibration (`07` §4) |
 | Real arm: `/joint_states` stops; log "Bus lost after 3 retries" | Serial bus: cable, servo board power, usbipd detached (`ls /dev/ttyACM*`) | Fix the link, then restart the driver (`docker compose restart control`) |
+| Real arm: the gripper stalls on the cube, then every bus read and write fails (`Overload`), the brain ends in `ERROR` | The gripper driven far past the cube: `grasp.close_pct` too low (0 % on the cube trips it, MES-56) | Power-cycle the arm (the torque cannot be cut otherwise); measure the contact opening and set `grasp.close_pct` just below it in `brain_real.yaml` (#69) |
 | Driver log "No camera image: Failed to open" | Webcam not attached (`usbipd attach`), or `camera_device` is not its color capture node (index 0) | `02` §5.2; `cat /sys/class/video4linux/video*/name` |
 | Driver log "No camera image: … failed to capture frames during warmup" | Not in MJPG (YUYV gives 0 frames through usbip [MES-17]), or the webcam is busy in Windows | Close the Windows app using it; the driver asks for MJPG, check the log for a fourcc warning |
 | Driver log "Camera: … latest frame is too old" | The usbip stream stalled | `usbipd detach`, then `attach` again |
@@ -149,5 +157,5 @@ Per-symptom details:
 | `tools/so101 bench` prints `the driver answered…`, then nothing for a minute | Episode 1 waits for the stack to start; then one line per episode as it ends, about 15 s each (#58) | Wait |
 | `tools/so101 bench`: "a stack already runs on ROS domain 77" right after a Ctrl-C | The previous bench's stack is still stopping | Wait a few seconds, then again. From a terminal, Ctrl-C reaches the bench in the container (#58) |
 | A launch test times out ("did not answer"), or `ERROR:no_joint_states` in a cycle | The CPU is shared: RViz (~290 % CPU in software rendering), a second stack, the robustness demo; on WSL2 `/joint_states` also stalled 0.5–1.4 s twice in about 80 cycles (#103), not reproduced by a stack alone [MES-51] | Run the tests alone (`tools/so101 down`, RViz closed); after `ERROR:no_joint_states`, `/brain/start` re-arms. The driver's log tells who stalled: `… s late: the driver's executor was held` is the driver (#176); no such line, the messages were late on the way or the brain starved |
-| The robustness demo prints "2 drivers on this ROS domain" | It runs next to another stack on its domain | `tools/so101 down`, then the command of `results/robustness_demo.md` (its own container and domain) |
+| The robustness demo prints "2 drivers on this ROS domain" | It runs next to another stack on its domain | `tools/so101 down`, then `tools/so101 robustness <case>` (its own container and domain; it refuses to start next to the stack) |
 | Under a dim, warm light the perception debug image paints the floor as box, and every cycle ends `ERROR:object_lost` | The tinted floor falls in the box's HSV range and the box gets too dark [MES-49] | Fixed in sim by #175: saturation floors keep the lit floor out of the box's range [MES-52]. If it comes back (another light, the real camera), measure the colors with `exp_lighting_hsv.py` and adjust the HSV floors of `perception.yaml`; on the real arm, fixed exposure and white balance (`07` §4) |

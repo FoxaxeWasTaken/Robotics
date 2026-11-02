@@ -184,7 +184,7 @@ ros2 run example_py_pkg talker                            # C-04 check, then Ctr
 ros2 topic pub --once -w 1 --keep-alive 1 /joint_command sensor_msgs/msg/JointState '{name: [shoulder_pan], position: [0.5]}'
 ```
 
-`tools/so101` (#133) prints each `docker compose` command it runs; `tools/so101 --help` lists the others (`down`, `restart`, `bench`, `test`, `run`: a throwaway container next to a running stack), `13` §1 the everyday use.
+`tools/so101` (#133) prints each `docker compose` command it runs; `tools/so101 --help` lists the others (`down`, `restart`, `bench`, `robustness`, `test`, `run`: a throwaway container next to a running stack); the real arm's calibration and joint zeros are in `tools/so101-arm` (`07` §3.1), `13` §1 the everyday use.
 
 C-04 (containers talk to each other): while the talker runs in `control`, a second terminal reads it from the `perception` container. It prints `tek5 N`, N up by one every 0.5 s; two interleaved counters mean two talkers are running (`13` §2).
 

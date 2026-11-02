@@ -37,8 +37,8 @@ stateDiagram-v2
   PLAN --> ERROR: IK impossible (unreachable target)
   APPROACH --> DESCEND: pre-grasp reached
   DESCEND --> GRASP: grasp pose reached
-  GRASP --> LIFT: gripper closed AND effort above threshold
-  GRASP --> RETRY: effort below threshold (empty gripper)
+  GRASP --> LIFT: held (effort above threshold, or jaws stopped above their goal)
+  GRASP --> RETRY: not held (empty gripper)
   LIFT --> TRANSPORT: lift reached AND effort still above threshold
   LIFT --> RETRY: object lost during lift
   TRANSPORT --> RELEASE: above the box
@@ -63,7 +63,7 @@ stateDiagram-v2
 | `PLAN` | Start `grasp_planner.plan()` in a **worker process** (future); checked every tick | Future done: valid plan → `APPROACH`; `None` → `ERROR:<reason>` (`unreachable`, `lift_unreachable`, `drop_unreachable`) | 6 s → `ERROR:timeout:PLAN` |
 | `APPROACH` | Min-jerk trajectory to the pre-grasp, gripper **open (100 %)** | `max(abs(q − q_target)) < 0.01 rad` **and** the measured gripper within 3 % of open | T + 1 s → `ERROR:timeout:APPROACH` |
 | `DESCEND` | Trajectory to the grasp (4 cm back-off; Cartesian recommended on the real arm) | Reached | T + 1 s → `ERROR:timeout:DESCEND` |
-| `GRASP` | Gripper → **0 %**, wait 0.8 s | From 0.8 s, normalized gripper effort **> 0.06** → `LIFT` | Still below at 1.5 s → `RETRY` (empty gripper) |
+| `GRASP` | Gripper → `close_pct` (0 % in sim), wait 0.8 s | From 0.8 s, **held**: normalized gripper effort **> 0.06**, or the measured opening **≥ `close_pct` + `hold_gap_pct`** (the jaws stopped by the cube) → `LIFT` | Still not held at 1.5 s → `RETRY` (empty gripper) |
 | `LIFT` | Back to the pre-grasp, then +10 cm (position IK) | Reached: effort > threshold → `TRANSPORT`, otherwise → `RETRY` (judged once lifted, not on one sample) | T + 1 s per motion → `ERROR:timeout:LIFT` |
 | `TRANSPORT` | Trajectory to the drop point (position IK, TCP ≈ 9 cm above the box floor) | Reached | T + 1 s → `ERROR:timeout:TRANSPORT` |
 | `RELEASE` | Gripper → 100 %, wait 0.5 s | Elapsed | — |
@@ -87,7 +87,9 @@ stateDiagram-v2
 - **`PLAN` timeout 6 s**: the planner's slowest answer, a cube out of reach, takes 1.7 s to fail, 2.4 s on the CI runner; with 2 s it showed as `ERROR:timeout:PLAN` instead of `ERROR:unreachable` [MES-40]. The arm is parked during `PLAN`, so a hung planner costs nothing more. `test_grasp_planner.py` keeps that failure under half the timeout.
 - **`APPROACH` waits for the open gripper**: `DESCEND` must not bring closed jaws onto the cube. The other motions do not wait for it: in `TRANSPORT` the cube keeps the jaws from closing to 0 %.
 
-**Effort threshold**: in sim, the normalized gripper load is **0.12–0.19** when holding the cube vs **0** when empty [MES-10] → threshold 0.06 (×2 margin in `GRASP`). Measured where the FSM judges it, on the nightly's 40 scenes [MES-48]: the `GRASP` window never below 0.120, empty always 0.000, but **the end of `LIFT` drops to 0.087** (the jaws carry the cube instead of squeezing it against the table): the tightest margin is ×1.45 there. Kept at 0.06, which sorts all 120 measured grasps right: lowering it would only move the margin to the empty side, which is exactly 0 in sim only. It is a parameter, **to recalibrate on the real arm** (#69).
+**Effort threshold**: in sim, the normalized gripper load is **0.12–0.19** when holding the cube vs **0** when empty [MES-10] → threshold 0.06 (×2 margin in `GRASP`). Measured where the FSM judges it, on the nightly's 40 scenes [MES-48]: the `GRASP` window never below 0.120, empty always 0.000, but **the end of `LIFT` drops to 0.087** (the jaws carry the cube instead of squeezing it against the table): the tightest margin is ×1.45 there. Kept at 0.06, which sorts all 120 measured grasps right: lowering it would only move the margin to the empty side, which is exactly 0 in sim only. It is the sim's signal only.
+
+**The real arm judges by the jaws' gap** (#69): its `Present_Load` cannot tell a held cube from an empty grip, and closing at 0 % on the cube trips the servo's `Overload` [MES-56]. The driver publishes no effort there, so the same test holds the cube when the jaws stop at least `hold_gap_pct` (3 %) above `close_pct`; on the real arm `close_pct` is set just below the cube's contact opening, so the servo never stalls far from its goal. In sim the jaws close on a tunnel wall, 0.02 % holding vs 0.00 % empty [MES-57]: the gap never decides there, the effort does. One code path, two signals; the real values (`close_pct`, `hold_gap_pct` in `brain_real.yaml`) come from the measurement of #69 on the real arm.
 
 ### 3.2 Why `VERIFY`?
 
@@ -143,8 +145,9 @@ Declared by `brain_node` (read-only, with ranges): every value of `motion.*`, `g
 | `grasp.pregrasp_backoff_m` | 0.04 | [MES-09] |
 | `grasp.lift_dz_m` | 0.10 | 5 cm walls + margin |
 | `grasp.drop_tcp_z_m` | 0.09 | Failure observed at 0.11 [MES-09] |
-| `grasp.effort_threshold` | 0.06 | [MES-10], [MES-48] |
-| `grasp.close_pct` / `open_pct` | 0 / 100 | LeRobot convention |
+| `grasp.effort_threshold` | 0.06 | [MES-10], [MES-48]; sim only (no effort on the real arm) |
+| `grasp.hold_gap_pct` | 3 % | Jaws stopped this far above `close_pct`: held (the real arm, #69); never reached in sim [MES-57] |
+| `grasp.close_pct` / `open_pct` | 0 / 100 | LeRobot convention; real `close_pct`: just below the cube's contact opening (#69, to measure) |
 | `grasp.gripper_tol_pct` | 3 % | `APPROACH` waits for the open gripper (§3.1) |
 | `motion.v_max_rad_s` | 1.0 (sim) / 0.5 (real) | Safety |
 | `motion.reach_tol_rad` | 0.01 | — |
@@ -172,6 +175,7 @@ Declared by `brain_node` (read-only, with ranges): every value of `motion.*`, `g
   - **In RViz** (#159): its own display, "Cube (locked)", with its checkbox in the Displays panel. It reads `/brain/markers` with only the `cube` namespace ticked, and "Brain targets" leaves `cube` out: one topic, never drawn twice. RViz applies the saved namespace states to a namespace before its first marker arrives.
   - **Why only then**: it is the target the brain locked, not a live detection. Perception still sees the cube in the jaws but places it about 12 cm off (`05` §7), so a marker following `/object_position` would draw a ghost during the transport.
   - **Limits**: nothing before the plan (`IDLE`, `WAIT_TARGET`, `PLAN`), nor when planning fails. After a stop or an error before `LIFT` it stays, where the untouched cube still is, until the next plan replaces it; it is off if the jaws pushed the cube. `/brain/markers` is not latched: RViz started during a cycle shows it from the next plan.
+- The ghost arm (#200): RViz display "Commanded arm (ghost)", unchecked by default, draws the driver's setpoint (`/joint_setpoint`, `03` §5) translucent over the measured arm: where the brain's commands actually took the motors, and how far each joint lags.
 - rosbag2 recording of demo episodes (`ros2 bag record /joint_states /joint_command /object_position /drop_box_position /brain_state`) to replay and analyze failures.
 
 ## 8. Tests
@@ -196,7 +200,7 @@ Declared by `brain_node` (read-only, with ranges): every value of `motion.*`, `g
 
 ## 10. The course's robustness questions and our answers (C-36)
 
-The day-2 slides ask "is your code robust?" with five situations [BOOT2 p12]. Each one maps to a design element and a test; the teaching staff wants a quick demo of each (2026-10-16): step 5.4a (#103), one command per case, `ros2 launch so101_bringup robustness_demo.launch.py case:=<n>`, outcomes in `results/robustness_demo.md`. All five are handled, the lighting since #175 [MES-52]:
+The day-2 slides ask "is your code robust?" with five situations [BOOT2 p12]. Each one maps to a design element and a test; the teaching staff wants a quick demo of each (2026-10-16): step 5.4a (#103), one command per case, `tools/so101 robustness <n>` (#191; it runs `ros2 launch so101_bringup robustness_demo.launch.py case:=<n>` on its own domain), outcomes in `results/robustness_demo.md`. All five are handled, the lighting since #175 [MES-52]:
 
 | Situation [BOOT2 p12] | Our answer | Where | Test |
 | --- | --- | --- | --- |
