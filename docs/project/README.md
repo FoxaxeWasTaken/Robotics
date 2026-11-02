@@ -13,7 +13,7 @@ This folder gathers **every choice** of the project, its rationale (imposed by t
 | Kinematics and brain owner | `04` → `06` → ADR-008, 009, 010, 015, 017 |
 | Perception owner | `05` → ADR-011 to 014, 021 |
 | Quality, tooling or repository owner | `14` → `15` → `16` → ADR-024 to 033 |
-| Preparing the defense | `README` (this file) → `11` → `08` §2 → `09` step 8.1 → `phase2/README` |
+| Preparing the defense | `README` (this file) → `presentations/` (the previous decks) → `11` → `08` §2 → `09` step 8.1 → `phase2/README` |
 | Something is broken | `13_runbook_troubleshooting.md` |
 | Working on phase 2 (Connect Four) | `phase2/README` → `P2-01` → `P2-02` → `P2-04` (roadmap) → `P2-03` → ADR-034 to 038 |
 
@@ -58,6 +58,7 @@ flowchart LR
 | [adr/](adr/README.md) | **39 decision records** and their map (context, options, decision, evidence) |
 | [phase2/](phase2/README.md) | **Phase 2 — Connect Four against the robot** (validated by the teaching staff): pitch, scope and demo, design, plan, risks and tests |
 | [experiences/](experiences/README.md) | Reproducible measurement scripts |
+| [presentations/](presentations/README.md) | The review decks as presented (PDF) and their videos |
 
 ## Legend
 
