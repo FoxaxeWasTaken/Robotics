@@ -6,8 +6,9 @@ The only node that talks to the backend: SO101Sim (MuJoCo) or SO101Follower
 knows which one runs.
 
 Publishes /joint_states (rad, 30 Hz) and applies /joint_command (rad, gripper in %)
-through a speed limiter at 50 Hz; publishes the camera at 10 Hz from a dedicated thread, the sim render
-or a real webcam (camera_device) (docs/project/03 §3-§5); in sim, serves the evaluation tools:
+through a speed limiter at 50 Hz, each setpoint sent also on /joint_setpoint (the ghost arm, #200);
+publishes the camera at 10 Hz from a dedicated thread, the sim render or a real webcam (camera_device)
+(docs/project/03 §3-§5); in sim, serves the evaluation tools:
 /sim/randomize, ground truth (03 §7).
 On shutdown, brings the arm slowly to its rest pose before disconnect() cuts the torque (03 §8).
 """
@@ -37,7 +38,7 @@ from std_srvs.srv import Trigger
 
 from so101_common.robot import ARM_JOINT_NAMES, BASE_FRAME, CAMERA_FRAME, JOINT_NAMES, pct_to_rad
 from so101_driver.camera import opencv_intrinsics
-from so101_driver.command import apply_command
+from so101_driver.command import apply_command, setpoint_positions
 from so101_driver.effort import normalized_effort
 from so101_driver.late import LATE_WARN_S, TickClock
 from so101_driver.limiter import max_relative_target, step_towards
@@ -191,6 +192,9 @@ class DriverNode(rclpy.node.Node):
         self._bus_lost = False
 
         self._pub_joint_states = self.create_publisher(JointState, JOINT_STATES, 10)
+        # The setpoint sent at each control step, for the ghost arm in RViz (#200); depth 1: only the latest
+        # matters. Reliable: robot_state_publisher subscribes Reliable (ADR-004).
+        self._pub_setpoint = self.create_publisher(JointState, "/joint_setpoint", 1)
         self.create_subscription(JointState, "/joint_command", self._cb_joint_command, 10)
         # Timers on the steady clock: the system clock can step back (WSL2: ~2 s every 30 s [MES-37]) and
         # would pause them. Stamps stay on the ROS clock.
@@ -345,6 +349,9 @@ class DriverNode(rclpy.node.Node):
             self._p["max_joint_velocity"],
             self._p["max_gripper_velocity"],
         )
+        setpoint = JointState(name=list(JOINT_NAMES), position=setpoint_positions(self._setpoint))
+        setpoint.header.stamp = self.get_clock().now().to_msg()
+        self._pub_setpoint.publish(setpoint)  # what is sent now, also while the bus is retried (#200)
         try:
             with self._backend_lock:
                 self._robot.send_action({f"{name}.pos": value for name, value in self._setpoint.items()})

@@ -175,6 +175,7 @@ Declared by `brain_node` (read-only, with ranges): every value of `motion.*`, `g
   - **In RViz** (#159): its own display, "Cube (locked)", with its checkbox in the Displays panel. It reads `/brain/markers` with only the `cube` namespace ticked, and "Brain targets" leaves `cube` out: one topic, never drawn twice. RViz applies the saved namespace states to a namespace before its first marker arrives.
   - **Why only then**: it is the target the brain locked, not a live detection. Perception still sees the cube in the jaws but places it about 12 cm off (`05` §7), so a marker following `/object_position` would draw a ghost during the transport.
   - **Limits**: nothing before the plan (`IDLE`, `WAIT_TARGET`, `PLAN`), nor when planning fails. After a stop or an error before `LIFT` it stays, where the untouched cube still is, until the next plan replaces it; it is off if the jaws pushed the cube. `/brain/markers` is not latched: RViz started during a cycle shows it from the next plan.
+- The ghost arm (#200): RViz display "Commanded arm (ghost)", unchecked by default, draws the driver's setpoint (`/joint_setpoint`, `03` §5) translucent over the measured arm: where the brain's commands actually took the motors, and how far each joint lags.
 - rosbag2 recording of demo episodes (`ros2 bag record /joint_states /joint_command /object_position /drop_box_position /brain_state`) to replay and analyze failures.
 
 ## 8. Tests

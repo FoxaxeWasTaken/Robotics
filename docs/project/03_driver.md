@@ -160,6 +160,8 @@ on_joint_command(msg):
 
 The brain recovers the gripper percentage with the inverse conversion from `so101_common`.
 
+**`/joint_setpoint`** (#200): at each control step, right before `send_action`, the driver publishes the setpoint it sends (after the clamp and the speed limiter) as a `JointState`: the 6 joints in rad, the gripper converted from % (`command.setpoint_positions`), stamped with the node clock. It keeps coming while the bus is retried and stops once the bus is lost, like `/joint_states`; nothing is published during the shutdown move (the executor no longer runs). A second `robot_state_publisher` draws it as the `ghost/` TF tree: the gap between the ghost and the measured arm in RViz is the tracking error (gravity sag, a joint the servo's P gain leaves short, a lag). Both go through the same URDF angles, so a wrong calibration moves both together: the camera overlay checks that (`05` §5.1). Reliable, depth 1: `robot_state_publisher` subscribes Reliable (ADR-004).
+
 ## 6. Camera (ADR-007)
 
 | | Sim | Real |

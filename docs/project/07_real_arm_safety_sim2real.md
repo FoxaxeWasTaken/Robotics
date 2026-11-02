@@ -66,7 +66,7 @@ flowchart TD
 | 1 | **Read only**: torque on, no command; compare `/joint_states` / RViz with the physical posture (or torque off, §3.1 step 6, and move the arm by hand) | RViz reproduces the real posture **exactly** | Wrong sign/zero → calibration, **stop** |
 | 2 | **Sign check**: `+0.1 rad` on each joint, one at a time, sim then real | Same direction as in sim (pan positive = towards −y) | Calibration / `drive_mode` — do not "fix" it in code |
 | 3 | Gripper: 100 % then 0 % | Full opening / closing | Calibration range |
-| 4 | Limiter: +1 rad command on `shoulder_pan` | Slow, progressive motion | Limiter inactive → **stop** |
+| 4 | Limiter: +1 rad command on `shoulder_pan`, with RViz's "Commanded arm (ghost)" ticked | Slow, progressive motion; the ghost leads, the arm follows and covers it at rest (the gap per joint is the tracking error, #200) | Limiter inactive → **stop** |
 | 5 | `/go_to_target` on 5 points 10 cm above the table | Reached without jerk; measured error (grid) < 1 cm | Systematic offset → §4 |
 | 6 | Pick & place at reduced speed, arm **without** then **with** the cube | Full cycle | Analyze the rosbag |
 

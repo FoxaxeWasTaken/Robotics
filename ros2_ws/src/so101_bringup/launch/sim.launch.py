@@ -15,8 +15,13 @@ In sim, the driver runs on our scene, generated at launch by so101_bringup.sim_s
 the external camera moved to the pose of config/sim_scene.yaml (#47). calibration:=true adds the ArUco markers
 of config/markers_sim.yaml and gives 640x480 images (driver_calibration.yaml), for the extrinsic calibration
 (3.4, #44). lighting:=dim darkens and warms every light (config/sim_scene.yaml): the robustness demo (#103).
+The ghost arm (#200): a second robot_state_publisher draws the driver's setpoint (/joint_setpoint) as the
+ghost/ TF tree, for the "Commanded arm (ghost)" display of RViz, unchecked by default.
 """
 
+from pathlib import Path
+
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
@@ -27,6 +32,8 @@ from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 from so101_bringup.sim_scene import SimScene
+
+URDF = Path(get_package_share_directory("so101_description")) / "urdf" / "so101.urdf"
 
 
 def generate_launch_description():
@@ -100,6 +107,20 @@ def generate_launch_description():
                 name="so101_brain",
                 output="screen",
                 parameters=files("brain"),
+            ),
+            Node(  # the ghost arm: the setpoint the driver sends, drawn over the measured arm (#200)
+                package="robot_state_publisher",
+                executable="robot_state_publisher",
+                name="ghost_state_publisher",
+                namespace="ghost",
+                parameters=[{"robot_description": URDF.read_text(), "frame_prefix": "ghost/"}],
+                remappings=[("joint_states", "/joint_setpoint")],
+            ),
+            Node(
+                package="tf2_ros",
+                executable="static_transform_publisher",
+                name="ghost_base",
+                arguments=["--frame-id", "base_link", "--child-frame-id", "ghost/base_link"],
             ),
             IncludeLaunchDescription(  # resolved only when included: the CI control job does not build it
                 PythonLaunchDescriptionSource(
