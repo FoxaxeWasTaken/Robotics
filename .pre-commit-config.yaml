@@ -60,10 +60,10 @@ repos:
         files: ^tools/ci/(test_)?upstream_check\.sh$
         pass_filenames: false
       - id: ci-skips-test
-        name: docs_only.sh and evaluation_due.sh test (#146)
+        name: docs_only.sh, heavy.sh and evaluation_due.sh test (#146, #209)
         entry: bash tools/ci/test_ci_skips.sh
         language: system
-        files: ^tools/ci/(docs_only|evaluation_due|test_ci_skips)\.sh$
+        files: ^tools/ci/(docs_only|evaluation_due|heavy|test_ci_skips)\.sh$
         pass_filenames: false
       - id: so101-test
         name: tools/so101 dry-run test (#133)

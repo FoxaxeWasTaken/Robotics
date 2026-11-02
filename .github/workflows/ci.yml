@@ -25,6 +25,9 @@ jobs:
     if: ${{ vars.CI_ENABLED == 'true' || (github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'FoxaxeWasTaken/Robotics') }}   # opt-in: nothing runs on the school mirror
     name: Lint (pre-commit)
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read  # the PR's draft state when the run executes (#209)
     outputs:
       heavy: ${{ steps.changes.outputs.heavy }}
     steps:
@@ -35,18 +38,19 @@ jobs:
       - name: Build, tests and E2E needed? (not for a draft or a docs-only change)
         id: changes
         env:
-          DRAFT: ${{ github.event.pull_request.draft }}
+          DRAFT_EVENT: ${{ github.event.pull_request.draft }}
+          PR: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          heavy=true
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if [ "$DRAFT" = true ]; then
-              heavy=false && echo "Draft: lint and guards only; Ready for review runs every job."
-            # The PR's merge commit against its base, renames as delete + add: code moved into a .md still counts.
-            elif git diff --name-only --no-renames HEAD^1 HEAD | bash tools/ci/docs_only.sh; then
-              heavy=false
-            fi
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo heavy=true | tee -a "$GITHUB_OUTPUT"
+            exit 0
           fi
-          echo "heavy=$heavy" | tee -a "$GITHUB_OUTPUT"
+          # The draft state now, not the event's (#209): a failed lookup leaves it empty, and heavy.sh runs everything.
+          draft=$(gh pr view "$PR" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft) || draft=""
+          echo "Draft when the event fired: $DRAFT_EVENT; now: ${draft:-unknown}"
+          # The PR's merge commit against its base, renames as delete + add: code moved into a .md still counts.
+          git diff --name-only --no-renames HEAD^1 HEAD | bash tools/ci/heavy.sh "$draft" | tee -a "$GITHUB_OUTPUT"
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"

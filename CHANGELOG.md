@@ -16,6 +16,10 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 - The grasp check works on the real arm (6.4a, #69): held when the gripper effort is above `grasp.effort_threshold` (the sim's signal) **or** the jaws stopped at least `grasp.hold_gap_pct` (3 %) above `grasp.close_pct`, the real arm's, which publishes no effort: its `Present_Load` cannot tell a held cube and 0 % on the cube trips `Overload` (MES-56). In sim nothing changes: the jaws close on a tunnel wall (0.02 % holding, 0.00 % empty, MES-57, `exp_grasp_position.py`) and the effort decides. The transition reasons give the effort and the opening. The real `close_pct` and `hold_gap_pct` are measured before any autonomous grasp (`07` §7). ADR-016 update, `03` §5, `06` §3.1 and §6, `07` §4 and §7, `13`.
 
+### Fixed
+
+- CI: the heavy jobs follow the PR's draft state when the run executes, not the event's (5.1o, #209, `tools/ci/heavy.sh`, tested in `test_ci_skips.sh`). A push while draft and a "ready" in the same second, or a rerun of an old draft run, left a ready PR mergeable with its build, tests and E2E skipped (#207). `14` §5.4, CONTRIBUTING §2.
+
 ## [1.0.0] - 2026-10-31
 
 The simulation milestone (step 5.3, `15` §6): the whole pick & place cycle in MuJoCo with the team's driver, perception and brain, on our own camera calibration. The phase-1 criterion met, 50/50 seeded episodes with the cube and the box randomized (4.5b, C-42); the five robustness cases of the slides handled (5.4a). The GitHub Release of `v1.0.0` links the nightly bench of the tagged commit. The real arm comes in `v1.1.0`.
