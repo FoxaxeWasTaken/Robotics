@@ -72,6 +72,7 @@ tools/so101 up
 tools/so101 rviz                             # RViz keeps this terminal: the next commands in a second one
 tools/so101 cycle                            # randomize the cube and the box, then a full cycle
 tools/so101 bench --perception -n 10         # the evaluation bench: 10 episodes, success rate and durations
+tools/so101 down && tools/so101 robustness 3a  # a case of the robustness demo, alone (results/robustness_demo.md)
 ```
 
 The bench starts its own driver, brain and perception on ROS domain 77 (below), runs the episodes, prints one line per episode as it ends (about 15 s each; the first one also waits for the stack to start) and the summary, then stops them. Ctrl-C stops the bench and its stack. The CSV is in `ros2_ws/eval_bench.csv`; `--bags /ros2_ws/bags` keeps a rosbag of each failed episode in `ros2_ws/bags/`.
@@ -100,6 +101,7 @@ tools/so101 bench --perception -n 10         # the real pipeline
 | --- | --- | --- |
 | 69 (`docker/.env`) | The everyday stack: driver, brain, perception, RViz | The team's value |
 | 77 | `tools/so101 bench` | Its own driver publishes the ground truth that scores the bench |
+| 78 | `tools/so101 robustness` | The demo runs alone: next to another driver it sees "2 drivers on this ROS domain" |
 | Free, picked per package | `colcon test` (colcon-ros-domain-id-coordinator) | Tests never talk to a running stack |
 
 The ground truth (`/sim/ground_truth/*`) is published only by a driver started with `expose_ground_truth:=true`, which only the bench and the CI's E2E jobs do (C-06). On domain 77, it never reaches the everyday stack: perception and the brain on 69 cannot use it, even by mistake. The bench refuses to start when a stack already runs on 77.

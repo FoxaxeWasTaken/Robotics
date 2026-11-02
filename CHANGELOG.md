@@ -4,6 +4,10 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ## [Unreleased]
 
+### Added
+
+- `tools/so101 robustness <case> [--lighting NAME] [-n N]` (5.1, #191): a case of the robustness demo in one command, in a new control container on ROS domain 78; it refuses to start while the everyday stack runs, and `--dry-run` prints the `docker compose run` line. `tools/ci/test_so101.sh` covers each case and the refusals. `results/robustness_demo.md`, `13` §1–§2, README.
+
 ## [1.0.0] - 2026-10-31
 
 The simulation milestone (step 5.3, `15` §6): the whole pick & place cycle in MuJoCo with the team's driver, perception and brain, on our own camera calibration. The phase-1 criterion met, 50/50 seeded episodes with the cube and the box randomized (4.5b, C-42); the five robustness cases of the slides handled (5.4a). The GitHub Release of `v1.0.0` links the nightly bench of the tagged commit. The real arm comes in `v1.1.0`.

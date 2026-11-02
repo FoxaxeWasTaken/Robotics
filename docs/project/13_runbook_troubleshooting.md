@@ -18,6 +18,8 @@ tools/so101 down                          # SIGINT → destroy_node() → clean 
 tools/so101 cycle                         # /sim/randomize, /brain/start, then /brain_state until DONE or ERROR
 tools/so101 bench --perception -n 10      # evaluation bench, real pipeline, on ROS domain 77 (below)
 tools/so101 bench --stub -n 10            # the same with the ground-truth stub in place of perception
+tools/so101 robustness 3a                 # a case of the robustness demo, on ROS domain 78, the stack stopped
+tools/so101 robustness 5 --lighting dim   # case 5 under the dim light (-n N cycles, 5 by default)
 tools/so101 test                          # all our packages, in a new control container (no stack needed)
 tools/so101 test so101_brain -k fsm       # one package; the options go to pytest: the fast loop on one test
 # A full run: stop the stack first (tools/so101 down). The planner's timing tests (p95 under 1 s) fail when the
@@ -147,5 +149,5 @@ Per-symptom details:
 | `tools/so101 bench` prints `the driver answered…`, then nothing for a minute | Episode 1 waits for the stack to start; then one line per episode as it ends, about 15 s each (#58) | Wait |
 | `tools/so101 bench`: "a stack already runs on ROS domain 77" right after a Ctrl-C | The previous bench's stack is still stopping | Wait a few seconds, then again. From a terminal, Ctrl-C reaches the bench in the container (#58) |
 | A launch test times out ("did not answer"), or `ERROR:no_joint_states` in a cycle | The CPU is shared: RViz (~290 % CPU in software rendering), a second stack, the robustness demo; on WSL2 `/joint_states` also stalled 0.5–1.4 s twice in about 80 cycles (#103), not reproduced by a stack alone [MES-51] | Run the tests alone (`tools/so101 down`, RViz closed); after `ERROR:no_joint_states`, `/brain/start` re-arms. The driver's log tells who stalled: `… s late: the driver's executor was held` is the driver (#176); no such line, the messages were late on the way or the brain starved |
-| The robustness demo prints "2 drivers on this ROS domain" | It runs next to another stack on its domain | `tools/so101 down`, then the command of `results/robustness_demo.md` (its own container and domain) |
+| The robustness demo prints "2 drivers on this ROS domain" | It runs next to another stack on its domain | `tools/so101 down`, then `tools/so101 robustness <case>` (its own container and domain; it refuses to start next to the stack) |
 | Under a dim, warm light the perception debug image paints the floor as box, and every cycle ends `ERROR:object_lost` | The tinted floor falls in the box's HSV range and the box gets too dark [MES-49] | Fixed in sim by #175: saturation floors keep the lit floor out of the box's range [MES-52]. If it comes back (another light, the real camera), measure the colors with `exp_lighting_hsv.py` and adjust the HSV floors of `perception.yaml`; on the real arm, fixed exposure and white balance (`07` §4) |
