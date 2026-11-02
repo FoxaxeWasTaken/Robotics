@@ -34,7 +34,7 @@ flowchart LR
 
 | Rule | Why |
 | --- | --- |
-| Only **`main` and the tags** (`v*` by convention) are pushed to the school | Submission = reviewed, tested state; no work branches |
+| Only **`main` and the tags** (`v*` by convention) are pushed to the school, and **every other branch there is deleted** at each mirror run, daily too (`tools/ci/prune_school.sh`, #216): GitHub closes the PRs whose branch goes | Submission = reviewed, tested state; nothing lives on the school repository, everything lives on the private one |
 | **Forced push** (`--force`, since 2026-10-15): the school repository is an exact copy of the private `main` | Nobody pushes there, so a force only overwrites accidental changes; the submission always equals the reviewed state |
 | **Nobody commits to the school repository** | It is only a mirror |
 | No history rewrite on the private `main` (no force-push, ruleset) | The mirror would copy the rewrite, and the C-07 history would be altered |
@@ -79,4 +79,4 @@ git ls-remote origin refs/heads/main ; git ls-remote <school-url> refs/heads/mai
 | `Permission denied (publickey)` | Key not added or without write access | §5 step 1 |
 | `Host key verification failed` | Wrong `SCHOOL_GIT_HOST` | Fix the variable |
 | CI runs on the school repository | `CI_ENABLED` defined there | Remove the variable on the school side |
-| "Dependabot Updates" run, or a Dependabot PR, on the school repository | `dependabot.yml` is mirrored; Dependabot needs admin rights to be turned off there | Harmless: its PRs skip every job; close them by hand (ADR-033) |
+| "Dependabot Updates" run, or a Dependabot PR, on the school repository | `dependabot.yml` is mirrored; Dependabot needs admin rights to be turned off there | Its PRs skip every job, and the next mirror run (daily at the latest) deletes their branches, which closes them (#216). A PR from a fork, or an issue, stays: the key has git access only, not the API; close it by hand |

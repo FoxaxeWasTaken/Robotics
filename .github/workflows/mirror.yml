@@ -2,11 +2,15 @@
 # Force-pushes main and the tags: the school repo is an exact copy, nobody pushes there. Details: docs/project/16_mirroring_school_repo.md
 # The key lives in the "school-mirror" environment, restricted to main: only reviewed code can read it.
 # No tag trigger (a tag can point at unreviewed code): tags go with the next main push or a manual run.
+# Every other branch of the school repo is deleted, which closes its PR (#216): nothing lives there. Daily too, so a
+# Dependabot PR opened there between two merges does not wait for the next one.
 name: Mirror
 
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: "17 3 * * *"  # 03:17 UTC, before the nightly
   workflow_dispatch:
 
 permissions:
@@ -40,7 +44,9 @@ jobs:
           ssh-keyscan -t ed25519 "$GIT_HOST" >> ~/.ssh/known_hosts
           git remote add school "$SCHOOL_URL"
       - name: Push main (forced, exact copy)
-        if: ${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}  # a schedule runs on main
         run: git push --force school origin/main:refs/heads/main
       - name: Push tags (forced)
         run: git push --force school --tags
+      - name: Only main and the tags on the school repo (its other branches deleted, their PRs closed)
+        run: bash tools/ci/prune_school.sh school

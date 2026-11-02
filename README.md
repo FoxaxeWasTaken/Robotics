@@ -177,6 +177,8 @@ The lanes say who knows a part best ([`09` §1.2](docs/project/09_roadmap_step_b
 
 ## Links
 
+- This repository has a copy on the school's GitHub, overwritten from the team's at each merge and every day: branches and pull requests opened on that copy are deleted and closed automatically. Contact the team instead (`docs/project/16`).
+
 - The course repository this one comes from (kit, slides, brief): [JasonChmn/content-lerobot-bras-students](https://github.com/JasonChmn/content-lerobot-bras-students), the `upstream` remote ([CONTRIBUTING §7](CONTRIBUTING.md#7-syncing-with-the-course-kit)).
 - The design docs: [docs/project/README.md](docs/project/README.md).
 - The bootstrap prototype of days 1–2 stays outside this repository ([ADR-039](docs/project/adr/ADR-039-start-from-course-stubs.md)).

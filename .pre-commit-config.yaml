@@ -83,6 +83,12 @@ repos:
         language: system
         files: ^tools/ci/((test_)?bench_report|post_report|milestone)\.sh$
         pass_filenames: false
+      - id: prune-school-test
+        name: prune_school.sh test (#216)
+        entry: bash tools/ci/test_prune_school.sh
+        language: system
+        files: ^tools/ci/(test_)?prune_school\.sh$
+        pass_filenames: false
       - id: release-test
         name: release.sh, milestone.sh and the milestone check test (#211)
         entry: bash tools/ci/test_release.sh

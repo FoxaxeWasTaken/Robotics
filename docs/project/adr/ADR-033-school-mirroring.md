@@ -41,3 +41,7 @@ The school offers pull mirroring, or imposes another submission mode (GitHub Cla
 ## Update (2026-10-16)
 
 The deploy-key question to the teaching staff is withdrawn (no admin rights there, see the update above). `dependabot.yml` is mirrored, so Dependabot may open PRs on the school copy: they are closed by hand.
+
+## Update (2026-11-02, #216): nothing lives on the school repository
+
+The mirror also deletes every branch of the school repository but `main`, at each run and daily (`tools/ci/prune_school.sh`). Deleting a PR's head branch makes GitHub close that PR. A Dependabot PR there, or a branch anyone pushed, no longer waits for someone to close it by hand. A refused Dependabot PR on the team side would otherwise have stayed open on the school side for good. The key's rights are unchanged (push, no API): a PR from a fork and the issues stay out of reach, to close by hand if they ever happen. `dependabot.yml` is still mirrored: `main` stays the same commit on both sides (`16`).

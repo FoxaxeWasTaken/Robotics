@@ -20,6 +20,8 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
   `14` §3, §5.4, §6; `15` §6; `16`; the `release` and `nightly-triage` skills.
 
+- The mirror keeps the school repository to `main` and the tags (5.1r, #216): it deletes every other branch there at each run and daily (`tools/ci/prune_school.sh`, tested by `test_prune_school.sh`), so a Dependabot PR or any PR opened there closes by itself. ADR-033 Update, `16` §3 and §6, README.
+
 ### Changed
 
 - Releases (5.1p, #210): a minor version per usable increment, a patch for a fix that matters; one GitHub milestone per version, every ticket in one from its creation, and each open milestone with its release ticket (#212 `v1.1.0`, #213 `v1.2.0`, #214 `v1.3.0`, #99 `v2.0.0`). The milestones put in order: `v0.1.0`–`v0.3.0` and `v1.0.0` closed, each closed ticket filed under the version it shipped in. ADR-028 Update, `15` §6 and §12, CONTRIBUTING §8, the issue template, the `new-ticket` and `release` skills.
