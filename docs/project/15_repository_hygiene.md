@@ -79,7 +79,7 @@ The school mirror is described in `16`.
 ├── tools/so101                  ← the everyday commands (stack, cycle, bench, tests)          [team]
 ├── tools/ci/                    ← the CI scripts (guards.sh, check_mermaid.sh, reports…) and their tests [team]
 ├── docs/                        ← SUJET.md + PDF slides (versioned by the course)           [provided, untouched]
-│   └── project/                 ← design, ADRs, roadmap, measurements; phase2/ = Connect Four; media/ = the README GIF [team]
+│   └── project/                 ← design, ADRs, roadmap, measurements; phase2/ = Connect Four; media/ = the README GIF; presentations/ = the review decks [team]
 ├── results/                     ← milestone evaluation reports (light CSV/MD)                 [team]
 ├── docker/                      ← Dockerfiles, compose, entrypoint                            [provided → extended]
 ├── core/                        ← real-arm driver extracted from LeRobot                      [provided, untouched]
@@ -185,6 +185,7 @@ flowchart TD
   Q -- "rosbags, raw nightly CSVs" --> A["CI artifacts (14 days)<br/>or local disk"]
   Q -- "demo videos" --> V["GitHub Release<br/>or YouTube (link in the README)"]
   Q -- "the README demo GIF<br/>(under 1 MB)" --> G4["Git<br/>docs/project/media/"]
+  Q -- "review decks (PDF under 1 MB,<br/>compressed if needed)" --> G5["Git<br/>docs/project/presentations/"]
   Q -- "course PDFs" --> N["Already versioned by the course in docs/<br/>do not add more; duplicates ignored by /*.pdf"]
   Q -- ".env, tokens, keys" --> S["Never in Git<br/>(.gitignore + detect-private-key)"]
 ```
