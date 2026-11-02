@@ -6,7 +6,12 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Added
 
+- The ghost arm (6.1c, #200): the driver publishes the setpoint it sends at each control step on `/joint_setpoint` (the 6 joints in rad, after the clamp and the limiter; Reliable, depth 1, since `robot_state_publisher` subscribes Reliable); `sim.launch.py` (so `real.launch.py` too) draws it as the `ghost/` TF tree with a second `robot_state_publisher`, and RViz shows it translucent in the display "Commanded arm (ghost)", unchecked by default. The gap to the measured arm is the tracking error on the real arm. Tests: `command.setpoint_positions` (order, gripper % → rad), and in sim `/joint_setpoint` reaching a commanded pan with the TF `base_link → ghost/gripper_frame_link`. `01` §3.1 (new topic, diagram), `03` §5, `06` §7, `07` §3.2, `13`, README.
 - The intermediate review's deck as presented on 2026-10-31 (#201): `docs/project/presentations/`, a 17-slide PDF (0.64 MB, Canva's export compressed with Ghostscript) and an index linking its video, the `v1.0.0` release asset `sim_full_cycle.mp4`. `docs/project/README.md`, `15` §3 and §7.
+
+### Changed
+
+- The grasp check works on the real arm (6.4a, #69): held when the gripper effort is above `grasp.effort_threshold` (the sim's signal) **or** the jaws stopped at least `grasp.hold_gap_pct` (3 %) above `grasp.close_pct`, the real arm's, which publishes no effort: its `Present_Load` cannot tell a held cube and 0 % on the cube trips `Overload` (MES-56). In sim nothing changes: the jaws close on a tunnel wall (0.02 % holding, 0.00 % empty, MES-57, `exp_grasp_position.py`) and the effort decides. The transition reasons give the effort and the opening. The real `close_pct` and `hold_gap_pct` are measured before any autonomous grasp (`07` §7). ADR-016 update, `03` §5, `06` §3.1 and §6, `07` §4 and §7, `13`.
 
 ## [1.0.0] - 2026-10-31
 

@@ -66,7 +66,7 @@ flowchart TD
 | 1 | **Read only**: torque on, no command; compare `/joint_states` / RViz with the physical posture (or torque off, §3.1 step 6, and move the arm by hand) | RViz reproduces the real posture **exactly** | Wrong sign/zero → calibration, **stop** |
 | 2 | **Sign check**: `+0.1 rad` on each joint, one at a time, sim then real | Same direction as in sim (pan positive = towards −y) | Calibration / `drive_mode` — do not "fix" it in code |
 | 3 | Gripper: 100 % then 0 % | Full opening / closing | Calibration range |
-| 4 | Limiter: +1 rad command on `shoulder_pan` | Slow, progressive motion | Limiter inactive → **stop** |
+| 4 | Limiter: +1 rad command on `shoulder_pan`, with RViz's "Commanded arm (ghost)" ticked | Slow, progressive motion; the ghost leads, the arm follows and covers it at rest (the gap per joint is the tracking error, #200) | Limiter inactive → **stop** |
 | 5 | `/go_to_target` on 5 points 10 cm above the table | Reached without jerk; measured error (grid) < 1 cm | Systematic offset → §4 |
 | 6 | Pick & place at reduced speed, arm **without** then **with** the cube | Full cycle | Analyze the rosbag |
 
@@ -83,7 +83,7 @@ flowchart TD
 | Actual table height ≠ 0 | Bias in z | The table **defines** z = 0 (base resting on it) |
 | **Calibration zero**: LeRobot's zero is the middle of the recorded range, not the pose held during calibration | For this arm, up to 23° on `shoulder_lift` if the URDF zero is the held pose: TCP off by centimeters (rest pose computed at z = −2.9 cm) [MES-30] | Measure the rest-pose TCP with a ruler (`exp_calibration_zero.py`); `joint_zero_offsets` in `driver_real.yaml` (#196): the driver subtracts them from what it reads and adds them to what it sends (`zero_offsets.py`, after the provided `_connect_arm`). Measured on 2026-10-30, the arm held at the URDF zero: elbow 0.241 rad (13.8°); to measure again after each recalibration |
 | Cube friction, gripper compliance | Grasp differs from sim | Tune grasp height and jaw alignment (more useful on the real arm than in sim) |
-| Effort signal | Different scale (`Present_Load`) | Recalibrate `grasp.effort_threshold` (empty / holding) |
+| Grasp signal | `Present_Load` cannot tell a held cube (closed empty: +0.11); 0 % on the cube trips `Overload`, bus refused until a power cycle [MES-56] | No effort on the real arm: the jaws' gap (`grasp.hold_gap_pct`), `grasp.close_pct` just below the contact opening (#69). An `Overload` anyway: the driver loses the bus and stops, the brain ends in `ERROR` (stale `/joint_states`); power-cycle the arm |
 
 ## 5. Real camera (ADR-007, ADR-021)
 
@@ -112,6 +112,7 @@ See `04` §7: A3 mat with mm grid + base jig, pointer in the gripper, 10 points,
 - [ ] Today's code went through the sim **with the same parameters**.
 - [ ] `max_joint_velocity` / `v_max` at "real" values (≤ 0.8 / 0.5 rad/s).
 - [ ] Test 1 (read only) passed: RViz = real.
+- [ ] No autonomous grasp until `grasp.close_pct` and `grasp.hold_gap_pct` are measured and set in `brain_real.yaml` (#69): `close_pct` = 0 % on the cube trips `Overload`.
 - [ ] Hands off as soon as the brain is armed. Phase 2: hands near the gripper only while waiting for a token (arm still); "done" only once the hands are out.
 - [ ] One person watches the arm, one the terminal (`/brain/stop` ready).
 - [ ] End of session: arm in PARK, then power off.

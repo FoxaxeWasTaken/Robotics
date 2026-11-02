@@ -52,7 +52,7 @@ def test_the_real_files_change_only_the_documented_keys_of_the_base_files():
 
 
 def parameter_files(use_sim):
-    """The YAML files sim.launch.py gives each node, in load order (a later file wins)."""
+    """The YAML files sim.launch.py gives each node that loads any, in load order (a later file wins)."""
     context = LaunchContext()
     context.launch_configurations.update(
         use_sim=use_sim, port="/dev/ttyACM0", expose_ground_truth="false", calibration="false", lighting=""
@@ -60,7 +60,9 @@ def parameter_files(use_sim):
     files = {}
     for node in (e for e in entities("sim.launch.py") if isinstance(e, Node)):
         evaluated = evaluate_parameters(context, node._Node__parameters)  # launch_ros has no public getter
-        files[node.node_package] = [Path(p).name for p in evaluated if not isinstance(p, dict)]
+        names = [Path(p).name for p in evaluated if not isinstance(p, dict)]
+        if names:  # the ghost arm's robot_state_publisher and static TF take none (#200)
+            files[node.node_package] = names
     return files
 
 
