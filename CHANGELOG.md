@@ -36,7 +36,7 @@ Ready for the real arm, and a team workflow that no longer depends on memory (mi
 
 ## [1.0.0] - 2026-10-31
 
-The simulation milestone (step 5.3, `15` §6): the whole pick & place cycle in MuJoCo with the team's driver, perception and brain, on our own camera calibration. The phase-1 criterion met, 50/50 seeded episodes with the cube and the box randomized (4.5b, C-42); the five robustness cases of the slides handled (5.4a). The GitHub Release of `v1.0.0` links the nightly bench of the tagged commit. The real arm comes in `v1.1.0`.
+The simulation milestone (step 5.3, `15` §6): the whole pick & place cycle in MuJoCo with the team's driver, perception and brain, on our own camera calibration. The phase-1 criterion met, 50/50 seeded episodes with the cube and the box randomized (4.5b, C-42); the five robustness cases of the slides handled (5.4a). The GitHub Release of `v1.0.0` links the nightly bench of the tagged commit. The real arm follows in three versions (ADR-028 Update): its tooling in `v1.1.0`, the real camera and perception in `v1.2.0`, the pick & place on the real arm in `v1.3.0`.
 
 ### Added
 
