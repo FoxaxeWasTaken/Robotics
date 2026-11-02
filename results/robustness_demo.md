@@ -7,12 +7,12 @@ The five robustness questions of the day-2 slides [BOOT2 p12], asked again by th
 The demo starts its own stack (driver, brain and perception in one container, `so101_bringup/launch/robustness_demo.launch.py`), runs the case (`so101_bringup/robustness_demo.py`, cases and verdicts in `so101_bringup/robustness.py`), prints each `/brain_state` with the brain's reason for each transition (from `/rosout`), then the verdict. From the repository root, the workspace built (`tools/so101 up` once):
 
 ```bash
-tools/so101 down   # the demo runs alone: next to the everyday stack, /joint_states once stalled for 0.5 s
-docker compose -f docker/docker-compose.yml run --rm --no-deps -e ROS_DOMAIN_ID=78 control \
-  bash -lc "source /ros2_ws/install/setup.bash && ros2 launch so101_bringup robustness_demo.launch.py case:=1"
+tools/so101 down                             # the demo runs alone: next to the everyday stack, /joint_states once stalled for 0.5 s
+tools/so101 robustness 1                     # a new control container on ROS domain 78
+tools/so101 robustness 5 --lighting dim -n 5 # case 5 under the dim light, 5 cycles (the default)
 ```
 
-`case:=` takes `1`, `2`, `3a`, `3b`, `4` or `5`; case 5 adds `lighting:=dim` (and `episodes:=N`, 5 by default). Each run takes 30 s to 2 min. To film a case, start RViz on the same domain first, in a second terminal (the display setup of `docs/project/02` §7):
+The case is `1`, `2`, `3a`, `3b`, `4` or `5`; `--lighting` and `-n` go to the launch's `lighting:=` and `episodes:=`. `tools/so101` refuses to start the demo while the everyday stack runs, and `--dry-run` prints the `docker compose run` line it would run. Each run takes 30 s to 2 min. To film a case, start RViz on the same domain first, in a second terminal (the display setup of `docs/project/02` §7):
 
 ```bash
 docker compose -f docker/docker-compose.yml run --rm --no-deps -e ROS_DOMAIN_ID=78 -e DISPLAY control \

@@ -6,6 +6,7 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 compose=(docker compose -f "$root/docker/docker-compose.yml")
 BENCH_DOMAIN=77  # the bench's own ROS domain: the ground truth never reaches the everyday stack's (C-06)
+ROBUSTNESS_DOMAIN=78  # the robustness demo's own ROS domain (results/robustness_demo.md)
 PACKAGES="so101_common so101_driver so101_brain so101_perception so101_bringup"  # ours, each with tests
 dry=false
 
@@ -25,6 +26,9 @@ Usage: tools/so101 [--dry-run] <command> [options]
                         the evaluation bench on ROS domain $BENCH_DOMAIN, N episodes (10), in the control
                         container: --perception the real pipeline, --stub the ground truth in its place.
                         CSV in ros2_ws/eval_bench.csv; DIR is a container path (/ros2_ws/bags: ros2_ws/bags)
+  robustness <case> [--lighting NAME] [-n N]
+                        a case of the robustness demo (1, 2, 3a, 3b, 4 or 5) in a new control container on
+                        ROS domain $ROBUSTNESS_DOMAIN, the stack stopped; case 5: --lighting dim, N cycles (5)
   test [package [pytest options]]
                         build and test one package, or all of ours, in a new control container (colcon
                         test, its own free ROS domain); the options go to pytest: test so101_brain -k fsm.
@@ -136,6 +140,26 @@ if [ -n \"\$busy\" ] || [ -n \"\$(ros2 node list --no-daemon --spin-time 3)\" ];
 echo \"so101 bench: a stack already runs on ROS domain $BENCH_DOMAIN\" >&2; exit 1; fi; \
 $stack > /tmp/bench_stack.log 2>&1 & stack=\$!; trap \"kill -INT \$stack; wait \$stack\" EXIT; \
 ros2 run so101_bringup evaluate --episodes $episodes --out /ros2_ws/eval_bench.csv${bags:+ --bags $bags}"
+    ;;
+  robustness)
+    case=${1:-} lighting="" episodes=""
+    [[ $case =~ ^(1|2|3a|3b|4|5)$ ]] || die "robustness: case 1, 2, 3a, 3b, 4 or 5"
+    shift
+    while [ $# -gt 0 ]; do
+      case $1 in
+        --lighting) lighting=${2:-}; shift ;;
+        -n) episodes=${2:-}; shift ;;
+        *) die "robustness: unknown option $1" ;;
+      esac
+      shift
+    done
+    [[ $lighting =~ ^[a-z0-9_]*$ ]] || die "robustness: --lighting takes an entry of config/sim_scene.yaml (dim)"
+    [[ $episodes =~ ^([1-9][0-9]*)?$ ]] || die "robustness: -n takes a number of cycles"
+    # Next to the everyday stack, /joint_states once stalled for 0.5 s and the demo saw 2 drivers (13 §2)
+    "$dry" || [ -z "$("${compose[@]}" ps -q control)" ] || die "robustness: the everyday stack runs, tools/so101 down first"
+    run "${compose[@]}" run --rm --no-deps -e ROS_DOMAIN_ID=$ROBUSTNESS_DOMAIN control bash -lc \
+      "source /ros2_ws/install/setup.bash && ros2 launch so101_bringup robustness_demo.launch.py case:=$case\
+${lighting:+ lighting:=$lighting}${episodes:+ episodes:=$episodes}"
     ;;
   test)
     # In a fresh container: the tests need no stack, and the timing ones (the planner's p95) need its CPU, so stop
