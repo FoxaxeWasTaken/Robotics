@@ -86,7 +86,27 @@ dry "run --rm --no-deps -T control bash -lc 'source /opt/ros/jazzy/setup.bash &&
 dry "run --rm --no-deps -T control bash -lc 'source /opt/ros/jazzy/setup.bash && cd /ros2_ws" -- test so101_driver
 echo "ok: test builds and tests one package, or all of ours, in a fresh control container (no stack needed), the rest to pytest, quoted"
 
+# run (#203): a throwaway container next to a developer's stack, never their workspace, network or domain.
+out=$("$so101" --dry-run run 'colcon test --packages-select so101_brain') || fail "run: exit $?"
+grep -qF "+ docker run --rm -i --network none -e ROS_DOMAIN_ID=79 -e MUJOCO_GL=osmesa -v $(pwd):/repo:ro tek5/control bash -lc" <<< "$out" \
+  || fail "run: $out"
+for e in "cp -r /repo/ros2_ws/src /tmp/ws/" "colcon build --packages-up-to so101_common so101_driver so101_brain so101_perception so101_bringup" \
+  "source install/setup.bash && colcon test --packages-select so101_brain'"; do
+  grep -qF -- "$e" <<< "$out" || fail "run: no '$e' in: $out"
+done
+out=$("$so101" --dry-run run --stack --out "$tmp/media" 'python3 /repo/x.py') || fail "run --stack: exit $?"
+grep -qF -- "-v $tmp/media:/out " <<< "$out" || fail "run --out: $out"
+grep -qF "ros2 launch so101_bringup sim.launch.py > /tmp/stack.log 2>&1 &" <<< "$out" || fail "run --stack: $out"
+grep -qF "/end_effector_pose" <<< "$out" || fail "run --stack does not wait for the brain: $out"
+grep -qF "chown -R $(id -u):$(id -g) /out" <<< "$out" || fail "run --out: the files stay root's: $out"
+[ ! -e "$tmp/media" ] || fail "a dry run made the --out folder"
+echo "ok: run builds our packages in a throwaway container (no network, domain 79, the repository read-only), --stack, --out"
+
 refused() { ! "$so101" --dry-run "$@" > /dev/null 2>&1 || fail "so101 $* accepted"; }
+refused run
+refused run --force 'ls'
+refused run 'ls' 'pwd'
+refused run --out "/tmp/x y" 'ls'
 refused bench
 refused bench --perception -n 0
 refused bench --perception -n "3; rm -rf /"

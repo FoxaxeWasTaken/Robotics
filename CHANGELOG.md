@@ -4,6 +4,10 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ## [Unreleased]
 
+### Added
+
+- Claude Code skills for the team's recurring workflows (0.3, #203), in `.claude/skills/`: `new-ticket` (with the board's field ids in `board.json` and the command that refreshes them), `open-pr`, `measure`, `isolated-stack`, `release`, `nightly-triage`. Each gives the order of the steps and points to the doc that holds the procedure; the permanent rules stay in `AGENTS.md`. `tools/so101 run [--stack] [--out DIR] '<command>'`: a command in a throwaway control container next to a running stack (no network, ROS domain 79, the repository read-only, our packages built there), tested by `test_so101.sh`. AGENTS.md, CONTRIBUTING §2, `13` §1, `15` §3, README.
+
 ## [1.0.0] - 2026-10-31
 
 The simulation milestone (step 5.3, `15` §6): the whole pick & place cycle in MuJoCo with the team's driver, perception and brain, on our own camera calibration. The phase-1 criterion met, 50/50 seeded episodes with the cube and the box randomized (4.5b, C-42); the five robustness cases of the slides handled (5.4a). The GitHub Release of `v1.0.0` links the nightly bench of the tagged commit. The real arm comes in `v1.1.0`.

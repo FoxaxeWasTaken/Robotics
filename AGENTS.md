@@ -41,7 +41,8 @@ bash tools/ci/guards.sh           # host, repo root (needs the git repo): projec
 - Every PR shows its evidence: the commands run and their output, or the measurement (CONTRIBUTING §8).
 - Spikes and measurement scripts go in `docs/project/experiences/`, never in a package; a new measurement gets a `MES-xx` row in `docs/project/11` §4. New ADR or MES: update its index and the counts in `docs/project/README.md`.
 - Workflows: actions pinned by commit SHA (version in a comment), `persist-credentials: false`, `${{ }}` expressions passed to `run:` through `env:` (zizmor checks it).
-- Running the stack or tests next to a developer's: `colcon test` already gives each package a free `ROS_DOMAIN_ID`, never the current one (colcon-ros-domain-id-coordinator); a second stack needs its own compose project (`docker compose -p <name>`) and `ROS_DOMAIN_ID`. Never stop or restart their containers.
+- Workflows: the Claude Code skills of `.claude/skills/` (`new-ticket`, `open-pr`, `measure`, `isolated-stack`, `release`, `nightly-triage`) give the order of each recurring procedure and point to the doc that holds it (CONTRIBUTING §2, §6, §8; `docs/project/11` §4, `14` §6, `15` §6, `16`); a skill never overrides this file.
+- Running the stack or tests next to a developer's: `colcon test` already gives each package a free `ROS_DOMAIN_ID`, never the current one (colcon-ros-domain-id-coordinator); a second stack needs its own compose project (`docker compose -p <name>`) and `ROS_DOMAIN_ID`, or `tools/so101 run` (a throwaway container, no network, the sources copied). Never stop or restart their containers.
 
 ## Known traps
 
