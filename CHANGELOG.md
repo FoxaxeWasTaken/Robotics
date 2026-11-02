@@ -4,6 +4,10 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ## [Unreleased]
 
+### Added
+
+- The intermediate review's deck as presented on 2026-10-31 (#201): `docs/project/presentations/`, a 17-slide PDF (0.64 MB, Canva's export compressed with Ghostscript) and an index linking its video, the `v1.0.0` release asset `sim_full_cycle.mp4`. `docs/project/README.md`, `15` §3 and §7.
+
 ## [1.0.0] - 2026-10-31
 
 The simulation milestone (step 5.3, `15` §6): the whole pick & place cycle in MuJoCo with the team's driver, perception and brain, on our own camera calibration. The phase-1 criterion met, 50/50 seeded episodes with the cube and the box randomized (4.5b, C-42); the five robustness cases of the slides handled (5.4a). The GitHub Release of `v1.0.0` links the nightly bench of the tagged commit. The real arm comes in `v1.1.0`.
