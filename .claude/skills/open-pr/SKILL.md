@@ -24,7 +24,7 @@ The rules are in `CONTRIBUTING.md` (§2 workflow, §2.1 naming, §5 tests, §6 d
    Never put a local path (`/home/…`, `~/…`) in it: describe how to reproduce instead.
 2. **Ready for review or draft**: CONTRIBUTING §2 step 6.
 3. `gh pr create … --assignee @me`, then request the other members (CONTRIBUTING §2 step 6) one at a time with `gh pr edit --add-reviewer <login>`: a combined request can fail.
-4. Move the tickets to **In review** on the board (ids in `.claude/skills/new-ticket/board.json`).
+4. Move the tickets to **In review** on the board: `gh project item-edit 4 --owner FoxaxeWasTaken --url <issue url> --field Status --value "In review"`.
 
 ## After
 
