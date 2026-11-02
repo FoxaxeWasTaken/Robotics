@@ -6,7 +6,7 @@
 # so a failed lookup runs everything. Ready: everything, unless the changed paths (stdin) are documentation only.
 # Usage: git diff --name-only --no-renames <base> <head> | bash tools/ci/heavy.sh <true|false>
 set -uo pipefail
-if [ "${1:-}" = true ]; then
+if [[ "${1:-}" = true ]]; then
   echo "Draft: lint and guards only; Ready for review runs every job." >&2
   echo heavy=false
 elif bash "$(dirname "$0")/docs_only.sh" >&2; then

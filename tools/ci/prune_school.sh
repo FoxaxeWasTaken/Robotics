@@ -6,7 +6,7 @@
 set -euo pipefail
 remote=$1
 branches=$(git ls-remote --heads "$remote" | cut -f2 | grep -vx refs/heads/main || true)
-if [ -z "$branches" ]; then
+if [[ -z "$branches" ]]; then
   echo "Only main on $remote."
   exit 0
 fi

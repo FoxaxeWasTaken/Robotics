@@ -17,25 +17,25 @@ dry=false
 die() { echo "release: $*" >&2; exit 1; }
 run() { echo "+ $*"; "$dry" || "$@"; }
 
-[ "${1:-}" = --dry-run ] && { dry=true; shift; }
+[[ "${1:-}" = --dry-run ]] && { dry=true; shift; }
 [[ ${1:-} =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || die "usage: tools/release.sh [--dry-run] vX.Y.Z"
 version=$1 major=${BASH_REMATCH[1]} minor=${BASH_REMATCH[2]}
 
 IFS=$'\t' read -r number title state <<< "$(bash "$ms" find "$REPO" "$version")" || true
-[ -n "${number:-}" ] || die "no milestone $version (ADR-028 Update): create it, with its tickets"
-[ "$state" = open ] || die "the milestone $title is already closed"
+[[ -n "${number:-}" ]] || die "no milestone $version (ADR-028 Update): create it, with its tickets"
+[[ "$state" = open ]] || die "the milestone $title is already closed"
 blockers=$(bash "$ms" blockers "$REPO" "$number" | tr '\n' ' ')
-[ -z "$blockers" ] || die "the milestone $title still has open tickets: $blockers(close them or move them to the next version)"
+[[ -z "$blockers" ]] || die "the milestone $title still has open tickets: $blockers(close them or move them to the next version)"
 
 git fetch -q origin main --tags
 sha=$(git rev-parse origin/main)
 ! git rev-parse -q --verify "refs/tags/$version" > /dev/null || die "the tag $version exists"
 
-[ -n "${SONAR_TOKEN:-}" ] || die "SONAR_TOKEN is not set: the quality gate of main cannot be checked"
+[[ -n "${SONAR_TOKEN:-}" ]] || die "SONAR_TOKEN is not set: the quality gate of main cannot be checked"
 gate=$(curl -fsS --max-time 30 -K - "https://sonarcloud.io/api/qualitygates/project_status?projectKey=$SONAR_PROJECT&branch=main" \
   <<< "header = \"Authorization: Bearer $SONAR_TOKEN\"" | python3 -c 'import json, sys; print(json.load(sys.stdin)["projectStatus"]["status"])') \
   || die "SonarQube Cloud did not answer"
-[ "$gate" = OK ] || die "the quality gate of main: $gate"
+[[ "$gate" = OK ]] || die "the quality gate of main: $gate"
 
 report=$(gh api "repos/$REPO/issues?labels=report&state=all" | python3 -c 'import json, sys; print(json.load(sys.stdin)[0]["number"])') \
   || die "no issue labeled report (Nightly bench results)"
@@ -51,9 +51,9 @@ for c in reversed(json.load(sys.stdin)):
         print(met, run.group(1) if run else "")
         break
 ' "$sha")
-[ -n "$bench" ] || die "no nightly bench report on origin/main ($sha): gh workflow run nightly.yml -R $REPO --ref main, then again once its report is posted"
+[[ -n "$bench" ]] || die "no nightly bench report on origin/main ($sha): gh workflow run nightly.yml -R $REPO --ref main, then again once its report is posted"
 read -r verdict bench_run <<< "$bench"
-[ "$verdict" = met ] || die "the nightly bench on $sha missed its target: $bench_run"
+[[ "$verdict" = met ]] || die "the nightly bench on $sha missed its target: $bench_run"
 
 notes=$(mktemp)
 git show "$sha:CHANGELOG.md" | awk -v v="## [${version#v}]" 'index($0, v) == 1 {on = 1; next} on && /^## \[/ {exit} on' > "$notes"
@@ -66,6 +66,6 @@ run git push -q origin "$version"
 run gh release create "$version" -R "$REPO" --title "$title" --notes-file "$notes" --verify-tag
 run gh api -X PATCH "repos/$REPO/milestones/$number" -f state=closed
 next="v$major.$((minor + 1)).0"
-[ -n "$(bash "$ms" find "$REPO" "$next")" ] || run gh api -X POST "repos/$REPO/milestones" -f title="$next"
+[[ -n "$(bash "$ms" find "$REPO" "$next")" ]] || run gh api -X POST "repos/$REPO/milestones" -f title="$next"
 run gh workflow run mirror.yml -R "$REPO" --ref main
 echo "Then: the mirror's run, git ls-remote --tags <school url> lists $version (docs/project/16), the release ticket closed with the links."

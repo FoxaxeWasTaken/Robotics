@@ -26,6 +26,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 - Releases (5.1p, #210): a minor version per usable increment, a patch for a fix that matters; one GitHub milestone per version, every ticket in one from its creation, and each open milestone with its release ticket (#212 `v1.1.0`, #213 `v1.2.0`, #214 `v1.3.0`, #99 `v2.0.0`). The milestones put in order: `v0.1.0`–`v0.3.0` and `v1.0.0` closed, each closed ticket filed under the version it shipped in. ADR-028 Update, `15` §6 and §12, CONTRIBUTING §8, the issue template, the `new-ticket` and `release` skills.
 - The grasp check works on the real arm (6.4a, #69): held when the gripper effort is above `grasp.effort_threshold` (the sim's signal) **or** the jaws stopped at least `grasp.hold_gap_pct` (3 %) above `grasp.close_pct`, the real arm's, which publishes no effort: its `Present_Load` cannot tell a held cube and 0 % on the cube trips `Overload` (MES-56). In sim nothing changes: the jaws close on a tunnel wall (0.02 % holding, 0.00 % empty, MES-57, `exp_grasp_position.py`) and the effort decides. The transition reasons give the effort and the opening. The real `close_pct` and `hold_gap_pct` are measured before any autonomous grasp (`07` §7). ADR-016 update, `03` §5, `06` §3.1 and §6, `07` §4 and §7, `13`.
+- SonarQube Cloud, the 36 issues of 2026-11-02 (#220): `[[` in the shell scripts of #208 and #215 (`tools/release.sh`, `tools/ci/`), positional parameters in local variables in `test_release.sh`; no behavior change, `14` §4.
 
 ### Fixed
 
