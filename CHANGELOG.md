@@ -7,6 +7,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 ### Added
 
 - Claude Code skills for the team's recurring workflows (0.3, #203), in `.claude/skills/`: `new-ticket` (with the board's field ids in `board.json` and the command that refreshes them), `open-pr`, `measure`, `isolated-stack`, `release`, `nightly-triage`. Each gives the order of the steps and points to the doc that holds the procedure; the permanent rules stay in `AGENTS.md`. `tools/so101 run [--stack] [--out DIR] '<command>'`: a command in a throwaway control container next to a running stack (no network, ROS domain 79, the repository read-only, our packages built there), tested by `test_so101.sh`. AGENTS.md, CONTRIBUTING §2, `13` §1, `15` §3, README.
+- The intermediate review's deck as presented on 2026-10-31 (#201): `docs/project/presentations/`, a 17-slide PDF (0.64 MB, Canva's export compressed with Ghostscript) and an index linking its video, the `v1.0.0` release asset `sim_full_cycle.mp4`. `docs/project/README.md`, `15` §3 and §7.
 
 ## [1.0.0] - 2026-10-31
 
