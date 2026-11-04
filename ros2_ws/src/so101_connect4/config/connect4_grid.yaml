@@ -1,0 +1,23 @@
+# The Connect Four layout (phase2/P2-02 §7): the model grid of §1 until #75 measures the purchased one. SI units,
+# angles in rad. One file for the sim scene, the board reader and the drop targets: it lives in so101_connect4
+# because the perception container does not build so101_bringup.
+grid:
+  columns: 7
+  rows: 6
+  column_pitch: 0.037  # m, along the grid [MES-28]
+  row_pitch: 0.034  # m [MES-63]
+  slot_gap: 0.0095  # m, across the grid (8.5 to 10.5 mm on the model)
+  slot_entry_height: 0.25  # m above the table
+  depth_guide_height: 0.030  # m above the slot entries [MES-63]
+placement:  # in base_link; the base stays at the origin, the floor and the table are lowered by the riser
+  riser: 0.10  # m: at 8 cm lower_arm hits the guide [MES-63]
+  azimuth: -0.6981  # rad (-40°), the grid plane around the shoulder_pan axis [MES-65]
+  first_column_r: 0.14  # m from the pan axis; column c at first_column_r + c * column_pitch (0.362 for 6)
+  plane_offset: 0.00385  # m, the grid plane off the pan axis, on the fixed-jaw side [MES-64]
+token:
+  diameter: 0.034  # m
+  thickness: 0.0065  # m
+markers:  # on the grid frame, for its pose (P2-02 §3)
+  dictionary: DICT_4X4_50
+  count: 4
+  size: 0.030  # m [MES-65]
