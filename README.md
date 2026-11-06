@@ -8,10 +8,14 @@ A camera spots a red cube, the SO-ARM101 arm grasps it and drops it into a box �
 
 *One randomized cycle in simulation, 2× speed: the scene camera with perception's detections (`/perception/debug_image`) and the brain's state, from `WAIT_TARGET` to the cube in the box. RViz shows the same cycle in 3D ([What RViz shows](#what-rviz-shows)).*
 
+<img src="docs/project/media/demo_real_cycle.gif" width="320" alt="One pick and place on the real SO-101: the arm parks, takes the red cube from the table and drops it into a green bowl">
+
+*The same cycle on the real arm, 4× speed. The videos: [one cycle](https://github.com/FoxaxeWasTaken/Robotics/releases/download/v1.3.0/real_pick_and_place.mp4), [the cube moved by hand, then the retry](https://github.com/FoxaxeWasTaken/Robotics/releases/download/v1.3.0/real_cube_moved_retry.mp4).*
+
 ## What it does today
 
 - **In simulation, the whole cycle runs on its own.** `/brain/start` parks the arm out of the camera's view. Perception then locates the cube and the box: HSV detection, pixel → 3D, median filter, cube yaw. The brain plans a grasp, approaches, grasps, checks the grip, carries the cube, drops it, checks it is in the box, and comes back to rest.
-- **On the real arm, too.** The same cycle runs on the real SO-101 with a USB webcam, at the sim's speeds: 7 of 8 trials on 2026-11-06 ([results](results/bench_real_2026-11-06.md)), on our own calibration of the camera and of the arm. The setup, material included: [`07` §9](docs/project/07_real_arm_safety_sim2real.md).
+- **On the real arm, too.** The same cycle runs on the real SO-101 with a USB webcam, at the sim's speeds: 14 of 17 trials on 2026-11-06 ([results](results/bench_real_2026-11-06.md)), on our own calibration of the camera and of the arm. The setup, material included: [`07` §9](docs/project/07_real_arm_safety_sim2real.md).
 - **Sim ↔ real**: `USE_SIM` in `docker/.env`, plus a few documented values ([`01` §3.3](docs/project/01_architecture.md)).
 - **Phase 2** (planned): play Connect Four against the arm, which reads the grid with its camera and drops its own tokens ([design](docs/project/phase2/README.md)).
 
@@ -20,7 +24,7 @@ A camera spots a red cube, the SO-ARM101 arm grasps it and drops it into a box �
 | Done | Next (see [roadmap](docs/project/09_roadmap_step_by_step.md)) |
 | --- | --- |
 | Environment (Docker images, X11, DDS, usbipd), CI, hooks, design docs with measured spikes; the phase-1 sim criterion met on our calibration, 50/50 (4.5b, C-42) | The final phase-1 release |
-| Driver: `/joint_states` at 30 Hz, `/joint_command`, speed limiter, joint-limit clamp, camera at 10 Hz with `camera_info`, `/sim/randomize`, ground truth for the bench only; real-arm safety and webcam; a warning for each late tick, a clean stop on SIGINT (#158, #176) | The real arm: done, a filmed pick & place at 7/8 (6.5a, [`results/bench_real_2026-11-06.md`](results/bench_real_2026-11-06.md)) |
+| Driver: `/joint_states` at 30 Hz, `/joint_command`, speed limiter, joint-limit clamp, camera at 10 Hz with `camera_info`, `/sim/randomize`, ground truth for the bench only; real-arm safety and webcam; a warning for each late tick, a clean stop on SIGINT (#158, #176) | The real arm: done, a filmed pick & place at 14/17 (6.5a, [`results/bench_real_2026-11-06.md`](results/bench_real_2026-11-06.md)) |
 | Perception: HSV detection that holds under a dim, warm light, pixel → 3D, median filter, cube yaw, `/object_position` and `/drop_box_position`, debug image, our ArUco extrinsic calibration and the camera TF; a cube cut by the image edge or partly hidden is not published (3.4b–c, 3.5c, MES-47, MES-52, MES-53) | Later, on the real arm: a startup check that the camera has not moved (#222), the colors measured by a tool (#223), replay tests on real images (#48) |
 | Brain: FK/IK (no self-collision), `/go_to_target`, grasp planner in a worker process, the full state machine, markers in RViz; grasp verification and retries checked on fault scenarios, effort threshold measured (4.4a, MES-48) | Phase 2: the store-bought grid measured, then the drop spike (P2.1, #75, #76) |
 | Evaluation bench, E2E on every PR, nightly 50-episode bench with its report, and the nightly's quality job: coverage, trends, the SonarQube Cloud gate (#174, #179); the robustness demo, the five cases of the slides handled (5.4a, #103, #175); `tools/so101` for the everyday commands; this README replayed by a member from a fresh clone, quickstart and demo in about 12 min (5.1b) | |

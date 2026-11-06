@@ -185,6 +185,8 @@ The PDFs come from `tools/calibration_sheets.py`.
    tools/so101-arm zero-offsets -n 3
    ```
 
+   ![The URDF zero, held by hand: the arm stretched forward and horizontal, the wrist and the jaws in line](media/real_zero_pose.jpg)
+
    Put the `joint_zero_offsets` line in `driver_real.yaml`. Pass: each value within 2° of what the "middle" pose implies (`(2047 − middle) · 2π / 4096`); 7° on a joint means it was not held at the same pose, measure again.
 
 6. **Commission.** `tools/so101 up`, then the log says "Mode: hardware" and RViz shows the arm. Tests 1 to 4 of §3.2. A missing arm or image in RViz: the driver died at its start, `tools/so101 logs`.
@@ -205,6 +207,8 @@ The PDFs come from `tools/calibration_sheets.py`.
    tools/so101 down
    tools/so101-arm touch 0     # then 5, 18, 23: each prints its --touch argument
    ```
+
+   ![The jaws closed on a crossing of the board, the gripper as vertical as possible](media/real_touch_crossing.jpg)
 
    Move the arm off the board without touching it, then `tools/so101 up` and, in `tools/so101 shell`, with the 4 printed arguments:
 

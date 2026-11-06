@@ -6,7 +6,8 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ### Added
 
-- The first real pick & place (6.5a, #72): 7 of 8 trials on the real arm with a USB webcam, at the sim's speeds, on our own calibration. `results/bench_real_2026-11-06.md`.
+- The first real pick & place (6.5a, #72): 14 of 17 trials on the real arm with a USB webcam, at the sim's speeds, on our own calibration, filmed. `results/bench_real_2026-11-06.md`.
+- The real cycle in the README (`docs/project/media/demo_real_cycle.gif`, 0.8 MB, cut from the film), and two photos in `07` §9: the URDF zero and the jaws on a crossing.
 - The real setup from A to Z (#202): `07` §9, the material (tape, ruler, printed sheets, clamp, rigid mount) and 14 steps, each with its commands and pass criterion; the README links it.
 - `calibrate_intrinsics` (6.2b, #67): K and distortion from a ChArUco board, from still, new views, refused under 12 views or above 0.5 px; 25 views, RMS 0.36 px [MES-58]. Perception undistorts each image.
 - `calibrate_touch` and `tools/so101-arm touch` (6.3a, #68): the camera pose from the board and 4 corners touched by the arm, no ruler, in the arm's own frame, the printed scale measured; within 2.7 mm [MES-59].

@@ -10,7 +10,9 @@ The real SO-101, a USB webcam, the team's driver, brain and perception, on the s
 
 ## Result
 
-**7/8 on the last series, target ≥ 7/10 met** (`07` §3.2 test 6, C-43). A cycle counts when the cube ends in the bowl, retries included: the brain's own `max_retries` is part of the pick & place.
+**14/17 over the two last series, target ≥ 7/10 met** (`07` §3.2 test 6, C-43): 7/8, then 7/9 on the final code, filmed. A cycle counts when the cube ends in the bowl, retries included: the brain's own `max_retries` is part of the pick & place.
+
+### Series of 8 trials
 
 | Trial | Outcome | What happened |
 | --- | --- | --- |
@@ -24,6 +26,24 @@ The real SO-101, a USB webcam, the team's driver, brain and perception, on the s
 | 8 | ✅ | |
 
 The series stopped there: the camera's USB link dropped (`13`, a third time that day).
+
+### Final run, every fix in
+
+The stack restarted on the final code, then 9 `tools/so101 cycle`, read from the brain's log: a ✅ is a `DONE`, and the two films show the cube in the bowl.
+
+| Cycle | Outcome | What the brain logged |
+| --- | --- | --- |
+| 1 | ✅ | First attempt |
+| 2 | ✅ | Second attempt: the first closed empty (`GRASP → RETRY`, 1.6 %) |
+| 3 | ✅ | Third attempt: twice `VERIFY → RETRY`, the cube seen on the table after the drop |
+| 4 | ✅ | Second attempt: the first closed empty |
+| 5 | ✅ | First attempt, [filmed](https://github.com/FoxaxeWasTaken/Robotics/releases/download/v1.3.0/real_pick_and_place.mp4) |
+| 6 | ❌ | `ERROR:grasp_failed`: three attempts closed empty |
+| 7 | ❌ | `ERROR:object_lost`: the cube last seen at y = 59 cm, out of reach |
+| 8 | ✅ | Second attempt, [filmed](https://github.com/FoxaxeWasTaken/Robotics/releases/download/v1.3.0/real_cube_moved_retry.mp4): the cube moved by hand during the approach, the jaws close empty, `RETRY` finds it again |
+| 9 | ✅ | First attempt |
+
+Cycles 6 and 7 came just before the film of cycle 8. They count as failures here, even if the cube was being moved by hand.
 
 ## Before it (not counted: the fixes they led to are in)
 
@@ -41,4 +61,4 @@ The series stopped there: the camera's USB link dropped (`13`, a third time that
 
 ## Reproduce
 
-`07` §9, then `tools/so101 cycle`. The filmed run is linked from #72.
+`07` §9, then `tools/so101 cycle`. The films are assets of the release `v1.3.0`, silent, not in Git (`15` §7).
