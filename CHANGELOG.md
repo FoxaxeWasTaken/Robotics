@@ -4,7 +4,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ## [Unreleased]
 
-## [1.3.0] - 2026-11-06
+## [1.3.0] - 2026-11-07
 
 The end of phase 1: the pick & place runs on the real arm (milestone `v1.3.0`). The same stack drives the real SO-101 with a USB webcam, at the sim's speeds: 14 of 17 cycles, filmed, on our own calibration of the camera and of the arm. `v1.2.0` was not tagged: the real camera and the real pick & place came in one session. Next: phase 2, Connect Four.
 
