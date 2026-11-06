@@ -43,7 +43,7 @@ flowchart LR
 | --- | --- | --- | --- | --- |
 | `so101_driver` | ament_python | control | `driver_node`: sim/real backend, control loop, camera, sim services | **Exists**: `/joint_states`, `/joint_command` (partial, clamped, speed-limited), the sim camera thread, `camera_info`, effort, `/sim/randomize`, `seed`, ground truth for the bench; real-arm safety (shutdown move, bus loss) and webcam; a warning for each late tick; `/joint_setpoint` for the ghost arm (#200); provided `_connect_arm` unchanged (ADR-032) |
 | `so101_brain` | ament_python | control | `brain_node` + pure modules: `kinematics.py`, `grasp_planner.py`, `trajectory.py`, `fsm.py` | **Exists**: FK/IK (no self-collision), min-jerk trajectories, `/end_effector_pose`, `/go_to_target`, the grasp planner in a worker process, the pure `fsm.py` driven by a 50 Hz tick, `/brain/start`, `/brain/stop`, `/brain_state`, `/brain/markers` |
-| `so101_perception` | ament_python | perception | `perception_node` + pure modules: `detection.py`, `geometry.py`, `calibration.py` (offline tool) | **Exists**: `/object_position` and `/drop_box_position` from the HSV detection, our extrinsic calibration (`calibrate_extrinsics`) and the median filter; the cube yaw from `minAreaRect`; a cube cut by the image edge or partly hidden is not published; `/perception/debug_image` with masks, centroids and status; reference images with labels in `test/data/` |
+| `so101_perception` | ament_python | perception | `perception_node` + pure modules: `detection.py`, `geometry.py`, `calibration.py` and `intrinsics.py` (offline tools) | **Exists**: `/object_position` and `/drop_box_position` from the HSV detection, our extrinsic calibration (`calibrate_extrinsics` in sim, `calibrate_intrinsics` and `calibrate_touch` on the real bench) and the median filter; the cube yaw from `minAreaRect`; a cube cut by the image edge or partly hidden is not published; `/perception/debug_image` with masks, centroids and status; reference images with labels in `test/data/` |
 | `so101_interfaces` | ament_cmake | both | `.srv` (existing); phase 2 adds `Connect4Board.msg`, `DropToken.srv` and the `PickPlace` action (ADR-037) | Existing |
 | `so101_description` | ament_python | viz | URDF, meshes, `viz.launch.py`. **Do not modify** (C-08) | Provided |
 | **`so101_common`** | ament_python (pure Python, no dependency) | both | **Single source of truth**: joint names, limits, gripper %↔rad conversion, frame names | **Exists** (ADR-003, step 0.3) |
@@ -105,7 +105,7 @@ Declared with descriptors (description, range, read-only: read at startup) in ea
 | driver | `joint_state_rate_hz` | 30 | ≥ 20 imposed (C-11): the range starts at 20 |
 | driver | `camera_rate_hz` | 10 | C-12 |
 | driver | `camera_width/height` | 320/240 (640/480 real) | Sim: 640/480 during calibration (ADR-013), at most 1280/720, the scene's offscreen buffer, K follows; webcam: a size it supports |
-| driver | `max_joint_velocity` | 1.5 rad/s (sim), 0.8 (real, `driver_real.yaml`) | Safety limiter (ADR-023) |
+| driver | `max_joint_velocity` | 1.5 rad/s, sim and real arm | Safety limiter (ADR-023) |
 | driver | `max_gripper_velocity` | 200 %/s | Safety limiter (ADR-023) |
 | driver | `scene_path` | `""`: the provided scene | Set by `sim.launch.py` (not in `driver.yaml`): `calibration:=true` gives the ArUco scene of `markers_sim.yaml`, with `driver_calibration.yaml` at 640×480 (3.4a, #44; `05` §5.3) |
 | driver | `seed` | 0 | `/sim/randomize`: same seed, same cube and box sequence (`03` §7) |
@@ -119,19 +119,22 @@ Declared with descriptors (description, range, read-only: read at startup) in ea
 | perception | `extrinsics_file` | `config/camera_extrinsics.yaml` | Produced by calibration |
 | perception | `hsv_*`, `min_area_px`, `min_solidity` | see `05` | Tunable at runtime |
 | perception | `process_rate_hz`, `filter_size`, `filter_jump_m`, `min_cube_area_ratio` | 20 Hz, 5, 0.02 m, 0.85 | Read at startup; the median filter (`05` §7), the partly hidden cube (`05` §2.3) |
-| brain | `grasp.*`, `motion.*`, `fsm.*` | see `06` §6 | Heights, speeds, thresholds, timeouts; `motion.v_max_rad_s` 1.0 rad/s, 0.5 on the real arm |
+| brain | `grasp.*`, `motion.*`, `fsm.*` | see `06` §6 | Heights, speeds, thresholds, timeouts; `motion.v_max_rad_s` 1.0 rad/s, sim and real arm |
 
 **Real arm** (`real.launch.py`, or `use_sim:=false`): `driver_real.yaml` and `brain_real.yaml` load on top of the base files, last: in sim the driver gets `driver_calibration.yaml` there with `calibration:=true` (#197). They change only these keys (`test_real_config.py`):
 
 | File | Key | Real value |
 | --- | --- | --- |
-| `driver_real.yaml` | `max_joint_velocity` | 0.8 rad/s (ADR-023) |
 | `driver_real.yaml` | `camera_device` | `/dev/video0`, the webcam (6.2a) |
 | `driver_real.yaml` | `camera_width` / `camera_height` | 640 / 480 |
+| `driver_real.yaml` | `camera_info_file` | `camera_real_intrinsics.yaml` (6.2b) |
 | `driver_real.yaml` | `joint_zero_offsets` | Each joint's reading at the URDF zero, rad (`07` §4, #196); 0 in `driver.yaml` |
-| `brain_real.yaml` | `motion.v_max_rad_s` | 0.5 rad/s (`06` §5) |
+| `brain_real.yaml` | `motion.reach_tol_rad` / `motion.reach_tol_roll_rad` | 0.10 / 0.25 rad (`07` §4) |
+| `brain_real.yaml` | `fsm.grasp_wait_s` / `fsm.grasp_timeout_s` | 1.2 / 2.0 s: the real jaws close slower |
+| `brain_real.yaml` | `grasp.close_pct` / `grasp.hold_gap_pct` | 1 % / 1.8 % [MES-60] |
+| `perception_real.yaml` | `hsv_*` | The setup's colors: the red cube, the green bowl (6.4b) |
 
-Perception has no real file yet: the real extrinsics (6.3a) and HSV thresholds (6.4b) bring it, with the switch of its container. The other real values are checked during commissioning (6.1b): `fsm.park_pose`, `grasp.effort_threshold` (6.4a), the timeouts.
+The speeds are the sim's (ADR-023 Update). `USE_SIM=false` also reaches the perception container: `perception_real.yaml` on top of `perception.yaml`, and the pose in `camera_extrinsics_real.yaml` instead of `camera_extrinsics.yaml`. The object is a parameter there: `cube_side_m` and `box_height_m` in `perception.yaml`.
 
 ## 4. Frames and conventions (ADR-005)
 

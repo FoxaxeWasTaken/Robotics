@@ -1,0 +1,56 @@
+# calibrate_intrinsics (05 §3.2, ADR-014): RMS 0.360 px
+image_width: 640
+image_height: 480
+camera_name: external_cam
+camera_matrix:
+  rows: 3
+  cols: 3
+  data:
+  - 500.2994608980594
+  - 0.0
+  - 265.8884327627751
+  - 0.0
+  - 501.4057927228406
+  - 236.07478729557695
+  - 0.0
+  - 0.0
+  - 1.0
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data:
+  - 0.022529649972363227
+  - -0.0916358181277571
+  - -0.0007145044063722113
+  - -0.01584314942379616
+  - 0.0
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data:
+  - 1.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 1.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 1.0
+projection_matrix:
+  rows: 3
+  cols: 4
+  data:
+  - 500.2994608980594
+  - 0.0
+  - 265.8884327627751
+  - 0.0
+  - 0.0
+  - 501.4057927228406
+  - 236.07478729557695
+  - 0.0
+  - 0.0
+  - 0.0
+  - 1.0
+  - 0.0

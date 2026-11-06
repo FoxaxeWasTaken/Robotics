@@ -32,6 +32,18 @@ def test_a_parameter_perception_does_not_declare_stops_it_at_startup():
         started("hsv_cube_hmin:=150")
 
 
+def test_the_object_sizes_are_parameters():
+    rclpy.init(args=["--ros-args", "-p", "cube_side_m:=0.03", "-p", "box_height_m:=0.08"])
+    try:
+        node = PerceptionNode()
+        try:
+            assert (node._cube_side, node._box_height) == (0.03, 0.08)
+        finally:
+            node.destroy_node()
+    finally:
+        rclpy.shutdown()
+
+
 def test_every_parameter_has_a_description_and_every_number_a_range():
     _, descriptors = started()
     assert [d.name for d in descriptors if not d.description] == []

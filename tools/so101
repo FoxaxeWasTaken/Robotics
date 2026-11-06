@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# so101 - the everyday commands of the sim stack (docs/project/13 §1), from anywhere in the repository.
-# Each prints the docker compose command it runs; --dry-run only prints. Simulation only: the real arm is started
-# by hand with USE_SIM=false after the checklist of docs/project/07 §7. Tested by tools/ci/test_so101.sh.
+# so101 - the everyday commands of the stack (docs/project/13 §1), from anywhere in the repository.
+# Each prints the docker compose command it runs; --dry-run only prints. USE_SIM=false in docker/.env runs the real
+# arm, after the checklist of docs/project/07 §7; bench and robustness are simulation tools. Tested by tools/ci/test_so101.sh.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 compose=(docker compose -f "$root/docker/docker-compose.yml")
@@ -22,7 +22,7 @@ Usage: tools/so101 [--dry-run] <command> [options]
   logs [service]        follow the logs of control (default), perception or viz
   shell                 a shell in the control container, the workspace sourced
   rviz                  RViz with the project's configuration
-  cycle                 /sim/randomize, /brain/start, then /brain_state until DONE, ERROR or STOPPED
+  cycle                 /sim/randomize (sim only), /brain/start, then /brain_state until DONE, ERROR or STOPPED
   bench --stub|--perception [-n N] [--bags DIR]
                         the evaluation bench on ROS domain $BENCH_DOMAIN, N episodes (10), in the control
                         container: --perception the real pipeline, --stub the ground truth in its place.
@@ -108,7 +108,7 @@ case $command in
     call="timeout 30 ros2 service call"
     ros -T "state=\$(timeout 30 ros2 topic echo --once --field data /brain_state std_msgs/msg/String | head -n 1); \
 case \$state in ERROR*) $call /brain/start std_srvs/srv/Trigger > /dev/null ;; esac; \
-$call /sim/randomize std_srvs/srv/Trigger > /dev/null && $call /brain/start std_srvs/srv/Trigger > /dev/null && \
+{ [ \"\$USE_SIM\" = false ] || $call /sim/randomize std_srvs/srv/Trigger > /dev/null; } && $call /brain/start std_srvs/srv/Trigger > /dev/null && \
 timeout 120 ros2 topic echo --field data /brain_state std_msgs/msg/String 2> /dev/null \
 | while read -r s; do case \$s in ---|IDLE) continue ;; esac; [ \"\$s\" = \"\$last\" ] || echo \"\$s\"; last=\$s; \
 case \$s in DONE*|ERROR*|STOPPED*) break ;; esac; done"

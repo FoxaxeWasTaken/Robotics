@@ -44,7 +44,7 @@ def generate_test_description():
     perception = launch.actions.IncludeLaunchDescription(
         launch.launch_description_sources.PythonLaunchDescriptionSource(str(launch_file)),
         # the camera that rendered the reference images, not the sim's moved one (#47)
-        launch_arguments={"extrinsics_file": str(DATA / "camera_extrinsics.yaml")}.items(),
+        launch_arguments={"use_sim": "true", "extrinsics_file": str(DATA / "camera_extrinsics.yaml")}.items(),
     )
     return launch.LaunchDescription([perception, launch_testing.actions.ReadyToTest()])
 

@@ -44,6 +44,7 @@ class World:
         self.cube_yaw = True  # False: perception gives no yaw
         self.joints = True  # the driver publishes /joint_states
         self.blocked = False
+        self.roll_lag = 0.0  # wrist_roll stops this far from its command, rad
         self.gripper = 0.0  # measured, %; None: not in /joint_states
         self.gripper_blocked = False
         self.gripper_floor = None  # the jaws stop at this opening, %: the cube between them; None: no cube
@@ -91,6 +92,7 @@ class World:
             self.command_states.append(out.state)
             if not self.blocked:
                 self.q = out.command.copy()
+                self.q[4] -= self.roll_lag
         if out.gripper is not None:
             self.grippers.append((out.state, out.gripper))
             if not self.gripper_blocked:
@@ -380,6 +382,18 @@ def test_a_motion_not_reached_at_T_plus_1_s_is_a_timeout_and_freezes_the_arm(sta
     elapsed = world.run_until(f"ERROR:timeout:{state}")
     assert abs(elapsed - (duration(entry, GOALS[state]) + 1.0)) <= 2 * DT
     np.testing.assert_allclose(world.commands[-1], entry)  # frozen: the measured joints
+
+
+def test_a_wrist_roll_that_stops_short_is_reached_within_its_own_tolerance():
+    world = reach("APPROACH", reach_tol_roll=0.25)
+    world.roll_lag = 0.17  # measured on the real arm; the TCP barely moves (#68)
+    world.run_until("DESCEND")
+
+
+def test_a_wrist_roll_that_stops_short_is_a_timeout_past_its_tolerance():
+    world = reach("APPROACH")
+    world.roll_lag = 0.17
+    world.run_until("ERROR:timeout:APPROACH")
 
 
 # --- GRASP ---

@@ -53,7 +53,8 @@ class Params:
     park_pose: tuple = (1.9, -1.7, 1.5, 0.7, 0.0)  # rad: off the workspace view, no self-contact [MES-39]
     v_max: float = 1.0  # rad/s
     min_motion_s: float = 0.5  # 04 §6
-    reach_tol: float = 0.01  # rad, every arm joint
+    reach_tol: float = 0.01  # rad, every arm joint but wrist_roll
+    reach_tol_roll: float = 0.01  # rad, wrist_roll: it barely moves the TCP (8 mm off its axis, 04 §8)
     gripper_tol_pct: float = 3.0  # APPROACH also waits for the gripper this close to open_pct
     motion_margin_s: float = 1.0  # not reached at T + margin -> ERROR:timeout:<state>
     open_pct: float = 100.0
@@ -254,10 +255,12 @@ class Fsm:
         trajectory, start = self._motion
         t = self._now - start
         self._out["command"] = trajectory.sample(t)
-        error = float(np.max(np.abs(self._in.q - trajectory.q_goal)))
+        errors = np.abs(self._in.q - trajectory.q_goal)
+        error = float(errors.max())
         gripper = self._in.gripper if self.state is State.APPROACH else None
         opened = gripper is None or abs(gripper - self.p.open_pct) <= self.p.gripper_tol_pct
-        if t >= trajectory.duration and error < self.p.reach_tol and opened:
+        reached = errors[:4].max() < self.p.reach_tol and errors[4] < self.p.reach_tol_roll
+        if t >= trajectory.duration and reached and opened:
             if not self._goals:
                 self._motion = None
                 return True

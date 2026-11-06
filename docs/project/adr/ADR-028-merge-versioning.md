@@ -46,3 +46,7 @@ One tag in a month (`v1.0.0`) was too few: a version was a large functional mile
 - **Enforced by #211**: a PR cannot merge when a ticket it closes has no milestone; `tools/release.sh` refuses a milestone with open tickets; the nightly report says when `main` is releasable.
 
 The milestones were put in order on 2026-11-02: `v0.1.0`–`v0.3.0` (never tagged) and `v1.0.0` (released) closed, with each closed ticket filed under the version it shipped in.
+
+## Update (2026-11-06)
+
+`v1.2.0` is not tagged: the real camera and the real pick & place came in one session, so `v1.3.0` is the final phase-1 release and its milestone took the tickets of `v1.2.0` (#213, #214).

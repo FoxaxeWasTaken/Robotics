@@ -1,6 +1,6 @@
 ---
 name: release
-description: Cut a version of this project, from the nightly on the exact commit to the tag checked on the school copy. Use when a version's milestone is done (v1.1.0 real-arm tooling, v1.2.0 real camera, v1.3.0 real pick & place, v2.x phase 2), when the nightly report says "releasable", or when asked to release or tag.
+description: Cut a version of this project, from the nightly on the exact commit to the tag checked on the school copy. Use when a version's milestone is done (v1.3.0 real pick & place, v2.x phase 2), when the nightly report says "releasable", or when asked to release or tag.
 ---
 
 # Release a version

@@ -78,10 +78,11 @@ The school mirror is described in `16`.
 │   └── ISSUE_TEMPLATE.md
 ├── .vscode/extensions.json  settings.json   ← shared recommendations and the SonarQube binding (everything else ignored)
 ├── tools/so101                  ← the everyday commands (stack, cycle, bench, robustness demo, tests) [team]
-├── tools/so101-arm, so101_arm.py ← the real arm's calibration and joint zeros (07 §3.1)     [team]
+├── tools/so101-arm, so101_arm.py ← the real arm's calibration, joint zeros, touches (07 §3.1, §9) [team]
+├── tools/calibration_sheets.py  ← the printed ChArUco board and ArUco markers (07 §9)       [team]
 ├── tools/ci/                    ← the CI scripts (guards.sh, check_mermaid.sh, reports…) and their tests [team]
 ├── docs/                        ← SUJET.md + PDF slides (versioned by the course)           [provided, untouched]
-│   └── project/                 ← design, ADRs, roadmap, measurements; phase2/ = Connect Four; media/ = the README GIF; presentations/ = the review decks [team]
+│   └── project/                 ← design, ADRs, roadmap, measurements; phase2/ = Connect Four; media/ = the README GIF, the printable sheets, the setup's images; presentations/ = the review decks [team]
 ├── results/                     ← milestone evaluation reports (light CSV/MD)                 [team]
 ├── docker/                      ← Dockerfiles, compose, entrypoint                            [provided → extended]
 ├── core/                        ← real-arm driver extracted from LeRobot                      [provided, untouched]
@@ -171,7 +172,7 @@ gitGraph
 | Types | `feat` `fix` `docs` `test` `refactor` `perf` `build` `ci` `chore` `revert` | — |
 | PR merges | **Squash merge**: 1 PR = 1 commit on `main`, author = PR author, co-authors kept (`Co-authored-by`) | Linear history, always attributable (C-07) |
 | `main` branch | Protected: PR, 1 approval, green CI, no force-push (private repo: needs GitHub Pro, §12.5) | — |
-| Versions | SemVer, a **minor version per usable increment**, a patch for a fix that matters; one GitHub **milestone** per version, every ticket in one (ADR-028 Update of 2026-11-02) | `v1.0.0` sim pick & place · `v1.1.0` real-arm tooling · `v1.2.0` real camera · `v1.3.0` real pick & place · `v2.x` phase 2 (no `v0.x` tag was made) |
+| Versions | SemVer, a **minor version per usable increment**, a patch for a fix that matters; one GitHub **milestone** per version, every ticket in one (ADR-028 Update of 2026-11-02) | `v1.0.0` sim pick & place · `v1.1.0` real-arm tooling · `v1.3.0` real camera and pick & place, the end of phase 1 (no `v1.2.0`) · `v2.x` phase 2 (no `v0.x` tag was made) |
 | Release | One GitHub Release per tag: notes (CHANGELOG), bench report, **link** to the video. It needs its milestone's other tickets closed, a nightly on the exact commit and the quality gate passed; it closes the milestone and opens the next one: `tools/release.sh vX.Y.Z` checks all of it and does the writes (#211, the `release` skill) | — |
 | Changelog | [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), updated in the PR preparing the tag | Option: generated from commits (git-cliff) |
 | Language | **English** for code, commits, docs and presentations | Consistency with the conventional commits and the defense |

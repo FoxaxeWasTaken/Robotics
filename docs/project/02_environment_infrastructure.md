@@ -132,7 +132,7 @@ Then in WSL: `ls /dev/ttyACM*`. Another USB port means another BUSID, so `bind` 
 
 - `attach` the same way. A webcam used by Windows (Teams, Discord, browser) returns `Device busy`: close the app, or `bind --force` as a last resort.
 - A UVC camera exposes several `/dev/video*` (color capture, metadata, sometimes infrared): identify them with `cat /sys/class/video4linux/video*/name` and `index` (0 = capture).
-- ⚠ **Through usbip only MJPG delivers frames**: YUYV (OpenCV's default) gives 0 fps and `select() timeout`; MJPG gives 27.5 fps at 640×480. Always force `fourcc="MJPG"` (ADR-007).
+- ⚠ **Through usbip only MJPG delivers frames**: YUYV (OpenCV's default) gives 0 fps and `select() timeout`; MJPG gives 27.5 fps at 640×480 on an integrated webcam, 3.4–4.3 fps on the bench's UGREEN [MES-61]. Always force `fourcc="MJPG"` (ADR-007).
 
 ## 6. Native ROS 2 in WSL: coexistence
 

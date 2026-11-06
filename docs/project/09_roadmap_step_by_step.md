@@ -272,21 +272,21 @@ The owners are those of `.github/CODEOWNERS` (0.1d), which requests their review
 ### Step 6.2 — Real camera
 
 - **Tasks**: rigid mount, placement covering the whole area (ADR-021), MJPG, locked settings, **intrinsic calibration** with ChArUco (RMS < 0.5 px), YAML published as `camera_info`.
-- **Done when**: real `camera_info` published; sharp and stable 640×480 image at 10 Hz.
+- **Done when**: real `camera_info` published; sharp and stable 640×480 image, published at 10 Hz (3.4 to 4.3 new frames/s through usbip [MES-61]).
 
 ### Step 6.3 — Real extrinsics
 
-- **Tasks**: jig mat with ≥ 4 spread ArUco markers (or TCP touch probing); same tool as in 3.4; startup self-check; robot validation (`05` §10).
-- **Done when**: reprojection < 2 px; a point placed on the grid is localized within 1 cm.
+- **Tasks**: the ChArUco board touched by the arm (`calibrate_touch`, `05` §5.4, `07` §9); robot validation (`05` §10). The startup self-check moved to #222.
+- **Done when**: board reprojection < 1 px, touches within 4 mm; the jaws within 1 cm of a cube the camera located.
 
 ### Step 6.4 — Sim → real adjustment
 
-- **Tasks**: record a rosbag of real images; tune HSV offline; grasp check by the jaws' gap: the contact opening, `close_pct` and `hold_gap_pct` (empty/holding, #69); accuracy measurement on the grid (real C-41); test 5 of `07`.
-- **Done when**: reliable detection on 20 varied real images; measured TCP error < 1 cm.
+- **Tasks**: the HSV ranges tuned on the live debug image (the tool and labeled real images moved to #223, the replay clips to #48); grasp check by the jaws' gap: the contact opening, `close_pct` and `hold_gap_pct` (empty/holding, #69); test 5 of `07` (real C-41, by eye, `07` §6, #71).
+- **Done when**: the cube and the target detected through the real cycles; TCP error under 1 cm at test 5.
 
 ### Step 6.5 — Real pick & place
 
-- **Tasks**: first at reduced speed, then nominal; 10 trials with varied poses; failure analysis.
+- **Tasks**: first at 0.5 rad/s, then the sim's speeds; 17 cycles with varied poses; failure analysis (`results/bench_real_2026-11-06.md`: 14/17).
 - **Done when**: **≥ 7/10** (team target: the brief no longer gives a number and asks for the real robot as "preferred" at the final defense), video filmed.
 
 ---

@@ -164,11 +164,11 @@ drop     : ik_point(p_box + (0, 0, h_drop), a(θ) in the arm's plane, roll of th
 ## 6. Trajectory generation (ADR-010)
 
 - **Joint-space minimum-jerk interpolation** (quintic `s(τ) = 10τ³ − 15τ⁴ + 6τ⁵`): zero velocity/acceleration at both ends, no jerk — standard practice for position servos.
-- **Duration** from the most constrained joint: `T = max(T_min, max_j |Δq_j| · 1.875 / v_max)` (1.875 = normalized peak velocity of the quintic), `v_max` = 1.0 rad/s in sim, 0.5 rad/s on the real arm to start with.
+- **Duration** from the most constrained joint: `T = max(T_min, max_j |Δq_j| · 1.875 / v_max)` (1.875 = normalized peak velocity of the quintic), `v_max` = 1.0 rad/s, sim and real arm (ADR-023 Update).
 - **Streaming**: the brain publishes `/joint_command` at **50 Hz** during the motion; the driver just follows (its limiter only kicks in on anomalies).
-- **Descent/lift**: short segment (4 cm); joint interpolation is nearly straight in sim. Recommended for the real arm: **Cartesian interpolation** with 5–10 IK waypoints along the approach axis, to guarantee a straight descent.
+- **Descent/lift**: short segment (4 cm); joint interpolation is nearly straight, in sim and on the real arm: no Cartesian waypoints needed so far ([`results/bench_real_2026-11-06.md`](../../results/bench_real_2026-11-06.md)).
 - **In the repository**: `/go_to_target` streams the trajectory from the measured joints; `motion.v_max_rad_s` and `motion.reach_tol_rad` in `brain.yaml`. Commanded peak 1.00 rad/s for `v_max` = 1.0; measured joints peak at 1.19 rad/s, the sim actuator oscillating around the ramp as behind the driver limiter [MES-33]. 0.10 mm from the IK solution at the end. Timers and motion time run on the steady clock: a step back of the system clock neither pauses nor rewinds a motion [MES-37].
-- **End of motion**: target reached when `max_j |q_meas − q_target| < 0.01 rad` (gripper: < 3 %), or a `T + 1 s` timeout → error.
+- **End of motion**: target reached when `max_j |q_meas − q_target| < 0.01 rad` (0.10 on the real arm, `wrist_roll` 0.25: `07` §4; gripper: < 3 %), or a `T + 1 s` timeout → error.
 
 ## 7. Accuracy measurement protocol (C-41: "< 1 cm, measured")
 
@@ -181,7 +181,7 @@ drop     : ik_point(p_box + (0, 0, h_drop), a(θ) in the arm's plane, roll of th
 
 **In the repository**: `so101_bringup/test/test_ik_accuracy.py` (sim-backed, so in `so101_bringup`: C-05 guard). The true TCP is MuJoCo's FK of the **measured** joints, independent of the ikpy/URDF model. Targets: r 0.16–0.30 m, azimuth −90° to 60°, z 3–12 cm, seeded. At these heights the cube and the box are obstacles (a target over the box missed by 56 mm, the arm resting on a wall): a seeded `/sim/randomize` puts them at known places, read from the ground truth stamped after `/sim/randomize` replied (read right after the call, they were the old ones in 2 runs out of 6), and targets closer than 8 cm (cube) or 12 cm (box) are drawn again. Each target starts from HOME (0, −1.0, 0.7, 0, 0), so the IK gets the same seed in every run (#142): chained, the seeds drifted, and some solutions folded the elbow until the lower arm hit the shoulder, where the arm stopped short (13.9 mm once in CI). The IK no longer returns such solutions (#145, §8); q = 0 is no seed either: straight, it is singular. Result: **mean 0.161 mm, max 0.218 mm**, the same in 3 runs [MES-43] (the first campaign, before #142: mean 0.17 mm, max 0.25 mm, `results/ik_accuracy_sim_2026-10-18.md`); gripper at 0/50/100 % within 1.8 %. Some motions last up to 9.5 s: the position-only IK leaves `wrist_roll` free and sometimes turns it by more than 4 rad, which sets the min-jerk duration. Keeping the measured roll would shorten them, but one target then stayed blocked 20 mm above the floor [MES-38]: `/go_to_target` keeps the free roll, the planner keeps the roll for its lift and drop only (§5).
 
-**On the real arm**:
+**On the real arm** (not run: `07` §6 gives what was measured instead, #71):
 
 1. A3 mat printed with a millimeter grid and the robot base outline (positioning jig).
 2. A fine pointer fixed in the gripper (known offset from the TCP).

@@ -205,3 +205,20 @@ def test_a_partly_hidden_cube_of_the_reference_images_is_below_the_threshold():
         assert not cube.truncated, image["file"]
         p = pixel_to_world(cube.u, cube.v, K, R_LABELS, T_LABELS, 0.025)
         assert cube_area_ratio(cube.contour, p, K, R_LABELS, T_LABELS) < threshold, image["file"]
+
+
+def test_a_smaller_cube_is_whole_at_its_own_side_and_hidden_at_the_default_one():
+    K = np.array([[500.0, 0, 320.0], [0, 500.0, 240.0], [0, 0, 1]])
+    R = np.array([[0.0, -1.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, -1.0]])  # looking straight down
+    t = np.array([0.2, 0.0, 0.6])
+    p = np.array([0.2, 0.0, 0.015])
+    side_px = 500.0 * 0.03 / (0.6 - 0.03)  # its top face, the nearest
+    half = int(side_px / 2)
+    corners = [(-half, half), (half, half), (half, -half), (-half, -half)]
+    outline = []
+    for (x0, y0), (x1, y1) in zip(corners, corners[1:] + corners[:1], strict=True):
+        n = 2 * half
+        outline += [(320 + x0 + (x1 - x0) * i // n, 240 + y0 + (y1 - y0) * i // n) for i in range(n)]
+    contour = np.array(outline, np.int32)
+    assert cube_area_ratio(contour, p, K, R, t, side=0.03) > 0.85
+    assert cube_area_ratio(contour, p, K, R, t) < 0.85

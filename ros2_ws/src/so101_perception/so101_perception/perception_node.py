@@ -30,12 +30,18 @@ from so101_common.robot import BASE_FRAME, CAMERA_FRAME
 from so101_perception.debug import annotate, status
 from so101_perception.detection import Thresholds, detect, hsv_ranges
 from so101_perception.filter import MedianFilter
-from so101_perception.geometry import cube_area_ratio, cube_yaw, load_extrinsics, pixel_to_world, quaternion
+from so101_perception.geometry import (
+    cube_area_ratio,
+    cube_yaw,
+    load_extrinsics,
+    pixel_to_world,
+    quaternion,
+    undistorted,
+)
 
 # Only the latest image matters; Best effort is compatible with the driver's Reliable publisher, and the
 # debug image is Best effort for RViz (docs/project/01 §3.1, ADR-004).
 LATEST = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
-PLANE_Z = 0.025  # m: cube center, and mid-height of the box walls (ADR-012)
 # Thresholds (05 §2.2), read at each image so they can be tuned at runtime: name: (default, description,
 # min, max). A hue interval wraps around 180 when h_min > h_max (red).
 PARAMETERS = {
@@ -59,6 +65,8 @@ STARTUP = {
         1.0,
         100.0,
     ),
+    "cube_side_m": (0.05, "Cube side, m: its center's height and its silhouette (05 §2.3)", 0.01, 0.2),
+    "box_height_m": (0.05, "Box or bowl height, m: its blob is read at mid-height (ADR-012)", 0.0, 0.3),
     "filter_size": (5, "Median filter window; a jump must also persist this many times (05 §7)", 1, 50),
     "filter_jump_m": (0.02, "A detection this far from the median is a jump, m (05 §7)", 0.001, 0.2),
     "min_cube_area_ratio": (
@@ -101,6 +109,8 @@ class PerceptionNode(rclpy.node.Node):
         self._image = None  # latest image not processed yet
         self._camera_info = None  # latest K
         self._min_area_ratio = startup["min_cube_area_ratio"]
+        self._cube_side = startup["cube_side_m"]
+        self._box_height = startup["box_height_m"]
         self._filters = {
             name: MedianFilter(startup["filter_size"], startup["filter_jump_m"]) for name in ("cube", "box")
         }
@@ -151,9 +161,11 @@ class PerceptionNode(rclpy.node.Node):
             return
         msg, self._image = self._image, None
         rgb = self._bridge.imgmsg_to_cv2(msg, desired_encoding="rgb8")
+        info = self._camera_info
+        if info is not None and info.k[0] > 0.0:
+            rgb = undistorted(rgb, np.array(info.k).reshape(3, 3), np.array(info.d))
         found = detect(rgb, self._thresholds())
         occluded = False
-        info = self._camera_info
         if info is not None and info.k[0] > 0.0:  # no K, no ray
             occluded = self._locate(found, info, msg.header.stamp)
         debug = self._bridge.cv2_to_imgmsg(
@@ -166,16 +178,15 @@ class PerceptionNode(rclpy.node.Node):
         """Publishes the poses of the valid detections; True when the cube is partly hidden: unpublished."""
         occluded = False
         K = np.array(info.k).reshape(3, 3)
+        planes = {"cube": self._cube_side / 2, "box": self._box_height / 2}  # ADR-012
         for name, blob, z in (("cube", found.cube, None), ("box", found.box, 0.0)):  # box: its floor
             if blob is None or blob.truncated:
                 continue
-            p = pixel_to_world(blob.u, blob.v, K, self._R, self._t, PLANE_Z)
+            p = pixel_to_world(blob.u, blob.v, K, self._R, self._t, planes[name])
             if p is None:
                 continue
-            if (
-                name == "cube"
-                and cube_area_ratio(blob.contour, p, K, self._R, self._t) < self._min_area_ratio
-            ):
+            ratio = name == "cube" and cube_area_ratio(blob.contour, p, K, self._R, self._t, self._cube_side)
+            if name == "cube" and ratio < self._min_area_ratio:
                 occluded = True  # its center would be pulled towards its visible part (MES-46)
                 continue
             self._publish(name, blob, p, K, stamp, z)
@@ -190,7 +201,7 @@ class PerceptionNode(rclpy.node.Node):
         pose.header.stamp, pose.header.frame_id = stamp, BASE_FRAME
         pose.pose.position.x, pose.pose.position.y = float(p[0]), float(p[1])
         pose.pose.position.z = float(p[2] if z is None else z)
-        yaw = cube_yaw(blob.contour, K, self._R, self._t) if name == "cube" else 0.0
+        yaw = cube_yaw(blob.contour, K, self._R, self._t, self._cube_side) if name == "cube" else 0.0
         pose.pose.orientation.z, pose.pose.orientation.w = float(np.sin(yaw / 2)), float(np.cos(yaw / 2))
         self._pubs[name].publish(pose)
 

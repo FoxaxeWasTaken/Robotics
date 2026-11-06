@@ -48,3 +48,7 @@ Coverage joins the tooling: `colcon test --pytest-with-coverage` in the CI `cont
 ## Update (2026-10-30, #189)
 
 SonarQube Cloud is in place: the nightly's `quality` job analyzes `main` with the coverage of every package's tests (#61, #174), comments its gate on "Nightly bench results" (#179), and its issues were triaged (#181, `14` §4). It is on trial and **not a required check**: keep it, add PR analyses, or drop it, by 2026-11-10.
+
+## Update (2026-11-06)
+
+SonarQube Cloud is kept after its trial, as the nightly's analysis of `main`, not a required check (#61, `14` §4).
