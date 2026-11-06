@@ -60,6 +60,7 @@ services:
     init: true
     environment:
       <<: *ros-env
+      USE_SIM: ${USE_SIM:-true}
     volumes:
       - ../ros2_ws:/ros2_ws
     networks: [rosnet]

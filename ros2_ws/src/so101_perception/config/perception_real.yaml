@@ -1,0 +1,5 @@
+# Real-camera values of so101_perception (05 §2.2, #70), loaded on top of perception.yaml when USE_SIM=false
+# (perception.launch.py). Measured on the setup's images: one value per setup, like its extrinsics.
+so101_perception:
+  ros__parameters:
+    filter_size: 5

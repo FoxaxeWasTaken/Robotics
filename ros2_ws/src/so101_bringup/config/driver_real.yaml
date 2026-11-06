@@ -7,5 +7,5 @@ so101_driver:
     camera_width: 640
     camera_height: 480
     # rad, ARM_JOINT_NAMES order: each joint's reading at the URDF zero (arm stretched, horizontal), with the
-    # calibration of 2026-10-30 13:55; one placement by hand, to measure again on recalibration (#196, 07 §4)
-    joint_zero_offsets: [-0.028, 0.056, 0.241, -0.090, 0.019]
+    # calibration of 2026-11-06 14:56; one placement by hand, to measure again on recalibration (#196, 07 §4)
+    joint_zero_offsets: [-0.103, 0.002, 0.186, -0.027, -0.002]

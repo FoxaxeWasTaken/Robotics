@@ -30,7 +30,14 @@ from so101_common.robot import BASE_FRAME, CAMERA_FRAME
 from so101_perception.debug import annotate, status
 from so101_perception.detection import Thresholds, detect, hsv_ranges
 from so101_perception.filter import MedianFilter
-from so101_perception.geometry import cube_area_ratio, cube_yaw, load_extrinsics, pixel_to_world, quaternion
+from so101_perception.geometry import (
+    cube_area_ratio,
+    cube_yaw,
+    load_extrinsics,
+    pixel_to_world,
+    quaternion,
+    undistorted,
+)
 
 # Only the latest image matters; Best effort is compatible with the driver's Reliable publisher, and the
 # debug image is Best effort for RViz (docs/project/01 §3.1, ADR-004).
@@ -151,9 +158,11 @@ class PerceptionNode(rclpy.node.Node):
             return
         msg, self._image = self._image, None
         rgb = self._bridge.imgmsg_to_cv2(msg, desired_encoding="rgb8")
+        info = self._camera_info
+        if info is not None and info.k[0] > 0.0:
+            rgb = undistorted(rgb, np.array(info.k).reshape(3, 3), np.array(info.d))
         found = detect(rgb, self._thresholds())
         occluded = False
-        info = self._camera_info
         if info is not None and info.k[0] > 0.0:  # no K, no ray
             occluded = self._locate(found, info, msg.header.stamp)
         debug = self._bridge.cv2_to_imgmsg(

@@ -22,6 +22,7 @@ setup(
         "console_scripts": [
             "perception = so101_perception.perception_node:main",
             "calibrate_extrinsics = so101_perception.calibrate_extrinsics:main",
+            "calibrate_intrinsics = so101_perception.calibrate_intrinsics:main",
         ],
     },
 )

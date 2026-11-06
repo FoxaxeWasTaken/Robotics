@@ -38,6 +38,11 @@ def from_mujoco(T_world_cam: np.ndarray) -> np.ndarray:
     return T
 
 
+def undistorted(image, K, D):
+    """The image a pinhole of matrix K would see: all that follows assumes one (ADR-014). The sim has no D."""
+    return cv2.undistort(image, K, D) if np.any(D) else image
+
+
 def pixel_to_world(u, v, K, R_wc, t_wc, z0) -> np.ndarray | None:
     """The point of the plane z = z0 seen at pixel (u, v), or None when the ray does not reach it."""
     d = R_wc @ np.linalg.solve(K, [u, v, 1.0])  # ray direction in base_link

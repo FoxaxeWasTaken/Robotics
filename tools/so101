@@ -22,7 +22,7 @@ Usage: tools/so101 [--dry-run] <command> [options]
   logs [service]        follow the logs of control (default), perception or viz
   shell                 a shell in the control container, the workspace sourced
   rviz                  RViz with the project's configuration
-  cycle                 /sim/randomize, /brain/start, then /brain_state until DONE, ERROR or STOPPED
+  cycle                 /sim/randomize (sim only), /brain/start, then /brain_state until DONE, ERROR or STOPPED
   bench --stub|--perception [-n N] [--bags DIR]
                         the evaluation bench on ROS domain $BENCH_DOMAIN, N episodes (10), in the control
                         container: --perception the real pipeline, --stub the ground truth in its place.
@@ -108,7 +108,7 @@ case $command in
     call="timeout 30 ros2 service call"
     ros -T "state=\$(timeout 30 ros2 topic echo --once --field data /brain_state std_msgs/msg/String | head -n 1); \
 case \$state in ERROR*) $call /brain/start std_srvs/srv/Trigger > /dev/null ;; esac; \
-$call /sim/randomize std_srvs/srv/Trigger > /dev/null && $call /brain/start std_srvs/srv/Trigger > /dev/null && \
+{ [ \"\$USE_SIM\" = false ] || $call /sim/randomize std_srvs/srv/Trigger > /dev/null; } && $call /brain/start std_srvs/srv/Trigger > /dev/null && \
 timeout 120 ros2 topic echo --field data /brain_state std_msgs/msg/String 2> /dev/null \
 | while read -r s; do case \$s in ---|IDLE) continue ;; esac; [ \"\$s\" = \"\$last\" ] || echo \"\$s\"; last=\$s; \
 case \$s in DONE*|ERROR*|STOPPED*) break ;; esac; done"
