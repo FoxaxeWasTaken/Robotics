@@ -2,7 +2,6 @@
 # false (real.launch.py). Only keys of driver.yaml, each with another value (test_real_config.py).
 so101_driver:
   ros__parameters:
-    max_joint_velocity: 0.8     # rad/s (ADR-023)
     camera_device: /dev/video0  # the webcam, MJPG (02 §5.2); no camera: the arm works without images
     camera_width: 640
     camera_height: 480
