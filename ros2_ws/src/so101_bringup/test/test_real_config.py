@@ -16,8 +16,15 @@ from launch_ros.utilities import evaluate_parameters
 
 SHARE = Path(get_package_share_directory("so101_bringup"))
 REAL_KEYS = {  # 01 §3.3: the parameters with a real value
-    "driver": {"max_joint_velocity", "camera_device", "camera_width", "camera_height", "joint_zero_offsets"},
-    "brain": {"motion.v_max_rad_s"},
+    "driver": {
+        "max_joint_velocity",
+        "camera_device",
+        "camera_width",
+        "camera_height",
+        "camera_info_file",
+        "joint_zero_offsets",
+    },
+    "brain": {"motion.v_max_rad_s", "grasp.close_pct"},
 }
 
 

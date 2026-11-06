@@ -58,6 +58,38 @@ class ViewPicker:
         return True
 
 
+def board_pose(corners, K, D):
+    """(T_cam_board, mean reprojection in px) of a view ({corner id: (u, v)}), with the camera's K, D."""
+    chessboard = board().getChessboardCorners()
+    objects = np.float32([chessboard[i] for i in corners])
+    images = np.float32([corners[i] for i in corners])
+    _, rvec, tvec = cv2.solvePnP(objects, images, K, D)
+    seen = cv2.projectPoints(objects, rvec, tvec, K, D)[0].reshape(-1, 2)
+    T = np.eye(4)
+    T[:3, :3], T[:3, 3] = cv2.Rodrigues(rvec)[0], tvec.ravel()
+    return T, float(np.linalg.norm(seen - images, axis=1).mean())
+
+
+def rigid_fit(points, targets):
+    """(T, residuals in m): the rotation and translation that best bring points onto targets (Kabsch)."""
+    a, b = np.asarray(points, float), np.asarray(targets, float)
+    ca, cb = a.mean(0), b.mean(0)
+    U, _, Vt = np.linalg.svd((a - ca).T @ (b - cb))
+    flip = np.diag([1.0, 1.0, np.sign(np.linalg.det(Vt.T @ U.T))])  # a rotation, never a mirror
+    T = np.eye(4)
+    T[:3, :3] = Vt.T @ flip @ U.T
+    T[:3, 3] = cb - T[:3, :3] @ ca
+    return T, np.linalg.norm(a @ T[:3, :3].T + T[:3, 3] - b, axis=1)
+
+
+def extrinsics_from_touches(T_cam_board, touches):
+    """(T_base_cam, residual of each touch in m) from the board seen by the camera and touches {corner id: the
+    TCP in base_link on that corner}: the arm's own frame, so it reaches where the camera says (#68)."""
+    chessboard = board().getChessboardCorners()
+    T_base_board, residuals = rigid_fit([chessboard[i] for i in touches], list(touches.values()))
+    return T_base_board @ np.linalg.inv(T_cam_board), residuals
+
+
 def calibrate(views, size):
     """(K, D, RMS in px) of views ({corner id: (u, v)}) of images of size (width, height); k3 stays 0: a
     webcam's few views would only fit noise. CalibrationError under MIN_VIEWS or above MAX_RMS_PX."""

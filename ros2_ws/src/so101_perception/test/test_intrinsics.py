@@ -13,7 +13,10 @@ from so101_perception.intrinsics import (
     BoardDetector,
     ViewPicker,
     board,
+    board_pose,
     calibrate,
+    extrinsics_from_touches,
+    rigid_fit,
     save_camera_info,
 )
 
@@ -104,3 +107,31 @@ def test_undistorted_straightens_the_lens_and_leaves_the_sim_alone():
     cv2.circle(image, (round(seen[0]), round(seen[1])), 3, (255, 255, 255), -1)
     ys, xs = np.nonzero(undistorted(image, K, D)[:, :, 0] > 128)
     assert abs(xs.mean() - 500.0) < 2.0 and abs(ys.mean() - 400.0) < 2.0
+
+
+def test_rigid_fit_recovers_a_motion_and_shows_a_bad_touch():
+    R = cv2.Rodrigues(np.array([0.0, 0.0, 0.7]))[0]
+    points = np.array([[0, 0, 0], [0.2, 0, 0], [0, 0.15, 0], [0.2, 0.15, 0]])
+    targets = points @ R.T + [0.1, -0.2, 0.003]
+    T, residuals = rigid_fit(points, targets)
+    assert np.allclose(T[:3, :3], R) and residuals.max() < 1e-9
+    targets[3] += [0.01, 0, 0]
+    assert rigid_fit(points, targets)[1].max() > 0.003
+
+
+def test_the_camera_pose_comes_from_the_board_and_the_touches():
+    T_cam_board = np.eye(4)
+    T_cam_board[:3, :3] = cv2.Rodrigues(np.array([2.4, 0.2, 0.1]))[0]
+    T_cam_board[:3, 3] = [-0.1, 0.02, 0.6]
+    chessboard = board().getChessboardCorners()
+    px = cv2.projectPoints(chessboard, T_cam_board[:3, :3], T_cam_board[:3, 3], K, D)[0].reshape(-1, 2)
+    T, error = board_pose(dict(enumerate(px)), K, D)
+    assert error < 0.01 and np.allclose(T, T_cam_board, atol=1e-3)
+    T_base_board = np.eye(4)
+    T_base_board[:3, :3] = cv2.Rodrigues(np.array([0.0, 0.0, -0.4]))[0]
+    T_base_board[:3, 3] = [0.15, -0.1, 0.0]
+    corners = (0, 5, 18, 23)
+    touches = {i: T_base_board[:3, :3] @ chessboard[i] + T_base_board[:3, 3] for i in corners}
+    T_base_cam, residuals = extrinsics_from_touches(T, touches)
+    assert residuals.max() < 1e-6
+    assert np.allclose(T_base_cam, T_base_board @ np.linalg.inv(T_cam_board), atol=1e-3)

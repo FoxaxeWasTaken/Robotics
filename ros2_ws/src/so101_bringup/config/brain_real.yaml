@@ -4,3 +4,5 @@ so101_brain:
   ros__parameters:
     motion:
       v_max_rad_s: 0.5  # to start (06 §5): under the driver's 0.8 rad/s limiter (driver_real.yaml)
+    grasp:
+      close_pct: 2.0  # jaws on the cube's tunnel wall stop at 6.0 %; 0 % trips Overload (MES-56); held from 5 %
