@@ -5,7 +5,7 @@ so101_driver:
     control_rate_hz: 50.0       # 2 backend calls per tick: the sim runs in real time [MES-02]
     joint_state_rate_hz: 30.0   # >= 20 Hz imposed (C-11)
     camera_rate_hz: 10.0        # C-12
-    max_joint_velocity: 1.5     # rad/s, sim; 0.8 on the real arm (driver_real.yaml)
+    max_joint_velocity: 1.5     # rad/s, sim and real arm (ADR-023 Update)
     max_gripper_velocity: 200.0 # %/s
     camera_width: 320           # 640 x 480 during calibration (ADR-013)
     camera_height: 240

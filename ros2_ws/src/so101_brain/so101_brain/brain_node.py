@@ -449,7 +449,7 @@ class BrainNode(rclpy.node.Node):
         cube.pose.position = Point(x=float(x), y=float(y), z=float(z))
         if yaw is not None:
             cube.pose.orientation.z, cube.pose.orientation.w = float(np.sin(yaw / 2)), float(np.cos(yaw / 2))
-        cube.scale.x = cube.scale.y = cube.scale.z = 0.05
+        cube.scale.x = cube.scale.y = cube.scale.z = 2.0 * float(z)  # z: its center, resting on the table
         markers.append(cube)
         self._pub_markers.publish(MarkerArray(markers=markers))
 

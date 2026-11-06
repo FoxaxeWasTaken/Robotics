@@ -15,6 +15,8 @@ so101_perception:
     hsv_box_v_max: 220
     min_area_px: 15.0  # blob guards (05 §2.3)
     min_solidity: 0.6
+    cube_side_m: 0.05     # the object (05 §2.3): its size sets its center's height and its silhouette
+    box_height_m: 0.05    # the drop target: read at mid-height (ADR-012)
     filter_size: 5        # median filter window; a jump must also persist this many times (05 §7)
     filter_jump_m: 0.02   # a detection this far from the median is a jump
     # Cube blob pixels / the smallest silhouette of a whole cube at its point, below which it is partly hidden
