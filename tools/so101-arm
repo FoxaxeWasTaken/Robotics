@@ -19,6 +19,8 @@ Each command refuses to start while the stack runs: two programs on the bus garb
                         range and its middle against 2047
   zero-offsets [-n N]   read-only, the arm held by hand at the URDF zero (stretched, horizontal): N readings (1),
                         their mean and spread per joint, and the joint_zero_offsets line for driver_real.yaml
+  touch <corner>        read-only, the jaws closed on that corner of the ChArUco board: the --touch argument of
+                        calibrate_touch, the TCP in base_link computed with the offsets of driver_real.yaml
 
   --dry-run             print the commands without running them
 EOF
@@ -61,16 +63,18 @@ done
 [ $# -gt 0 ] || { usage >&2; exit 2; }
 command=$1
 shift
-[[ $command =~ ^(calibrate|zero-offsets)$ ]] || die "unknown command $command (--help)"
-readings=1
+[[ $command =~ ^(calibrate|zero-offsets|touch)$ ]] || die "unknown command $command (--help)"
+readings=1 corner=""
 while [ $# -gt 0 ]; do
   case $command:$1 in
     zero-offsets:-n) readings=${2:-}; shift ;;
+    touch:[0-9]*) corner=$1 ;;
     *) die "$command: unknown option $1" ;;
   esac
   shift
 done
 [[ $readings =~ ^[1-9][0-9]*$ ]] || die "zero-offsets: -n takes a number of readings"
+[[ $command != touch || $corner =~ ^[0-9]+$ ]] || die "touch: the board corner's id, a number"
 
 calibration=$(env_value CALIBRATION_FILE)
 port=$(env_value REAL_ROBOT_PORT)
@@ -96,5 +100,9 @@ case $command in
   zero-offsets)
     [ -f "$calibration" ] || die "no calibration file $calibration: tools/so101-arm calibrate first"
     run "${container[@]}" -v "$folder:/calibration:ro" "${helper[@]}" zero-offsets "$port" "$name" "$readings"
+    ;;
+  touch)
+    [ -f "$calibration" ] || die "no calibration file $calibration: tools/so101-arm calibrate first"
+    run "${container[@]}" -v "$folder:/calibration:ro" -v "$root/ros2_ws/src:/src:ro" "${helper[@]}" touch "$port" "$name" "$corner"
     ;;
 esac

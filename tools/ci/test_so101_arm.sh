@@ -39,6 +39,11 @@ grep -qF "+ docker run --rm -i --network none --device /dev/ttyACM1 -v $tmp/cal:
 "$arm" --dry-run zero-offsets -n 3 | grep -qF "zero-offsets /dev/ttyACM1 arm 3" || fail "zero-offsets -n 3"
 echo "ok: zero-offsets reads in a container with the calibration read-only, N readings"
 
+out=$("$arm" --dry-run touch 18) || fail "touch: exit $?"
+grep -qF -- "-v $tmp/cal:/calibration:ro -v $tmp/repo/ros2_ws/src:/src:ro" <<< "$out" || fail "touch mounts: $out"
+grep -qF "touch /dev/ttyACM1 arm 18" <<< "$out" || fail "touch: $out"
+echo "ok: touch reads in a container with the calibration and the sources read-only"
+
 refused() {  # refused <expected message> -- <so101-arm arguments>: exit 2, the message, no docker run
   local expected=$1 out code=0
   shift 2
@@ -50,6 +55,9 @@ refused() {  # refused <expected message> -- <so101-arm arguments>: exit 2, the 
 }
 STACK=3f2a refused "the stack runs" -- calibrate
 STACK=3f2a refused "the stack runs" -- zero-offsets
+STACK=3f2a refused "the stack runs" -- touch 0
+refused "the board corner" -- touch
+refused "unknown option" -- touch -1
 refused "-n takes a number" -- zero-offsets -n 0
 refused "-n takes a number" -- zero-offsets -n "3; reboot"
 refused "unknown command" -- deploy
