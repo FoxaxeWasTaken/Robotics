@@ -24,7 +24,13 @@ REAL_KEYS = {  # 01 §3.3: the parameters with a real value
         "camera_info_file",
         "joint_zero_offsets",
     },
-    "brain": {"motion.v_max_rad_s", "grasp.close_pct"},
+    "brain": {
+        "motion.v_max_rad_s",
+        "motion.reach_tol_rad",
+        "fsm.grasp_wait_s",
+        "fsm.grasp_timeout_s",
+        "grasp.close_pct",
+    },
 }
 
 

@@ -1,5 +1,9 @@
 # Real-camera values of so101_perception (05 §2.2, #70), loaded on top of perception.yaml when USE_SIM=false
-# (perception.launch.py). Measured on the setup's images: one value per setup, like its extrinsics.
+# (perception.launch.py). Measured on this setup's image: one set per setup, like its extrinsics.
 so101_perception:
   ros__parameters:
-    filter_size: 5
+    hsv_cube_s_min: 120  # the red cube S 137-218, the table <= 92
+    hsv_box_h_min: 33    # the drop target is a green bowl: H 37-61, S 87-150, V 72-132; the table H 10, the chair H > 100
+    hsv_box_h_max: 70
+    hsv_box_s_min: 70
+    hsv_box_v_min: 40
