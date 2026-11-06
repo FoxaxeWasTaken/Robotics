@@ -124,12 +124,12 @@ On the reference images (`test_geometry.py`, exact camera pose of the labels): c
 
 ```mermaid
 flowchart TD
-  A["ArUco markers at known positions<br/>calibration scene (sim) or jig mat (real)"] --> B["Capture at 640×480, arm in PARK"]
+  A["ArUco markers at known positions<br/>the calibration scene"] --> B["Capture at 640×480, arm in PARK"]
   B --> C["detectMarkers: 4 corners per marker"]
   C --> D{"At least 4 markers?"}
   D -- no --> B2["Move or enlarge the markers"] --> B
   D -- yes --> E["solvePnP SQPNP then RefineLM"]
-  E --> F{"Reprojection under 1.5 px (sim) or 2 px (real)?"}
+  E --> F{"Reprojection under 1.5 px?"}
   F -- no --> B2
   F -- yes --> G["camera_extrinsics.yaml"]
   G --> H["static TF base_link to external_cam_optical_frame"]
@@ -140,10 +140,10 @@ flowchart TD
 2. Detect them with `cv2.aruco.ArucoDetector` → 4 corners per marker.
 3. 3D ↔ 2D correspondences: known corners in `base_link` ↔ detected corners.
 4. `cv2.solvePnP(..., flags=SOLVEPNP_SQPNP)` then `cv2.solvePnPRefineLM` → `T_cam←world` → inverted into `T_base←cam`.
-5. Quality check: mean reprojection error < 1.5 px (sim) / < 2 px (real), otherwise reject.
+5. Quality check: mean reprojection error < 1.5 px, otherwise reject.
 6. Write `config/camera_extrinsics.yaml`; perception loads it and publishes the **static TF** `base_link → external_cam_optical_frame`.
 
-**The tool** (3.4b, #45): `ros2 run so101_perception calibrate_extrinsics --markers <layout.yaml> --out <file>` grabs 10 frames and the driver's `camera_info` (K with OpenCV pixel centers [MES-41], and D), detects the markers with **sub-pixel corners** (without: 1.17 px of mean reprojection on the sim scene), solves on all the frames (`so101_perception.calibration`, pure) and writes the file. The arm goes to PARK first: at its start pose it hides 2 of the 8 sim markers (in sim, `ros2 topic pub -r 10 /joint_command sensor_msgs/msg/JointState "{position: [1.9, -1.7, 1.5, 0.7, 0.0, 0.0]}"` for a few seconds). It refuses, exit 1 and nothing written, under 4 markers of the layout or at a mean reprojection at or above the layout's `max_reprojection_px` (1.5 px in `markers_sim.yaml`: 0.87 px measured, 1.11–1.17 px on some CI CPUs [MES-54]; 2 px for the real jig). The layout file: `dictionary`, `side_m`, the centers in `base_link`, `max_reprojection_px`. Measured in sim [MES-47]: 8 markers, 0.87 px, **0.53 mm / 0.024°**. The same 0.868 px whatever the cube's pose, llvmpipe's threads and vector width, the Mesa version (24.0.5 to 25.2.8) and OpenCV's CPU paths [MES-54]; one CI runner once gave 1.17 px, two corners of marker 3 unrefined, gone on the rerun (#187): `test_sim_scene.py` then prints the machine (CPU, OpenCV, MuJoCo, OSMesa) in its failure.
+**The tool** (3.4b, #45): `ros2 run so101_perception calibrate_extrinsics --markers <layout.yaml> --out <file>` grabs 10 frames and the driver's `camera_info` (K with OpenCV pixel centers [MES-41], and D), detects the markers with **sub-pixel corners** (without: 1.17 px of mean reprojection on the sim scene), solves on all the frames (`so101_perception.calibration`, pure) and writes the file. The arm goes to PARK first: at its start pose it hides 2 of the 8 sim markers (in sim, `ros2 topic pub -r 10 /joint_command sensor_msgs/msg/JointState "{position: [1.9, -1.7, 1.5, 0.7, 0.0, 0.0]}"` for a few seconds). It refuses, exit 1 and nothing written, under 4 markers of the layout or at a mean reprojection at or above the layout's `max_reprojection_px` (1.5 px in `markers_sim.yaml`: 0.87 px measured, 1.11–1.17 px on some CI CPUs [MES-54]). The layout file: `dictionary`, `side_m`, the centers in `base_link`, `max_reprojection_px`. Measured in sim [MES-47]: 8 markers, 0.87 px, **0.53 mm / 0.024°**. The same 0.868 px whatever the cube's pose, llvmpipe's threads and vector width, the Mesa version (24.0.5 to 25.2.8) and OpenCV's CPU paths [MES-54]; one CI runner once gave 1.17 px, two corners of marker 3 unrefined, gone on the rerun (#187): `test_sim_scene.py` then prints the machine (CPU, OpenCV, MuJoCo, OSMesa) in its failure.
 
 **The file** (`geometry.save_extrinsics` and `load_extrinsics`): `T_base_cam`, the 4×4 transform from the camera's OpenCV optical frame to `base_link`; `parent_frame: base_link`; `child_frame: external_cam_optical_frame`; `method`; `date`; `reprojection_error_px` (`null` without a calibration). `load_extrinsics` refuses other frames and a transform that is not rigid. The file is **our calibration** of the sim camera of `so101_bringup/config/sim_scene.yaml` (#46: the tool on the calibration scene, the arm in PARK, 8 markers, 0.868 px); at startup perception publishes it as the **static TF** `base_link → external_cam_optical_frame` (01 §4), which RViz's "Camera overlay (calibration check)" display uses to draw the robot over the image. `so101_bringup/test/test_sim_scene.py` fails if it is 5 mm or 0.3° from the camera the sim renders: moving the sim camera needs a new calibration. Perception with it [MES-47]: 50/50 scenes published, mean 0.9 mm, max 1.8 mm (0.7 mm with the exact pose, MES-46).
 
@@ -248,8 +248,8 @@ Overview of possible methods:
 | Method | Principle | Expected accuracy | Effort | Sim | Real | Role |
 | --- | --- | --- | --- | --- | --- | --- |
 | Single ArUco (demo) | PnP on 4 corners | Low, ambiguous | Very low | ✅ | ✅ | Rough estimate only |
-| **Several spread ArUco** at known positions | PnP on 4N corners | **Good** [MES-25] | Low | ✅ (calibration scene) | ✅ (jig mat) | **Main method** |
-| ChArUco board | Checkerboard corners + IDs, sub-pixel | Very good | Low (rigid print) | ✅ | ✅ | Main alternative; also used for intrinsics (ADR-014) |
+| **Several spread ArUco** at known positions | PnP on 4N corners | **Good** [MES-25] | Low | ✅ (calibration scene) | ✅ | **The sim's method**; on the real bench, the check of the pose |
+| ChArUco board | Checkerboard corners + IDs, sub-pixel | Very good | Low (rigid print) | ✅ | ✅ | **The real bench's method**, touched by the arm (§5.4); also the intrinsics (ADR-014) |
 | AprilTag | Like ArUco, more robust to blur and lighting | Good | Low | ✅ | ✅ | If ArUco detects poorly on the real setup |
 | **Robot as a target**: marker on the gripper or TCP touch probing | FK 3D points ↔ pixels (PnP) or `cv2.calibrateRobotWorldHandEye` | Good, **directly in the robot frame** | Medium | Possible (marker to add to the model) | ✅ | **Independent validation**, or measuring marker positions |
 | Cube placed by the robot at N known positions | Detected centroids ↔ FK | Medium (cube-in-gripper offset uncertain) | Medium | ✅ | ✅ | End-to-end check |
@@ -258,16 +258,13 @@ Overview of possible methods:
 **Chosen procedure (real arm)**:
 
 1. Intrinsics with a ChArUco board (RMS < 0.5 px, ADR-014).
-2. ≥ 4 (ideally 6) ArUco markers of at least 7.5 cm on a **jig mat** aligned with the robot base, **spread over the whole image** (not only the grasp area), all visible with the arm in PARK.
-3. `solvePnP` SQPNP + `RefineLM`, averaged over 30 frames (reduces noise).
-4. **Robot validation**: the TCP (pointer in the gripper) touches 4 known points; perceived vs FK gap < 1 cm, otherwise redo.
-5. Reprojection self-check at every startup (§5.4).
-
-If **only one** marker can be used (space constraints): 15 cm minimum, **fully visible**, near the image center, `SOLVEPNP_IPPE_SQUARE`, multi-frame averaging, **and** mandatory robot validation (step 4).
+2. The same board flat in the working area, 4 of its corners touched by the jaws: `calibrate_touch` (§5.4, `07` §9 step 9), touches within 4 mm, the print scale measured.
+3. **Check**: the ArUco sheets on the table come out square and at their printed size [MES-59].
+4. **Robot validation**: the jaws within 1 cm of a cube the camera located (test 5 of `07` §3.2).
+5. Startup self-check: not built, #222.
 
 ## 11. Future work (phase 2)
 
 - **Phase 2 is Connect Four** (`phase2/`): the grid is read with an ArUco pose plus per-cell HSV (`phase2/P2-02` §3). The options below remain possible extensions.
 - Learned segmentation (YOLOv8/11-seg) or open-vocabulary detectors (Grounding DINO, OWL-ViT) for multiple or non-colored objects.
 - 6D pose estimation (FoundationPose), visual tracking during the approach (visual servoing).
-- ChArUco for intrinsics + extrinsics with a single board.

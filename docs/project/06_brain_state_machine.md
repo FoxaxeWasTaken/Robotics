@@ -9,7 +9,7 @@
 - **Outputs**: `/joint_command` (only channel to the motors, C-05), `/brain_state`, `/end_effector_pose`, `/brain/markers`.
 - **Phase 2** adds the `/brain/pick_place` action, served by the same motion code (ADR-037), and `/brain/set_gripper` for the token handover (ADR-038, `phase2/P2-02` §6).
 - **Starting point**: the course stub (ADR-039).
-- **Today**: the full cycle runs in sim with the real perception (4.3a, #139). `fsm.py` (§3) is driven by the node's 50 Hz tick, with `/brain/start`, `/brain/stop` and `/brain_state`; `PLAN` runs the planner in a worker process (§4); the plan and the locked cube show on `/brain/markers` (§7). The ground-truth stub (`so101_bringup/test/gt_stub.launch.py`, 4.2c, C-06) stays for development and for the tests that isolate the brain. The success rate: the nightly bench (`08` §2).
+- **Today**: the full cycle runs with the real perception, in sim (4.3a, #139) and on the real arm (6.5a, #72). `fsm.py` (§3) is driven by the node's 50 Hz tick, with `/brain/start`, `/brain/stop` and `/brain_state`; `PLAN` runs the planner in a worker process (§4); the plan and the locked cube show on `/brain/markers` (§7). The ground-truth stub (`so101_bringup/test/gt_stub.launch.py`, 4.2c, C-06) stays for development and for the tests that isolate the brain. The success rate: the nightly bench (`08` §2).
 
 ## 2. Code organization
 
@@ -62,8 +62,8 @@ stateDiagram-v2
 | `WAIT_TARGET` | Go to `PARK` (arm out of the camera view); the detection history restarts once `PARK` is reached | 5 detections of the object **and** the box received since `PARK`, within 5 mm of each other, the newest younger than 0.5 s; target = their mean, yaw = the newest → `PLAN`. A locked cube already within the box footprint (`VERIFY`'s test, `fsm.box_half_size_m`) → `DONE` "cube already in the box", with no motion: grasping it would close the jaws on the box wall too (#143) | `PARK` not reached at T + 1 s → `ERROR:timeout:WAIT_TARGET`; 10 s after `PARK` → `ERROR:object_lost` |
 | `PLAN` | Start `grasp_planner.plan()` in a **worker process** (future); checked every tick | Future done: valid plan → `APPROACH`; `None` → `ERROR:<reason>` (`unreachable`, `lift_unreachable`, `drop_unreachable`) | 6 s → `ERROR:timeout:PLAN` |
 | `APPROACH` | Min-jerk trajectory to the pre-grasp, gripper **open (100 %)** | `max(abs(q − q_target)) < 0.01 rad` **and** the measured gripper within 3 % of open | T + 1 s → `ERROR:timeout:APPROACH` |
-| `DESCEND` | Trajectory to the grasp (4 cm back-off; Cartesian recommended on the real arm) | Reached | T + 1 s → `ERROR:timeout:DESCEND` |
-| `GRASP` | Gripper → `close_pct` (0 % in sim), wait 0.8 s | From 0.8 s, **held**: normalized gripper effort **> 0.06**, or the measured opening **≥ `close_pct` + `hold_gap_pct`** (the jaws stopped by the cube) → `LIFT` | Still not held at 1.5 s → `RETRY` (empty gripper) |
+| `DESCEND` | Trajectory to the grasp (4 cm back-off) | Reached | T + 1 s → `ERROR:timeout:DESCEND` |
+| `GRASP` | Gripper → `close_pct` (0 % in sim), wait 0.8 s (1.2 s on the real arm) | From that wait, **held**: normalized gripper effort **> 0.06**, or the measured opening **≥ `close_pct` + `hold_gap_pct`** (the jaws stopped by the cube) → `LIFT` | Still not held at 1.5 s → `RETRY` (empty gripper) |
 | `LIFT` | Back to the pre-grasp, then +10 cm (position IK) | Reached: effort > threshold → `TRANSPORT`, otherwise → `RETRY` (judged once lifted, not on one sample) | T + 1 s per motion → `ERROR:timeout:LIFT` |
 | `TRANSPORT` | Trajectory to the drop point (position IK, TCP ≈ 9 cm above the box floor) | Reached | T + 1 s → `ERROR:timeout:TRANSPORT` |
 | `RELEASE` | Gripper → 100 %, wait 0.5 s | Elapsed | — |
@@ -149,7 +149,7 @@ Declared by `brain_node` (read-only, with ranges): every value of `motion.*`, `g
 | `grasp.hold_gap_pct` | 3 % | Jaws stopped this far above `close_pct`: held (the real arm, #69); never reached in sim [MES-57] |
 | `grasp.close_pct` / `open_pct` | 0 / 100 | LeRobot convention; real `close_pct` 1 %, `hold_gap_pct` 1.8 %: the jaws stop at 4.2–4.5 % on the cube [MES-60] |
 | `grasp.gripper_tol_pct` | 3 % | `APPROACH` waits for the open gripper (§3.1) |
-| `motion.v_max_rad_s` | 1.0 (sim) / 0.5 (real) | Safety |
+| `motion.v_max_rad_s` | 1.0 | Safety; the same on the real arm (ADR-023 Update) |
 | `motion.reach_tol_rad` | 0.01 | Every arm joint but `wrist_roll`; 0.10 on the real arm (P = 16 under gravity) |
 | `motion.reach_tol_roll_rad` | 0.01 | `wrist_roll`, which barely moves the TCP; 0.25 on the real arm, where it stops up to 0.17 rad short |
 | `motion.min_duration_s` | 0.5 s | `04` §6 |

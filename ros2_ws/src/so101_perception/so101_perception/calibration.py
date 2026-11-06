@@ -1,9 +1,8 @@
 """calibration.py - the camera pose from ArUco markers at known positions in base_link (docs/project/05 §5,
 ADR-013). Pure: no ROS.
 
-The layout is a markers file (so101_bringup/config/markers_sim.yaml in sim): dictionary, side_m, the
-centers in base_link, and max_reprojection_px, the quality gate of that setup (1.5 px in sim, 2 px on the real
-jig).
+The layout is a markers file (so101_bringup/config/markers_sim.yaml): dictionary, side_m, the centers in
+base_link, and max_reprojection_px, the quality gate of that setup (1.5 px).
 """
 
 import cv2

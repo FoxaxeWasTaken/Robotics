@@ -25,7 +25,7 @@ flowchart LR
 | 6. Stop | `/brain/stop` → arm frozen; Ctrl-C → back to PARK, then torque off | — |
 | 7. Physical | Power switch / plug | — |
 
-> **State of the driver**: layers 3 (clamp and NaN rejection, speed limiter, at the sim's speeds since 2026-11-06, ADR-023 Update), 4 (per-motor `max_relative_target`) and 6 (slow move to `PARK` before the torque is cut, 4 s at most) are in the driver, and a lost serial bus stops it (`03` §8). The provided `disable_torque()` lines are commented out: **the real arm holds its pose and obeys `/joint_command` as soon as the driver starts with `USE_SIM=false`**. To move it by hand, stop the stack (`tools/so101 down`): the torque is off. Uncommenting those lines no longer frees it: the control tick's `send_action`, 50 times a second, turns the torque back on. Tests 1–3 of §3.2 passed on 2026-10-09 with the bootstrap prototype, which had the same safety layers (the project history of the design index; check the calibration zero first, [MES-30]); with this repository's driver they are step 6.1b (#65).
+> **State of the driver**: layers 3 (clamp and NaN rejection, speed limiter, at the sim's speeds since 2026-11-06, ADR-023 Update), 4 (per-motor `max_relative_target`) and 6 (slow move to `PARK` before the torque is cut, 11 s at most) are in the driver, and a lost serial bus stops it (`03` §8). The provided `disable_torque()` lines are commented out: **the real arm holds its pose and obeys `/joint_command` as soon as the driver starts with `USE_SIM=false`**. To move it by hand, stop the stack (`tools/so101 down`): the torque is off. Uncommenting those lines no longer frees it: the control tick's `send_action`, 50 times a second, turns the torque back on. Tests 1–3 of §3.2 passed on 2026-10-09 with the bootstrap prototype, which had the same safety layers (the project history of the design index; check the calibration zero first, [MES-30]); with this repository's driver they are step 6.1b (#65).
 
 ⚠ **Torque off = the arm falls.** `disable_torque_on_disconnect=True` by default: the driver brings the arm to the rest pose **before** `disconnect()`. During the first sessions, keep a hand ready to hold the forearm.
 
@@ -40,7 +40,7 @@ flowchart LR
    - If the file does not match the motors, the driver (provided code) **refuses to start** with "does not match the motors". First check that it is **the right file for this arm**, then only recalibrate.
    - No JSON, but the motors are already calibrated (by the staff): **read** their calibration into a file instead of recalibrating (read-only, no motion): `r = SO101Follower(SO101FollowerConfig(port=..., id="arm", calibration_dir=Path("/ros2_ws/calibration_tmp"), use_radians=True))`, `r.bus.connect()`, `r.calibration = r.bus.read_calibration()`, `r.bus.disconnect(disable_torque=False)`, `r._save_calibration()`, then copy the JSON to the host path of `CALIBRATION_FILE`. The file mirrors the motors, so `is_calibrated` always passes and its quality is that of the previous calibration: check the zero first [MES-30].
    - To (re)calibrate yourself (no `lerobot-calibrate` CLI in the image), the stack stopped: `tools/so101-arm calibrate` (#199). It refuses while the driver runs (two programs on the bus garble it), backs up `CALIBRATION_FILE` to `<name>.<date-time>.json`, then runs LeRobot's `calibrate()` on the bus alone in a throwaway container with only the port (`connect()` would run `configure()`, which turns the torque on), says what to do at each prompt and prints each joint's range and its middle against 2047. **Torque is off while moving the arm by hand.** At "middle", hold the URDF zero (stretched, horizontal); then, still the stack stopped and the arm held there, `tools/so101-arm zero-offsets -n 3` prints the readings, their spread and the `joint_zero_offsets:` line for `driver_real.yaml` (§4). Both read the port and the file from `docker/.env`; `--dry-run` prints the `docker run` line.
-4. `USE_SIM=false` and `REAL_ROBOT_PORT=/dev/ttyACM0` in `.env`, then `docker compose up -d control viz`.
+4. `USE_SIM=false` and `REAL_ROBOT_PORT=/dev/ttyACM0` in `docker/.env`, then `tools/so101 up`.
 5. Logs: "Mode: hardware", no calibration error.
 6. Torque: the provided `_connect_arm` ends with `robot.bus.disable_torque()` and its log (upstream #2), which leave the arm limp. The repository comments them out (ADR-032): ⚠ **the arm holds its pose and obeys `/joint_command` from the first start**. To move the arm by hand, stop the stack: the torque is off and `tools/so101-arm` reads the joints. Uncommenting those lines no longer frees it, the control tick turns the torque back on (2026-11-06).
 
@@ -56,9 +56,9 @@ flowchart TD
   D -- no --> X
   D -- yes --> E{"Test 4: +1 rad on pan, slow motion?"}
   E -- no --> Y["STOP: limiter inactive"]
-  E -- yes --> F{"Test 5: go_to_target on 5 points, error under 1 cm?"}
+  E -- yes --> F{"Test 5: go_to_target above the cube, within 1 cm?"}
   F -- no --> Z["Fix the offset (§4), then retry"] --> F
-  F -- yes --> G["Test 6: slow pick and place, first without the cube"]
+  F -- yes --> G["Test 6: 10 pick and place cycles"]
 ```
 
 | # | Test | Expected | On failure |
@@ -67,19 +67,19 @@ flowchart TD
 | 2 | **Sign check**: `+0.1 rad` on each joint, one at a time, sim then real | Same direction as in sim (pan positive = towards −y) | Calibration / `drive_mode` — do not "fix" it in code |
 | 3 | Gripper: 100 % then 0 % | Full opening / closing | Calibration range |
 | 4 | Limiter: +1 rad command on `shoulder_pan`, with RViz's "Commanded arm (ghost)" ticked | Slow, progressive motion; the ghost leads, the arm follows and covers it at rest (the gap per joint is the tracking error, #200) | Limiter inactive → **stop** |
-| 5 | `/go_to_target` on 5 points 10 cm above the table | Reached without jerk; measured error (grid) < 1 cm | Systematic offset → §4 |
-| 6 | Pick & place at reduced speed, arm **without** then **with** the cube | Full cycle | Analyze the rosbag |
+| 5 | `/go_to_target` above the cube, read from `/object_position` (§9 step 12) | Reached without jerk; the jaws above its center, within 1 cm, seen from straight above | Systematic offset → §4 |
+| 6 | 10 runs of `tools/so101 cycle`, the cube and the target moved by hand | ≥ 7/10, retries included ([`results/bench_real_2026-11-06.md`](../../results/bench_real_2026-11-06.md)) | The brain's log (`tools/so101 logs`), `13` §2 |
 
 ## 4. Sim → real gaps and countermeasures
 
 | Gap | Expected effect | Countermeasure |
 | --- | --- | --- |
-| **Servo gains** (P = 16 real vs kp ≈ 998 sim) | Static error under gravity (mm range, larger with the arm stretched) | Measure on the grid; if needed, small setpoint correction or an outer loop on the measured FK |
+| **Servo gains** (P = 16 real vs kp ≈ 998 sim) | Static error under gravity: the TCP 5 mm low at test 5 | Within the cube's margin, no correction needed; the joints' tolerances: **Static error** below |
 | **Mechanical backlash** (± 0.5° modeled) | A few mm at the TCP | Always approach from the same direction; slow descent |
 | Bus / camera latency | Tens of ms of delay | Target locked with the arm still; moderate speeds |
-| **Lighting** | Invalid HSV thresholds, reflections | **Manual exposure, gain, white balance** (`v4l2-ctl`); thresholds tuned on recorded real images; diffuse lighting |
-| Intrinsics / distortion | Pixel → 3D error | Intrinsic calibration (ADR-014), `undistortPoints` |
-| Extrinsics | Pixel → 3D error growing with distance | ArUco + jig / touch probing (`05` §5.4, §10); startup self-check (6.3a) |
+| **Lighting** | Invalid HSV thresholds, reflections | **Manual exposure, gain, white balance** (`v4l2-ctl`); thresholds tuned on the debug image (§9 step 10); diffuse lighting |
+| Intrinsics / distortion | Pixel → 3D error | Intrinsic calibration (ADR-014); perception undistorts each image |
+| Extrinsics | Pixel → 3D error growing with distance | The ChArUco board touched by the arm (`05` §5.4, §9 step 9); startup self-check: #222 |
 | Actual table height ≠ 0 | Bias in z | The table **defines** z = 0 (base resting on it) |
 | **Calibration zero**: LeRobot's zero is the middle of the recorded range, not the pose held during calibration | For this arm, up to 23° on `shoulder_lift` if the URDF zero is the held pose: TCP off by centimeters (rest pose computed at z = −2.9 cm) [MES-30] | Measure the rest-pose TCP with a ruler (`exp_calibration_zero.py`); `joint_zero_offsets` in `driver_real.yaml` (#196): the driver subtracts them from what it reads and adds them to what it sends (`zero_offsets.py`, after the provided `_connect_arm`). Measured on 2026-11-06 on the bench's arm, the arm held at the URDF zero: elbow 0.186 rad (10.7°) [MES-55]; they belong to one arm and one calibration, to measure again after each (`tools/so101-arm zero-offsets`) |
 | Cube friction, gripper compliance | Grasp differs from sim | Tune grasp height and jaw alignment (more useful on the real arm than in sim) |
@@ -90,8 +90,8 @@ flowchart TD
 
 ## 5. Real camera (ADR-007, ADR-021)
 
-- **Type**: 720p/1080p USB UVC webcam with MJPG (tested: integrated webcam at 27.5 fps 640×480 MJPG through usbipd [MES-17]). **Rigid** mount (tripod or arm clamped to the table).
-- **Placement**: reproduce the sim viewpoint (high, on the side, ~30–40° down). The **whole** grasp area, the box **and** the markers must be visible with margin: the provided sim camera cut 21 % of the cubes [MES-12], ours none [MES-45].
+- **Type**: 720p/1080p USB UVC webcam with MJPG (tested through usbipd at 640×480 MJPG: an integrated webcam at 27.5 fps [MES-17], the bench's UGREEN at 3.4–4.3 fps [MES-61]). **Rigid** mount (tripod or arm clamped to the table).
+- **Placement**: high, on the side, 35° to 55° down (§9 step 2; the bench's: 62 cm above the table, 52° down). The **whole** grasp area and the target must be visible with margin: the provided sim camera cut 21 % of the cubes [MES-12], ours none [MES-45].
 - **Locked settings** (auto-exposure ruins HSV thresholds):
 
 ```bash
@@ -107,7 +107,7 @@ v4l2-ctl -d /dev/video0 -c auto_exposure=1 -c exposure_time_absolute=200 \
 
 ## 6. Real accuracy measurement (C-41, real version)
 
-See `04` §7: A3 mat with mm grid + base jig, pointer in the gripper, 10 points, mean/max, photos. First result, by eye, on the real pick & place: the jaws within 1 cm of the cube's center seen from above, the TCP 5 mm low under gravity (test 5, 2026-11-06).
+Measured on 2026-11-06 at test 5, by eye: the jaws within 1 cm of the center of a cube the camera located, seen from straight above; the TCP 5 mm low under gravity on 5 points; the 4 touches of the board within 2.7 mm (#71). The protocol of `04` §7, with a grid and a pointer, was not run: it gives a number in millimeters if one is needed.
 
 ## 7. Safety checklist (print and tick at every session)
 
@@ -252,6 +252,6 @@ The PDFs come from `tools/calibration_sheets.py`.
     tools/so101 cycle
     ```
 
-    Pass: `DONE`, the cube in the target. Then the 10 trials of #72.
+    Pass: `DONE`, the cube in the target. Then test 6 (§3.2): 10 cycles, the cube and the target moved by hand.
 
 14. **End of the session.** `tools/so101 down`, a hand on the arm, power off, `USE_SIM=true` in `docker/.env`.

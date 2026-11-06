@@ -4,7 +4,7 @@
 
 ## 1. Everyday commands
 
-`tools/so101` (#133) runs the everyday commands from anywhere in the repository. It prints each `docker compose` command it runs, and `--dry-run` only prints it; `tools/so101 --help` lists them. Simulation only.
+`tools/so101` (#133) runs the everyday commands from anywhere in the repository. It prints each `docker compose` command it runs, and `--dry-run` only prints it; `tools/so101 --help` lists them. With `USE_SIM=false` in `docker/.env` they run the real arm, after the checklist of `07` §7; `bench` and `robustness` are simulation tools.
 
 ```bash
 # Build, start, stop
@@ -134,11 +134,11 @@ Per-symptom details:
 | `tools/so101 test` fails on perception with `USE_SIM=false` in `.env` | A test not pinned to the sim | `USE_SIM=true tools/so101 test …` |
 | "No calibration" although `CALIBRATION_FILE` is set | Path does not exist: compose created an **empty root-owned directory** | Fix the path; `sudo rm -rf` the created directory |
 | Real arm: the driver dies on `stop` with `ValueError: max_relative_target keys must match`, torque left on | A shutdown move that sent the 5 arm joints only (fixed, #194) | Update; meanwhile hold the arm and cut its power |
-| Real arm: moves at 1.5 rad/s, no webcam images (`ros2 param get /so101_driver max_joint_velocity` gives 1.5) | `driver.yaml` loaded after `driver_real.yaml` (fixed, #197) | Update; check `max_joint_velocity` is 0.8 after each start |
+| Real arm: no webcam images, `ros2 param get /so101_driver camera_device` empty | `driver.yaml` loaded after `driver_real.yaml` (fixed, #197) | Update; check `camera_device` is `/dev/video0` after each start |
 | Real arm: RViz shows links inside each other, the elbow cannot reach `PARK` (`Relative goal position magnitude had to be clamped`) | The joint zeros of LeRobot differ from the URDF's (`07` §4) | The stack stopped, the arm held at the URDF zero: `tools/so101-arm zero-offsets -n 3`, its line in `joint_zero_offsets` (`driver_real.yaml`, #196) |
 | The real arm collapses on shutdown; log "Shutdown pose not reached" | The move to `PARK` before `disconnect()` ran out of its 11 s (a blocked joint), or the bus was lost (no move) | Stop the arm near `PARK` (the brain parks it after each cycle); hold the forearm (`03` §8) |
 | Real arm: a joint stays short of the ghost arm ("Commanded arm (ghost)" ticked) at rest | Gravity sag or the servo's P gain on that joint (#200); a gap that grows with speed is a lag | Note the gap per joint; a large steady gap: check the load and the calibration (`07` §4) |
-| Real arm: `/joint_states` stops; log "Bus lost after 3 retries" | Serial bus: cable, servo board power, usbipd detached (`ls /dev/ttyACM*`) | Fix the link, then restart the driver (`docker compose restart control`) |
+| Real arm: `/joint_states` stops; log "Bus lost after 3 retries" | Serial bus: cable, servo board power, usbipd detached (`ls /dev/ttyACM*`) | Fix the link, then `tools/so101 restart` |
 | Real arm: the gripper stalls on the cube, then every bus read and write fails (`Overload`), the brain ends in `ERROR` | The gripper driven far past the cube: `grasp.close_pct` too low (0 % on the cube trips it, MES-56) | Power-cycle the arm (the torque cannot be cut otherwise); measure the contact opening and set `grasp.close_pct` just below it in `brain_real.yaml` (#69) |
 | Driver log "No camera image: Failed to open" | Webcam not attached (`usbipd attach`), or `camera_device` is not its color capture node (index 0) | `02` §5.2; `cat /sys/class/video4linux/video*/name` |
 | Driver log "No camera image: … failed to capture frames during warmup" | Not in MJPG (YUYV gives 0 frames through usbip [MES-17]), or the webcam is busy in Windows | Close the Windows app using it; the driver asks for MJPG, check the log for a fourcc warning |

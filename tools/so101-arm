@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # so101-arm - the real arm's commands (docs/project/07 §3.1), run by a human with the stack stopped. Each prints the
 # docker command it runs; --dry-run only prints. Nothing here commands the arm: calibrate is LeRobot's calibrate()
-# (torque off, the joints moved by hand), zero-offsets only reads. tools/so101 stays simulation only (#191).
+# (torque off, the joints moved by hand), zero-offsets only reads.
 # The Python side is tools/so101_arm.py. Tested by tools/ci/test_so101_arm.sh.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)

@@ -37,3 +37,7 @@ Real thresholds fail despite locked settings, or phase 2 brings multiple/non-col
 ## Update (2026-10-30, #189)
 
 The ranges of the decision held under the default light only. Under the robustness demo's dim, warm light the floor fell in the box's range and the box under its V floor [MES-49]. The ranges are now saturation floors well above the lit floor and arm (S ≤ 113) and V floors under the shaded sides: **cube S ≥ 150, V ≥ 30; box S ≥ 140, V ∈ [20, 220]**, hues unchanged; every object 96–100 % in range under both lights, no floor pixel in either [MES-52] (#175). One guard added: a **partly hidden cube** (its blob under 0.85 of a whole cube's silhouette at its point) is not published, like a truncated one [MES-53] (#167). `05` §2.
+
+## Update (2026-11-06, #70)
+
+On the real arm the ranges of `perception_real.yaml` were tuned by hand on the live debug image, not offline on recorded images. The red cube and a green bowl hold through the real cycles. The tool that measures them and the labeled real images are #223.

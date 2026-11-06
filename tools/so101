@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# so101 - the everyday commands of the sim stack (docs/project/13 §1), from anywhere in the repository.
-# Each prints the docker compose command it runs; --dry-run only prints. Simulation only: the real arm is started
-# by hand with USE_SIM=false after the checklist of docs/project/07 §7. Tested by tools/ci/test_so101.sh.
+# so101 - the everyday commands of the stack (docs/project/13 §1), from anywhere in the repository.
+# Each prints the docker compose command it runs; --dry-run only prints. USE_SIM=false in docker/.env runs the real
+# arm, after the checklist of docs/project/07 §7; bench and robustness are simulation tools. Tested by tools/ci/test_so101.sh.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 compose=(docker compose -f "$root/docker/docker-compose.yml")
