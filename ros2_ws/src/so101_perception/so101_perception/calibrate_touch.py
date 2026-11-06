@@ -26,6 +26,7 @@ from so101_perception.calibration import CalibrationError
 from so101_perception.geometry import Extrinsics, save_extrinsics
 from so101_perception.intrinsics import MIN_CORNERS, BoardDetector, board_pose, extrinsics_from_touches
 
+FRAMES = 10  # the one that shows the most corners counts: small squares come and go between frames
 MAX_TOUCH_M = 0.004
 MAX_BOARD_PX = 1.0
 
@@ -46,19 +47,22 @@ def main(args=None):
     node.create_subscription(CameraInfo, "/external_cam/camera_info", info.append, qos)
     deadline = time.monotonic() + opts.timeout
     try:
-        while (not images or not info) and time.monotonic() < deadline:
+        while (len(images) < FRAMES or not info) and time.monotonic() < deadline:
             rclpy.spin_once(node, timeout_sec=0.1)
         if not images or not info:
             raise CalibrationError(
                 f"{len(images)} images and {len(info)} camera_info in {opts.timeout:.0f} s"
             )
-        corners = BoardDetector().corners(CvBridge().imgmsg_to_cv2(images[-1], "rgb8"))
+        bridge, detector = CvBridge(), BoardDetector()
+        views = [detector.corners(bridge.imgmsg_to_cv2(image, "rgb8")) for image in images[:FRAMES]]
+        corners = max(views, key=len)
         if len(corners) < MIN_CORNERS:  # a touched corner need not be seen: the board's geometry gives it
             raise CalibrationError(f"{len(corners)} corners seen, {MIN_CORNERS} needed")
         K, D = np.array(info[-1].k).reshape(3, 3), np.array(info[-1].d)
         T_cam_board, error = board_pose(corners, K, D)
-        T, residuals = extrinsics_from_touches(T_cam_board, touches)
-        print(f"{len(corners)} corners, {error:.3f} px; touches off by {np.round(residuals * 1000, 1)} mm")
+        T, residuals, scale = extrinsics_from_touches(T_cam_board, touches)
+        off = np.round(residuals * 1000, 1)
+        print(f"{len(corners)} corners, {error:.3f} px; print scale {scale:.3f}; touches off by {off} mm")
         if error > MAX_BOARD_PX or residuals.max() > MAX_TOUCH_M:
             raise CalibrationError(f"above {MAX_BOARD_PX} px or {MAX_TOUCH_M * 1000:.0f} mm")
     except CalibrationError as e:

@@ -132,6 +132,22 @@ def test_the_camera_pose_comes_from_the_board_and_the_touches():
     T_base_board[:3, 3] = [0.15, -0.1, 0.0]
     corners = (0, 5, 18, 23)
     touches = {i: T_base_board[:3, :3] @ chessboard[i] + T_base_board[:3, 3] for i in corners}
-    T_base_cam, residuals = extrinsics_from_touches(T, touches)
-    assert residuals.max() < 1e-6
+    T_base_cam, residuals, scale = extrinsics_from_touches(T, touches)
+    assert residuals.max() < 1e-6 and scale == pytest.approx(1.0)
     assert np.allclose(T_base_cam, T_base_board @ np.linalg.inv(T_cam_board), atol=1e-3)
+
+
+def test_a_board_printed_too_big_gives_its_scale_and_the_same_camera_pose():
+    T_cam_board = np.eye(4)
+    T_cam_board[:3, :3] = cv2.Rodrigues(np.array([2.4, 0.2, 0.1]))[0]
+    T_cam_board[:3, 3] = [-0.1, 0.02, 0.6]
+    T_base_board = np.eye(4)
+    T_base_board[:3, :3] = np.diag([1.0, -1.0, -1.0])
+    T_base_board[:3, 3] = [0.15, 0.1, 0.002]
+    chessboard = board().getChessboardCorners()
+    touches = {i: T_base_board[:3, :3] @ (chessboard[i] * 1.1) + T_base_board[:3, 3] for i in (0, 5, 18, 23)}
+    seen = T_cam_board.copy()  # what solvePnP gives with the nominal size: the real pose, 1.1 times closer
+    seen[:3, 3] /= 1.1
+    T_base_cam, _, scale = extrinsics_from_touches(seen, touches)
+    assert scale == pytest.approx(1.1)
+    assert np.allclose(T_base_cam, T_base_board @ np.linalg.inv(T_cam_board), atol=1e-6)

@@ -83,11 +83,18 @@ def rigid_fit(points, targets):
 
 
 def extrinsics_from_touches(T_cam_board, touches):
-    """(T_base_cam, residual of each touch in m) from the board seen by the camera and touches {corner id: the
-    TCP in base_link on that corner}: the arm's own frame, so it reaches where the camera says (#68)."""
-    chessboard = board().getChessboardCorners()
-    T_base_board, residuals = rigid_fit([chessboard[i] for i in touches], list(touches.values()))
-    return T_base_board @ np.linalg.inv(T_cam_board), residuals
+    """(T_base_cam, residual of each touch in m, the print's scale) from the board seen by the camera and
+    touches {corner id: the TCP in base_link on that corner}. The arm's own frame, so it reaches where the
+    camera says (#68); the arm also gives the printed size, which a printer may have scaled; the table is
+    level, so the touches' mean height stands for the board's."""
+    corners = board().getChessboardCorners()[list(touches)]
+    targets = np.array(list(touches.values()), float)
+    targets[:, 2] = targets[:, 2].mean()
+    scale = np.linalg.norm(targets - targets.mean(0)) / np.linalg.norm(corners - corners.mean(0))
+    T_base_board, residuals = rigid_fit(corners * scale, targets)
+    T_cam_true = T_cam_board.copy()
+    T_cam_true[:3, 3] *= scale
+    return T_base_board @ np.linalg.inv(T_cam_true), residuals, float(scale)
 
 
 def calibrate(views, size):
