@@ -133,7 +133,7 @@ sequenceDiagram
 - Every motion goes through `trajectory.min_jerk(q_start, q_goal, v_max)` (`04` §6), sampled at 50 Hz and published on `/joint_command`.
 - `q_start` = **measured position** (not the last command), so nothing jumps if the arm was blocked.
 - The gripper is commanded in the same message as the joints (partial command if only `gripper`).
-- Speeds: `v_max` = 1.0 rad/s (sim), 0.5 rad/s (real) to start with — parameter.
+- Speeds: `v_max` = 1.0 rad/s, sim and real arm since 2026-11-06 (ADR-023 Update) — parameter.
 
 ## 6. Parameters (YAML `so101_bringup/config/brain.yaml`)
 
@@ -147,7 +147,7 @@ Declared by `brain_node` (read-only, with ranges): every value of `motion.*`, `g
 | `grasp.drop_tcp_z_m` | 0.09 | Failure observed at 0.11 [MES-09] |
 | `grasp.effort_threshold` | 0.06 | [MES-10], [MES-48]; sim only (no effort on the real arm) |
 | `grasp.hold_gap_pct` | 3 % | Jaws stopped this far above `close_pct`: held (the real arm, #69); never reached in sim [MES-57] |
-| `grasp.close_pct` / `open_pct` | 0 / 100 | LeRobot convention; real `close_pct`: just below the cube's contact opening (#69, to measure) |
+| `grasp.close_pct` / `open_pct` | 0 / 100 | LeRobot convention; real `close_pct` 1 %, `hold_gap_pct` 1.8 %: the jaws stop at 4.2–4.5 % on the cube [MES-60] |
 | `grasp.gripper_tol_pct` | 3 % | `APPROACH` waits for the open gripper (§3.1) |
 | `motion.v_max_rad_s` | 1.0 (sim) / 0.5 (real) | Safety |
 | `motion.reach_tol_rad` | 0.01 | Every arm joint but `wrist_roll`; 0.10 on the real arm (P = 16 under gravity) |

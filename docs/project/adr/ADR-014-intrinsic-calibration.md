@@ -31,3 +31,7 @@ Not measured yet (real hardware pending); standard OpenCV procedure.
 ## Reconsider if
 
 The chosen camera provides a reliable factory calibration (e.g. RealSense).
+
+## Update (2026-11-06, #67)
+
+Measured on the real webcam: 25 views of a 7×5 ChArUco board with 38 mm squares, RMS 0.36 px, k3 kept at 0 [MES-58]. Perception undistorts each image, so all its pinhole geometry holds (`geometry.undistorted`). `tools/calibration_sheets.py` generates the board.

@@ -4,8 +4,22 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ## [Unreleased]
 
+### Added
+
+- The first real pick & place (6.5a, #72): 7 of 8 trials on the real arm with a USB webcam, at the sim's speeds, on our own calibration. `results/bench_real_2026-11-06.md`.
+- The real setup from A to Z (#202): `07` §9, the material (tape, ruler, printed sheets, clamp, rigid mount) and 14 steps, each with its commands and pass criterion; the README links it.
+- `calibrate_intrinsics` (6.2b, #67): K and distortion from a ChArUco board, from still, new views, refused under 12 views or above 0.5 px; 25 views, RMS 0.36 px [MES-58]. Perception undistorts each image.
+- `calibrate_touch` and `tools/so101-arm touch` (6.3a, #68): the camera pose from the board and 4 corners touched by the arm, no ruler, in the arm's own frame, the printed scale measured; within 2.7 mm [MES-59].
+- `tools/calibration_sheets.py`: the board and the markers as exact-scale PDF, in `docs/project/media/`.
+- `USE_SIM=false` reaches perception: `perception_real.yaml` (the real colors, 6.4b, #70) and `camera_extrinsics_real.yaml`.
+- `cube_side_m` and `box_height_m` in `perception.yaml`: another object needs YAML and a new grasp measure, no code. An audit of the hard-coded values found only these two.
+
 ### Changed
 
+- The real arm runs at the sim's speeds (ADR-023 Update), and the brain's real tolerances follow it: `reach_tol_rad` 0.10, a new `reach_tol_roll_rad` 0.25, `close_pct` 1 %, `hold_gap_pct` 1.8 %, the grasp judged at 1.2 s [MES-60].
+- `joint_zero_offsets` and the arm's calibration for the arm on the bench [MES-55].
+- `tools/so101-arm calibrate` names the gripper at its last prompt and refuses a joint that was not moved.
+- `tools/so101 cycle` works on the real arm: no `/sim/randomize`.
 - SonarQube Cloud, the 36 issues of 2026-11-02 (#220): `[[` in the shell scripts of #208 and #215 (`tools/release.sh`, `tools/ci/`), positional parameters in local variables in `test_release.sh`; no behavior change, `14` §4.
 
 ## [1.1.0] - 2026-11-02

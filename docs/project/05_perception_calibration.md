@@ -56,7 +56,7 @@ ROS parameters (`config/perception.yaml`, read at each image, so `ros2 param set
 - Minimum area 15 px at 320×240 (the whole cube covers 330–620 px in the reference images).
 - **Truncation**: if the bounding box touches the image border, the detection is marked "truncated" (biased centroid, §6).
 - Solidity (area / convex hull area) > 0.6: rejects reflections and fragments.
-- **Occlusion** (cube, #167): the blob's pixels against the smallest silhouette of a whole 5 cm cube at its back-projected point, over the yaws (`geometry.cube_area_ratio`, the camera's K and pose). Below `min_cube_area_ratio` (0.85, a startup parameter, range 0–2) the cube is partly hidden, by the arm or the box's walls: marked "occluded" and not published, like a truncated one, since its center is pulled towards its visible part. Whole cubes give 0.92–1.1 at every position of `/sim/randomize` (0.94–1.07 under the dim light) [MES-53].
+- **Occlusion** (cube, #167): the blob's pixels against the smallest silhouette of a whole cube of `cube_side_m` (5 cm) at its back-projected point, over the yaws (`geometry.cube_area_ratio`, the camera's K and pose). Below `min_cube_area_ratio` (0.85, a startup parameter, range 0–2) the cube is partly hidden, by the arm or the box's walls: marked "occluded" and not published, like a truncated one, since its center is pulled towards its visible part. Whole cubes give 0.92–1.1 at every position of `/sim/randomize` (0.94–1.07 under the dim light) [MES-53].
 - One object expected: keep the largest valid contour.
 
 ## 3. Camera model — THE main pitfall
@@ -169,9 +169,9 @@ Review conclusions:
 
 ### 5.4 Real implementation
 
-- Print the markers at 100 % scale (check the side with a caliper) on a **jig mat** that also carries the robot base outline → marker positions in `base_link` known by construction.
-- More accurate variant, **touch probing**: bring the TCP (pointer in the gripper) onto the marker corners and read the FK → corners in `base_link` without manual measurement.
-- **Startup self-check** (to build, 6.3a): perception detects the still-visible markers and computes the reprojection error with the stored extrinsics → above 3 px: warning "camera moved, recalibrate".
+- **Chosen, by touch** (#68, `calibrate_touch`, `07` §9 step 9): the ChArUco board flat in the working area, 4 of its corners touched by the jaws, their TCP read from the joints (`tools/so101-arm touch`). The camera gives the board's pose, the arm gives the board in `base_link`: no ruler, no jig, and in the arm's own frame, so a zero offset the touches contain, the grasps contain too. The arm also gives the printed scale, which a printer can get wrong (1.114 on 2026-11-06). The table is level: the touches' mean height stands for the board's. 4 touches within 2.7 mm; the 8 ArUco sheets, not used in the solve, came out square, 73 mm, sigma 1.1 mm, within 2° of +x [MES-59].
+- Alternative, `calibrate_extrinsics` on real markers: a `markers_real.yaml` with their centers measured in `base_link`. Not used: it needs the markers parallel to +x (`marker_corners`), and a ruler.
+- **Startup self-check** (not built, #222): perception detects the still-visible markers and computes the reprojection error with the stored extrinsics → above 3 px: warning "camera moved, recalibrate".
 
 ## 6. Field of view: 21 % of cube positions were truncated [MES-12], none since the camera moved [MES-45]
 

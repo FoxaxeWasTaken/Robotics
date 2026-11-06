@@ -53,3 +53,7 @@ Built (steps 3.4a–c):
 - perception loads our calibration of the moved sim camera: 8 markers, 0.868 px, 0.53 mm / 0.024° from the rendered camera; perception on it within 0.9 mm on average [MES-47] (#46).
 
 The robot validation (the TCP on 4 known points) is for the real arm, step 6.3a.
+
+## Update (2026-11-06, #68)
+
+On the real arm the pose comes from `calibrate_touch`: the ChArUco board flat on the table and 4 of its corners touched by the arm, instead of a jig mat or measured markers. No ruler, and the pose is in the arm's own frame. 4 touches within 2.7 mm, the 8 ArUco sheets read back square and within 2° of +x [MES-59]. `calibrate_extrinsics` and its layouts stay for the sim. The robot validation asked above is test 5 of `07` §3.2.

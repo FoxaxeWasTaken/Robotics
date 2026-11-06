@@ -49,7 +49,7 @@ flowchart LR
 | [08_quality_tests.md](08_quality_tests.md) | Test pyramid, target metrics, evaluation bench, conventions, Git workflow (summary) |
 | [09_roadmap_step_by_step.md](09_roadmap_step_by_step.md) | **The step-by-step roadmap**: 9 stages (phase 2 of the brief = stage 7), 35 steps, each with "Done when…" |
 | [10_risks.md](10_risks.md) | Risk register (P × I) and mitigations |
-| [11_cross_review_and_measurements.md](11_cross_review_and_measurements.md) | **Cross-review log** (44 objections) and register of the 57 measurements |
+| [11_cross_review_and_measurements.md](11_cross_review_and_measurements.md) | **Cross-review log** (44 objections) and register of the 62 measurements |
 | [12_glossary_references.md](12_glossary_references.md) | Glossary and references |
 | [13_runbook_troubleshooting.md](13_runbook_troubleshooting.md) | Everyday commands, decision tree and troubleshooting table |
 | [14_quality_pipeline_ci.md](14_quality_pipeline_ci.md) | **Quality pipeline**: feedback loops, check matrix, tool choices, PR CI and nightly, test conventions, lint adoption |
@@ -124,6 +124,7 @@ What the repository does today: the Status section of the [repository README](..
 - **Teaching staff answers (2026-10-16)**: the sim camera may be moved, our own scenes and markers are allowed, the random cube + box bench is the expected measure and "robust" means the five cases of [BOOT2 p12] (questions above).
 - **Team repository created (2026-10-15)**, private. It starts from the **course stubs**: the bootstrap prototype (driver, FK/IK, RViz file, teleop) stays outside the repository as a reference, its measurements remain valid as feasibility evidence (ADR-039).
 - **Phase 2 validated by the teaching staff** (2026-10-09): Connect Four against the robot (ADR-034, [`phase2/`](phase2/README.md)). Own roadmap: `phase2/P2-04`; next: buy and measure a store-bought grid, then the drop spike (step P2.1). Kinematics checked by measurement before any build [MES-27 to MES-29].
+- **Real arm (2026-11-06)**: another arm on the bench, recalibrated; camera intrinsics and pose measured [MES-58, MES-59]; tests 1 to 5 of `07` §3.2 passed; first real pick & place, 7/8 at the sim's speeds ([`results/bench_real_2026-11-06.md`](../../results/bench_real_2026-11-06.md)).
 - **Real arm (2026-10-30)**: recalibrated; tests 1 to 3 of `07` §3.2 passed; the joint zeros measured at the URDF zero, the elbow 13.8° off [MES-55], corrected by `joint_zero_offsets` (#196); four driver faults found and fixed (#194 to #197); the gripper's load measured: not enough alone to tell a grasp, and 0 % on the cube trips the motor's overload [MES-56].
 - **Real arm (2026-10-09)**: commissioning tests 1–3 of `07` §3.2 passed with the bootstrap prototype (clamp, NaN rejection and a reduced real-arm speed included). At rest the computed TCP is 2.9 cm below the table: check the calibration zero with a ruler first [MES-30].
 - **Upstream pull on 2026-10-09, second** (fast-forward to `42737bf`, PR #2): the provided `_connect_arm` now cuts the torque after connecting (comment those lines out once the driver commands the real arm, ADR-032), and `destroy_node` disconnects the backend. The repository keeps both as shipped (ADR-039).

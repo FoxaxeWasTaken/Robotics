@@ -125,13 +125,16 @@ Declared with descriptors (description, range, read-only: read at startup) in ea
 
 | File | Key | Real value |
 | --- | --- | --- |
-| `driver_real.yaml` | `max_joint_velocity` | 0.8 rad/s (ADR-023) |
 | `driver_real.yaml` | `camera_device` | `/dev/video0`, the webcam (6.2a) |
 | `driver_real.yaml` | `camera_width` / `camera_height` | 640 / 480 |
+| `driver_real.yaml` | `camera_info_file` | `camera_real_intrinsics.yaml` (6.2b) |
 | `driver_real.yaml` | `joint_zero_offsets` | Each joint's reading at the URDF zero, rad (`07` §4, #196); 0 in `driver.yaml` |
-| `brain_real.yaml` | `motion.v_max_rad_s` | 0.5 rad/s (`06` §5) |
+| `brain_real.yaml` | `motion.reach_tol_rad` / `motion.reach_tol_roll_rad` | 0.10 / 0.25 rad (`07` §4) |
+| `brain_real.yaml` | `fsm.grasp_wait_s` / `fsm.grasp_timeout_s` | 1.2 / 2.0 s: the real jaws close slower |
+| `brain_real.yaml` | `grasp.close_pct` / `grasp.hold_gap_pct` | 1 % / 1.8 % [MES-60] |
+| `perception_real.yaml` | `hsv_*` | The setup's colors: the red cube, the green bowl (6.4b) |
 
-Perception has no real file yet: the real extrinsics (6.3a) and HSV thresholds (6.4b) bring it, with the switch of its container. The other real values are checked during commissioning (6.1b): `fsm.park_pose`, `grasp.effort_threshold` (6.4a), the timeouts.
+The speeds are the sim's (ADR-023 Update). `USE_SIM=false` also reaches the perception container: `perception_real.yaml` on top of `perception.yaml`, and the pose in `camera_extrinsics_real.yaml` instead of `camera_extrinsics.yaml`. The object is a parameter there: `cube_side_m` and `box_height_m` in `perception.yaml`.
 
 ## 4. Frames and conventions (ADR-005)
 

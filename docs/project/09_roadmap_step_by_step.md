@@ -276,8 +276,8 @@ The owners are those of `.github/CODEOWNERS` (0.1d), which requests their review
 
 ### Step 6.3 — Real extrinsics
 
-- **Tasks**: jig mat with ≥ 4 spread ArUco markers (or TCP touch probing); same tool as in 3.4; startup self-check; robot validation (`05` §10).
-- **Done when**: reprojection < 2 px; a point placed on the grid is localized within 1 cm.
+- **Tasks**: the ChArUco board touched by the arm (`calibrate_touch`, `05` §5.4, `07` §9); robot validation (`05` §10). The startup self-check moved to #222.
+- **Done when**: board reprojection < 1 px, touches within 4 mm; the jaws within 1 cm of a cube the camera located.
 
 ### Step 6.4 — Sim → real adjustment
 
@@ -286,7 +286,7 @@ The owners are those of `.github/CODEOWNERS` (0.1d), which requests their review
 
 ### Step 6.5 — Real pick & place
 
-- **Tasks**: first at reduced speed, then nominal; 10 trials with varied poses; failure analysis.
+- **Tasks**: first at reduced speed, then the sim's; 10 trials with varied poses; failure analysis.
 - **Done when**: **≥ 7/10** (team target: the brief no longer gives a number and asks for the real robot as "preferred" at the final defense), video filmed.
 
 ---

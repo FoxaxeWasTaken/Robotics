@@ -78,10 +78,11 @@ The school mirror is described in `16`.
 │   └── ISSUE_TEMPLATE.md
 ├── .vscode/extensions.json  settings.json   ← shared recommendations and the SonarQube binding (everything else ignored)
 ├── tools/so101                  ← the everyday commands (stack, cycle, bench, robustness demo, tests) [team]
-├── tools/so101-arm, so101_arm.py ← the real arm's calibration and joint zeros (07 §3.1)     [team]
+├── tools/so101-arm, so101_arm.py ← the real arm's calibration, joint zeros, touches (07 §3.1, §9) [team]
+├── tools/calibration_sheets.py  ← the printed ChArUco board and ArUco markers (07 §9)       [team]
 ├── tools/ci/                    ← the CI scripts (guards.sh, check_mermaid.sh, reports…) and their tests [team]
 ├── docs/                        ← SUJET.md + PDF slides (versioned by the course)           [provided, untouched]
-│   └── project/                 ← design, ADRs, roadmap, measurements; phase2/ = Connect Four; media/ = the README GIF; presentations/ = the review decks [team]
+│   └── project/                 ← design, ADRs, roadmap, measurements; phase2/ = Connect Four; media/ = the README GIF, the printable sheets, the setup's images; presentations/ = the review decks [team]
 ├── results/                     ← milestone evaluation reports (light CSV/MD)                 [team]
 ├── docker/                      ← Dockerfiles, compose, entrypoint                            [provided → extended]
 ├── core/                        ← real-arm driver extracted from LeRobot                      [provided, untouched]

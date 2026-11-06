@@ -11,16 +11,16 @@ A camera spots a red cube, the SO-ARM101 arm grasps it and drops it into a box �
 ## What it does today
 
 - **In simulation, the whole cycle runs on its own.** `/brain/start` parks the arm out of the camera's view. Perception then locates the cube and the box: HSV detection, pixel → 3D, median filter, cube yaw. The brain plans a grasp, approaches, grasps, checks the grip, carries the cube, drops it, checks it is in the box, and comes back to rest.
-- **The real arm**: the driver is ready (speed limits, slow park before the torque is cut, stop on a lost serial bus, the USB webcam, the real-arm parameters, the joint zeros corrected). Commissioning started on 2026-10-30: tests 1 to 3 of `07` §3.2 passed, the shutdown move checked from the far side; the camera calibration and the grasp come next (stage 6).
+- **On the real arm, too.** The same cycle runs on the real SO-101 with a USB webcam, at the sim's speeds: 7 of 8 trials on 2026-11-06 ([results](results/bench_real_2026-11-06.md)), on our own calibration of the camera and of the arm. The setup, material included: [`07` §9](docs/project/07_real_arm_safety_sim2real.md).
 - **Sim ↔ real**: `USE_SIM` in `docker/.env`, plus a few documented values ([`01` §3.3](docs/project/01_architecture.md)).
 - **Phase 2** (planned): play Connect Four against the arm, which reads the grid with its camera and drops its own tokens ([design](docs/project/phase2/README.md)).
 
-## Status (2026-10-30)
+## Status (2026-11-06)
 
 | Done | Next (see [roadmap](docs/project/09_roadmap_step_by_step.md)) |
 | --- | --- |
-| Environment (Docker images, X11, DDS, usbipd), CI, hooks, design docs with measured spikes; the phase-1 sim criterion met on our calibration, 50/50 (4.5b, C-42) | Release v1.0.0, the simulation milestone (5.3a, #63) |
-| Driver: `/joint_states` at 30 Hz, `/joint_command`, speed limiter, joint-limit clamp, camera at 10 Hz with `camera_info`, `/sim/randomize`, ground truth for the bench only; real-arm safety and webcam; a warning for each late tick, a clean stop on SIGINT (#158, #176) | The real arm: commissioning (6.1b), camera and grasp calibration (6.2b–6.4), 10 real trials (6.5a) |
+| Environment (Docker images, X11, DDS, usbipd), CI, hooks, design docs with measured spikes; the phase-1 sim criterion met on our calibration, 50/50 (4.5b, C-42) | The final phase-1 release |
+| Driver: `/joint_states` at 30 Hz, `/joint_command`, speed limiter, joint-limit clamp, camera at 10 Hz with `camera_info`, `/sim/randomize`, ground truth for the bench only; real-arm safety and webcam; a warning for each late tick, a clean stop on SIGINT (#158, #176) | The real arm: done, a filmed pick & place at 7/8 (6.5a, [`results/bench_real_2026-11-06.md`](results/bench_real_2026-11-06.md)) |
 | Perception: HSV detection that holds under a dim, warm light, pixel → 3D, median filter, cube yaw, `/object_position` and `/drop_box_position`, debug image, our ArUco extrinsic calibration and the camera TF; a cube cut by the image edge or partly hidden is not published (3.4b–c, 3.5c, MES-47, MES-52, MES-53) | The nightly's trends and SonarQube Cloud: recorded each night since #174; they close with two nightlies of values and the SonarQube decision of `14` §4, by 2026-11-10 (5.1d–e, #60, #61) |
 | Brain: FK/IK (no self-collision), `/go_to_target`, grasp planner in a worker process, the full state machine, markers in RViz; grasp verification and retries checked on fault scenarios, effort threshold measured (4.4a, MES-48) | The shared-understanding session (5.2a, #62) |
 | Evaluation bench, E2E on every PR, nightly 50-episode bench with its report, and the nightly's quality job: coverage, trends, the SonarQube Cloud gate (#174, #179); the robustness demo, the five cases of the slides handled (5.4a, #103, #175); `tools/so101` for the everyday commands; this README replayed by a member from a fresh clone, quickstart and demo in about 12 min (5.1b) | Phase 2: the store-bought grid measured, then the drop spike (P2.1, #75, #76) |
@@ -63,7 +63,7 @@ tools/so101 cycle                            # one full pick & place: the states
 tools/so101 down
 ```
 
-`tools/so101` prints each `docker compose` command it runs; `--dry-run` only prints it, `--help` lists them all. Real arm: read [`07`](docs/project/07_real_arm_safety_sim2real.md) first, its safety checklist above all; `tools/so101-arm` calibrates the arm and measures its joint zeros, the stack stopped (`07` §3.1).
+`tools/so101` prints each `docker compose` command it runs; `--dry-run` only prints it, `--help` lists them all. Real arm: the setup from A to Z, material included, is [`07` §9](docs/project/07_real_arm_safety_sim2real.md#9-real-setup-from-the-bare-arm-to-the-first-cycle). Read [`07`](docs/project/07_real_arm_safety_sim2real.md) first, its safety checklist above all; `tools/so101-arm` calibrates the arm and measures its joint zeros, the stack stopped (`07` §3.1).
 
 The real arm's calibration and joint zeros, the stack stopped (one program on the serial bus), with the port and the calibration file from `docker/.env`:
 
