@@ -4,6 +4,7 @@ so101_brain:
   ros__parameters:
     motion:
       reach_tol_rad: 0.10  # P = 16: the real arm stops up to 0.08 rad off under gravity (07 §4), 0.01 never ends
+      reach_tol_roll_rad: 0.25  # its wrist_roll stops up to 0.17 rad off; the TCP does not care
     fsm:
       grasp_wait_s: 1.2     # the real jaws close slower than the sim's: judged once they stopped
       grasp_timeout_s: 2.0

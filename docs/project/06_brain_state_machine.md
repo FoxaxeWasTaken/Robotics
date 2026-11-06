@@ -150,7 +150,8 @@ Declared by `brain_node` (read-only, with ranges): every value of `motion.*`, `g
 | `grasp.close_pct` / `open_pct` | 0 / 100 | LeRobot convention; real `close_pct`: just below the cube's contact opening (#69, to measure) |
 | `grasp.gripper_tol_pct` | 3 % | `APPROACH` waits for the open gripper (§3.1) |
 | `motion.v_max_rad_s` | 1.0 (sim) / 0.5 (real) | Safety |
-| `motion.reach_tol_rad` | 0.01 | — |
+| `motion.reach_tol_rad` | 0.01 | Every arm joint but `wrist_roll`; 0.10 on the real arm (P = 16 under gravity) |
+| `motion.reach_tol_roll_rad` | 0.01 | `wrist_roll`, which barely moves the TCP; 0.25 on the real arm, where it stops up to 0.17 rad short |
 | `motion.min_duration_s` | 0.5 s | `04` §6 |
 | `motion.timeout_margin_s` | 1.0 s | T + margin → `ERROR:timeout:<state>` (§3.1) |
 | `fsm.target_lock_n` | 5 | — |

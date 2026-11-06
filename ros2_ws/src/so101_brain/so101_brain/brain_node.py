@@ -48,10 +48,11 @@ PARAMETERS = {
     "motion.v_max_rad_s": ("v_max", "Peak arm joint speed of a motion, rad/s", 0.05, 1.5),
     "motion.reach_tol_rad": (
         "reach_tol",
-        "Target reached when every arm joint is this close, rad",
+        "Target reached when every arm joint but wrist_roll is this close, rad",
         0.001,
         0.1,
     ),
+    "motion.reach_tol_roll_rad": ("reach_tol_roll", "... and wrist_roll this close, rad", 0.001, 0.5),
     "motion.min_duration_s": ("min_motion_s", "Shortest min-jerk motion, s (04 §6)", 0.1, 5.0),
     "motion.timeout_margin_s": (
         "motion_margin_s",

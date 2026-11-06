@@ -25,6 +25,7 @@ REAL_KEYS = {  # 01 §3.3: the parameters with a real value
     },
     "brain": {
         "motion.reach_tol_rad",
+        "motion.reach_tol_roll_rad",
         "fsm.grasp_wait_s",
         "fsm.grasp_timeout_s",
         "grasp.close_pct",
