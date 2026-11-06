@@ -4,6 +4,10 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-06
+
+The end of phase 1: the pick & place runs on the real arm (milestone `v1.3.0`). The same stack drives the real SO-101 with a USB webcam, at the sim's speeds: 14 of 17 cycles, filmed, on our own calibration of the camera and of the arm. `v1.2.0` was not tagged: the real camera and the real pick & place came in one session. Next: phase 2, Connect Four.
+
 ### Added
 
 - The first real pick & place (6.5a, #72): 14 of 17 trials on the real arm with a USB webcam, at the sim's speeds, on our own calibration, filmed. `results/bench_real_2026-11-06.md`.
@@ -156,5 +160,7 @@ The simulation milestone (step 5.3, `15` §6): the whole pick & place cycle in M
 - Control container shutdown: SIGINT goes to `ros2 launch` only, which forwards one to each node; signalling the whole process group gave each node a second SIGINT that interrupted `destroy_node()` (traceback on every `docker compose stop`).
 - Driver: SIGINT or SIGTERM while a timer callback publishes no longer ends in a traceback and exit code 1 (seen once in 40 SIGTERM stops).
 
-[Unreleased]: https://github.com/FoxaxeWasTaken/Robotics/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/FoxaxeWasTaken/Robotics/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/FoxaxeWasTaken/Robotics/compare/v1.1.0...v1.3.0
+[1.1.0]: https://github.com/FoxaxeWasTaken/Robotics/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/FoxaxeWasTaken/Robotics/releases/tag/v1.0.0
