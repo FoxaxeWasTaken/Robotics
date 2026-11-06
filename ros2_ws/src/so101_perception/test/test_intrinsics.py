@@ -45,14 +45,15 @@ def test_k_and_d_come_back_from_known_views():
     assert rms < 0.2
     assert np.abs(k - K).max() < 6.0  # px
     assert np.abs(d[:2] - D[:2]).max() < 0.02
-    assert d[4] == 0.0  # k3 stays out
+    assert d[4] == pytest.approx(0.0)  # k3 stays out
 
 
 def test_too_few_views_or_a_high_rms_is_refused():
+    few, noisy = views(MIN_VIEWS - 1), views(20, noise=3.0)
     with pytest.raises(CalibrationError, match="views"):
-        calibrate(views(MIN_VIEWS - 1), SIZE)
+        calibrate(few, SIZE)
     with pytest.raises(CalibrationError, match="RMS"):
-        calibrate(views(20, noise=3.0), SIZE)
+        calibrate(noisy, SIZE)
 
 
 def test_the_board_is_found_in_an_image():
@@ -94,7 +95,8 @@ def test_the_file_is_the_ros_calibration_format(tmp_path):
     assert (calib["image_width"], calib["image_height"]) == SIZE
     assert calib["camera_matrix"]["data"] == K.ravel().tolist()
     assert calib["distortion_coefficients"]["data"] == D.tolist()
-    assert len(calib["rectification_matrix"]["data"]) == 9 and len(calib["projection_matrix"]["data"]) == 12
+    assert len(calib["rectification_matrix"]["data"]) == 9
+    assert len(calib["projection_matrix"]["data"]) == 12
 
 
 def test_undistorted_straightens_the_lens_and_leaves_the_sim_alone():
@@ -106,7 +108,8 @@ def test_undistorted_straightens_the_lens_and_leaves_the_sim_alone():
     seen = cv2.projectPoints(np.column_stack([normalized[0], [1.0]]), np.zeros(3), np.zeros(3), K, D)[0][0, 0]
     cv2.circle(image, (round(seen[0]), round(seen[1])), 3, (255, 255, 255), -1)
     ys, xs = np.nonzero(undistorted(image, K, D)[:, :, 0] > 128)
-    assert abs(xs.mean() - 500.0) < 2.0 and abs(ys.mean() - 400.0) < 2.0
+    assert abs(xs.mean() - 500.0) < 2.0
+    assert abs(ys.mean() - 400.0) < 2.0
 
 
 def test_rigid_fit_recovers_a_motion_and_shows_a_bad_touch():
@@ -114,7 +117,8 @@ def test_rigid_fit_recovers_a_motion_and_shows_a_bad_touch():
     points = np.array([[0, 0, 0], [0.2, 0, 0], [0, 0.15, 0], [0.2, 0.15, 0]])
     targets = points @ R.T + [0.1, -0.2, 0.003]
     T, residuals = rigid_fit(points, targets)
-    assert np.allclose(T[:3, :3], R) and residuals.max() < 1e-9
+    assert np.allclose(T[:3, :3], R)
+    assert residuals.max() < 1e-9
     targets[3] += [0.01, 0, 0]
     assert rigid_fit(points, targets)[1].max() > 0.003
 
@@ -126,14 +130,16 @@ def test_the_camera_pose_comes_from_the_board_and_the_touches():
     chessboard = board().getChessboardCorners()
     px = cv2.projectPoints(chessboard, T_cam_board[:3, :3], T_cam_board[:3, 3], K, D)[0].reshape(-1, 2)
     T, error = board_pose(dict(enumerate(px)), K, D)
-    assert error < 0.01 and np.allclose(T, T_cam_board, atol=1e-3)
+    assert error < 0.01
+    assert np.allclose(T, T_cam_board, atol=1e-3)
     T_base_board = np.eye(4)
     T_base_board[:3, :3] = cv2.Rodrigues(np.array([0.0, 0.0, -0.4]))[0]
     T_base_board[:3, 3] = [0.15, -0.1, 0.0]
     corners = (0, 5, 18, 23)
     touches = {i: T_base_board[:3, :3] @ chessboard[i] + T_base_board[:3, 3] for i in corners}
     T_base_cam, residuals, scale = extrinsics_from_touches(T, touches)
-    assert residuals.max() < 1e-6 and scale == pytest.approx(1.0)
+    assert residuals.max() < 1e-6
+    assert scale == pytest.approx(1.0)
     assert np.allclose(T_base_cam, T_base_board @ np.linalg.inv(T_cam_board), atol=1e-3)
 
 

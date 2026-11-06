@@ -15,6 +15,7 @@ MIN_VIEWS = 12
 MAX_RMS_PX = 0.5  # ADR-014
 MIN_SHIFT_PX = 25.0  # a view this far from the kept ones adds something
 MAX_MOTION_PX = 1.5  # between two frames: the board is held still, so no motion blur
+SAME_FRAME_PX = 1e-3  # under this, the driver's repeated frame, not a still board
 
 
 def board():
@@ -47,7 +48,7 @@ class ViewPicker:
 
     def offer(self, corners: dict) -> bool:
         moved = mean_shift(corners, self._last)
-        if moved == 0.0:
+        if moved < SAME_FRAME_PX:
             return False
         self._last = corners
         if len(corners) < MIN_CORNERS or moved > MAX_MOTION_PX:

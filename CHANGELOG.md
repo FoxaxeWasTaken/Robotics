@@ -4,7 +4,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ## [Unreleased]
 
-## [1.3.0] - 2026-11-06
+## [1.3.0] - 2026-11-07
 
 The end of phase 1: the pick & place runs on the real arm (milestone `v1.3.0`). The same stack drives the real SO-101 with a USB webcam, at the sim's speeds: 14 of 17 cycles, filmed, on our own calibration of the camera and of the arm. `v1.2.0` was not tagged: the real camera and the real pick & place came in one session. Next: phase 2, Connect Four.
 
@@ -26,6 +26,7 @@ The end of phase 1: the pick & place runs on the real arm (milestone `v1.3.0`). 
 - `tools/so101-arm calibrate` names the gripper at its last prompt and refuses a joint that was not moved.
 - `tools/so101 cycle` works on the real arm: no `/sim/randomize`.
 - A review of every doc against the real run: the real speeds, the jig mat as the real calibration, tests 5 and 6 of `07` §3.2, the risks settled by it (`10`), and `tools/so101`, which also runs the real arm. ADR-011 and ADR-021 Updates.
+- SonarQube Cloud, the 21 issues of the real calibration (#227): a float compared with `==`, the composite assertions, and `calibrate_touch` and `calibrate_intrinsics` tested end to end on synthetic images of the board, what they write and what they refuse (`14` §4).
 - SonarQube Cloud, the 36 issues of 2026-11-02 (#220): `[[` in the shell scripts of #208 and #215 (`tools/release.sh`, `tools/ci/`), positional parameters in local variables in `test_release.sh`; no behavior change, `14` §4.
 
 ## [1.1.0] - 2026-11-02
