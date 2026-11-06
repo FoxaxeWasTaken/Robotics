@@ -109,7 +109,7 @@ print success rate, p50/p95 duration, failure-cause breakdown
 | Short branches named after their ticket: `feat/12-driver-camera-info`, `fix/34-ik-pan-sign`… (CONTRIBUTING §2) | Continuous integration, few conflicts; the branch points to its ticket |
 | **Everyone commits their own work**; when pairing, add a `Co-authored-by:` trailer | **C-07**: each member's history must be visible |
 | Conventional commits (`feat:`, `fix:`, `test:`, `docs:`, `refactor:`) | Readable history, changelog |
-| Squash merge; a minor version per usable increment (`v1.0.0` sim pick & place, `v1.1.0` real-arm tooling, `v1.2.0` real camera and perception, `v1.3.0` real pick & place, `v2.x` phase 2 and final defense; no `v0.x` tag was made, ADR-028 updates) | Rollback, demos |
+| Squash merge; a minor version per usable increment (`v1.0.0` sim pick & place, `v1.1.0` real-arm tooling, `v1.3.0` real camera and real pick & place, the final phase-1 release, `v2.x` phase 2 and final defense; no `v0.x` tag was made, ADR-028 updates) | Rollback, demos |
 | Course slides stay in `docs/` (versioned by the course); no other PDF; media: the README's GIF only (under 1 MB, `15` §7), videos in a GitHub Release | Clean repo (C-53) |
 | GitHub Project: one epic per roadmap stage, one PR-sized ticket per sub-step of `09`, PR `Closes #N` (`15` §12, CONTRIBUTING §8) | Visible progress, work an AI agent can pick up too |
 
