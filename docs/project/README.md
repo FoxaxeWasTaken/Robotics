@@ -49,7 +49,7 @@ flowchart LR
 | [08_quality_tests.md](08_quality_tests.md) | Test pyramid, target metrics, evaluation bench, conventions, Git workflow (summary) |
 | [09_roadmap_step_by_step.md](09_roadmap_step_by_step.md) | **The step-by-step roadmap**: 9 stages (phase 2 of the brief = stage 7), 35 steps, each with "Done when…" |
 | [10_risks.md](10_risks.md) | Risk register (P × I) and mitigations |
-| [11_cross_review_and_measurements.md](11_cross_review_and_measurements.md) | **Cross-review log** (44 objections) and register of the 62 measurements |
+| [11_cross_review_and_measurements.md](11_cross_review_and_measurements.md) | **Cross-review log** (44 objections) and register of the 66 measurements |
 | [12_glossary_references.md](12_glossary_references.md) | Glossary and references |
 | [13_runbook_troubleshooting.md](13_runbook_troubleshooting.md) | Everyday commands, decision tree and troubleshooting table |
 | [14_quality_pipeline_ci.md](14_quality_pipeline_ci.md) | **Quality pipeline**: feedback loops, check matrix, tool choices, PR CI and nightly, test conventions, lint adoption |
@@ -98,7 +98,7 @@ flowchart LR
 | 12 | Layered safety; **PARK before cutting torque**; webcam in **MJPG** | Decided | [MES-17]; LeRobot code review |
 | 13 | Quality: **ruff + pre-commit + markdownlint + conventional commits**; **GitHub Actions CI inside our Docker images** (parity), opt-in; project-rule guards; 50-episode nightly; SonarQube Cloud in the nightly, on trial (`14` §4) | Decided | Tooling executed, 13/13 hooks green [MES-23]; CI would have caught C-11 [MES-22] |
 | 14 | Repository: **private team repo + `upstream` without push + school mirror** (`main` + tags, forced exact copy, key in a `main`-only environment); squash merge, SemVer tags per milestone; no LFS; English everywhere; license to decide | Decided / open | `git remote -v`; ADR-027 to 033 |
-| 15 | **Phase 2: Connect Four against the robot** (validated by the staff): store-bought grid placed edge-on, the arm on a riser, depth guide, tokens handed over, drop poses with the wrist roll locked, wrist camera if needed, `PickPlace` action in the brain | Decided | [MES-27] to [MES-29], [MES-31], [MES-32]; ADR-034 to 038 |
+| 15 | **Phase 2: Connect Four against the robot** (validated by the staff): store-bought grid placed edge-on, the arm on a riser, depth guide, drop poses with the wrist roll locked, a `/brain/drop` service in the brain; `v2.0.0` in sim, the real arm in `v2.1.0` | Decided | [MES-27] to [MES-29], [MES-31], [MES-32]; ADR-034 to 038 |
 | 16 | **Starting code: the course stubs**; the bootstrap prototype stays outside the repository, as a reference (every line goes through a reviewed PR, C-50) | Decided | ADR-039; [MES-24] for what the prototype proved |
 
 ## Questions for the teaching staff (answered on 2026-10-16)
@@ -119,11 +119,13 @@ Phase-2 questions and answers (riser, cameras, real-arm sessions, taught poses, 
 
 What the repository does today: the Status section of the [repository README](../../README.md); the work in progress: the GitHub Project (`15` §12). Below, the dated events these documents rest on, newest first.
 
+- **Phase-2 scope (2026-11-07)**: the hand-in is 2026-11-20 23:42. `v2.0.0` is Connect Four in sim, `v2.1.0` the real arm (ADR-034 Update), after an expert review that measured the sim on prototypes [MES-63 to MES-66]. Dates: `phase2/P2-04` §3.
+
 - **Upstream pull on 2026-10-23** (#136): the day-3 visio slides on perception, `docs/J3_visio_perception.pdf` [J3]. No code or kit change. Impact absorbed in `00` (sources, the review calendar).
 
 - **Teaching staff answers (2026-10-16)**: the sim camera may be moved, our own scenes and markers are allowed, the random cube + box bench is the expected measure and "robust" means the five cases of [BOOT2 p12] (questions above).
 - **Team repository created (2026-10-15)**, private. It starts from the **course stubs**: the bootstrap prototype (driver, FK/IK, RViz file, teleop) stays outside the repository as a reference, its measurements remain valid as feasibility evidence (ADR-039).
-- **Phase 2 validated by the teaching staff** (2026-10-09): Connect Four against the robot (ADR-034, [`phase2/`](phase2/README.md)). Own roadmap: `phase2/P2-04`; next: buy and measure a store-bought grid, then the drop spike (step P2.1). Kinematics checked by measurement before any build [MES-27 to MES-29].
+- **Phase 2 validated by the teaching staff** (2026-10-09): Connect Four against the robot (ADR-034, [`phase2/`](phase2/README.md)). Own roadmap: `phase2/P2-04`. Kinematics checked by measurement before any build [MES-27 to MES-29].
 - **Real arm (2026-11-06)**: another arm on the bench, recalibrated; camera intrinsics and pose measured [MES-58, MES-59]; tests 1 to 5 of `07` §3.2 passed; first real pick & place, 14/17 at the sim's speeds ([`results/bench_real_2026-11-06.md`](../../results/bench_real_2026-11-06.md)).
 - **Real arm (2026-10-30)**: recalibrated; tests 1 to 3 of `07` §3.2 passed; the joint zeros measured at the URDF zero, the elbow 13.8° off [MES-55], corrected by `joint_zero_offsets` (#196); four driver faults found and fixed (#194 to #197); the gripper's load measured: not enough alone to tell a grasp, and 0 % on the cube trips the motor's overload [MES-56].
 - **Real arm (2026-10-09)**: commissioning tests 1–3 of `07` §3.2 passed with the bootstrap prototype (clamp, NaN rejection and a reduced real-arm speed included). At rest the computed TCP is 2.9 cm below the table: check the calibration zero with a ruler first [MES-30].

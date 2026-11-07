@@ -214,14 +214,13 @@ class Kinematics:                                    # façade: ikpy inside, Pin
     def ik_pos(self, p, q_seed=None) -> np.ndarray | None: ...
     def ik_point(self, p, approach, q_seed=None, roll=None) -> np.ndarray | None: ...
     def ik_pose(self, p, R, q_seed=None) -> np.ndarray | None: ...
-    def ik_jaw_normal(self, p, n, q_seed=None) -> np.ndarray | None: ...  # phase 2 (phase2/P2-02 §2.2)
     def arm_azimuth(self, p) -> float: ...           # from the pan axis
 
 class GraspPlanner:
     def plan(self, cube_position, cube_yaw, box_position, q_current): ...   # (GraspPlan, None) | (None, reason)
 ```
 
-Everything above exists except `ik_jaw_normal`, which comes with phase 2 (P2.5a); `GraspPlanner` is in `grasp_planner.py`. `cube_yaw=None` (unknown) plans a free grasp only; the failure reasons, usable as FSM error causes, are `unreachable`, `lift_unreachable` and `drop_unreachable`.
+Everything above exists; phase 2 adds `release_pose` next to this class, in `drop.py` (P2.5a, `phase2/P2-02` §2.2); `GraspPlanner` is in `grasp_planner.py`. `cube_yaw=None` (unknown) plans a free grasp only; the failure reasons, usable as FSM error causes, are `unreachable`, `lift_unreachable` and `drop_unreachable`.
 
 ## 10. State of the art and evolution paths
 

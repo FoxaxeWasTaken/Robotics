@@ -50,3 +50,7 @@ The milestones were put in order on 2026-11-02: `v0.1.0`–`v0.3.0` (never tagge
 ## Update (2026-11-06)
 
 `v1.2.0` is not tagged: the real camera and the real pick & place came in one session, so `v1.3.0` is the final phase-1 release and its milestone took the tickets of `v1.2.0` (#213, #214).
+
+## Update (2026-11-07)
+
+`v2.0.0` is the game in simulation, with the hand-in of 2026-11-20 as its due date; the real arm of phase 2 is `v2.1.0` (ADR-034 Update).

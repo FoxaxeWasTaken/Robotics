@@ -7,7 +7,7 @@
 
 - **Inputs**: `/joint_states`, `/object_position`, `/drop_box_position`, services `/brain/start`, `/brain/stop`, `/go_to_target`.
 - **Outputs**: `/joint_command` (only channel to the motors, C-05), `/brain_state`, `/end_effector_pose`, `/brain/markers`.
-- **Phase 2** adds the `/brain/pick_place` action, served by the same motion code (ADR-037), and `/brain/set_gripper` for the token handover (ADR-038, `phase2/P2-02` §6).
+- **Phase 2** adds the `/brain/drop` and `/brain/handover` services, in game mode only; `fsm.py` does not change (ADR-037 Update, `phase2/P2-02` §6).
 - **Starting point**: the course stub (ADR-039).
 - **Today**: the full cycle runs with the real perception, in sim (4.3a, #139) and on the real arm (6.5a, #72). `fsm.py` (§3) is driven by the node's 50 Hz tick, with `/brain/start`, `/brain/stop` and `/brain_state`; `PLAN` runs the planner in a worker process (§4); the plan and the locked cube show on `/brain/markers` (§7). The ground-truth stub (`so101_bringup/test/gt_stub.launch.py`, 4.2c, C-06) stays for development and for the tests that isolate the brain. The success rate: the nightly bench (`08` §2).
 
