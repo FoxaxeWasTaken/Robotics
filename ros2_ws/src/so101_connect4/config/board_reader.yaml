@@ -1,0 +1,9 @@
+# ROS parameters of board_reader (docs/project/phase2/P2-02 §3), read at startup. The grid's geometry and the
+# markers are in connect4_grid.yaml; the token colors are board.py's, measured on the sim [MES-65].
+board_reader:
+  ros__parameters:
+    process_rate_hz: 10.0   # how often a new image is looked for; the images come at 10 Hz in 640x480 [MES-67]
+    stable_reads: 5         # identical reads in a row, each on a new image, before /connect4/board
+    token_threshold: 0.35   # share of a cell's disc in a color's range: a token [MES-65]
+    extrinsics_file: ""     # the camera's pose; empty: so101_perception's camera_extrinsics.yaml
+    layout_file: ""         # empty: the installed connect4_grid.yaml

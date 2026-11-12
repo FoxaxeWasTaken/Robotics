@@ -265,6 +265,6 @@ Overview of possible methods:
 
 ## 11. Future work (phase 2)
 
-- **Phase 2 is Connect Four** (`phase2/`): the grid is read with an ArUco pose plus per-cell HSV (`phase2/P2-02` §3). The options below remain possible extensions.
+- **Phase 2 is Connect Four** (`phase2/`): the grid is read with an ArUco pose plus per-cell HSV (`phase2/P2-02` §3), by `so101_connect4`'s `board.py` and `board_reader_node`, which runs in this container in place of `perception_node` in game mode. It reuses `detect_markers` and the extrinsics file of §5, and reads 2100 cells of 2100 on the sim [MES-68]. The options below remain possible extensions.
 - Learned segmentation (YOLOv8/11-seg) or open-vocabulary detectors (Grounding DINO, OWL-ViT) for multiple or non-colored objects.
 - 6D pose estimation (FoundationPose), visual tracking during the approach (visual servoing).

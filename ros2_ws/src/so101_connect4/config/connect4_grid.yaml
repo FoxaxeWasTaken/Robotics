@@ -23,6 +23,9 @@ placement:  # in base_link; the base stays at the origin, the floor and the tabl
   # m: the slot plane off the pan axis, along -y of the grid frame (the TCP line's side); a drop aims the token
   # 1 mm further towards the fixed jaw, +y [MES-63, #76]
   plane_offset: 0.00385
+drop:  # where /brain/drop holds the token above a column (P2-02 §2.2, §2.3); board.column_target
+  clearance: 0.008  # m between the depth guide's top and the token's bottom
+  aim: 0.001  # m off the slot plane towards the fixed jaw, +y: 100/100 with +-5 mm on the TCP [MES-63]
 token:
   diameter: 0.034  # m
   thickness: 0.0065  # m

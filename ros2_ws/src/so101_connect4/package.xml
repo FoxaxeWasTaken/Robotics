@@ -6,9 +6,21 @@
   <maintainer email="tek5@epitech.eu">Tek5 Robotics</maintainer>
   <license>Apache-2.0</license>
 
+  <depend>rclpy</depend>
+  <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>cv_bridge</depend>
+  <depend>tf2_ros</depend>
+  <depend>so101_common</depend>
+  <depend>so101_interfaces</depend>
+  <depend>so101_perception</depend>
+
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-opencv</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
 
   <test_depend>python3-hypothesis</test_depend>
