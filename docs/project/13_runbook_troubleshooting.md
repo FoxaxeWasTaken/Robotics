@@ -41,6 +41,8 @@ ros2 topic info -v /external_cam/image_raw     # QoS of publishers and subscribe
 ros2 topic echo --once /object_position
 ros2 service call /brain/start std_srvs/srv/Trigger    # a full cycle (tools/so101 cycle randomizes first)
 ros2 service call /sim/randomize std_srvs/srv/Trigger  # sim: new cube and box positions
+ros2 service call /brain/handover std_srvs/srv/Trigger       # game mode: the jaws open, the arm to HANDOVER
+ros2 service call /sim/connect4/give_token std_srvs/srv/Trigger  # game mode: a yellow token between the jaws, for /brain/drop (06 §5.1)
 rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz
 
 # Manual commands

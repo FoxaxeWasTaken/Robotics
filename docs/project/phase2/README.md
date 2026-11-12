@@ -1,9 +1,9 @@
 # Phase 2 — Connect Four against the robot
 
 > Authors: [CP] Project lead, [KIN] Kinematics · Reviewers: all experts
-> Requirements: C-54 · Decisions: ADR-034 to ADR-038 · Measurements: MES-21, MES-27 to MES-32, MES-63 to MES-68 · Roadmap: [P2-04](P2-04_roadmap.md)
+> Requirements: C-54 · Decisions: ADR-034 to ADR-038 · Measurements: MES-21, MES-27 to MES-32, MES-63 to MES-69 · Roadmap: [P2-04](P2-04_roadmap.md)
 
-**Status: VALIDATED** by the teaching staff on 2026-10-09 (roadmap step 7.1, ADR-034). **`v2.0.0`, the hand-in of 2026-11-20 23:42, is the game in simulation; the real arm is `v2.1.0`** (ADR-034 Update). The design was measured on prototypes on 2026-11-07 ([`../experiences/connect4/`](../experiences/connect4/README.md)) and the drop spike on one layout is a go (#76). Implemented: the `so101_connect4` package with the engine, the turns and the grid layout, the drop pose `release_pose`, the game's sim scene with the simulated player's services, the `CONNECT4` mode (`CONNECT4=true tools/so101 up`), and the board reader (`board.py`, `board_reader_node`). Not yet: `/brain/drop`, the game node ([`P2-04`](P2-04_roadmap.md) §3 gives the dates).
+**Status: VALIDATED** by the teaching staff on 2026-10-09 (roadmap step 7.1, ADR-034). **`v2.0.0`, the hand-in of 2026-11-20 23:42, is the game in simulation; the real arm is `v2.1.0`** (ADR-034 Update). The design was measured on prototypes on 2026-11-07 ([`../experiences/connect4/`](../experiences/connect4/README.md)) and the drop spike on one layout is a go (#76). Implemented: the `so101_connect4` package with the engine, the turns and the grid layout, the drop pose `release_pose`, the game's sim scene with the simulated player's services, the `CONNECT4` mode (`CONNECT4=true tools/so101 up`), the board reader (`board.py`, `board_reader_node`), and one move of the game through the brain (`/brain/drop`, `/brain/handover`). Not yet: the game node ([`P2-04`](P2-04_roadmap.md) §3 gives the dates).
 
 ## 1. The pitch (check-in format [BOOT2 p16])
 
@@ -71,6 +71,7 @@ flowchart LR
 | Is ikpy enough, or is Pinocchio needed? | ikpy, fine for a turn-based game | [MES-21], [MES-64] |
 | Can the camera read the grid? | The phase-1 camera, unmoved, at 640×480: 2100 of 2100 cells on 50 boards, grid pose within 0.8 mm across | [MES-65] |
 | Does the reader hold on the game's scene? | Yes: 2100 of 2100 cells on 50 game states, the grid's pose within 0.7 mm of the scene's | [MES-68] |
+| Does the brain play a move on the sim? | Yes: 50 tokens of 50 in their column through `/brain/drop`, held 50 of 50, empty jaws refused 10 of 10; a move lasts 13 to 19 s | [MES-69] |
 | Do tokens behave in sim? | With a measured contact set: 378 drops of 378, full stacks, held up to 1.5 rad/s, the tick unchanged. With the provided defaults: lost | [MES-63] |
 | Does the running driver hold the scene? | Yes: tick p99 21.5 ms and the image at 10 Hz in 640×480 while 42 tokens fall, 42 of 42 in their cell | [MES-67] |
 | Is the engine strong enough? | Depth 10 to 12 in 1 s in pure Python, 100/100 against random | [MES-66] |

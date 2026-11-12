@@ -32,3 +32,5 @@ so101_brain:
       verify_timeout_s: 2.0        # VERIFY: no detection this long: DONE with a warning
       box_half_size_m: 0.05        # in the box: cube center within this of the box center, per axis (08 §3)
       park_pose: [1.9, -1.7, 1.5, 0.7, 0.0]  # off the workspace view, no self-contact [MES-39]; check on the real arm
+    connect4:  # the game of phase 2 (phase2/P2-02 §2.3); connect4.enabled comes from sim.launch.py's connect4 argument
+      handover_pose: [-1.0, -0.6, 0.6, 1.1, 1.57]  # HANDOVER: a token is given there; pan <= -0.7 hides no cell from the camera [MES-65]

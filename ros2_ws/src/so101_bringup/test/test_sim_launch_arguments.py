@@ -37,14 +37,18 @@ def defaults():
     }
 
 
-def driver_parameters(**configurations):
-    """The parameter files (names, in load order) and the values sim.launch.py gives the driver."""
+def node_parameters(package, **configurations):
+    """The parameter files (names, in load order) and the values sim.launch.py gives that package's node."""
     context = LaunchContext()
     context.launch_configurations.update(defaults(), **configurations)
-    (driver,) = [e for e in entities() if isinstance(e, Node) and e.node_package == "so101_driver"]
-    evaluated = evaluate_parameters(context, driver._Node__parameters)  # launch_ros has no public getter
+    (node,) = [e for e in entities() if isinstance(e, Node) and e.node_package == package]
+    evaluated = evaluate_parameters(context, node._Node__parameters)  # launch_ros has no public getter
     values = {k: v for p in evaluated if isinstance(p, dict) for k, v in p.items()}
     return [Path(p).name for p in evaluated if not isinstance(p, dict)], values
+
+
+def driver_parameters(**configurations):
+    return node_parameters("so101_driver", **configurations)
 
 
 def test_the_ground_truth_and_the_in_container_perception_are_off_by_default():
@@ -134,6 +138,16 @@ def test_the_game_is_included_only_with_connect4():
     assert included("so101_connect4", connect4="true") is True
     nodes = sorted(e.node_package for e in entities() if isinstance(e, Node))
     assert nodes == ["robot_state_publisher", "so101_brain", "so101_driver", "tf2_ros"]
+
+
+def test_the_brain_serves_the_games_moves_only_with_connect4():
+    """#84, #85: /brain/drop and /brain/handover exist in game mode only; its parameter files stay."""
+    files, values = node_parameters("so101_brain")
+    assert values["connect4.enabled"] is False
+    assert files == ["brain.yaml", "brain.yaml"]
+    files, values = node_parameters("so101_brain", connect4="true")
+    assert values["connect4.enabled"] is True
+    assert files == ["brain.yaml", "brain.yaml"]
 
 
 def test_lighting_dim_gives_the_driver_the_dimmed_scene():

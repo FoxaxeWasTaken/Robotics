@@ -7,6 +7,8 @@ what it returns; the services answer at once, their effect shows on /brain_state
 the grasp planner in a worker process, which never touches a ROS object; the tick polls it.
 Publishes the TCP pose from forward kinematics. In IDLE, /go_to_target solves a position IK and returns at
 once, the tick streams the min-jerk trajectory (04 §6).
+In game mode (connect4.enabled, phase2/P2-02 §2.3), /brain/drop and /brain/handover run one move of drop.Move
+in the same slot of the tick, in IDLE, and reply at its end; fsm.py does not know them.
 """
 
 import inspect
@@ -23,21 +25,24 @@ import rclpy.node
 from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import Point, PoseStamped
 from rcl_interfaces.msg import FloatingPointRange, IntegerRange, ParameterDescriptor
+from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.clock import Clock, ClockType
 from rclpy.executors import ExternalShutdownException
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+from rclpy.task import Future
 from scipy.spatial.transform import Rotation
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
 from visualization_msgs.msg import Marker, MarkerArray
 
+from so101_brain import drop
 from so101_brain.fsm import Detection, Fsm, Inputs, Params, State
 from so101_brain.grasp_planner import GraspPlanner
 from so101_brain.kinematics import Kinematics
 from so101_brain.trajectory import min_jerk
 from so101_common.robot import ARM_JOINT_NAMES, BASE_FRAME, JOINT_LIMITS, rad_to_pct
-from so101_interfaces.srv import GoToTarget
+from so101_interfaces.srv import Drop, GoToTarget
 
 END_EFFECTOR_POSE_HZ = 30.0  # docs/project/01 §3.1
 STREAM_HZ = 50.0  # the FSM tick, /joint_command during a motion (04 §6, 06 §4)
@@ -128,6 +133,8 @@ PARAMETERS = {
         0.2,
     ),
 }
+HANDOVER = (-1.0, -0.6, 0.6, 1.1, 1.57)  # default of connect4.handover_pose [MES-65]
+AT_HANDOVER_RAD = 0.05  # /brain/drop starts with every arm joint this close to it: its path starts there
 MARKERS = (("pre_grasp", (1.0, 1.0, 0.0)), ("grasp", (0.0, 1.0, 0.0)), ("drop", (0.0, 0.0, 1.0)))  # 06 §7
 
 
@@ -179,9 +186,25 @@ class BrainNode(rclpy.node.Node):
             field: self._declare(name, getattr(d, field), description, low, high)
             for name, (field, description, low, high) in PARAMETERS.items()
         }
-        self._fsm = Fsm(Params(park_pose=self._declare_park_pose(d.park_pose), **values))
+        park = self._declare_pose(
+            "fsm.park_pose", d.park_pose, "PARK, the arm out of the camera view: 5 arm joints in rad"
+        )
+        self._fsm = Fsm(Params(park_pose=park, **values))
         self._p = self._fsm.p  # also /go_to_target's motion: v_max, min_motion_s, reach_tol, motion_margin_s
         planner = self._declare_planner()
+        self._game = self.declare_parameter(
+            "connect4.enabled",
+            False,
+            ParameterDescriptor(description="Game mode: /brain/drop and /brain/handover", read_only=True),
+        ).value
+        self._handover = np.array(
+            self._declare_pose(
+                "connect4.handover_pose",
+                HANDOVER,
+                "HANDOVER, where a token is given and the camera sees the whole grid: 5 arm joints in rad",
+            )
+        )
+        self._move = None  # the running /brain/drop or /brain/handover (_begin)
         # ROS ignores a key no node declares: a typo in brain_real.yaml would keep the sim's value (#57).
         if unknown := sorted(set(self._parameter_overrides) - set(self._parameters)):  # rclpy: no public API
             raise ValueError(f"Unknown parameters {unknown}: a typo in a config file? (06 §6)")
@@ -211,6 +234,12 @@ class BrainNode(rclpy.node.Node):
         self.create_service(GoToTarget, "/go_to_target", self._srv_go_to_target)
         self.create_service(Trigger, "/brain/start", self._srv_start)
         self.create_service(Trigger, "/brain/stop", self._srv_stop)
+        if self._game:
+            # Their own group: they reply at the end of the move, and a pending callback of the default group
+            # froze the tick [MES-64]. Reentrant: a request during a move is refused at once, not queued.
+            group = ReentrantCallbackGroup()
+            self.create_service(Drop, "/brain/drop", self._srv_drop, callback_group=group)
+            self.create_service(Trigger, "/brain/handover", self._srv_handover, callback_group=group)
         self._publish_state()
 
         self.get_logger().info("Brain node ready.")
@@ -224,16 +253,17 @@ class BrainNode(rclpy.node.Node):
             descriptor.floating_point_range = [FloatingPointRange(from_value=low, to_value=high)]
         return self.declare_parameter(name, default, descriptor).value
 
-    def _declare_park_pose(self, default):
-        description = "PARK, the arm out of the camera view: 5 arm joints in rad, within the URDF limits"
+    def _declare_pose(self, name, default, description):
+        """Read-only arm pose, 5 joints within the URDF limits; otherwise the node stops at startup."""
+        description += ", within the URDF limits"
         descriptor = ParameterDescriptor(description=description, read_only=True)
-        park = tuple(self.declare_parameter("fsm.park_pose", list(default), descriptor).value)
-        limits = [JOINT_LIMITS[name] for name in ARM_JOINT_NAMES]
-        if len(park) != len(limits) or not all(
-            lo <= v <= hi for v, (lo, hi) in zip(park, limits, strict=True)
+        pose = tuple(self.declare_parameter(name, list(default), descriptor).value)
+        limits = [JOINT_LIMITS[joint] for joint in ARM_JOINT_NAMES]
+        if len(pose) != len(limits) or not all(
+            lo <= v <= hi for v, (lo, hi) in zip(pose, limits, strict=True)
         ):
-            raise ValueError(f"fsm.park_pose {park}: {description}")
-        return park
+            raise ValueError(f"{name} {pose}: {description}")
+        return pose
 
     def _declare_planner(self):
         """The planner's grasp.* parameters (06 §6), as GraspPlanner kwargs; the defaults are its own."""
@@ -313,6 +343,9 @@ class BrainNode(rclpy.node.Node):
             response.success = False
             response.message = f"brain in {self._fsm.label}: /go_to_target is served in IDLE only"
             return response
+        if self._move is not None:
+            response.success, response.message = False, "a move of the game is running"
+            return response
         if target.header.frame_id not in ("", BASE_FRAME):
             response.success = False
             response.message = f"target in {target.header.frame_id!r}: only {BASE_FRAME} is supported"
@@ -340,6 +373,9 @@ class BrainNode(rclpy.node.Node):
         if self._start or not self._fsm.accepts_start:
             response.success, response.message = False, f"rejected: brain in {self._fsm.label}"
             return response
+        if self._game:  # no cube on the game's scene, and the way to PARK crosses the grid [MES-69]
+            response.success, response.message = False, "rejected: game mode, no pick & place cycle"
+            return response
         self._start = True
         response.success = True
         response.message = "re-arming: IDLE" if self._fsm.state is State.ERROR else "starting: WAIT_TARGET"
@@ -351,12 +387,84 @@ class BrainNode(rclpy.node.Node):
         response.success, response.message = True, "stopping: the arm freezes, then IDLE"
         return response
 
+    async def _srv_drop(self, request, response):
+        """One move of the game, from HANDOVER to the column and back (P2-02 §2.3): replies at its end."""
+        refusal, steps = self._refusal(), None
+        if refusal is None and np.max(np.abs(self._joints[0] - self._handover)) > AT_HANDOVER_RAD:
+            refusal = "not_at_handover"
+        if refusal is None:  # IK inline, as /go_to_target: nothing moves yet, and no pose is solved later
+            target = np.array([request.target.x, request.target.y, request.target.z])
+            steps = drop.drop_steps(self._kin, target, self._handover, self._p)
+            refusal = None if steps else "unreachable"
+        reply = (False, refusal) if refusal else await self._begin("drop", steps)
+        response.success, response.message = reply
+        return response
+
+    async def _srv_handover(self, request, response):
+        """The jaws open, the arm to HANDOVER: replies there."""
+        refusal, steps = self._refusal(), drop.handover_steps(self._handover, self._p)
+        reply = (False, refusal) if refusal else await self._begin("handover", steps)
+        response.success, response.message = reply
+        return response
+
+    def _refusal(self):
+        """Why no move of the game can start now, or None. One commander at a time."""
+        if self._fsm.state is not State.IDLE:  # the tick after a /brain/stop; no cycle starts in game mode
+            return f"not_idle:{self._fsm.label}"
+        if self._move is not None or self._motion is not None:
+            return "busy"
+        if self._joints is None:  # stale ones: the move's first tick ends it, nothing commanded (_step_move)
+            return "no_joint_states"
+        return None
+
+    def _begin(self, name, steps) -> Future:
+        """Hands the steps to the tick; the future gets (success, message) at the move's end."""
+        self._move = {
+            "name": name,
+            "move": drop.Move(steps, self._p),
+            "done": Future(),
+            "start": self._now(),
+            "ticks": [],  # tick periods meanwhile, s
+        }
+        return self._move["done"]
+
+    def _step_move(self, now, period):
+        """One tick of the running move: what it commands, or its end."""
+        m = self._move
+        q, _, received, effort, gripper = self._joints
+        if self._fsm.state is not State.IDLE:  # /brain/stop: the FSM froze the arm
+            return self._end_move("stopped")
+        if now - received > self._p.max_joint_state_age_s:  # the FSM ignores stale joints in IDLE
+            return self._end_move("no_joint_states")  # no command: the driver is gone
+        m["ticks"].append(period)
+        out = m["move"].step(now, q, effort, gripper)
+        if out.command is not None or out.gripper is not None:
+            self._send_joint_command(out.command, out.gripper)
+        if out.result is not None:
+            self._end_move(out.result)
+
+    def _end_move(self, result):
+        """The move's reply and its log line: the tick periods meanwhile (the first one holds the IK)."""
+        m, self._move = self._move, None
+        ticks = np.array(m["ticks"][1:] or [0.0]) * 1000
+        text = f"done in {self._now() - m['start']:.1f} s" if result == "" else result
+        line = (
+            f"/brain/{m['name']}: {text}; tick period p99 {np.percentile(ticks, 99):.1f} ms, "
+            f"max {ticks.max():.1f} ms over {len(ticks)} ticks"
+        )
+        if result == "":
+            self.get_logger().info(line)
+        else:
+            self.get_logger().warning(line)
+        m["done"].set_result((result == "", text))
+
     def _tick(self):
         """50 Hz: one FSM step on the stored messages and the planner's answer, then what it commands;
-        in IDLE, /go_to_target's motion."""
+        in IDLE, /go_to_target's motion or the game's move."""
         now, planning = self._now(), self._fsm.state is State.PLAN
-        if planning and self._last_tick is not None:
-            self._plan_ticks.append(now - self._last_tick)
+        period = None if self._last_tick is None else now - self._last_tick
+        if planning and period is not None:
+            self._plan_ticks.append(period)
         self._last_tick = now
         answer, seconds = self._planning.result() if planning and self._planning.done() else (None, None)
         q, _, received, effort, gripper = self._joints or (None, None, -np.inf, 0.0, None)
@@ -378,7 +486,9 @@ class BrainNode(rclpy.node.Node):
         self._follow_planning(planning, answer, seconds, out.plan_request)
         if out.transition is not None and self._fsm.state is State.LIFT:  # held: the arm model shows it now
             self._pub_markers.publish(MarkerArray(markers=[Marker(ns="cube", action=Marker.DELETE)]))
-        if self._fsm.state is not State.IDLE:
+        if self._move is not None:
+            self._step_move(now, period)
+        elif self._fsm.state is not State.IDLE:
             self._motion = None  # the cycle commands the arm: a /go_to_target motion ends
         elif self._motion is not None:
             self._stream_motion()

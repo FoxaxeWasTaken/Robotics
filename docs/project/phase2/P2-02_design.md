@@ -1,7 +1,7 @@
 # P2-02 — Design: setup, kinematics, perception, game, software
 
 > Authors: [KIN] Kinematics, [VIS] Vision, [DEC] Decision, [CTRL] Control · Reviewers: [ARC], [SAFE], [QA]
-> Requirements: C-05, C-06, C-51, C-54 · Decisions: ADR-035 to ADR-038 · Measurements: MES-27 to MES-32, MES-63 to MES-68
+> Requirements: C-05, C-06, C-51, C-54 · Decisions: ADR-035 to ADR-038 · Measurements: MES-27 to MES-32, MES-63 to MES-69
 
 **`v2.0.0` is the sim, `v2.1.0` the real arm** (ADR-034 Update). The numbers of §2, §3, §5 and §7 were measured on 2026-11-07 on prototypes kept in `experiences/connect4/`, the assumed grid model and no real grid; #76 puts them on one layout. §8 keeps what the real arm will need.
 
@@ -50,15 +50,15 @@ release_pose(kin, target, q_seed):      # target = token centre, base_link
 
 ### 2.3 Motion of one move
 
-`/brain/drop` does all of it, the arm at `HANDOVER`, a token between the open jaws:
+`/brain/drop` does all of it, the arm at `HANDOVER`, a token between the open jaws. Away from `HANDOVER` it refuses, `not_at_handover`: the path starts there, under the grid's top.
 
-1. Close, then check the token is held (§5). No token: refused, `no_token`, the arm has not moved.
+1. Close, then check the token is held (§5). No token: `no_token`, replied once the jaws are open again, the arm has not moved.
 2. → pre-drop: **height first**, then the column, min-jerk (`04` §6).
 3. Descent to `release_pose` at 0.3 rad/s, token bottom about 8 mm above the guide. Joint interpolation from the pre-drop: no Cartesian line needed.
 4. Open: the token falls through the guide.
-5. Lift **straight up through IK waypoints** every 5 mm to the pre-drop, 25 mm above the release, then back to `HANDOVER`, gripper open. The service replies. One joint move from the release to the pre-drop swept the fixed jaw into the guide at column 6, and at 30 mm column 6 is at its reach [MES-63].
+5. Lift **straight up through IK waypoints** every 5 mm to the pre-drop, 25 mm above the release, then back to `HANDOVER`, gripper open. The service replies. Every pose, the lift's waypoints included, is solved in the service call, before the jaws close: an unreachable target is refused with the arm still, and no IK runs during the move. One joint move from the release to the pre-drop swept the fixed jaw into the guide at column 6, and at 30 mm column 6 is at its reach [MES-63].
 
-A move lasts 5 to 8 s: 4.7–5.2 s measured without the pre-drop (close 0.8 s, two legs of 1.7–1.9 s, open 0.5 s) [MES-64], the pre-drop adds the rest (estimated).
+A move lasts **13 to 15 s** on columns 0 to 5 and 19 s on column 6, at its reach, where the descent turns the joints most; 50 tokens of 50 in their column [MES-69]. The first estimate was 5 to 8 s, from 4.7–5.2 s without the pre-drop [MES-64]: the lift's 5 motions take 0.5 s each, and each leg ends on the measured joints.
 
 | Tolerance of a drop | Along the grid | Across the grid |
 | --- | --- | --- |
@@ -194,8 +194,8 @@ Next to it: `so101_brain/drop.py`, pure (§2), and `so101_driver/connect4_sim.py
 | `/connect4/state` (topic) | `std_msgs/String`, JSON | game_node → console, bench, debug image | `state`, `reason`, `turn`, `board`, `legal`, `last`, `result`, `missed`; Reliable, transient_local, depth 1 |
 | `/connect4/new_game` (service) | `std_srvs/SetBool` | game_node | `data: true`, the robot plays first. Refused during a move |
 | `/connect4/human_done`, `/connect4/stop` (services) | `std_srvs/Trigger` | game_node | End of the human's turn; abort |
-| `/brain/drop` (service) | `so101_interfaces/srv/Drop` (new) | brain, game mode only | `geometry_msgs/Point target`, token centre in `base_link` → `bool success`, `string message`. **Replies at the end of the move**, `/brain_state` stays `IDLE`. Refused: not IDLE, a task running, stale joints, `no_token`, `unreachable`. `/brain/stop` cuts it |
-| `/brain/handover` (service) | `std_srvs/Trigger` | brain, game mode only | Opens the gripper, reaches `HANDOVER`, replies at the end |
+| `/brain/drop` (service) | `so101_interfaces/srv/Drop` (new) | brain, game mode only | `geometry_msgs/Point target`, token centre in `base_link` → `bool success`, `string message`. **Replies at the end of the move**, `/brain_state` stays `IDLE`. `message`: `done in <s> s`, or `no_token`, `unreachable`, `not_at_handover`, `not_idle:<state>`, `busy`, `no_joint_states`, `stopped` (`/brain/stop` cuts it), `timeout:<step>` |
+| `/brain/handover` (service) | `std_srvs/Trigger` | brain, game mode only | Opens the gripper, reaches `HANDOVER` (`connect4.handover_pose` of `brain.yaml`), replies at the end; the same refusals |
 | `/sim/connect4/drop_token` (service, **sim only**) | `so101_interfaces/srv/DropToken` (new: `column`, `color`) | driver | The simulated human plays (§7) |
 | `/sim/connect4/give_token` (service, **sim only**) | `std_srvs/Trigger` | driver | A yellow token between the open jaws (§7) |
 | `/sim/connect4/reset_board` (service, **sim only**) | `std_srvs/Trigger` | driver | Every token back to its parking place |
@@ -211,13 +211,13 @@ Both phases live on `main`, with no long-lived branch: phase 1 stays what the st
 | --- | --- | --- |
 | Scene | `sim_scene.yaml`, 320×240 | The same, plus grid, tokens, the floor lowered, 640×480 |
 | Perception container | `perception_node` | `board_reader_node`, `perception_node` does not run |
-| Control container | Driver, brain | Plus `game_node`, `/brain/drop`, `/brain/handover`, `/sim/connect4/*`; no `/sim/randomize` |
+| Control container | Driver, brain | Plus `game_node`, `/brain/drop`, `/brain/handover`, `/sim/connect4/*`; no `/sim/randomize`, `/brain/start` refused; the driver ends at `HANDOVER`, not `PARK` (the way to `PARK` crosses the grid [MES-69]) |
 | Unchanged | `fsm.py`, `grasp_planner.py`, `perception_node.py`, `_connect_arm` | Same files |
 | Proof | E2E on each PR, 50 episodes each night | One game on each PR, 10 each night |
 
 - The switch goes `docker/.env` → compose → `control_entrypoint.sh` → `connect4:=` on `sim.launch.py`, as `USE_SIM` does. `CONNECT4=true tools/so101 up` needs no `.env` edit. `up` applies it, `restart` keeps the old environment [MES-66].
 - A leftover `CONNECT4=true` cannot break phase 1: `tools/so101 test` runs with `CONNECT4=false`, `bench` starts its own stack with the default arguments, and `cycle` refuses a stack in game mode and says to `down` then `up`. With the default arguments, tests check the nodes started and that the scene has no grid; the generated scene is byte-identical to the one before the game [MES-67].
-- The perception container builds `so101_connect4` too, with `so101_interfaces` (5 packages, about 9 s), and starts the board reader, `board_reader.launch.py`, in game mode. `game.launch.py` is empty until #86.
+- The perception container builds `so101_connect4` too, with `so101_interfaces` (5 packages, about 9 s), and starts the board reader, `board_reader.launch.py`, in game mode. `game.launch.py` is empty until #86; the brain's two services are there, `connect4.enabled` set by `sim.launch.py`.
 - The game's images are 0.9 MB each: a **Reliable** subscriber gets the 10 Hz, a best-effort one about 1 Hz (`ros2 topic hz` is one) [MES-67]. The board reader subscribes as the contract says, Reliable, depth 2.
 - `CONNECT4=true` with `USE_SIM=false` is refused in `v2.0.0`.
 - The tag `v1.3.0` is phase 1 as released: a checkout of it is the fallback.

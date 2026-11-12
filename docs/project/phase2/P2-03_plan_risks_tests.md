@@ -15,7 +15,7 @@ Same scale as `10` (P = probability, I = impact, 1 to 3; Crit. = P × I).
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | P2-R-12 | Token contact unstable in the merged scene: jaws squeezing through, tokens creeping or going through the slot bottom | **closed** | | | | In the merged scene, through the driver: 42 tokens of 42 in their cell, full stacks at rest, the scene's tests fail on the default contacts [MES-67] | CTRL |
 | P2-R-13 | The review delay: 8 PRs, each up to 15 h, one approval, a push dismisses it; the team works Thursday, Friday and the weekend only | 3 | 2 | **6** | A PR open for more than a day | Grouped PRs, the branch pushed early so the next ticket starts from it, reviewers warned; last feature PR by 2026-11-15 | CP |
-| P2-R-14 | The numbers come from separate prototypes: scene, pose, reading were measured on slightly different layouts, without ROS for the moves | 2 | 3 | 6 | #76 or #84 far from [MES-63], [MES-64] | #76 merges them first; rerun after `release_pose` replaces the prototype's IK | KIN |
+| P2-R-14 | The numbers come from separate prototypes: scene, pose, reading were measured on slightly different layouts, without ROS for the moves | **closed** | | | | #76 merged them on one layout, 100/100; through the brain and ROS on the game's scene, 50/50 [MES-69] | KIN |
 | P2-R-15 | Hold through ROS unproven: `give_token` and the jaws only tested in-process | **closed** | | | | Through the driver's tick and its `give_token`: held, 1.4 mm of slip after two moves at 1.5 rad/s; the closing effort tells a token from none, the jaws' position does not [MES-67] | CTRL |
 | P2-R-16 | Perception across error above the slot's margin | 1 | 3 | 3 | Drops below 95 % with the pose, not with the config | The guide (capture −10/+6 mm [MES-63]); cut-off 2026-11-14: targets from `connect4_grid.yaml`, markers as a check | VIS |
 | P2-R-17 | GitHub Actions minutes: about 2,500 of 3,000 this month (estimated, the billing API is out of reach). Out of minutes, no required check runs, and nothing merges | 2 | 3 | 6 | Settings → Billing | Check it now; the game job is separate; dispatch fewer nightlies | OPS |
@@ -45,11 +45,12 @@ Same scale as `10` (P = probability, I = impact, 1 to 3; Crit. = P × I).
 | Unit | `turns.py`: every transition and failure row; a random walk of events: the arm moves in `MOVE` only | pytest | P2-05 |
 | Unit | `board.py`: synthetic boards, reference PNGs rendered from the scene | pytest | P2-01 |
 | Unit | `release_pose`: the 7 columns, token centre within 1 mm, jaw error < 0.2°, tilt 70°; unreachable → `None` | pytest | ADR-035 |
-| Package | Each package with its own fakes: `so101_driver` (services), `so101_brain` (`/brain/drop`, fake driver), `so101_connect4` (fake camera, fake brain). colcon's coverage counts per package: a bringup test covers no driver code | pytest, `colcon test` | Quality gate, 80 % on new code |
+| Package | Each package with its own fakes: `so101_driver` (services), `so101_brain` (`/brain/drop`, fake driver), `so101_connect4` (fake camera, fake brain). colcon's coverage counts per package, and only the test's process: a bringup test covers no driver code, a launched node no line, so `test_drop_services.py` runs the brain in its own process | pytest, `colcon test` | Quality gate, 80 % on new code |
 | Integration (sim) | Scene: tick and image rate with 42 tokens; a render finds the 4 markers | `so101_bringup/test` | #79 |
 | Integration (sim) | Board reader against the scene's truth (tests only, C-06): 10 states in `colcon test`, 50 once as a MES | `so101_bringup/test` | P2-01 |
-| Integration (sim) | One drop in `colcon test`; 50 drops once as a MES, random columns; 10 tries without a token | `so101_bringup/test`, `experiences/` | P2-02, P2-03 |
+| Integration (sim) | One drop in `colcon test`; 50 drops once as a MES, random columns; 10 tries without a token | `so101_bringup/test` (`CONNECT4_DROPS=50`) [MES-69] | P2-02, P2-03 |
 | End-to-end (sim) | Game bench: N games against a scripted human, random or engine | `evaluate --games` (`08`) | P2-06 |
+| End-to-end (sim) | Robustness demo of the game: the course's five fault questions asked of a game, and a stop mid-move, one command each | `tools/so101 robustness g1` to `g6` (#243), `results/robustness_demo.md` | `06` §10, P2-03, P2-05 |
 | Spike | 100 drops, 100 with ±5 mm TCP offset, capture sweep, full stacks | `experiences/connect4/scene/` | Go / no-go, #76 |
 | Real (`v2.1.0`) | 30 drops, 30 handovers, 20 board photos, 3 filmed games; guide vs camera if the wrist camera is kept | manual protocol, results in `results/` | `P2-01` real parts |
 
@@ -61,7 +62,7 @@ Same scale as `10` (P = probability, I = impact, 1 to 3; Crit. = P × I).
 | Each night `main` changed | The phase-1 bench, then 10 games on a restarted stack; one verdict line, `Target ≥ 90 % and ≥ 8/10 games: met.`, read by the report and by `release.sh`; SonarQube Cloud, coverage per package, trends |
 | Release | `release.sh` needs the bench on the exact commit, the gate and the CHANGELOG (`15` §6). The gate is read **before** the last PR (#227) |
 
-Ten games last about 15 to 25 min (estimated, [MES-64]: 5 to 8 s a move, 9 robot moves a game), in a job of 120 min that uses 19 today. Not worth doing here: CI or Sonar badges, a Sonar scan on PRs, path filters, mypy, mutation tests on the game, a matrix.
+Ten games last about 25 to 50 min (estimated: 13 to 19 s a move [MES-69], 9 robot moves a game on average and 18 at most [MES-64]), in a job of 120 min that uses 19 today. Not worth doing here: CI or Sonar badges, a Sonar scan on PRs, path filters, mypy, mutation tests on the game, a matrix.
 
 Who sees it: the repository is private and the school copy has no Actions, Issues or Releases, so the visible proof is in the tree: `.github/workflows/`, `results/phase2_<date>.md`, the README (#234).
 
