@@ -87,7 +87,7 @@ else
 fi
 dry "colcon build --symlink-install --packages-select so101_brain" "colcon test --packages-select so101_brain" \
   "colcon test-result --test-result-base build/so101_brain --verbose" -- test so101_brain
-dry "colcon test --executor sequential --packages-select so101_common so101_driver so101_brain so101_perception so101_bringup " -- test
+dry "colcon test --executor sequential --packages-select so101_common so101_driver so101_brain so101_perception so101_bringup so101_connect4 " -- test
 dry "colcon test --packages-select so101_brain --event-handlers console_direct+ --pytest-args -k fsm\\ and\\ lock" \
   -- test so101_brain -k "fsm and lock"
 dry "run --rm --no-deps -T control bash -lc 'source /opt/ros/jazzy/setup.bash && cd /ros2_ws" -- test
@@ -98,7 +98,7 @@ echo "ok: test builds and tests one package, or all of ours, in a fresh control 
 out=$("$so101" --dry-run run 'colcon test --packages-select so101_brain') || fail "run: exit $?"
 grep -qF "+ docker run --rm -i --network none -e ROS_DOMAIN_ID=79 -e MUJOCO_GL=osmesa -v $(pwd):/repo:ro tek5/control bash -lc" <<< "$out" \
   || fail "run: $out"
-for e in "cp -r /repo/ros2_ws/src /tmp/ws/" "colcon build --packages-up-to so101_common so101_driver so101_brain so101_perception so101_bringup" \
+for e in "cp -r /repo/ros2_ws/src /tmp/ws/" "colcon build --packages-up-to so101_common so101_driver so101_brain so101_perception so101_bringup so101_connect4" \
   "source install/setup.bash && colcon test --packages-select so101_brain'"; do
   grep -qF -- "$e" <<< "$out" || fail "run: no '$e' in: $out"
 done

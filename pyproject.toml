@@ -34,6 +34,7 @@ ignore = ["N803", "N806"]
 [tool.ruff.lint.isort]
 known-first-party = [
     "so101_common", "so101_driver", "so101_brain", "so101_perception", "so101_interfaces", "so101_bringup",
+    "so101_connect4",
 ]
 
 [tool.coverage.run]

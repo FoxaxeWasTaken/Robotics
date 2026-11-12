@@ -8,7 +8,7 @@ compose=(docker compose -f "$root/docker/docker-compose.yml")
 BENCH_DOMAIN=77  # the bench's own ROS domain: the ground truth never reaches the everyday stack's (C-06)
 ROBUSTNESS_DOMAIN=78  # the robustness demo's own ROS domain (results/robustness_demo.md)
 RUN_DOMAIN=79  # tools/so101 run's domain; its container has no network anyway
-PACKAGES="so101_common so101_driver so101_brain so101_perception so101_bringup"  # ours, each with tests
+PACKAGES="so101_common so101_driver so101_brain so101_perception so101_bringup so101_connect4"  # ours, each with tests
 dry=false
 
 usage() {
