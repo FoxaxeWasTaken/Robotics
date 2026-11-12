@@ -87,7 +87,7 @@ print success rate, p50/p95 duration, failure-cause breakdown
 | Check | Command | Protects |
 | --- | --- | --- |
 | Lint / format | `pre-commit run --all-files` (ruff, markdownlint, YAML/XML/TOML…) | Readability |
-| Project rules | `bash tools/ci/guards.sh` (backend outside driver, ground truth, provided extrinsics) | **C-05, C-06, C-23** |
+| Project rules | `bash tools/ci/guards.sh` (backend outside driver, ground truth, provided extrinsics; in `so101_connect4`, `/joint_command` too; `/sim/` services in brain, perception and `so101_connect4`) | **C-05, C-06, C-23** |
 | Build | `colcon build` inside the image | — |
 | Tests | `colcon test --packages-select <packages with a test/ folder> && colcon test-result --verbose` | — |
 | E2E sim smoke | Evaluation bench N = 3, headless (OSMesa) | Integration regressions |
