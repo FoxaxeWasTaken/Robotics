@@ -109,7 +109,7 @@ Look and correct before the release, compared with the guide on the real arm. Th
 
 ### Step P2.9 — Stretch (optional): level 3
 
-One or two features of `P2-02` §9, only once P2.6 is green and ahead of §3. Difficulty levels are a parameter of #78.
+One or two features of `P2-02` §9, only once P2.6 is green and ahead of §3. Difficulty levels are a parameter of the game node, `engine.max_depth` (#244).
 
 ## 2. Delivery
 

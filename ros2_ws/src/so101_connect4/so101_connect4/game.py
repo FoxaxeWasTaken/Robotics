@@ -6,9 +6,12 @@ Two integers: `me`, the stones of the side to move, and `mask`, all the stones. 
 at the bottom. Columns are 0-based (0 to 6). `cells` is the int8[42] of /connect4/board: row-major from the
 bottom row, 0 empty, 1 human, 2 robot (P2-02 §6).
 
-best_move() is deterministic for one (me, mask, max_depth, seed) when budget_s is None. With a time budget the
-depth reached depends on the machine: a person plays against the 1 s budget, the benches and the tests give
-max_depth and no budget, so a seed replays the same game.
+best_move() is deterministic for one (me, mask, max_depth, seed) when budget_s is None, or not reached: a seed
+then replays the same game. With a time budget cut short, the depth reached depends on the machine.
+Among moves of equal score the most central column is played; the seed only decides between two as central.
+
+The level is the depth, LEVELS: depth alone orders this engine's strength only loosely, these three are the
+ones measured in order [MES-70].
 
 The search: negamax with alpha-beta, center-first ordering, a transposition table, iterative deepening. At
 each node a playable winning cell ends the search; one playable cell of the opponent's is forced, two lose; a
@@ -34,6 +37,7 @@ _WIN = (
 )
 _IS_MATE = _WIN - CELLS - 1  # any score beyond it is a proven win or loss
 _CHECK_EVERY = 4095  # nodes between two looks at the clock, mask of the counter
+LEVELS = {"easy": 1, "medium": 4, "hard": 10}  # max_depth; each beats the one before [MES-70]
 
 
 class Choice(NamedTuple):
@@ -95,6 +99,14 @@ def winner(cells) -> int:
     return EMPTY
 
 
+def ends_in(score: int, stones: int) -> int:
+    """Plies to the end of a proven game, from a Choice's score found with `stones` tokens on the board:
+    > 0 the side to move wins in that many plies, its own included; < 0 it loses; 0 not proven."""
+    if abs(score) <= _IS_MATE:
+        return 0
+    return (_WIN - abs(score) - stones) * (1 if score > 0 else -1)
+
+
 def _threats(stones: int, mask: int) -> int:
     """The empty cells where `stones` would complete four (not only the playable ones)."""
     found = (stones << 1) & (stones << 2) & (stones << 3)
@@ -110,7 +122,8 @@ def _threats(stones: int, mask: int) -> int:
 def best_move(
     me: int, mask: int, budget_s: float | None = 1.0, max_depth: int = CELLS, seed: int = 0
 ) -> Choice:
-    """Iterative deepening to max_depth, within budget_s. Equal best moves at the root are drawn by `seed`."""
+    """Iterative deepening to max_depth, within budget_s. Among equal best moves at the root: the most central
+    column, and `seed` between two as central."""
     start = time.monotonic()
     deadline = None if budget_s is None else start + budget_s
     table = {}
@@ -197,7 +210,9 @@ def best_move(
         except _TimeoutError:
             break
         ties = [c for c, score in scores.items() if score == best]
-        done = Choice(rng.choice(ties), best, depth, nodes, time.monotonic() - start)
+        near = min(abs(c - COLUMNS // 2) for c in ties)
+        central = [c for c in ties if abs(c - COLUMNS // 2) == near]
+        done = Choice(rng.choice(central), best, depth, nodes, time.monotonic() - start)
         root.sort(key=lambda c: -scores[c])  # stable: center first among equals
         if abs(best) > _IS_MATE:
             break

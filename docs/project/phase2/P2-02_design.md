@@ -107,9 +107,11 @@ flowchart LR
 
 ## 4. Game engine
 
-- Pure module `so101_connect4/game.py`, no dependency: **bitboards** (two integers, one per player), move generation, win detection by shifts, **negamax with alpha-beta**, center-first move ordering, transposition table, iterative deepening. Difficulty = maximum depth.
+- Pure module `so101_connect4/game.py`, no dependency: **bitboards** (two integers, one per player), move generation, win detection by shifts, **negamax with alpha-beta**, center-first move ordering, transposition table, iterative deepening.
 - A prototype reaches depth 10 to 12 in 1 s on an empty board, 12 to 17 mid-game, longest move 1.10 s; 100/100 against random from depth 2 [MES-66]. **1 s budget when a person plays; a fixed depth on the benches and in the tests**, so a seed replays the same game (100 games at depth 4: 1 to 2 s; with the 1 s budget: 446 s).
-- Seeded tie-break, so tests are reproducible.
+- **Ties go to the centre**: among moves of equal score the most central column is played, and the seed only decides between two columns as central. With `engine.seed` and `engine.max_depth`, a game is replayed move for move as long as no search reaches its budget.
+- **Three levels, as depths: easy 1, medium 4, hard 10** (`game.LEVELS`; `engine.max_depth` of the game node, set while it runs). Depth orders this engine's strength only loosely: 2 against 6 ends 15 – 15 over 40 games. These three are in order: 1 loses to 4 (2 – 28), 4 to 10 (7 – 26), 1 to 10 (2 – 32); the leaf evaluation limits the engine, not the depth [MES-70]. At depth 10 the longest move takes 0.64 s, under the 1 s budget (`engine.budget_s`), which only guards the search.
+- **Why a move**: the engine's `score` and `depth` go with the robot's move into `last` of `/connect4/state`, with `wins_in` or `loses_in` (plies, `game.ends_in`) once the result is proven.
 
 ## 5. Turns (game state machine)
 
@@ -181,7 +183,7 @@ New package `so101_connect4` (ament_python):
 | `client.py` | console, bench | `/connect4/state` and the services, no rule |
 | `play.py` | control container | The console, `tools/so101 play` |
 | `board_reader_node` | perception container | Camera → `/connect4/board`, `/connect4/grid_pose` and the TF `base_link` → `connect4_grid`, debug image; `board_reader.launch.py`, `config/board_reader.yaml` |
-| `game_node` | control container | Around `turns.py`; calls `/brain/drop` and `/brain/handover`; `game.launch.py`, `config/game.yaml` (the delays of §5) |
+| `game_node` | control container | Around `turns.py`; calls `/brain/drop` and `/brain/handover`; `game.launch.py`, `config/game.yaml` (the delays of §5, the engine's `max_depth`, `budget_s` and `seed`) |
 | `config/connect4_grid.yaml` | both containers | The layout (§7): here because the perception container does not build `so101_bringup` |
 
 Next to it: `so101_brain/drop.py`, pure (§2), and `so101_driver/connect4_sim.py` (§7). The brain keeps every motion, with **`fsm.py` and `grasp_planner.py` unchanged** (ADR-037 Update). The game node never publishes `/joint_command`, and a guard checks it.
@@ -193,7 +195,7 @@ Next to it: `so101_brain/drop.py`, pure (§2), and `so101_driver/connect4_sim.py
 | `/connect4/board` (topic) | `so101_interfaces/msg/Connect4Board` (new) | board_reader → game_node | `header`, stamp = first image of the stable streak; `int8[42] cells` (row-major from the bottom row, 0 empty, 1 human, 2 robot), `bool valid`, `string reason` (`markers:<n>`, `out_of_view`, `gravity:<column>`, `counts:<human>-<robot>`); stable reads only; Reliable, depth 1 |
 | `/connect4/grid_pose` (topic) | `geometry_msgs/PoseStamped` | board_reader → game_node, RViz | Grid frame in `base_link`: origin at the center of cell (column 0, row 0) in the mid-plane, x outward along the columns (column 0 nearest the arm), z up, y = z × x; at each image whose markers give a pose, with the TF `base_link` → `connect4_grid`; Reliable, transient_local, depth 1 |
 | `/connect4/debug_image` (topic) | `sensor_msgs/Image` | board_reader → RViz | Each cell's disc, filled in its color when read as a token; a status line: the read's validity or its reason, the game's state from `/connect4/state`. Reliable, depth 1: best effort loses 9 images in 10 at 640×480 [MES-67] |
-| `/connect4/state` (topic) | `std_msgs/String`, JSON | game_node → console, bench, debug image | `ready`, `state`, `reason`, `turn`, `board`, `legal`, `last` (`who`, `column`, `planned`), `result`, `moves`, `lost`, `missed`; at each change; Reliable, transient_local, depth 1 |
+| `/connect4/state` (topic) | `std_msgs/String`, JSON | game_node → console, bench, debug image | `ready`, `max_depth` (the level), `state`, `reason`, `turn`, `board`, `legal`, `last` (`who`, `column`, `planned`; the robot's: `score`, `depth`, and `wins_in` or `loses_in` when proven), `result`, `moves`, `lost`, `missed`; at each change; Reliable, transient_local, depth 1 |
 | `/connect4/new_game` (service) | `std_srvs/SetBool` | game_node | `data: true`, the robot plays first. Refused in `MOVE`, `THINK` and `READ_BOARD`, and while `ready` is false |
 | `/connect4/human_done`, `/connect4/stop` (services) | `std_srvs/Trigger` | game_node | End of the human's turn; abort |
 | `/brain/drop` (service) | `so101_interfaces/srv/Drop` (new) | brain, game mode only | `geometry_msgs/Point target`, token centre in `base_link` → `bool success`, `string message`. **Replies at the end of the move**, `/brain_state` stays `IDLE`. `message`: `done in <s> s`, or `no_token`, `unreachable`, `not_at_handover`, `not_idle:<state>`, `busy`, `no_joint_states`, `stopped` (`/brain/stop` cuts it), `timeout:<step>` |
@@ -295,7 +297,7 @@ The set is the one the drop spike ran (#76); the stiffer `solimp` and the priori
 
 | Feature | What it adds | Note |
 | --- | --- | --- |
-| Difficulty levels | Engine depth as a parameter | In `v2.0.0`: #244, the keys #246 |
+| Difficulty levels | Engine depth as a parameter | Done: `engine.max_depth`, easy 1, medium 4, hard 10 (§4, #244); the keys #246 |
 | Automatic human-move detection | Board stable with exactly one new token | Replaces `/connect4/human_done`. In sim, a few lines of `turns.py`; on the real arm, safety re-review [SAFE]. Cut for `v2.0.0` (2026-11-12) |
 | Robot commentary | LLM prompt with the board, text-to-speech | Text only, never in the motor loop. Cut for `v2.0.0` (2026-11-12): the robot's reason for a move, from the engine, is shown instead (#244, #246) |
 | Token supply without the human | A rack (tokens on edge in the arm plane, like Scrabble tiles on their stand: same jaw orientation as the drop), or a vertical dispenser (tokens stacked flat, the bottom one taken from the side with the wrist roll at 0, then turned into the grid plane by rolling to ±90°) | A pick service next to `/brain/drop`; reach of a horizontal side grasp to check with the kinematics script |

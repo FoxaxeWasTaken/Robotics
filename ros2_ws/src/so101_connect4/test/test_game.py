@@ -180,6 +180,58 @@ def test_it_opens_in_the_center_column():
     assert game.best_move(0, 0, None, 6).column == COLUMNS // 2
 
 
+def test_equal_moves_go_to_the_most_central_column_whatever_the_seed():
+    """#244. At depth 1 every first move scores the same: the centre, not one of the 7 drawn by the seed."""
+    assert {game.best_move(0, 0, None, 1, seed=seed).column for seed in range(30)} == {COLUMNS // 2}
+
+
+def test_the_seed_only_decides_between_columns_as_central():
+    me, mask = game.from_cells(cells_of([3] * ROWS), HUMAN)  # symmetric, center full: mirrored moves tie
+    chosen = {game.best_move(me, mask, None, 2, seed=seed).column for seed in range(30)}
+    assert chosen == {2, 4}
+
+
+@pytest.mark.parametrize(
+    ("stones", "plies"),
+    [
+        pytest.param(
+            {(1, 0): ROBOT, (2, 0): ROBOT, (3, 0): ROBOT, (1, 1): HUMAN, (2, 1): HUMAN}, 1, id="win now"
+        ),
+        pytest.param({(2, 0): ROBOT, (3, 0): ROBOT, (2, 1): HUMAN, (3, 1): HUMAN}, 3, id="open three next"),
+        pytest.param(
+            {(2, 0): HUMAN, (3, 0): HUMAN, (4, 0): HUMAN, (6, 0): ROBOT, (6, 1): ROBOT}, -2, id="lost"
+        ),
+        pytest.param({(3, 0): HUMAN}, 0, id="not proven"),
+    ],
+)
+def test_a_proven_score_gives_the_plies_to_the_end(stones, plies):
+    """#244: > 0 the side to move wins in that many plies, its own included; < 0 it loses; 0 not proven."""
+    cells = board(stones)
+    me, mask = game.from_cells(cells, ROBOT)
+    choice = game.best_move(me, mask, None, 4)
+    assert game.ends_in(choice.score, len(stones)) == plies
+
+
+def test_the_hard_level_beats_the_easy_one():
+    """#244, [MES-70]: 20 games from random two-token openings, each side first in half of them."""
+    wins = {"easy": 0, "hard": 0}
+    for seed in range(20):
+        rng = random.Random(seed)
+        me = mask = 0
+        for _ in range(2):
+            me, mask = game.play(me, mask, rng.randrange(COLUMNS))
+        sides = ("easy", "hard") if seed % 2 == 0 else ("hard", "easy")
+        for ply in range(CELLS - 2):
+            me, mask = game.play(
+                me, mask, game.best_move(me, mask, None, game.LEVELS[sides[ply % 2]], seed).column
+            )
+            if game.has_four(me ^ mask):
+                wins[sides[ply % 2]] += 1
+                break
+    assert wins["hard"] >= 14
+    assert wins["easy"] <= 2
+
+
 # The search
 
 

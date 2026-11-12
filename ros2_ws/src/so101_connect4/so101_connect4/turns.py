@@ -87,7 +87,7 @@ class Inputs:
     robot_first: bool = False  # with new_game
     human_done: bool = False
     stop: bool = False
-    engine: int | None = None  # the column once the engine has answered
+    engine: game.Choice | None = None  # the engine's answer, once it has one
     move_reply: tuple | None = None  # (success, message) of /brain/drop or /brain/handover, at the move's end
     brain_states: tuple = ()  # /brain_state messages since the last step: STOPPED cuts a move
 
@@ -111,11 +111,12 @@ class Turns:
         self.cells = (EMPTY,) * CELLS
         self.turn = "human"
         self.result = ""
-        self.last = None  # {"who", "column", "planned"}
+        self.last = None  # {"who", "column", "planned"}; the robot's: and the engine's reason, _why
         self.lost = self.missed = self.moves = 0
         self._expect = Expect.EMPTY
         self._robot_first = False
         self._column = None
+        self._why = {}  # of the robot's move: the engine's score and depth, wins_in or loses_in if proven
         self._since = None  # the first step's time: the node's clock does not start at 0
 
     @property
@@ -163,7 +164,10 @@ class Turns:
             case State.READ_BOARD:
                 self._read(t)
             case State.THINK if i.engine is not None:
-                self._column = i.engine
+                self._column = i.engine.column
+                self._why = {"score": i.engine.score, "depth": i.engine.depth}
+                if plies := game.ends_in(i.engine.score, self.moves):
+                    self._why["wins_in" if plies > 0 else "loses_in"] = abs(plies)
                 self._go(State.MOVE)
             case State.THINK if t > self.p.think_timeout_s:
                 self._go(State.ERROR, "timeout:THINK")
@@ -239,7 +243,9 @@ class Turns:
         self.moves += 1
         who = "robot" if player == ROBOT else "human"
         planned = self._column if player == ROBOT else column
-        self.last = {"who": who, "column": column, "planned": planned}
+        self.last = {"who": who, "column": column, "planned": planned} | (
+            self._why if player == ROBOT else {}
+        )
         self.missed += column != planned  # the camera says where it went: the game goes on from there
         winner = game.winner(self.cells)
         if winner != EMPTY:

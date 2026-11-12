@@ -7,7 +7,7 @@ services are called asynchronously and their reply is read by a later tick.
 
 - /connect4/board, /connect4/grid_pose (board_reader), /end_effector_pose, /brain_state (brain): inputs.
 - /connect4/new_game (data: the robot plays first), /connect4/human_done, /connect4/stop: for the player.
-- /connect4/state: JSON, latched, at each change: turns.snapshot() and `ready`.
+- /connect4/state: JSON, latched, at each change: turns.snapshot(), `ready` and the level, `max_depth`.
 - /brain/handover at a new game, /brain/drop for a move, aimed at board.column_target on the grid's pose as
   the camera sees it; /brain/stop on a stop or a move's timeout. Every motion is the brain's (ADR-037).
 """
@@ -23,7 +23,7 @@ from dataclasses import fields
 import rclpy
 import rclpy.node
 from geometry_msgs.msg import PoseStamped
-from rcl_interfaces.msg import ParameterDescriptor
+from rcl_interfaces.msg import IntegerRange, ParameterDescriptor
 from rclpy.clock import Clock, ClockType
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.qos import DurabilityPolicy, QoSProfile
@@ -36,7 +36,6 @@ from so101_interfaces.msg import Connect4Board
 from so101_interfaces.srv import Drop
 
 TICK_HZ = 10.0
-BUDGET_S = 1.0  # the engine's search, s (P2-02 §4)
 LATCHED = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
 
 
@@ -51,6 +50,15 @@ class GameNode(rclpy.node.Node):
         delays = {
             f.name: self.declare_parameter(f.name, f.default, read_only).value for f in fields(turns.Params)
         }
+        # The level: set while the node runs (ros2 param set, the console), the next THINK uses it.
+        depth = ParameterDescriptor(
+            description="The engine's search depth, game.LEVELS",
+            integer_range=[IntegerRange(from_value=1, to_value=game.CELLS, step=1)],
+        )
+        self.declare_parameter("engine.max_depth", game.LEVELS["hard"], depth)
+        read_only.description = "The engine's time budget for a move, s; its seed between equal moves"
+        self._budget = self.declare_parameter("engine.budget_s", 1.0, read_only).value
+        self._seed = self.declare_parameter("engine.seed", 0, read_only).value
         if unknown := sorted(set(self._parameter_overrides) - set(self._parameters)):  # rclpy: no public API
             raise ValueError(f"Unknown parameters {unknown}: a typo in a config file?")
         self._turns = turns.Turns(turns.Params(**delays))
@@ -155,7 +163,9 @@ class GameNode(rclpy.node.Node):
         # A new search or a new call replaces the pending one: the late answer of a cut one is never read.
         if out.think:
             self._think_ticks = []
-            self._search = self._worker.submit(game.best_move, *out.think, BUDGET_S)
+            self._search = self._worker.submit(
+                game.best_move, *out.think, self._budget, self._max_depth(), self._seed
+            )
         if out.stop_brain:
             self._brain_stop.call_async(Trigger.Request())
         if out.handover:
@@ -167,8 +177,11 @@ class GameNode(rclpy.node.Node):
             self._move = self._drop.call_async(request)
         self._publish()
 
+    def _max_depth(self):
+        return self.get_parameter("engine.max_depth").value
+
     def _engine(self):
-        """The engine's column once its search is done, else None."""
+        """The engine's answer once its search is done, else None."""
         if self._search is None or not self._search.done():
             return None
         choice, self._search = self._search.result(), None
@@ -177,7 +190,7 @@ class GameNode(rclpy.node.Node):
             f"engine: column {choice.column}, score {choice.score}, depth {choice.depth}, "
             f"{choice.seconds:.2f} s; tick period max {max(ticks) * 1000:.0f} ms over {len(ticks)} ticks"
         )
-        return choice.column
+        return choice
 
     def _move_reply(self):
         """(success, message) of the brain once the move's call is done, else None."""
@@ -188,7 +201,8 @@ class GameNode(rclpy.node.Node):
 
     def _publish(self):
         """At each change, and once at startup: the topic is latched."""
-        text = json.dumps({"ready": not self._missing(), **self._turns.snapshot()})
+        state = {"ready": not self._missing(), "max_depth": self._max_depth(), **self._turns.snapshot()}
+        text = json.dumps(state)
         if text != self._published:
             self._published = text
             self._pub_state.publish(String(data=text))

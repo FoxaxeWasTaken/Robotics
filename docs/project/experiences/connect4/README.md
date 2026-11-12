@@ -7,7 +7,7 @@ What the expert review of phase 2 ran to measure the sim, kept as it ran. **Thro
 | `scene/` | Riser, contacts, tick with 42 tokens, drops, grip, repark | MES-63 | #76, #79, #80 |
 | `drop/` | Pose of a drop, paths, clearance, grip, duration, async service | MES-64 | #83, #84, #85 |
 | `reading/` | Camera, pixels per cell, classification, grid pose accuracy | MES-65 | #81, #82 |
-| `game/` | Engine, turns, console client, fake stack | MES-66 | #78, #230, #86, #232 |
+| `game/` | Engine, turns, console client, fake stack; `levels.py`: the package's engine, depth against depth | MES-66, MES-70 | #78, #230, #86, #232, #244 |
 
 ## Running
 
@@ -32,6 +32,8 @@ tools/so101 run --out ros2_ws/src/so101_connect4/test/data \
 
 # game/: pure Python, on any machine
 cd docs/project/experiences/connect4/game && python3 test_game.py && python3 test_turns.py && python3 bench_engine.py depth
+# #244: the levels, the package's engine against itself (~4 min)
+tools/so101 run 'python3 /repo/docs/project/experiences/connect4/game/levels.py 40 1,4 4,10 1,10 2,6 6,10 2,10'
 ```
 
 `reach.npy` (3.7 MB) is generated, never committed. `drop/e5_async.py` is the test of a service that replies at the end of a move while the 50 Hz timer runs.

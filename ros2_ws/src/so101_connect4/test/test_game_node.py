@@ -17,13 +17,14 @@ from rcl_interfaces.msg import Log
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.clock import Clock, ClockType
 from rclpy.executors import SingleThreadedExecutor
+from rclpy.parameter import Parameter
 from rclpy.qos import DurabilityPolicy, QoSProfile
 from rclpy.task import Future
 from std_msgs.msg import String
 from std_srvs.srv import SetBool, Trigger
 from test_turns import EMPTY_BOARD, with_tokens
 
-from so101_connect4 import board, layout
+from so101_connect4 import board, game, layout
 from so101_connect4.game import COLUMNS, HUMAN, ROBOT
 from so101_connect4.game_node import GameNode
 from so101_interfaces.msg import Connect4Board
@@ -232,8 +233,9 @@ def test_the_robot_plays_first(stack):
     assert state["turn"] == "human"
 
 
-def test_the_search_runs_outside_the_tick(stack):
-    """THINK tick p99 at 130 ms or less [MES-66]: here, far from the 1 s a search in the tick would take."""
+@pytest.mark.parametrize("stack", [{"engine.max_depth": 42, "engine.budget_s": 0.5}], indirect=True)
+def test_the_search_runs_outside_the_tick_and_stops_at_its_budget(stack):
+    """THINK tick p99 at 130 ms or less [MES-66]: here, far from the 0.5 s a search in the tick would take."""
     stack.start()
     stack.human_plays(3)
     stack.wait_for("WAIT_HUMAN", moves=2)
@@ -241,7 +243,45 @@ def test_the_search_runs_outside_the_tick(stack):
     found = re.search(r"tick period max (\d+) ms over (\d+) ticks", line)
     assert found, line
     assert int(found[1]) < 200
-    assert int(found[2]) >= 3
+    assert 3 <= int(found[2]) <= 8  # 0.5 s of search at 10 Hz
+
+
+def test_the_level_is_a_parameter_changed_while_the_node_runs_and_the_next_search_uses_it(stack):
+    """#244: engine.max_depth; the state shows it, and the robot's last move the depth its search reached."""
+    state = stack.start()
+    assert state["max_depth"] == 10
+    stack.human_plays(3)
+    assert stack.wait_for("WAIT_HUMAN", moves=2)["last"]["depth"] == 10
+    (result,) = stack.game.set_parameters([Parameter("engine.max_depth", value=1)])
+    assert result.successful, result.reason
+    stack.human_plays(3)
+    state = stack.wait_for("WAIT_HUMAN", moves=4)
+    assert (state["max_depth"], state["last"]["depth"]) == (1, 1)
+    assert set(state["last"]) >= {"who", "column", "planned", "score", "depth"}
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [("engine.max_depth", 0), ("engine.max_depth", 43), ("engine.seed", 1), ("engine.budget_s", 5.0)],
+)
+def test_a_depth_out_of_range_and_the_startup_parameters_are_refused_while_the_node_runs(stack, name, value):
+    (result,) = stack.game.set_parameters([Parameter(name, value=value)])
+    assert not result.successful
+
+
+@pytest.mark.parametrize("stack", [{"engine.max_depth": 4, "engine.seed": 3}], indirect=True)
+def test_a_seed_and_a_depth_replay_the_same_moves(stack):
+    """The engine's seed and depth come from the parameters: the moves are game.best_move's with them."""
+    stack.start()
+    for column in (3, 3, 3):  # after them the mirrored columns 2 and 4 tie: the seed decides
+        stack.human_plays(column)
+        stack.wait_for("WAIT_HUMAN", turn="human", moves=stack.cells.count(HUMAN) * 2)
+    cells = EMPTY_BOARD
+    for column in (3, 3, 3):
+        cells = with_tokens(cells, (column, HUMAN))
+        me, mask = game.from_cells(cells, ROBOT)
+        cells = with_tokens(cells, (game.best_move(me, mask, None, 4, 3).column, ROBOT))
+    assert stack.cells == cells
 
 
 def test_no_token_in_the_jaws_passes_through_and_the_turn_stays_the_robots(stack):

@@ -9,7 +9,7 @@ import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch_ros.actions import Node
 
-from so101_connect4 import turns
+from so101_connect4 import game, turns
 
 
 def test_the_package_imports_without_ros():
@@ -47,5 +47,6 @@ def test_the_game_launch_starts_the_game_node_with_its_installed_parameters():
     (node,) = [e for e in module.generate_launch_description().entities if isinstance(e, Node)]
     assert (node.node_package, node.node_executable) == ("so101_connect4", "game_node")
     parameters = yaml.safe_load((share / "config" / "game.yaml").read_text())["game_node"]["ros__parameters"]
-    assert parameters == {name: getattr(turns.Params(), name) for name in parameters}
-    assert set(parameters) == set(turns.Params.__dataclass_fields__)
+    engine = parameters.pop("engine")
+    assert parameters == {name: getattr(turns.Params(), name) for name in turns.Params.__dataclass_fields__}
+    assert engine == {"max_depth": game.LEVELS["hard"], "budget_s": 1.0, "seed": 0}  # #244
