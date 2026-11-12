@@ -13,7 +13,9 @@ placement:  # in base_link; the base stays at the origin, the floor and the tabl
   riser: 0.10  # m: at 8 cm lower_arm hits the guide [MES-63]
   azimuth: -0.6981  # rad (-40°), the grid plane around the shoulder_pan axis [MES-65]
   first_column_r: 0.14  # m from the pan axis; column c at first_column_r + c * column_pitch (0.362 for 6)
-  plane_offset: 0.00385  # m, the grid plane off the pan axis, on the fixed-jaw side [MES-64]
+  # m: the slot plane off the pan axis, along -y of the grid frame (the TCP line's side); a drop aims the token
+  # 1 mm further towards the fixed jaw, +y [MES-63, #76]
+  plane_offset: 0.00385
 token:
   diameter: 0.034  # m
   thickness: 0.0065  # m
