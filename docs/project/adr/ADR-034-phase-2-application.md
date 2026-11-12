@@ -44,3 +44,9 @@ Hardware changed: store-bought grid on a riser, depth guide, tokens handed over 
 ## Update (2026-10-16, staff answers)
 
 The questions of `phase2/P2-03` §4 were asked and answered on 2026-10-16: the answers are there.
+
+## Update (2026-11-07, scope of the hand-in)
+
+The hand-in is 2026-11-20 23:42. **`v2.0.0` is level 1, the game in simulation; level 2, the real arm, is `v2.1.0`** (`phase2/P2-01` §2). Phase 1 already runs on the real arm (`v1.3.0`), and a real game adds a riser, a handover next to a person and a new camera setup: an expert review found five blocking safety points and a drop precision still unproven (`phase2/P2-02` §8), too much for two weeks. The teaching staff validated a pitch aiming at the real arm: the defense says so plainly.
+
+A drop-spike no-go first changes the sim geometry, a parameter; tic-tac-toe stays the last fallback. The spike's prototypes already pass [MES-63], [MES-64]; #76 decides on one layout. `PickPlace` became a `/brain/drop` service (ADR-037 Update).

@@ -102,7 +102,7 @@ flowchart LR
 | [ADR-034](ADR-034-phase-2-application.md) | Phase-2 application: Connect Four against the robot | DECIDED, validated by the teaching staff (2026-10-09) | CP → all | C-53, C-54 |
 | [ADR-035](ADR-035-connect4-grid-layout.md) | Connect Four: small edge-on grid, funnel, magazine, drop poses with locked wrist roll | DECIDED (kinematics measured); grid, funnel and magazine **superseded by ADR-038** | KIN → CTRL, SAFE, VIS | C-41, C-54 |
 | [ADR-036](ADR-036-phase-2-sim-scene.md) | Phase-2 sim scene: our scene file, loaded next to the provided `_connect_arm` | DECIDED | CTRL → ARC, VIS, QA | C-05, C-06, C-10 |
-| [ADR-037](ADR-037-phase-2-task-layer.md) | Phase 2: a task layer driving the brain through a `PickPlace` action | RECOMMENDED | ARC → KIN, DEC, VIS | C-05, C-33, C-54 |
+| [ADR-037](ADR-037-phase-2-task-layer.md) | Phase 2: a task layer driving the brain through a `PickPlace` action | RECOMMENDED; the action became a `/brain/drop` service (Update 2026-11-07) | ARC → KIN, DEC, VIS | C-05, C-33, C-54 |
 | [ADR-038](ADR-038-connect4-hardware-v2.md) | Connect Four hardware: store-bought grid on a riser, depth guide, token handover, wrist camera | DECIDED + RECOMMENDED | KIN → CTRL, SAFE, VIS | C-41, C-51, C-54 |
 | [ADR-039](ADR-039-start-from-course-stubs.md) | The repository starts from the course stubs; the bootstrap prototype stays outside | DECIDED | CP → ARC, QA, CTRL | C-07, C-50, C-53 |
 

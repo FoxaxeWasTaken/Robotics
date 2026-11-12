@@ -35,3 +35,14 @@ Design review (this ADR). To validate: the phase-1 bench unchanged after the ref
 ## Reconsider if
 
 The refactor threatens the phase-1 schedule: then a game-specific service first, the generic action later.
+
+## Update (2026-11-07, sim scope)
+
+The "reconsider if" is met: two weeks are left, and moving `/brain/start` onto a generic action would refactor the code the phase-1 bench guards. **The brain serves a `/brain/drop` service, not a `PickPlace` action.** `fsm.py` and `grasp_planner.py` do not change, and a new pure `so101_brain/drop.py` holds the pose and the sequence.
+
+- `so101_interfaces/srv/Drop`: `Point target` (the token centre, `base_link`) → `success`, `message`. The service **replies at the end of the move**, `async def` in its own callback group: the tick holds (max 22.5 ms), and the default group froze it [MES-64]. `/brain_state` stays `IDLE`: its labels are the phase-1 contract. `/brain/start` and `/go_to_target` are refused during a move, `/brain/stop` cuts it.
+- It closes the jaws and judges the grip itself, so `v2.0.0` needs neither `/brain/set_gripper` nor `/connect4/token_given`. `/brain/handover` brings the arm to its waiting pose.
+- It only exists in game mode (`phase2/P2-02` §6.1).
+- `turns.py`, pure, joins the package; `board_reader_node` replaces `perception_node` in game mode.
+
+The task layer stays as decided: a game node that never publishes `/joint_command`, guards extended. A generic action can come later if a rack or a dispenser needs one.
