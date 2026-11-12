@@ -166,12 +166,36 @@ def test_a_new_game_is_refused_while_thinking_or_reading(state):
     assert c.state is state
 
 
-def test_a_board_not_empty_at_a_new_game():
+def test_a_board_not_empty_at_a_new_game_is_not_yet_then_a_board_to_fix():
+    """The reader may still show the last game's board right after the reset: only the timeout judges."""
+    c = Clock()
+    c.step(new_game=True)
+    c.step(move_reply=(True, ""))
+    for _ in range(20):  # 3 s of reads
+        c.read(with_tokens(EMPTY_BOARD, (3, HUMAN)))
+    assert c.state is State.READ_BOARD
+    c.wait(5.1)
+    assert c.label == "FIX_BOARD:board_not_empty"
+
+
+def test_the_last_games_board_then_the_empty_one_starts_the_game():
     c = Clock()
     c.step(new_game=True)
     c.step(move_reply=(True, ""))
     c.read(with_tokens(EMPTY_BOARD, (3, HUMAN)))
-    assert c.label == "FIX_BOARD:board_not_empty"
+    c.read(EMPTY_BOARD, valid=False, reason="markers:2")
+    assert c.state is State.READ_BOARD
+    c.read(EMPTY_BOARD)
+    assert c.state is State.WAIT_HUMAN
+
+
+def test_a_grid_never_read_at_a_new_game_takes_the_readers_reason():
+    c = Clock()
+    c.step(new_game=True)
+    c.step(move_reply=(True, ""))
+    for _ in range(60):
+        c.read(EMPTY_BOARD, valid=False, reason="markers:2")
+    assert c.label == "FIX_BOARD:markers:2"
 
 
 def test_a_human_token_never_seen():
@@ -261,6 +285,15 @@ def test_the_brain_refuses():
     c.step(engine=4)
     c.step(move_reply=(False, "unreachable"))
     assert c.label == "ERROR:brain_refused:unreachable"
+
+
+def test_a_move_cut_by_a_stop_has_one_reason_whichever_message_comes_first():
+    """/brain/stop called by someone else: the drop's reply `stopped` may come before /brain_state."""
+    c = new_game()
+    human_plays(c, 3)
+    c.step(engine=4)
+    c.step(move_reply=(False, "stopped"))
+    assert c.label == "ERROR:stopped"
 
 
 def test_the_handover_fails():

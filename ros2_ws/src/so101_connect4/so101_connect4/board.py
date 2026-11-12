@@ -102,10 +102,23 @@ def column_target(layout, T_base_grid, column) -> np.ndarray:
     return (T_base_grid @ [column * grid["column_pitch"], drop["aim"], height, 1.0])[:3]
 
 
+def transform(position, quaternion) -> np.ndarray:
+    """The 4x4 transform of a pose message: its position, its quaternion x, y, z, w (/connect4/grid_pose)."""
+    x, y, z, w = quaternion
+    T = np.eye(4)
+    T[:3, :3] = [
+        [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+        [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+        [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)],
+    ]
+    T[:3, 3] = position
+    return T
+
+
 class Stable:
     """Lets a read through once `reads` identical ones came in a row, each on a new image: a token in flight,
-    a hand over the grid or one bad frame never reach the game. Its stamp is the first image's of the streak,
-    so the game can tell a read older than its last move."""
+    a hand over the grid or one bad frame never reach the game. Its stamp is the first image's of the streak:
+    when the board was first seen so, often before the move that the game waits for has replied."""
 
     def __init__(self, reads=5):
         self._reads, self._last, self._count, self._first, self._stamp = reads, None, 0, None, None

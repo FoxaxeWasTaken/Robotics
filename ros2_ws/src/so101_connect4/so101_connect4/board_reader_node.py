@@ -6,7 +6,7 @@ the camera's pose from so101_perception's extrinsics file. A timer takes each ne
 markers, its pose (board.grid_in_camera), the 42 cells (board.read), the board's validation.
 
 - /connect4/board: only once 5 reads in a row agree, each on a new image; its stamp is the first image's of
-  the streak, so the game can reject a read older than its last move. An unreadable or impossible grid is
+  the streak (the game judges a read by when it receives it). An unreadable or impossible grid is
   published too, `valid` false with its reason (markers:<n>, out_of_view, gravity:<column>, counts:<h>-<r>).
 - /connect4/grid_pose and the TF base_link -> connect4_grid: at each image whose markers give a pose.
 - /connect4/debug_image: at each image.
