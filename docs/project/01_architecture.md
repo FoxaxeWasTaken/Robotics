@@ -188,6 +188,7 @@ sequenceDiagram
 | --- | --- |
 | `docker compose up -d control perception viz` | `control` builds the workspace then starts `so101_bringup sim.launch.py` (driver + brain); `perception` waits for its build and starts `perception_node`; `viz` starts RSP + static TF + marker |
 | `USE_SIM=false` in `docker/.env` | The entrypoint starts `real.launch.py`: `sim.launch.py` with `use_sim:=false`, which adds `driver_real.yaml` and `brain_real.yaml` (§3.3); nothing else changes (C-10) |
+| `CONNECT4=true` in `docker/.env`, or `CONNECT4=true tools/so101 up` | The game of phase 2 in place of the pick & place, sim only (#231, `phase2/P2-02` §6.1): the entrypoint passes `connect4:=true` to `sim.launch.py` (the game's scene at 640×480, the driver's `/sim/connect4/*`, `so101_connect4`'s `game.launch.py`); the perception container starts `so101_connect4`'s `board_reader.launch.py` instead of `perception_node`. Both launch files are empty until the game node (#86) and the board reader (#82). Refused with `USE_SIM=false`. `down` then `up` to change mode: `restart` keeps the environment |
 | `ros2 service call /brain/start std_srvs/srv/Trigger` | Starts a full pick & place cycle (`06` §3); `tools/so101 cycle` does it after `/sim/randomize` |
 
 The entrypoint (`docker/control_entrypoint.sh`) starts `so101_bringup sim.launch.py`, or `real.launch.py` with `REAL_ROBOT_PORT` as `port:=` when `USE_SIM=false` (`docker/.env`). The course's `driver.launch.py` and `brain.launch.py` stay, to start one node alone.

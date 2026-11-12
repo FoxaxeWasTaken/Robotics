@@ -4,6 +4,11 @@
 set -e
 set -m  # each background job gets its own process group
 
+if [ "${CONNECT4:-false}" = true ] && [ "${USE_SIM:-true}" = false ]; then
+  echo "CONNECT4=true needs USE_SIM=true: the Connect Four game runs in simulation only (docker/.env)" >&2
+  exit 1
+fi
+
 source /opt/ros/jazzy/setup.bash
 cd /ros2_ws
 colcon build --symlink-install
@@ -31,8 +36,9 @@ done
 if [ "${USE_SIM:-true}" = false ]; then  # the real arm: driver_real.yaml and brain_real.yaml on top (01 §3.3)
   launch so101_bringup real.launch.py "port:=${REAL_ROBOT_PORT:-/dev/ttyACM0}"
 else
+  # expose_ground_truth: evaluation bench only (C-06), the E2E jobs set it; connect4: the game of phase 2
   launch so101_bringup sim.launch.py \
-    "expose_ground_truth:=${EXPOSE_GROUND_TRUTH:-false}"  # evaluation bench only (C-06): the E2E jobs set it
+    "expose_ground_truth:=${EXPOSE_GROUND_TRUTH:-false}" "connect4:=${CONNECT4:-false}"
 fi
 
 shutdown() {

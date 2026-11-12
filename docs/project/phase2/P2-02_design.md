@@ -214,7 +214,9 @@ Both phases live on `main`, with no long-lived branch: phase 1 stays what the st
 | Proof | E2E on each PR, 50 episodes each night | One game on each PR, 10 each night |
 
 - The switch goes `docker/.env` → compose → `control_entrypoint.sh` → `connect4:=` on `sim.launch.py`, as `USE_SIM` does. `CONNECT4=true tools/so101 up` needs no `.env` edit. `up` applies it, `restart` keeps the old environment [MES-66].
-- `tools/so101 test`, `cycle` and `bench` force `CONNECT4=false`, so a leftover value cannot break phase 1. With the default arguments, a test compares the nodes and the scene with today's.
+- A leftover `CONNECT4=true` cannot break phase 1: `tools/so101 test` runs with `CONNECT4=false`, `bench` starts its own stack with the default arguments, and `cycle` refuses a stack in game mode and says to `down` then `up`. With the default arguments, tests check the nodes started and that the scene has no grid; the generated scene is byte-identical to the one before the game [MES-67].
+- The perception container builds `so101_connect4` too (4 packages, about 6 s) and starts `board_reader.launch.py` in game mode; that file and `game.launch.py` are empty until #82 and #86, so in game mode the perception container stops once built.
+- The game's images are 0.9 MB each: a **Reliable** subscriber gets the 10 Hz, a best-effort one about 1 Hz (`ros2 topic hz` is one) [MES-67]. The board reader subscribes as the contract says, Reliable, depth 2.
 - `CONNECT4=true` with `USE_SIM=false` is refused in `v2.0.0`.
 - The tag `v1.3.0` is phase 1 as released: a checkout of it is the fallback.
 

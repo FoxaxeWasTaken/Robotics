@@ -5,8 +5,8 @@
 On the real arm (use_sim:=false, or real.launch.py), driver_real.yaml and brain_real.yaml override a few of
 them (01 §3.3).
 
-use_sim and port are deployment choices, not tunables: docker/.env -> control_entrypoint.sh -> these
-arguments.
+use_sim, port and connect4 are deployment choices, not tunables: docker/.env -> control_entrypoint.sh ->
+these arguments.
 expose_ground_truth and perception are for the evaluation bench only (C-06, 08 §3): the E2E jobs set
 EXPOSE_GROUND_TRUTH; a bench on its own ROS_DOMAIN_ID adds perception:=true, the compose stack runs perception
 in its own container.
@@ -152,6 +152,12 @@ def generate_launch_description():
                     )
                 ),
                 condition=IfCondition(LaunchConfiguration("perception")),
+            ),
+            IncludeLaunchDescription(  # the game's nodes of this container (#231)
+                PythonLaunchDescriptionSource(
+                    PathJoinSubstitution([FindPackageShare("so101_connect4"), "launch", "game.launch.py"])
+                ),
+                condition=IfCondition(LaunchConfiguration("connect4")),
             ),
         ]
     )

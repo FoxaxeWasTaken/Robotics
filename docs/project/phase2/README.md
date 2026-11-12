@@ -3,7 +3,7 @@
 > Authors: [CP] Project lead, [KIN] Kinematics · Reviewers: all experts
 > Requirements: C-54 · Decisions: ADR-034 to ADR-038 · Measurements: MES-21, MES-27 to MES-32, MES-63 to MES-67 · Roadmap: [P2-04](P2-04_roadmap.md)
 
-**Status: VALIDATED** by the teaching staff on 2026-10-09 (roadmap step 7.1, ADR-034). **`v2.0.0`, the hand-in of 2026-11-20 23:42, is the game in simulation; the real arm is `v2.1.0`** (ADR-034 Update). The design was measured on prototypes on 2026-11-07 ([`../experiences/connect4/`](../experiences/connect4/README.md)) and the drop spike on one layout is a go (#76). Implemented: the `so101_connect4` package with the engine, the turns and the grid layout, the drop pose `release_pose`, and the game's sim scene (`sim.launch.py connect4:=true`). Not yet: the sim services, the board reader, `/brain/drop`, the game node ([`P2-04`](P2-04_roadmap.md) §3 gives the dates).
+**Status: VALIDATED** by the teaching staff on 2026-10-09 (roadmap step 7.1, ADR-034). **`v2.0.0`, the hand-in of 2026-11-20 23:42, is the game in simulation; the real arm is `v2.1.0`** (ADR-034 Update). The design was measured on prototypes on 2026-11-07 ([`../experiences/connect4/`](../experiences/connect4/README.md)) and the drop spike on one layout is a go (#76). Implemented: the `so101_connect4` package with the engine, the turns and the grid layout, the drop pose `release_pose`, the game's sim scene with the simulated player's services, and the `CONNECT4` mode (`CONNECT4=true tools/so101 up`). Not yet: the board reader, `/brain/drop`, the game node ([`P2-04`](P2-04_roadmap.md) §3 gives the dates).
 
 ## 1. The pitch (check-in format [BOOT2 p16])
 

@@ -110,12 +110,30 @@ def test_connect4_with_calibration_stops_the_launch():
         driver_parameters(connect4="true", calibration="true")
 
 
-def test_perception_is_included_only_when_asked():
-    (include,) = [e for e in entities() if isinstance(e, IncludeLaunchDescription)]
+def included(package, **configurations):
+    """Whether sim.launch.py includes that package's launch file, with these arguments over the defaults."""
     context = LaunchContext()
-    for value, included in (("false", False), ("true", True)):
-        context.launch_configurations["perception"] = value
-        assert include.condition.evaluate(context) is included
+    context.launch_configurations.update(defaults(), **configurations)
+    (include,) = [
+        e
+        for e in entities()
+        if isinstance(e, IncludeLaunchDescription)
+        and package in e.launch_description_source.location  # its description, before it is resolved
+    ]
+    return include.condition.evaluate(context)
+
+
+def test_perception_is_included_only_when_asked():
+    assert included("so101_perception") is False
+    assert included("so101_perception", perception="true") is True
+
+
+def test_the_game_is_included_only_with_connect4():
+    """#231: so101_connect4's game.launch.py, the game node's place; phase 1 starts the nodes it did."""
+    assert included("so101_connect4") is False
+    assert included("so101_connect4", connect4="true") is True
+    nodes = sorted(e.node_package for e in entities() if isinstance(e, Node))
+    assert nodes == ["robot_state_publisher", "so101_brain", "so101_driver", "tf2_ros"]
 
 
 def test_lighting_dim_gives_the_driver_the_dimmed_scene():

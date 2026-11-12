@@ -27,6 +27,7 @@ services:
     environment:
       <<: *ros-env
       USE_SIM: ${USE_SIM:-true}
+      CONNECT4: ${CONNECT4:-false}  # phase 2: the Connect Four game in place of the pick & place, sim only
       REAL_ROBOT_PORT: ${REAL_ROBOT_PORT:-/dev/ttyACM0}
       EXPOSE_GROUND_TRUTH: ${EXPOSE_GROUND_TRUTH:-false}  # evaluation bench only (C-06): set by the E2E jobs
       MUJOCO_GL: osmesa
@@ -61,15 +62,18 @@ services:
     environment:
       <<: *ros-env
       USE_SIM: ${USE_SIM:-true}
+      CONNECT4: ${CONNECT4:-false}
     volumes:
       - ../ros2_ws:/ros2_ws
     networks: [rosnet]
+    # In game mode the board reader takes the place of the cube's perception (phase2/P2-02 §6.1).
     command: >
       bash -lc "source /opt/ros/jazzy/setup.bash && cd /ros2_ws &&
       colcon build --symlink-install --build-base build_perception --install-base install_perception
-      --packages-up-to so101_perception &&
+      --packages-up-to so101_perception so101_connect4 &&
       source install_perception/setup.bash &&
-      ros2 launch so101_perception perception.launch.py"
+      if [ $${CONNECT4} = true ]; then ros2 launch so101_connect4 board_reader.launch.py;
+      else ros2 launch so101_perception perception.launch.py; fi"
 
   # robot_state_publisher: publishes /robot_description and the TFs from
   # /joint_states (provided by your driver_node). Visualization is done

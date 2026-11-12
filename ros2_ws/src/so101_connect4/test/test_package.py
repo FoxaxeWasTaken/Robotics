@@ -22,3 +22,12 @@ def test_the_grid_layout_is_installed_and_puts_the_columns_where_p2_02_reaches()
     last = placement["first_column_r"] + (grid["columns"] - 1) * grid["column_pitch"]
     assert 0.36 <= last <= 0.365  # columns at r = 0.14 ... 0.36 m (P2-02 §1)
     assert layout["token"]["thickness"] < grid["slot_gap"]
+
+
+def test_the_two_launch_files_of_the_game_mode_are_installed():
+    """#231: board_reader.launch.py for the perception container, game.launch.py for the control one."""
+    launch = Path(get_package_share_directory("so101_connect4")) / "launch"
+    for name in ("board_reader.launch.py", "game.launch.py"):
+        scope = {}
+        exec(compile((launch / name).read_text(), name, "exec"), scope)
+        assert scope["generate_launch_description"]() is not None

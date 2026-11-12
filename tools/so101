@@ -16,7 +16,8 @@ usage() {
 Usage: tools/so101 [--dry-run] <command> [options]
 
   build [service]       build the images (both, or control or perception); ~10 min the first time
-  up                    start the stack (control, perception, viz)
+  up                    start the stack (control, perception, viz); CONNECT4=true tools/so101 up starts the
+                        Connect Four game instead (simulation only), down then up to come back
   down                  stop it (each node gets SIGINT: clean stop)
   restart [service]     restart control (default), perception or viz: reloads changed Python code
   logs [service]        follow the logs of control (default), perception or viz
@@ -69,7 +70,8 @@ ros() {  # ros [docker compose exec options] <command>: a command in the control
 }
 
 fresh() {  # fresh <command>: a command in a new control container, ROS sourced; the stack need not run
-  run "${compose[@]}" run --rm --no-deps -T control bash -lc "source /opt/ros/jazzy/setup.bash && $1"
+  # CONNECT4=false: a value left in docker/.env never reaches the tests (#231)
+  run "${compose[@]}" run --rm --no-deps -T -e CONNECT4=false control bash -lc "source /opt/ros/jazzy/setup.bash && $1"
 }
 
 while [ $# -gt 0 ]; do
@@ -106,7 +108,8 @@ case $command in
     # whose answer is lost would wait forever (#141): 30 s each. The filter reads line by line in bash: the image's
     # awk (mawk) reads a pipe in blocks, so it saw DONE only when the echo ended, at its timeout (#164, #169).
     call="timeout 30 ros2 service call"
-    ros -T "state=\$(timeout 30 ros2 topic echo --once --field data /brain_state std_msgs/msg/String | head -n 1); \
+    ros -T "[ \"\$CONNECT4\" != true ] || { echo 'so101 cycle: the stack runs the game (CONNECT4=true): tools/so101 down, then up' >&2; exit 1; }; \
+state=\$(timeout 30 ros2 topic echo --once --field data /brain_state std_msgs/msg/String | head -n 1); \
 case \$state in ERROR*) $call /brain/start std_srvs/srv/Trigger > /dev/null ;; esac; \
 { [ \"\$USE_SIM\" = false ] || $call /sim/randomize std_srvs/srv/Trigger > /dev/null; } && $call /brain/start std_srvs/srv/Trigger > /dev/null && \
 timeout 120 ros2 topic echo --field data /brain_state std_msgs/msg/String 2> /dev/null \

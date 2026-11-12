@@ -67,6 +67,11 @@ grep -q /sim/randomize "$CALLS" || fail "cycle did not randomize the sim"
 USE_SIM=false FINAL=DONE PATH="$tmp/run:$PATH" timeout 10 "$so101" cycle > /dev/null 2>&1 || fail "real cycle failed"
 ! grep -q /sim/randomize "$CALLS" && grep -q /brain/start "$CALLS" || fail "real cycle called: $(cat "$CALLS")"
 echo "ok: cycle randomizes in sim only, /brain/start either way"
+: > "$CALLS"
+out=$(CONNECT4=true FINAL=DONE PATH="$tmp/run:$PATH" timeout 10 "$so101" cycle 2>&1) && fail "cycle ran on a stack in game mode"
+grep -q "CONNECT4=true" <<< "$out" || fail "cycle on a stack in game mode said: $out"
+[ ! -s "$CALLS" ] || fail "cycle on a stack in game mode called: $(cat "$CALLS")"
+echo "ok: cycle refuses a stack started in game mode (#231), no service called"
 dry "-e ROS_DOMAIN_ID=77 control" "&& set -m;" "pgrep -f \"[/]lib/so101_\"" "grep -qxz ROS_DOMAIN_ID=77 /proc/" "a stack already runs on ROS domain 77" \
   "expose_ground_truth:=true perception:=true" \
   "evaluate --episodes 10 --out /ros2_ws/eval_bench.csv'" -- bench --perception
@@ -90,8 +95,9 @@ dry "colcon build --symlink-install --packages-select so101_brain" "colcon test 
 dry "colcon test --executor sequential --packages-select so101_common so101_driver so101_brain so101_perception so101_bringup so101_connect4 " -- test
 dry "colcon test --packages-select so101_brain --event-handlers console_direct+ --pytest-args -k fsm\\ and\\ lock" \
   -- test so101_brain -k "fsm and lock"
-dry "run --rm --no-deps -T control bash -lc 'source /opt/ros/jazzy/setup.bash && cd /ros2_ws" -- test
-dry "run --rm --no-deps -T control bash -lc 'source /opt/ros/jazzy/setup.bash && cd /ros2_ws" -- test so101_driver
+# CONNECT4=false: a value left in docker/.env never reaches the tests (#231)
+dry "run --rm --no-deps -T -e CONNECT4=false control bash -lc 'source /opt/ros/jazzy/setup.bash && cd /ros2_ws" -- test
+dry "run --rm --no-deps -T -e CONNECT4=false control bash -lc 'source /opt/ros/jazzy/setup.bash && cd /ros2_ws" -- test so101_driver
 echo "ok: test builds and tests one package, or all of ours, in a fresh control container (no stack needed), the rest to pytest, quoted"
 
 # run (#203): a throwaway container next to a developer's stack, never their workspace, network or domain.
@@ -148,4 +154,11 @@ refused test "so101_brain && reboot"
 refused logs control-real
 refused deploy
 "$so101" --help | grep -q "bench --stub|--perception" || fail "--help"
+"$so101" --help | grep -q "CONNECT4=true tools/so101 up" || fail "--help: the game mode"
 echo "ok: a bench without its mode, a bad count or path, a bad package or service, an unknown command: refused"
+
+# The control entrypoint (#231): the game exists in simulation only, refused before anything is built.
+out=$(CONNECT4=true USE_SIM=false bash docker/control_entrypoint.sh 2>&1) && fail "the entrypoint took the game on the real arm"
+grep -q "USE_SIM=true" <<< "$out" || fail "the entrypoint said: $out"
+grep -q 'connect4:=\${CONNECT4:-false}' docker/control_entrypoint.sh || fail "the entrypoint does not pass connect4:= to sim.launch.py"
+echo "ok: the control entrypoint passes CONNECT4 to sim.launch.py and refuses it with USE_SIM=false"
