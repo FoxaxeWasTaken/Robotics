@@ -1,0 +1,6 @@
+# Loaded on top of driver.yaml with connect4:=true (sim.launch.py): the image size the board reader needs to
+# find the grid's markers and read its 42 cells [MES-65] (phase2/P2-02 §3).
+so101_driver:
+  ros__parameters:
+    camera_width: 640
+    camera_height: 480

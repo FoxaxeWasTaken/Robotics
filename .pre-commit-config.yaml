@@ -69,7 +69,7 @@ repos:
         name: tools/so101 dry-run test (#133)
         entry: bash tools/ci/test_so101.sh
         language: system
-        files: ^tools/(so101|ci/test_so101\.sh)$
+        files: ^(tools/(so101|ci/test_so101\.sh)|docker/control_entrypoint\.sh)$
         pass_filenames: false
       - id: so101-arm-test
         name: tools/so101-arm dry-run test (#199)

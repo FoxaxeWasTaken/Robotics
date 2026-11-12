@@ -5,8 +5,8 @@
 On the real arm (use_sim:=false, or real.launch.py), driver_real.yaml and brain_real.yaml override a few of
 them (01 §3.3).
 
-use_sim and port are deployment choices, not tunables: docker/.env -> control_entrypoint.sh -> these
-arguments.
+use_sim, port and connect4 are deployment choices, not tunables: docker/.env -> control_entrypoint.sh ->
+these arguments.
 expose_ground_truth and perception are for the evaluation bench only (C-06, 08 §3): the E2E jobs set
 EXPOSE_GROUND_TRUTH; a bench on its own ROS_DOMAIN_ID adds perception:=true, the compose stack runs perception
 in its own container.
@@ -15,6 +15,9 @@ In sim, the driver runs on our scene, generated at launch by so101_bringup.sim_s
 the external camera moved to the pose of config/sim_scene.yaml (#47). calibration:=true adds the ArUco markers
 of config/markers_sim.yaml and gives 640x480 images (driver_calibration.yaml), for the extrinsic calibration
 (3.4, #44). lighting:=dim darkens and warms every light (config/sim_scene.yaml): the robustness demo (#103).
+connect4:=true is the game of phase 2 (#79, phase2/P2-02 §7): the grid, its tokens and its markers in the
+scene, from so101_connect4's connect4_grid.yaml, 640x480 images (driver_connect4.yaml), and the driver's
+/sim/connect4/* services, the simulated person, in place of /sim/randomize (#80).
 The ghost arm (#200): a second robot_state_publisher draws the driver's setpoint (/joint_setpoint) as the
 ghost/ TF tree, for the "Commanded arm (ghost)" display of RViz, unchecked by default.
 """
@@ -71,6 +74,11 @@ def generate_launch_description():
                 default_value="",
                 description="Sim: a lighting entry of config/sim_scene.yaml (dim), robustness demo (#103)",
             ),
+            DeclareLaunchArgument(
+                "connect4",
+                default_value="false",
+                description="Sim: the Connect Four scene of phase 2 at 640x480 (P2-02 §7)",
+            ),
             Node(
                 package="so101_driver",
                 executable="driver",
@@ -81,7 +89,11 @@ def generate_launch_description():
                     *files(
                         "driver",
                         IfElseSubstitution(
-                            LaunchConfiguration("calibration"), "driver_calibration.yaml", "driver.yaml"
+                            LaunchConfiguration("connect4"),
+                            "driver_connect4.yaml",
+                            IfElseSubstitution(
+                                LaunchConfiguration("calibration"), "driver_calibration.yaml", "driver.yaml"
+                            ),
                         ),
                     ),
                     {
@@ -90,6 +102,17 @@ def generate_launch_description():
                                 LaunchConfiguration("use_sim"),
                                 LaunchConfiguration("calibration"),
                                 LaunchConfiguration("lighting"),
+                                LaunchConfiguration("connect4"),
+                            ),
+                            value_type=str,
+                        ),
+                        "connect4_layout": ParameterValue(
+                            IfElseSubstitution(
+                                LaunchConfiguration("connect4"),
+                                PathJoinSubstitution(
+                                    [FindPackageShare("so101_connect4"), "config", "connect4_grid.yaml"]
+                                ),
+                                "",
                             ),
                             value_type=str,
                         ),
@@ -129,6 +152,12 @@ def generate_launch_description():
                     )
                 ),
                 condition=IfCondition(LaunchConfiguration("perception")),
+            ),
+            IncludeLaunchDescription(  # the game's nodes of this container (#231)
+                PythonLaunchDescriptionSource(
+                    PathJoinSubstitution([FindPackageShare("so101_connect4"), "launch", "game.launch.py"])
+                ),
+                condition=IfCondition(LaunchConfiguration("connect4")),
             ),
         ]
     )

@@ -1,0 +1,172 @@
+"""connect4_sim.py - the simulated person of the Connect Four game (docs/project/phase2/P2-02 §7, #80): drops
+a token into a column, puts one between the open jaws, clears the board, reads the true board. No ROS.
+
+The scene is so101_bringup.sim_scene's: a `grid` body whose frame is the grid frame (so101_connect4.layout),
+tokens named token_red_<i> (the human's) and token_yellow_<i> (the robot's), each on a free joint, parked
+where the model starts them.
+
+The caller holds the driver's lock. Only MjData is written, never the model (the camera reads it unlocked),
+and nothing steps the simulation: mj_forward only refreshes the poses.
+"""
+
+import mujoco
+import numpy as np
+
+HUMAN, ROBOT = 1, 2  # so101_interfaces: DropToken's color, Connect4Board's cells
+COLOR = {HUMAN: "red", ROBOT: "yellow"}
+DROP_HEIGHT = 0.02  # m: a dropped token starts that far above a full column, inside the depth guide
+MIN_OPEN_PCT = 30.0  # give_token needs the jaws that open
+OFF_FIXED_JAW = 0.0005  # m between the given token's face and the fixed jaw
+GIVE_ALONG, GIVE_DEPTH = 0.003, 0.005  # m: how far a hand misses the TCP, along the grid and in depth
+PARKED = 0.01  # m: a token that close to its start pose is a spare one
+AT_REST = 0.05  # m/s: slower, a token in a cell is on the board
+IN_CELL = 0.25  # of a pitch, around a cell's centre
+DISC_IN_SLOT = np.array([[1.0, 0, 0], [0, 0, 1], [0, -1, 0]])  # a token's axes in the grid frame: its z on y
+DISC_ON_JAW = np.array([[0.0, 0, 1], [1, 0, 0], [0, 1, 0]])  # in the gripper body: its z on x, the jaws' axis
+
+
+class Connect4Sim:
+    def __init__(self, sim, layout, rng):
+        """sim: the connected SO101Sim (its model and data); layout: connect4_grid.yaml; rng: the hand's."""
+        self._sim, self._rng = sim, rng
+        grid = layout["grid"]
+        self._columns, self._rows = grid["columns"], grid["rows"]
+        self._pitch, self._row_pitch = grid["column_pitch"], grid["row_pitch"]
+        self._slot = grid["slot_gap"] / 2 + grid["plate"]  # half the grid's thickness
+        self._on_jaw = layout["token"]["thickness"] / 2 + OFF_FIXED_JAW
+        model = sim.model
+        self._grid = model.body("grid").id
+        self._tokens = {color: [] for color in COLOR.values()}
+        for body in range(model.nbody):
+            name = model.body(body).name
+            if name.startswith("token_"):
+                self._tokens[name.split("_")[1]].append(name)
+        for names in self._tokens.values():
+            names.sort(key=lambda name: int(name.rsplit("_", 1)[1]))
+        self._jaws = [self._contact_geoms("gripper"), self._contact_geoms("moving_jaw_so101_v1")]
+        self.floating = None  # the token given and not yet pinched: its gravity is cancelled
+
+    def _contact_geoms(self, body) -> set:
+        model = self._sim.model
+        body = model.body(body).id
+        return {g for g in range(model.ngeom) if model.geom_bodyid[g] == body and model.geom_contype[g]}
+
+    def _addresses(self, name):
+        joint = self._sim.model.joint(f"{name}_free")
+        return joint.qposadr[0], joint.dofadr[0]
+
+    def _place(self, name, position, axes):
+        """A token at rest at `position`, its axes the columns of `axes` (world)."""
+        data, (q, v) = self._sim.data, self._addresses(name)
+        quat = np.zeros(4)
+        mujoco.mju_mat2Quat(quat, np.ascontiguousarray(axes).ravel())
+        data.qpos[q : q + 3], data.qpos[q + 3 : q + 7] = position, quat
+        data.qvel[v : v + 6] = 0
+        data.qfrc_applied[v : v + 6] = 0
+
+    def _spare(self, color):
+        """The first token of that color still parked, or None."""
+        model, data = self._sim.model, self._sim.data
+        for name in self._tokens[color]:
+            q, _ = self._addresses(name)
+            if (
+                name != self.floating
+                and np.linalg.norm(data.qpos[q : q + 3] - model.qpos0[q : q + 3]) < PARKED
+            ):
+                return name
+        return None
+
+    def board(self) -> list:
+        """The true board: 42 cells, row-major from the bottom row, 0 empty, HUMAN or ROBOT. A token counts
+        once at rest in a cell."""
+        data = self._sim.data
+        R, origin = data.xmat[self._grid].reshape(3, 3), data.xpos[self._grid]
+        cells = [0] * (self._columns * self._rows)
+        for value, color in COLOR.items():
+            for name in self._tokens[color]:
+                _, v = self._addresses(name)
+                x, y, z = (data.body(name).xpos - origin) @ R
+                column, row = round(x / self._pitch), round(z / self._row_pitch)
+                in_cell = (
+                    abs(x / self._pitch - column) < IN_CELL
+                    and abs(z / self._row_pitch - row) < IN_CELL
+                    and abs(y) < self._slot
+                )
+                if (
+                    in_cell
+                    and 0 <= column < self._columns
+                    and 0 <= row < self._rows
+                    and np.linalg.norm(data.qvel[v : v + 3]) < AT_REST
+                ):
+                    cells[row * self._columns + column] = value
+        return cells
+
+    def drop_token(self, column, color) -> tuple:
+        """A spare token of `color` above `column`, left to fall. (False, why) for an unknown column or
+        color, a full column, no spare token."""
+        if not 0 <= column < self._columns:
+            return False, f"column {column}: not 0 to {self._columns - 1}"
+        if color not in COLOR:
+            return False, f"color {color}: not {HUMAN} (human) or {ROBOT} (robot)"
+        if self.board()[(self._rows - 1) * self._columns + column]:
+            return False, f"column {column} is full"
+        name = self._spare(COLOR[color])
+        if name is None:
+            return False, f"no spare {COLOR[color]} token"
+        data = self._sim.data
+        R, origin = data.xmat[self._grid].reshape(3, 3), data.xpos[self._grid]
+        above = [column * self._pitch, 0.0, self._rows * self._row_pitch + DROP_HEIGHT]
+        self._place(name, origin + R @ above, R @ DISC_IN_SLOT)
+        mujoco.mj_forward(self._sim.model, data)
+        return True, f"{name} above column {column}"
+
+    def give_token(self, gripper_pct) -> tuple:
+        """A spare robot token between the jaws, on the fixed one, where a hand would hold it: off the TCP by
+        a seeded offset. It floats (gravity cancelled) until release_if_pinched() sees both jaws on it: a
+        free token falls 30 mm in 0.1 s, the jaws need 0.46 s. (False, why) if the jaws are not open."""
+        if gripper_pct < MIN_OPEN_PCT:
+            return False, f"jaws not open: {gripper_pct:.0f} %, {MIN_OPEN_PCT:.0f} % needed"
+        name = self.floating or self._spare(COLOR[ROBOT])
+        if name is None:
+            return False, f"no spare {COLOR[ROBOT]} token"
+        model, data = self._sim.model, self._sim.data
+        R = data.body("gripper").xmat.reshape(3, 3)
+        offset = [
+            self._on_jaw,
+            self._rng.uniform(-GIVE_ALONG, GIVE_ALONG),
+            self._rng.uniform(-GIVE_DEPTH, GIVE_DEPTH),
+        ]
+        self._place(name, data.site("gripperframe").xpos + R @ offset, R @ DISC_ON_JAW)
+        _, v = self._addresses(name)
+        data.qfrc_applied[v + 2] = -model.opt.gravity[2] * model.body(name).mass[0]
+        self.floating = name
+        mujoco.mj_forward(model, data)
+        return True, f"{name} between the jaws"
+
+    def release_if_pinched(self):
+        """Each control tick: once both jaws touch the floating token, its weight is its own again."""
+        if self.floating is None:
+            return
+        model, data = self._sim.model, self._sim.data
+        token = model.geom(self.floating).id
+        touched = {
+            contact.geom2 if contact.geom1 == token else contact.geom1
+            for contact in data.contact[: data.ncon]
+            if token in (contact.geom1, contact.geom2)
+        }
+        if all(touched & jaw for jaw in self._jaws):
+            _, v = self._addresses(self.floating)
+            data.qfrc_applied[v : v + 6] = 0
+            self.floating = None
+
+    def reset_board(self):
+        """Every token back where the model parks it, at rest."""
+        model, data = self._sim.model, self._sim.data
+        for names in self._tokens.values():
+            for name in names:
+                q, v = self._addresses(name)
+                data.qpos[q : q + 7] = model.qpos0[q : q + 7]
+                data.qvel[v : v + 6] = 0
+                data.qfrc_applied[v : v + 6] = 0
+        self.floating = None
+        mujoco.mj_forward(model, data)

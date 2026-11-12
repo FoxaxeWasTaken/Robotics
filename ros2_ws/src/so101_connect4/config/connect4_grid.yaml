@@ -9,7 +9,14 @@ grid:
   slot_gap: 0.0095  # m, across the grid (8.5 to 10.5 mm on the model)
   slot_entry_height: 0.25  # m above the table
   depth_guide_height: 0.030  # m above the slot entries [MES-63]
+  depth_guide_opening: 0.030  # m across the grid, at the guide's top [MES-63]
+  headroom: 0.002  # m between a full column and the slot entry: tokens stack at their diameter, the row pitch
+  wall: 0.0022  # m, the walls between two columns, along the grid
+  plate: 0.003  # m, the front and the back plates
+  window_diameter: 0.029  # m, the round windows of both plates
+  frame_margin: 0.045  # m, the two side posts, which carry the markers
 placement:  # in base_link; the base stays at the origin, the floor and the table are lowered by the riser
+  pan_axis: [0.0388, 0.0]  # m, the shoulder_pan axis [MES-06]
   riser: 0.10  # m: at 8 cm lower_arm hits the guide [MES-63]
   azimuth: -0.6981  # rad (-40°), the grid plane around the shoulder_pan axis [MES-65]
   first_column_r: 0.14  # m from the pan axis; column c at first_column_r + c * column_pitch (0.362 for 6)
@@ -19,7 +26,18 @@ placement:  # in base_link; the base stays at the origin, the floor and the tabl
 token:
   diameter: 0.034  # m
   thickness: 0.0065  # m
-markers:  # on the grid frame, for its pose (P2-02 §3)
+  mass: 0.004  # kg
+  friction: 0.3
+contact:  # sim only: the working set of P2-02 §7, as the drop spike ran it [MES-63]
+  timestep: 0.002  # s
+  cone: elliptic
+  impratio: 100.0
+  solref: 0.004  # s, the tokens' and the grid's contact time constant (MuJoCo's default 0.02: through the bottom)
+  solmix: 1000.0  # the token's solref rules its contacts with the jaws
+  damping: 0.005  # N s/m on the tokens' free joints
+  sleep_tolerance: 0.01  # sleeping islands: without them the tick p99 reaches 29.7 ms
+markers:  # on the front face of the two side posts, for the grid's pose (P2-02 §3); layout.py places them
   dictionary: DICT_4X4_50
-  count: 4
+  ids: [10, 11, 12, 13]  # seen from the camera: top right, top left, bottom right, bottom left (column 0 is right)
   size: 0.030  # m [MES-65]
+  plate: 0.039  # m, the white square around a marker: its quiet zone

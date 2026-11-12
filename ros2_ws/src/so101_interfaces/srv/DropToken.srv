@@ -1,0 +1,8 @@
+# Sim only: the simulated person drops a token into a column of the Connect Four grid (phase2/P2-02 §7).
+uint8 HUMAN=1  # a red token
+uint8 ROBOT=2  # a yellow token
+uint8 column   # 0 to 6, column 0 nearest the arm
+uint8 color    # HUMAN or ROBOT
+---
+bool success   # false: unknown column or color, full column, no spare token
+string message

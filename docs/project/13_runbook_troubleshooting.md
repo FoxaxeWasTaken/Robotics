@@ -10,6 +10,7 @@
 # Build, start, stop
 tools/so101 build                         # the images (~10 min the first time); again after a Dockerfile change
 tools/so101 up                            # control, perception, viz; perception builds its packages, then starts
+CONNECT4=true tools/so101 up              # the Connect Four game instead (sim only); down, then up, to come back
 tools/so101 logs                          # control's logs: wait for "Brain node ready." (logs perception, logs viz)
 tools/so101 restart                       # reload Python code changes (symlink-install); restart perception too
 tools/so101 down                          # SIGINT → destroy_node() → clean stop
@@ -69,7 +70,8 @@ docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && expo
   ros2 run so101_driver driver --ros-args -p camera_device:=/dev/video0 -p camera_width:=640 -p camera_height:=480"
 docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && export ROS_DOMAIN_ID=78 && \
   ros2 topic hz /external_cam/camera_info"  # 10 Hz, sent with each image (needs camera_info_file); on the
-# 640x480 images themselves ros2 topic hz reads lower: it deserializes each 0.9 MB image in Python
+# 640x480 images themselves ros2 topic hz reads about 1 Hz: its subscription is best effort and loses the
+# 0.9 MB images; a Reliable subscriber, as perception, gets the 10 Hz [MES-67]
 "/mnt/c/Program Files/usbipd-win/usbipd.exe" detach --busid <X-Y>
 
 # Real arm, the stack stopped (tools/so101 down), port and file from docker/.env (07 §3.1, #199)

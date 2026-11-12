@@ -39,12 +39,15 @@ from std_srvs.srv import Trigger
 from so101_common.robot import ARM_JOINT_NAMES, BASE_FRAME, CAMERA_FRAME, JOINT_NAMES, pct_to_rad
 from so101_driver.camera import opencv_intrinsics
 from so101_driver.command import apply_command, setpoint_positions
+from so101_driver.connect4_sim import Connect4Sim
 from so101_driver.effort import normalized_effort
 from so101_driver.late import LATE_WARN_S, TickClock
 from so101_driver.limiter import max_relative_target, step_towards
 from so101_driver.randomize import sample_box_xy
 from so101_driver.shutdown import move_to
 from so101_driver.zero_offsets import ZeroOffsets
+from so101_interfaces.msg import Connect4Board
+from so101_interfaces.srv import DropToken
 
 # Calibration file of the real arm, mounted by docker compose (CALIBRATION_FILE in docker/.env).
 CALIBRATION_FILE = Path("/calibration/arm.json")
@@ -153,6 +156,14 @@ class DriverNode(rclpy.node.Node):
                 read_only=True,
             ),
         ).value
+        connect4_layout: str = self.declare_parameter(
+            "connect4_layout",
+            "",
+            ParameterDescriptor(
+                description="Sim: connect4_grid.yaml of the game's scene (P2-02 §7); empty: no game",
+                read_only=True,
+            ),
+        ).value
         if len(zero_offsets) != len(ARM_JOINT_NAMES):
             raise ValueError(f"joint_zero_offsets needs {len(ARM_JOINT_NAMES)} values, got {zero_offsets}")
         if len(self._shutdown_pose) != len(ARM_JOINT_NAMES):
@@ -161,6 +172,7 @@ class DriverNode(rclpy.node.Node):
         if unknown := sorted(set(self._parameter_overrides) - set(self._parameters)):  # rclpy: no public API
             raise ValueError(f"Unknown parameters {unknown}: a typo in a config file? (01 §3.3)")
 
+        self._connect4 = None
         self._robot = self._connect_arm(port)
         self.get_logger().info(f"Robot connected: {type(self._robot).__name__}")
         # SO101Sim is built by the provided _connect_arm (ADR-032): scene, image size and seed are set here.
@@ -173,9 +185,12 @@ class DriverNode(rclpy.node.Node):
             self._robot.camera_height = self._p["camera_height"]
             # Two independent streams from one seed: the provided randomize_object() and the box sampler.
             # SO101Sim only takes a seed in its constructor, which _connect_arm calls without one.
-            sim_seed, box_seed = np.random.SeedSequence(self._p["seed"]).spawn(2)
+            sim_seed, box_seed, hand_seed = np.random.SeedSequence(self._p["seed"]).spawn(3)
             self._robot._rng = np.random.default_rng(sim_seed)
             self._box_rng = np.random.default_rng(box_seed)
+            if connect4_layout:  # game mode: the simulated person (P2-02 §7)
+                layout = yaml.safe_load(Path(connect4_layout).read_text())
+                self._connect4 = Connect4Sim(self._robot, layout, np.random.default_rng(hand_seed))
         else:  # after the provided _connect_arm (ADR-032): SO101Follower.send_action reads it at each call
             self._robot.config.max_relative_target = max_relative_target(
                 self._p["max_relative_target_arm"], self._p["max_relative_target_gripper"]
@@ -231,12 +246,21 @@ class DriverNode(rclpy.node.Node):
             self._camera_thread.start()
 
         if self._use_sim:  # evaluation tools (ADR-018)
-            self.create_service(Trigger, "/sim/randomize", self._srv_randomize)
+            if self._connect4:  # the cube is a ghost there: nothing to randomize
+                self.create_service(DropToken, "/sim/connect4/drop_token", self._srv_drop_token)
+                self.create_service(Trigger, "/sim/connect4/give_token", self._srv_give_token)
+                self.create_service(Trigger, "/sim/connect4/reset_board", self._srv_reset_board)
+            else:
+                self.create_service(Trigger, "/sim/randomize", self._srv_randomize)
             if expose_ground_truth:
                 self._pub_ground_truth = {
                     key: self.create_publisher(PoseStamped, f"/sim/ground_truth/{key}", 10)
                     for key in GROUND_TRUTH_BODIES
                 }
+                if self._connect4:
+                    self._pub_board = self.create_publisher(
+                        Connect4Board, "/sim/ground_truth/connect4_board", 10
+                    )
                 self.create_timer(1.0 / GROUND_TRUTH_RATE_HZ, self._publish_ground_truth, clock=self._steady)
 
         self.get_logger().info("Driver node ready.")
@@ -358,6 +382,8 @@ class DriverNode(rclpy.node.Node):
                 self._obs = self._robot.get_observation()
                 if self._use_sim:
                     self._effort = normalized_effort(self._robot.model, self._robot.data, JOINT_NAMES)
+                if self._connect4:
+                    self._connect4.release_if_pinched()
         except (OSError, RuntimeError) as error:
             self._bus_errors += 1
             retries = self._p["bus_retries"]
@@ -411,14 +437,39 @@ class DriverNode(rclpy.node.Node):
         response.success, response.message = True, "cube and box moved"
         return response
 
+    def _srv_drop_token(self, request, response):
+        """Sim only, game mode: the simulated person drops a token into a column (P2-02 §7)."""
+        with self._backend_lock:
+            response.success, response.message = self._connect4.drop_token(request.column, request.color)
+        return response
+
+    def _srv_give_token(self, request, response):
+        """Sim only, game mode: a robot token between the open jaws; it floats until they close on it."""
+        with self._backend_lock:
+            response.success, response.message = self._connect4.give_token(self._obs["gripper.pos"])
+        return response
+
+    def _srv_reset_board(self, request, response):
+        """Sim only, game mode: every token back to its parking place."""
+        with self._backend_lock:
+            self._connect4.reset_board()
+        response.success, response.message = True, "tokens parked"
+        return response
+
     def _publish_ground_truth(self):
-        """10 Hz, expose_ground_truth only: true cube and box poses, for the evaluation bench (ADR-018)."""
+        """10 Hz, expose_ground_truth only: true cube and box poses, and in game mode the true board, for the
+        evaluation bench (ADR-018)."""
         with self._backend_lock:
             poses = {
                 key: (self._robot.data.body(body).xpos.copy(), self._robot.data.body(body).xquat.copy())
                 for key, body in GROUND_TRUTH_BODIES.items()
             }
+            cells = self._connect4.board() if self._connect4 else None
         stamp = self.get_clock().now().to_msg()
+        if cells is not None:
+            board = Connect4Board(cells=cells, valid=True)
+            board.header.stamp, board.header.frame_id = stamp, BASE_FRAME
+            self._pub_board.publish(board)
         for key, (position, (w, x, y, z)) in poses.items():
             msg = PoseStamped()
             msg.header.stamp = stamp
