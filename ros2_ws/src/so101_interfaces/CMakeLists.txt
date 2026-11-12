@@ -3,12 +3,15 @@ project(so101_interfaces)
 
 find_package(ament_cmake REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/SetJointPositions.srv"
   "srv/GoToTarget.srv"
-  DEPENDENCIES geometry_msgs
+  "srv/DropToken.srv"
+  "msg/Connect4Board.msg"
+  DEPENDENCIES geometry_msgs std_msgs
 )
 
 ament_export_dependencies(rosidl_default_runtime)

@@ -162,7 +162,7 @@ stateDiagram-v2
 
 - **The arm only moves in `MOVE`**, never in `WAIT_HUMAN` or `FIX_BOARD` (P2-05): 0 moves outside it over 8 fault campaigns on a fake world [MES-66].
 - **`FIX_BOARD` is a dead end in sim**: no hand can fix a grid, so `new_game` leaves it and the bench counts a failure.
-- **No `token_given` and no `/brain/set_gripper` in `v2.0.0`**: `/brain/drop` closes the jaws and judges the grip itself. A token stops the jaws at 2.7 %, empty jaws reach 0 %, effort 1.0 against 0, with `close_pct` 0 [MES-64]. `v2.1.0` adds the handover by a person: a self-loop on `WAIT_HUMAN`, with the safety work of §8.
+- **No `token_given` and no `/brain/set_gripper` in `v2.0.0`**: `/brain/drop` closes the jaws and judges the grip itself. With `close_pct` 0, the closing effort tells a token from none: 0.36 to 0.79 on a token over the hand's offsets, 0.00 empty. The jaws' position does not: they end within 0.13 % of an empty close [MES-67] (the first prototype, on stiffer contacts, stopped at 2.7 % [MES-64]). `v2.1.0` adds the handover by a person: a self-loop on `WAIT_HUMAN`, with the safety work of §8.
 - `new_game` is refused before the first `/end_effector_pose`: "Brain node ready" does not mean the brain has `/joint_states` (AGENTS.md).
 
 ## 6. Software architecture and interfaces (ADR-037)
@@ -252,8 +252,8 @@ The set is the one the drop spike ran (#76); the stiffer `solimp` and the priori
 
 **The simulated human** (`so101_driver/connect4_sim.py`, pure, and the services next to `/sim/randomize`):
 
-- `drop_token` teleports a token above the column and lets it fall; it refuses a full column.
-- `give_token` places a yellow token between the open jaws, its axis half a thickness off the fixed jaw, with a seeded offset of ±3 mm along the grid and ±5 mm in depth. Its gravity is cancelled through `qfrc_applied` until both jaws touch it: a free token falls 30 mm in 0.1 s, and the jaws need 0.46 s.
+- `drop_token` teleports a spare token of the color above the column, inside the guide, and lets it fall; it refuses a full column, an unknown column or color, and a color with no spare left.
+- `give_token` places a yellow token between the open jaws (30 % or more, else refused), its axis half a thickness off the fixed jaw, with a seeded offset of ±3 mm along the grid and ±5 mm in depth. A second call before the jaws close moves the same token. Its gravity is cancelled through `qfrc_applied` until both jaws touch it: a free token falls 30 mm in 0.1 s, and the jaws need 0.46 s.
 - `reset_board` puts every token back in 19 µs plus a `mj_forward`, with no settling.
 - They run in the control executor: `MjData` is written under `_backend_lock` only (`driver_node.py:184`), no `mj_step`, and `model` is never written, since the camera reads it unlocked.
 - None of them returns information to the pipeline, which reads the grid through the camera (C-06).

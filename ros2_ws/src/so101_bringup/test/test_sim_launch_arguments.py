@@ -88,6 +88,7 @@ def test_connect4_is_off_by_default_and_the_scene_has_no_grid():
     _, values = driver_parameters()
     scene = Path(values["scene_path"]).read_text()
     assert 'name="grid"' not in scene and "token_" not in scene
+    assert values["connect4_layout"] == ""
 
 
 def test_connect4_starts_the_driver_on_the_game_scene_at_640x480():
@@ -99,6 +100,7 @@ def test_connect4_starts_the_driver_on_the_game_scene_at_640x480():
     assert (size["camera_width"], size["camera_height"]) == (640, 480)
     model = mujoco.MjModel.from_xml_path(values["scene_path"])
     assert model.body("grid").id > 0
+    assert Path(values["connect4_layout"]).name == "connect4_grid.yaml"  # the driver's game mode (#80)
     assert sum(model.body(i).name.startswith("token_") for i in range(model.nbody)) == 42
 
 

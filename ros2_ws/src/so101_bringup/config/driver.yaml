@@ -18,5 +18,6 @@ so101_driver:
     max_relative_target_arm: 0.2       # real arm only: LeRobot's max delta per command, rad (07 §2)
     max_relative_target_gripper: 25.0  # real arm only: same, gripper, %
     expose_ground_truth: false  # true for the evaluation bench only (C-06)
+    connect4_layout: ""         # sim.launch.py connect4:=true gives the game's connect4_grid.yaml (P2-02 §7)
     camera_device: ""           # a webcam (/dev/video0), also with the sim arm; empty: the sim render
     camera_info_file: ""        # the webcam's ROS calibration YAML (6.2b); empty: images without camera_info
