@@ -46,7 +46,7 @@
 | **Jaw axis** | x axis of `gripper_frame_link`, the direction in which the jaws close; normal to the grid when dropping a token |
 | **Drop pose** | TCP pose that drops a token into a column: jaws normal to the grid, token just above the depth guide (`phase2/P2-02` §2) |
 | **Depth guide** | Two sloped strips along the top of the grid, a V across the slots: absorbs the arm's error in the tight direction (`phase2/P2-02` §1) |
-| **Handover** | The human puts the robot's token between its open jaws, then presses "token given"; the gripper closes, the arm stays still (`phase2/P2-02` §5) |
+| **Handover**, `HANDOVER` | The robot's token is put between its open jaws, the arm at the pose `HANDOVER` (`connect4.handover_pose`), where the camera sees the whole grid. In sim `/sim/connect4/give_token` gives it; `/brain/drop` closes the jaws and checks the grip (`phase2/P2-02` §2.3, §5). A person's handover is `v2.1.0` |
 | **Riser** | Rigid block under the arm (about 8 cm) so that a store-bought grid is within reach [MES-32] |
 | **Wrist camera (eye-in-hand)** | Camera on the gripper; sees the token and the slot in one image, so their offset does not depend on calibration (`phase2/P2-02` §3.1) |
 | **Negamax, alpha-beta** | Game-tree search of the Connect Four engine; alpha-beta skips the branches that cannot change the result |

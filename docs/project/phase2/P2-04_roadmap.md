@@ -12,10 +12,10 @@
 | --- | --- | --- | --- | --- |
 | **P2.0** Pitch ✅ | CP | #73, #74 | Validated by the teaching staff; scope set to the sim | — |
 | **P2.1** Drop spike ✅ | B | #76 | One layout, go / no-go on dropping | Go: 1; no-go: 0 |
-| **P2.2** Game engine | B | #77, #78, #230 | Package, `game.py`, `turns.py` tested | — |
-| **P2.3** Scene and loading | A | #79, #80, #231 | Game scene, sim services, `CONNECT4` mode | — |
-| **P2.4** Board reader | C | #81, #82 | Grid read from the camera | — |
-| **P2.5** Token in the gripper and `/brain/drop` | B | #83, #84, #85 | One move through the brain, `fsm.py` untouched | — |
+| **P2.2** Game engine ✅ | B | #77, #78, #230 | Package, `game.py`, `turns.py` tested | — |
+| **P2.3** Scene and loading ✅ | A | #79, #80, #231 | Game scene, sim services, `CONNECT4` mode | — |
+| **P2.4** Board reader ✅ | C | #81, #82 | Grid read from the camera | — |
+| **P2.5** Token in the gripper and `/brain/drop` ✅ | B | #83, #84, #85 | One move through the brain, `fsm.py` untouched | — |
 | **P2.6** Sim integration | Shared | #86, #87, #232, #233, #234 | Full games in sim, a console, the CI | **1** |
 | **P2.7** Real arm (`v2.1.0`) | Shared, A leads | #88 to #91 | Full games on the real arm, filmed | **2** |
 | **P2.8** Wrist camera (`v2.1.0`) | A, C, B | #92 to #95 | Look and correct, if kept (`P2-02` §8) | 2, more reliable |
@@ -62,31 +62,34 @@ flowchart LR
 - **Tasks**: `experiences/connect4/scene/exp_connect4_scene.py` on the layout of `P2-02` §7 with the pose of `experiences/connect4/drop/`; 100 drops, 100 with a TCP offset of ±5 mm, capture sweep, full stacks read with the method of `experiences/connect4/reading/`.
 - **Done when**: results recorded; **go** if ≥ 95 % without TCP offset and ≥ 80 % with ±5 mm. No-go: change the sim geometry (slot gap, guide), it is a parameter; still no-go: **level 0** with the same software.
 
-### Step P2.2 — Game engine (#77, #78, #230)
+### Step P2.2 — Game engine ✅ (#77, #78, #230)
 
 - **Tasks**: the `so101_connect4` package with the guards extended to it; `game.py` and `turns.py`, ported from `experiences/connect4/game/` with their tests.
 - **Done when**: P2-04 met in CI (legal moves only, 100/100 against random, < 2 s per move); every transition of `P2-02` §5 tested; the arm moves in `MOVE` only.
 
-### Step P2.3 — Scene and loading (#79, #80, #231)
+### Step P2.3 — Scene and loading ✅ (#79, #80, #231)
 
 - **Tasks**
-  - [ ] Scene generated with `MjSpec` from a copy of the provided one: floor and table lowered, the base at the origin, grid, depth guide, 42 tokens, ArUco markers, the working set (`P2-02` §7).
-  - [ ] Sim services `/sim/connect4/drop_token`, `give_token`, `reset_board`, the true board under `expose_ground_truth`.
-  - [ ] `CONNECT4` from `docker/.env` to the launch files (`P2-02` §6.1).
+  - [x] Scene generated with `MjSpec` from a copy of the provided one: floor and table lowered, the base at the origin, grid, depth guide, 42 tokens, ArUco markers, the working set (`P2-02` §7).
+  - [x] Sim services `/sim/connect4/drop_token`, `give_token`, `reset_board`, the true board under `expose_ground_truth`.
+  - [x] `CONNECT4` from `docker/.env` to the launch files (`P2-02` §6.1).
 - **Done when**: tick p99 ≤ 25 ms and image ≥ 3 Hz with 42 tokens; a `drop_token` lands in the right cell and a `give_token` then a close holds the token; with the mode off, the generated scene is identical and the E2E job is green.
+- **Done**: tick p99 21.5 ms and the image at 10 Hz in 640×480 while 42 tokens fall, 42 of 42 in their cell; a given token held while the arm moves [MES-67].
 
-### Step P2.4 — Board reader (#81, #82)
+### Step P2.4 — Board reader ✅ (#81, #82)
 
 - **Tasks**: `board.py` and `board_reader_node` (`P2-02` §3): grid pose from the ArUco markers, 42 cells classified, stable reads only; debug view in RViz.
 - **Done when**: P2-01 met in sim (50 states, 100 % of the cells); grid pose within 5 mm of the scene (test only).
+- **Done**: 2100 cells of 2100 on 50 states, the grid's pose within 0.7 mm of the scene's [MES-68].
 
-### Step P2.5 — Token in the gripper and `/brain/drop` (#83, #84, #85)
+### Step P2.5 — Token in the gripper and `/brain/drop` ✅ (#83, #84, #85)
 
 - **Tasks**
-  - [ ] `release_pose` in `so101_brain/drop.py`: roll +1.6195 rad, tilt 70°, target = token centre.
-  - [ ] `/brain/drop` (reply at the end of the move), `/brain/handover`, the held-token check; `fsm.py` and `grasp_planner.py` unchanged.
-  - [ ] Interface contract updated in `01` §3 with both owners' approval.
+  - [x] `release_pose` in `so101_brain/drop.py`: roll +1.6195 rad, tilt 70°, target = token centre.
+  - [x] `/brain/drop` (reply at the end of the move), `/brain/handover`, the held-token check; `fsm.py` and `grasp_planner.py` unchanged.
+  - [x] Interface contract updated in `01` §3 with both owners' approval.
 - **Done when**: 50 sim drops ≥ 95 % (P2-02), token held ≥ 49/50 (P2-03); 10 tries without a token refused, the arm never moves; the phase-1 nightly unchanged.
+- **Done**: 50 tokens of 50 in their column, held 50 of 50, 10 tries of 10 refused; a move lasts 13 to 19 s [MES-69].
 
 ### Step P2.6 — Sim integration (#86, #87, #232, #233, #234): level 1
 
@@ -116,8 +119,8 @@ The team works on Thursdays and Fridays, the weekend as a reserve. Monday to Wed
 | Date | Gate | Tickets |
 | --- | --- | --- |
 | Thu 12 ✅ | Scope docs, the spike (a go), the engine, the turns and the drop pose merged | #74, #76, #77, #78, #83, #230 |
-| Thu 12 – Fri 13 | Scene, sim services, mode | #79, #80, #231 |
-| Fri 13 – Sat 14 | Reader, `/brain/drop`, handover | #81, #82, #84, #85 |
+| Thu 12 ✅ | Scene, sim services, mode, the board reader | #79, #80, #231, #81, #82 |
+| Fri 13 ✅ | `/brain/drop`, handover | #84, #85 |
 | **Sun 15** | **First full game on the stack**; console, game bench, a game on each PR | #86, #232, #87, #233 |
 | Mon 16 – Wed 18 | No work day. Reviews; the nightly runs the games on what is merged | |
 | Thu 19 | Guide, results, videos, the team on camera, rehearsal. **16:00: the last PR**, with `[2.0.0]` and the docs, opened once the gate is read; the nightly dispatched at its merge | #234, #97, #98, #229 |

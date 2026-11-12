@@ -45,10 +45,10 @@ Same scale as `10` (P = probability, I = impact, 1 to 3; Crit. = P × I).
 | Unit | `turns.py`: every transition and failure row; a random walk of events: the arm moves in `MOVE` only | pytest | P2-05 |
 | Unit | `board.py`: synthetic boards, reference PNGs rendered from the scene | pytest | P2-01 |
 | Unit | `release_pose`: the 7 columns, token centre within 1 mm, jaw error < 0.2°, tilt 70°; unreachable → `None` | pytest | ADR-035 |
-| Package | Each package with its own fakes: `so101_driver` (services), `so101_brain` (`/brain/drop`, fake driver), `so101_connect4` (fake camera, fake brain). colcon's coverage counts per package: a bringup test covers no driver code | pytest, `colcon test` | Quality gate, 80 % on new code |
+| Package | Each package with its own fakes: `so101_driver` (services), `so101_brain` (`/brain/drop`, fake driver), `so101_connect4` (fake camera, fake brain). colcon's coverage counts per package, and only the test's process: a bringup test covers no driver code, a launched node no line, so `test_drop_services.py` runs the brain in its own process | pytest, `colcon test` | Quality gate, 80 % on new code |
 | Integration (sim) | Scene: tick and image rate with 42 tokens; a render finds the 4 markers | `so101_bringup/test` | #79 |
 | Integration (sim) | Board reader against the scene's truth (tests only, C-06): 10 states in `colcon test`, 50 once as a MES | `so101_bringup/test` | P2-01 |
-| Integration (sim) | One drop in `colcon test`; 50 drops once as a MES, random columns; 10 tries without a token | `so101_bringup/test`, `experiences/` | P2-02, P2-03 |
+| Integration (sim) | One drop in `colcon test`; 50 drops once as a MES, random columns; 10 tries without a token | `so101_bringup/test` (`CONNECT4_DROPS=50`) [MES-69] | P2-02, P2-03 |
 | End-to-end (sim) | Game bench: N games against a scripted human, random or engine | `evaluate --games` (`08`) | P2-06 |
 | Spike | 100 drops, 100 with ±5 mm TCP offset, capture sweep, full stacks | `experiences/connect4/scene/` | Go / no-go, #76 |
 | Real (`v2.1.0`) | 30 drops, 30 handovers, 20 board photos, 3 filmed games; guide vs camera if the wrist camera is kept | manual protocol, results in `results/` | `P2-01` real parts |
