@@ -28,7 +28,10 @@ URDF = Path(get_package_share_directory("so101_description")) / "urdf" / "so101.
 LAYOUT = layout.load()
 GRID, TOKEN = LAYOUT["grid"], LAYOUT["token"]
 T_GRID = layout.grid_pose(LAYOUT)
-HANDOVER = [-1.0, -0.6, 0.6, 1.1, 1.57]  # the candidate of P2-02 §7: the reader reads with the arm there
+# The brain's connect4.handover_pose (#85): the reader reads with the arm there, a token in its jaws
+HANDOVER = yaml.safe_load(
+    (Path(get_package_share_directory("so101_bringup")) / "config" / "brain.yaml").read_text()
+)["so101_brain"]["ros__parameters"]["connect4"]["handover_pose"]
 FLIP = np.diag([1.0, -1.0, -1.0])  # MuJoCo camera frame (y up, looks along -z) -> OpenCV optical frame
 ARM_BODIES = ["shoulder", "upper_arm", "lower_arm", "wrist", "gripper", "moving_jaw_so101_v1"]
 
