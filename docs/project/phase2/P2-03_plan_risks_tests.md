@@ -50,6 +50,7 @@ Same scale as `10` (P = probability, I = impact, 1 to 3; Crit. = P × I).
 | Integration (sim) | Board reader against the scene's truth (tests only, C-06): 10 states in `colcon test`, 50 once as a MES | `so101_bringup/test` | P2-01 |
 | Integration (sim) | One drop in `colcon test`; 50 drops once as a MES, random columns; 10 tries without a token | `so101_bringup/test` (`CONNECT4_DROPS=50`) [MES-69] | P2-02, P2-03 |
 | End-to-end (sim) | Game bench: N games against a scripted human, random or engine | `evaluate --games` (`08`) | P2-06 |
+| End-to-end (sim) | Robustness demo of the game: the course's five fault questions asked of a game, and a stop mid-move, one command each | `tools/so101 robustness g1` to `g6` (#243), `results/robustness_demo.md` | `06` §10, P2-03, P2-05 |
 | Spike | 100 drops, 100 with ±5 mm TCP offset, capture sweep, full stacks | `experiences/connect4/scene/` | Go / no-go, #76 |
 | Real (`v2.1.0`) | 30 drops, 30 handovers, 20 board photos, 3 filmed games; guide vs camera if the wrist camera is kept | manual protocol, results in `results/` | `P2-01` real parts |
 
@@ -61,7 +62,7 @@ Same scale as `10` (P = probability, I = impact, 1 to 3; Crit. = P × I).
 | Each night `main` changed | The phase-1 bench, then 10 games on a restarted stack; one verdict line, `Target ≥ 90 % and ≥ 8/10 games: met.`, read by the report and by `release.sh`; SonarQube Cloud, coverage per package, trends |
 | Release | `release.sh` needs the bench on the exact commit, the gate and the CHANGELOG (`15` §6). The gate is read **before** the last PR (#227) |
 
-Ten games last about 15 to 25 min (estimated, [MES-64]: 5 to 8 s a move, 9 robot moves a game), in a job of 120 min that uses 19 today. Not worth doing here: CI or Sonar badges, a Sonar scan on PRs, path filters, mypy, mutation tests on the game, a matrix.
+Ten games last about 25 to 50 min (estimated: 13 to 19 s a move [MES-69], 9 robot moves a game on average and 18 at most [MES-64]), in a job of 120 min that uses 19 today. Not worth doing here: CI or Sonar badges, a Sonar scan on PRs, path filters, mypy, mutation tests on the game, a matrix.
 
 Who sees it: the repository is private and the school copy has no Actions, Issues or Releases, so the visible proof is in the tree: `.github/workflows/`, `results/phase2_<date>.md`, the README (#234).
 
