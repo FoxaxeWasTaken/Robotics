@@ -192,7 +192,7 @@ class BrainNode(rclpy.node.Node):
         self._fsm = Fsm(Params(park_pose=park, **values))
         self._p = self._fsm.p  # also /go_to_target's motion: v_max, min_motion_s, reach_tol, motion_margin_s
         planner = self._declare_planner()
-        game = self.declare_parameter(
+        self._game = self.declare_parameter(
             "connect4.enabled",
             False,
             ParameterDescriptor(description="Game mode: /brain/drop and /brain/handover", read_only=True),
@@ -234,7 +234,7 @@ class BrainNode(rclpy.node.Node):
         self.create_service(GoToTarget, "/go_to_target", self._srv_go_to_target)
         self.create_service(Trigger, "/brain/start", self._srv_start)
         self.create_service(Trigger, "/brain/stop", self._srv_stop)
-        if game:
+        if self._game:
             # Their own group: they reply at the end of the move, and a pending callback of the default group
             # froze the tick [MES-64]. Reentrant: a request during a move is refused at once, not queued.
             group = ReentrantCallbackGroup()
@@ -373,8 +373,8 @@ class BrainNode(rclpy.node.Node):
         if self._start or not self._fsm.accepts_start:
             response.success, response.message = False, f"rejected: brain in {self._fsm.label}"
             return response
-        if self._move is not None:
-            response.success, response.message = False, "rejected: a move of the game is running"
+        if self._game:  # no cube on the game's scene, and the way to PARK crosses the grid [MES-69]
+            response.success, response.message = False, "rejected: game mode, no pick & place cycle"
             return response
         self._start = True
         response.success = True
@@ -409,7 +409,7 @@ class BrainNode(rclpy.node.Node):
 
     def _refusal(self):
         """Why no move of the game can start now, or None. One commander at a time."""
-        if self._fsm.state is not State.IDLE or self._start:
+        if self._fsm.state is not State.IDLE:  # the tick after a /brain/stop; no cycle starts in game mode
             return f"not_idle:{self._fsm.label}"
         if self._move is not None or self._motion is not None:
             return "busy"

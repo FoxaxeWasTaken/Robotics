@@ -81,7 +81,7 @@ This table is **the contract** between team members. Any change goes through a P
 
 | Service | Type | Server | Role |
 | --- | --- | --- | --- |
-| `/brain/start` | `std_srvs/Trigger` | brain | Starts a pick & place cycle. Rejected if not in `IDLE` (C-35) or during a move of the game; in `ERROR` it re-arms (→ `IDLE`, `06` §3.1) |
+| `/brain/start` | `std_srvs/Trigger` | brain | Starts a pick & place cycle. Rejected if not in `IDLE` (C-35), and always in game mode (no cube on the game's scene, and the way to `PARK` crosses the grid [MES-69]); in `ERROR` it re-arms (→ `IDLE`, `06` §3.1) |
 | `/brain/stop` | `std_srvs/Trigger` | brain | Aborts the cycle, from any state: the arm freezes at its current position, state → `STOPPED` → `IDLE`. It cuts a move of the game too, whose reply is `stopped` |
 | `/brain/drop` | `so101_interfaces/Drop` | brain (**game mode only**) | One move of the game (`06` §5.1, `phase2/P2-02` §2.3): `target`, the token's centre at the release, in `base_link`. From `HANDOVER`, a token between the open jaws: closes, checks the grip, drops the token, comes back. **Replies at the end of the move**, `/brain_state` stays `IDLE`. `message`: `done in <s> s`, or `no_token` (the jaws open again, the arm has not moved), `unreachable`, `not_at_handover`, `not_idle:<state>`, `busy`, `no_joint_states`, `stopped`, `timeout:<step>` |
 | `/brain/handover` | `std_srvs/Trigger` | brain (**game mode only**) | Opens the jaws and reaches `HANDOVER` (`connect4.handover_pose`), where a token is given and the camera sees the whole grid; replies there. Same refusals |
@@ -118,7 +118,7 @@ Declared with descriptors (description, range, read-only: read at startup) in ea
 | driver | `connect4_layout` | `""`: no game | Set by `sim.launch.py connect4:=true`: the path of `connect4_grid.yaml`, which turns the driver's game mode on (`03` §7) |
 | driver | `seed` | 0 | `/sim/randomize`: same seed, same cube and box sequence (`03` §7) |
 | driver | `expose_ground_truth` | **`false`** | Tests and evaluation bench only (C-06) |
-| driver | `shutdown_pose` | `PARK` [1.9, −1.7, 1.5, 0.7, 0.0] rad | Reached at 0.5 rad/s before `disconnect()` cuts the torque (`03` §8) |
+| driver | `shutdown_pose` | `PARK` [1.9, −1.7, 1.5, 0.7, 0.0] rad; in game mode `HANDOVER` (`driver_connect4.yaml`) | Reached at 0.5 rad/s before `disconnect()` cuts the torque (`03` §8). On the game's scene the joint line from `HANDOVER` to `PARK` goes 30 mm into the grid's near post [MES-69] |
 | driver | `shutdown_velocity` / `shutdown_tolerance` | 0.5 rad/s / 0.05 rad | The shutdown move, at most `max_joint_velocity`, 11 s at most (`03` §8) |
 | driver | `bus_retries` | 3 | Failed control ticks retried before "Bus lost" (`03` §8) |
 | driver | `max_relative_target_arm` / `_gripper` | 0.2 rad / 25 % | Real arm only: LeRobot's max delta per command, per motor (ADR-023) |

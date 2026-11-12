@@ -211,7 +211,7 @@ Both phases live on `main`, with no long-lived branch: phase 1 stays what the st
 | --- | --- | --- |
 | Scene | `sim_scene.yaml`, 320×240 | The same, plus grid, tokens, the floor lowered, 640×480 |
 | Perception container | `perception_node` | `board_reader_node`, `perception_node` does not run |
-| Control container | Driver, brain | Plus `game_node`, `/brain/drop`, `/brain/handover`, `/sim/connect4/*`; no `/sim/randomize` |
+| Control container | Driver, brain | Plus `game_node`, `/brain/drop`, `/brain/handover`, `/sim/connect4/*`; no `/sim/randomize`, `/brain/start` refused; the driver ends at `HANDOVER`, not `PARK` (the way to `PARK` crosses the grid [MES-69]) |
 | Unchanged | `fsm.py`, `grasp_planner.py`, `perception_node.py`, `_connect_arm` | Same files |
 | Proof | E2E on each PR, 50 episodes each night | One game on each PR, 10 each night |
 

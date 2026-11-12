@@ -22,6 +22,7 @@ from std_srvs.srv import Trigger
 from test_drop import COLUMNS, token_centre
 
 from so101_brain.brain_node import BrainNode
+from so101_brain.fsm import State
 from so101_brain.kinematics import Kinematics
 from so101_common.robot import pct_to_rad
 from so101_interfaces.srv import Drop, GoToTarget
@@ -132,6 +133,7 @@ def drop_request(target=COLUMNS[3]):
 def arm():
     rclpy.init(args=["--ros-args", "-p", "connect4.enabled:=true"])
     brain, fake = BrainNode(), FakeArm()
+    fake.brain = brain
     fake.executor_ = SingleThreadedExecutor()
     fake.executor_.add_node(brain)
     fake.executor_.add_node(fake)
@@ -271,18 +273,21 @@ def test_an_arm_that_stops_following_ends_the_move_with_its_step(arm):
     assert (reply.success, reply.message) == (False, "timeout:rise")
 
 
-def test_a_cycle_running_refuses_a_move(arm):
+def test_the_pick_and_place_cycle_is_refused_in_game_mode(arm):
+    """No cube on the game's scene, and the way to PARK crosses the grid (so101_bringup's scene test)."""
     arm.to_handover()
-    assert arm.call(arm.start, timeout=3.0).success
+    before = len(arm.commands)
+    reply = arm.call(arm.start, timeout=3.0)
+    assert not reply.success
+    assert "game mode" in reply.message
+    arm.spin_for(0.5)
+    assert len(arm.commands) == before
+    assert set(arm.states) <= {"IDLE", "STOPPED"}  # never a state of the cycle
+
+
+def test_a_brain_that_is_not_idle_refuses_a_move(arm):
+    arm.brain._fsm.state = State.STOPPED  # as in the tick after /brain/stop
     try:
-        arm.spin_for(0.3)
-        for client, request in ((arm.drop, drop_request()), (arm.handover, None)):
-            reply = arm.call(client, request, timeout=3.0)
-            assert not reply.success
-            assert re.fullmatch(r"not_idle:[A-Z_]+", reply.message)
+        assert arm.brain._refusal() == "not_idle:STOPPED"
     finally:
-        assert arm.call(arm.stop, timeout=3.0).success
-    end = time.monotonic() + 5.0
-    while arm.states[-1] != "IDLE" and time.monotonic() < end:
-        arm.spin_for(0.05)
-    assert arm.states[-1] == "IDLE"
+        arm.brain._fsm.state = State.IDLE
