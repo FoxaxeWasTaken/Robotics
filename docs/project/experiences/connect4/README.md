@@ -25,6 +25,11 @@ tools/so101 run 'python3 -u /repo/docs/project/experiences/connect4/scene/exp_co
 tools/so101 run --out docs/project/experiences/connect4/drop 'cd /out && python3 -u e7_cycle.py'
 tools/so101 run --out docs/project/experiences/connect4/reading 'cd /out && python3 -u final.py'
 
+# #81: the reference images of so101_connect4/test/data, rendered from the game's scene (the package cannot
+# import the sim); run it again when the scene or connect4_grid.yaml changes
+tools/so101 run --out ros2_ws/src/so101_connect4/test/data \
+  'python3 /repo/docs/project/experiences/connect4/reading/render_reference.py'
+
 # game/: pure Python, on any machine
 cd docs/project/experiences/connect4/game && python3 test_game.py && python3 test_turns.py && python3 bench_engine.py depth
 ```
