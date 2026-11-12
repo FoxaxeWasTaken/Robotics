@@ -201,6 +201,7 @@ drop     : ik_point(p_box + (0, 0, h_drop), a(θ) in the arm's plane, roll of th
 - [ ] Position-only IK leaves the orientation free (approach tilt up to 90° measured from the real rest pose): use `ik_point` or `ik_pose` for grasps. It also spins the roll (up to 4 rad for a 6 cm lift): pass `roll` when it should stay.
 - [x] **No solution folded onto the arm itself** (#145): ikpy knows no collision volumes, and a position solution could fold the elbow to its limit, where the lower arm hits the shoulder and the arm stops short (28.4 mm from target 4 seeded from the startup pose) [MES-43]. `Kinematics.self_collides` now rejects, in `_solve` (so `ik_pos`, `ik_point` and `ik_pose`), the elbow folded past **1.50 rad** and any point of the lower arm, wrist and gripper (the polyline elbow → `wrist_flex` → `wrist_roll` → TCP, 6 points per segment) inside a vertical cylinder of **10 cm** around the pan axis below **12.5 cm**; the next seed is tried, as for an FK miss. Against MuJoCo, on 30,000 random poses: 0 of the 3,788 self-contacts missed, 9.6 % of the free poses rejected too. Margin over the tightest rule with no miss (1.55 rad, 9 cm, 12 cm): 0.05 rad, 1 cm, 0.5 cm, for the real arm's calibration (`07` §4); `PARK` stays clear (its elbow at 13.0 cm, 8.7 cm from the axis). Pure geometry of the chain, no MuJoCo in the brain (C-05). Not covered: the table, the cube and the box (the planner's tilt and clearance), the jaws' opening. Still seed from a bent pose rather than q = 0: straight, it is singular.
 - [ ] With the roll fixed, the approach can only tilt in the arm's own plane (azimuth −pan), not the target's: the TCP sits 8 mm off the roll axis.
+- [x] **Drop pose of phase 2** (`drop.py`, #83): aim the **token's centre**, not the TCP (it rests on the fixed jaw, 3.15 mm off the TCP along x); roll **+1.6195 rad**, not π/2 (the URDF wrist's 2.8°); the approach tilted 70°, since a bare `ik_pos` flips the tool on some columns (tilt 114–149°) [MES-64]. `test_drop.py` fails on each of these three mistakes. The jaws come out normal to the grid only where the pan puts the arm plane parallel to it: the token centre about 4.85 mm off the pan axis on the TCP line's side, the TCP 8 mm.
 - [ ] Aligned grasp tilted by θ: the jaw axis (TCP x) is the face normal projected perpendicular to the approach. The cube's 90° symmetry hides a jaw axis off by 90°: test the convention itself.
 
 ## 9. API (`so101_brain/kinematics.py`, ROS-free, testable)
@@ -219,6 +220,8 @@ class Kinematics:                                    # façade: ikpy inside, Pin
 
 class GraspPlanner:
     def plan(self, cube_position, cube_yaw, box_position, q_current): ...   # (GraspPlan, None) | (None, reason)
+
+def release_pose(kin, target, q_seed=None) -> np.ndarray | None: ...     # drop.py: the held token's centre on target
 ```
 
 Everything above exists except `ik_jaw_normal`, which comes with phase 2 (P2.5a); `GraspPlanner` is in `grasp_planner.py`. `cube_yaw=None` (unknown) plans a free grasp only; the failure reasons, usable as FSM error causes, are `unreachable`, `lift_unreachable` and `drop_unreachable`.
