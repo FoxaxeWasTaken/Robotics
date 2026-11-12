@@ -16,8 +16,8 @@
 | **P2.3** Scene and loading ✅ | A | #79, #80, #231 | Game scene, sim services, `CONNECT4` mode | — |
 | **P2.4** Board reader ✅ | C | #81, #82 | Grid read from the camera | — |
 | **P2.5** Token in the gripper and `/brain/drop` ✅ | B | #83, #84, #85 | One move through the brain, `fsm.py` untouched | — |
-| **P2.6** Sim integration | Shared | #86, #87, #232, #233, #234, #243 | Full games in sim, a console, the CI, the robustness demo | **1** |
-| **P2.7** Real arm (`v2.1.0`) | Shared, A leads | #88 to #91 | Full games on the real arm, filmed | **2** |
+| **P2.6** Sim integration | Shared | #86, #87, #232, #233, #234, #243 to #247 | Full games in sim, a console, the CI, the robustness demo; the engine's levels and reasons, the games' records | **1** |
+| **P2.7** Real arm (`v2.1.0`) | Shared, A leads | #88 to #91, #248 | Full games on the real arm, filmed; the grid printed from the sim's model | **2** |
 | **P2.8** Wrist camera (`v2.1.0`) | A, C, B | #92 to #95 | Look and correct, if kept (`P2-02` §8) | 2, more reliable |
 | **P2.9** Stretch | Anyone | none | One or two bonus features, only if ahead | **3** |
 
@@ -35,21 +35,23 @@ flowchart LR
   S5 --> S6
   S6 --> B["Bench, console<br/>#87 #232"]
   B --> D["Robustness demo<br/>#243"]
+  S6 --> E["Engine options, game records<br/>#244 #245"]
+  E --> P["Display, faster moves<br/>#246 #247"]
   B --> C["CI, guide, video<br/>#233 #234 #97"]
   C --> R["Release<br/>#229"]
   S1 -. "no-go" .-> F["Level 0<br/>tic-tac-toe with cubes"]
 ```
 
-**Critical path**: #76 → #79 → #80 → #84 → #86 → #87 → #229. The measures of a purchased grid (#75) are `v2.1.0`: the sim runs on the model of `P2-02` §7, and every dimension is a parameter of `connect4_grid.yaml`.
+**Critical path**: #76 → #79 → #80 → #84 → #86 → #87 → #229. The real grid is `v2.1.0`, printed from the model (#248) or bought and measured (#75): the sim runs on the model of `P2-02` §7, and every dimension is a parameter of `connect4_grid.yaml`.
 
 ### 1.2 Who does what
 
 | Lane | Tickets | Note |
 | --- | --- | --- |
 | A — Driver, infra | #79, #80, #231, #233 | Scene, sim services, mode, CI |
-| B — Kinematics and brain | #76, #77, #78, #83, #84, #85, #230 | Spike, engine, turns, `/brain/drop` |
+| B — Kinematics and brain | #76, #77, #78, #83, #84, #85, #230, #244, #247 | Spike, engine, turns, `/brain/drop`; the engine's options, faster moves |
 | C — Perception | #81, #82 | Grid reading |
-| Shared | #86, #87, #232, #234, #243, #97, #98, #229 | Everyone plays a game and can explain each block before the defense (C-50) |
+| Shared | #86, #87, #232, #234, #243, #245, #246, #97, #98, #229 | Everyone plays a game and can explain each block before the defense (C-50) |
 
 ---
 
@@ -94,12 +96,12 @@ flowchart LR
 
 ### Step P2.6 — Sim integration (#86, #87, #232, #233, #234, #243): level 1
 
-- **Tasks**: `game_node`, the console `tools/so101 play`, the game bench, phase 2 in the CI, the player guide and the results file; the robustness demo of the game, its fault cases in one command each, as phase 1's (#243).
+- **Tasks**: `game_node`, the console `tools/so101 play`, the game bench, phase 2 in the CI, the player guide and the results file; the robustness demo of the game, its fault cases in one command each, as phase 1's (#243). From the review of 2026-11-12: the engine's levels, seed and reasons (#244), the moves and the timings of each game (#245), their display in the console and the debug image (#246), faster empty legs (#247).
 - **Done when**: P2-06 (≥ 8/10 full games), P2-07 (a member who did not write the game plays from a fresh clone), P2-08 (a game on each PR, the games in the nightly report).
 
-### Step P2.7 — Real arm (`v2.1.0`, #88 to #91): level 2
+### Step P2.7 — Real arm (`v2.1.0`, #88 to #91, #248): level 2
 
-Riser, jig, depth guide, commissioning again on the riser (`07` §3), handover tuning, grid webcam, real benches, then games against people. **Read `P2-02` §8 first**: five findings block any session next to a person, and the first task is a real spike on 7 poses.
+The grid printed from `connect4_grid.yaml`, one column first (#248), or bought and measured (#75). Riser, jig, depth guide, commissioning again on the riser (`07` §3), handover tuning, grid webcam, real benches, then games against people. **Read `P2-02` §8 first**: five findings block any session next to a person, and the first task is a real spike on 7 poses.
 
 ### Step P2.8 — Wrist camera (`v2.1.0`, #92 to #95)
 
@@ -121,8 +123,8 @@ The team works on Thursdays and Fridays, the weekend as a reserve. Monday to Wed
 | --- | --- | --- |
 | Thu 12 ✅ | Scope docs, the spike (a go), the engine, the turns and the drop pose merged | #74, #76, #77, #78, #83, #230 |
 | Thu 12 ✅ | Scene, sim services, mode, the board reader | #79, #80, #231, #81, #82 |
-| Fri 13 ✅ | `/brain/drop`, handover | #84, #85 |
-| **Sun 15** | **First full game on the stack**; console, game bench, a game on each PR; the robustness demo if the game runs | #86, #232, #87, #233, #243 |
+| Thu 12 ✅ | `/brain/drop`, handover | #84, #85 |
+| **Sun 15** | **First full game on the stack**; console, game bench, a game on each PR; then, in this order and only if the game runs: the engine's options, the games' records, the robustness demo, the display, faster moves. No new code after this day: SonarQube reads a merge one day late | #86, #232, #87, #233, #244, #245, #243, #246, #247 |
 | Mon 16 – Wed 18 | No work day. Reviews; the nightly runs the games on what is merged | |
 | Thu 19 | Guide, results, videos, the team on camera, rehearsal. **16:00: the last PR**, with `[2.0.0]` and the docs, opened once the gate is read; the nightly dispatched at its merge | #234, #97, #98, #229 |
 | Fri 20 | 12:00: latest tag. The tag on the school copy checked. **23:42: hand-in** | #229 |
@@ -137,6 +139,7 @@ A feature not merged on Sunday 15 has one work day left, Thursday 19, shared wit
 | 2026-11-15 | No full game on the stack | Cut the polish of the console and the engine human of the bench; the game comes first on Thursday 19 |
 | 2026-11-15 | Bench not stable | 3 games in the report instead of 10, said in the results |
 | 2026-11-15 | No full game on the stack | The robustness demo (#243) keeps three cases as tests (empty jaws, dim lighting, a stop mid-move), without the command |
+| 2026-11-15 | A ticket of the review not merged | Cut in this order, moved to `v2.1.0`: faster moves (#247), the display (#246), the robustness demo's command (#243), the games' records (#245), the engine's options (#244) |
 | 2026-11-19 12:00 | A ticket not merged | Moved to `v2.1.0`: `release.sh` refuses an open ticket |
 
 No grid was measured by 2026-11-12: #75 is in `v2.1.0`, the sim stays on the model. Closed by measurements: the spike is a go (#76); in the merged scene the contacts hold, the tokens stack and the closed jaws keep a token through the driver's own tick [MES-67], so neither the weld nor the rest poses are needed.
