@@ -43,3 +43,7 @@ The drop spike fails with the funnel (→ level 0, ADR-034), or the real jaw err
 ## Update (2026-10-09, ADR-038)
 
 Kept: edge-on placement, `drop_ik`, placement jig. Superseded: the small custom grid becomes a store-bought grid with the arm on an 8 cm riser [MES-32]; the per-column funnel becomes a depth guide only (store-bought slots are adjacent); the magazine becomes a handover from the human, with a dispenser as a stretch feature; a wrist camera is added (staff suggestion).
+
+## Update (2026-11-07, [MES-64])
+
+Kept: edge-on placement, the wrist roll locked, ikpy. Changed: the multi-start `drop_ik` becomes `release_pose` in `so101_brain/drop.py`. Roll +1.6195 rad instead of ±90° (the 2.8° residual is a roll zero, 0.03° left), tilt 70°, and the target is the **token centre**, 3.15 mm off the TCP: with the TCP on the slot plane, 0 drops of 28. `kinematics.py` does not change, and a pose takes 10 to 36 ms. The real drop measurement is `v2.1.0`.

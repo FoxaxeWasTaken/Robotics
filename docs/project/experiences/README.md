@@ -4,6 +4,8 @@ These scripts are **throwaway**: they answer technical questions by measurement 
 
 ⚠ `exp_pick_place_gt.py`, `exp_perception_calib.py` and `exp_calibration_methods.py` use the sim **ground truth** (`get_object_position`, `get_camera_extrinsics`) to isolate a subsystem: allowed in tests, **forbidden in the pipeline** (C-06, C-23).
 
+⚠ `connect4/` holds the prototypes of the phase-2 review of 2026-11-07, as they ran: its [README](connect4/README.md) says what each folder measures and how to run it. They use the sim ground truth to score, and `reading/` reads the true grid pose: tests only (C-06).
+
 ## Running
 
 From the repository root (with the `tek5/control` image built):

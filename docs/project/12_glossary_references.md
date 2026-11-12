@@ -50,7 +50,7 @@
 | **Riser** | Rigid block under the arm (about 8 cm) so that a store-bought grid is within reach [MES-32] |
 | **Wrist camera (eye-in-hand)** | Camera on the gripper; sees the token and the slot in one image, so their offset does not depend on calibration (`phase2/P2-02` §3.1) |
 | **Negamax, alpha-beta** | Game-tree search of the Connect Four engine; alpha-beta skips the branches that cannot change the result |
-| **Task layer** | Phase-2 node that turns a game move into a `PickPlace` goal for the brain (ADR-037) |
+| **Task layer** | Phase-2 node that turns a game move into a `/brain/drop` call (ADR-037) |
 | **P2-xx, P2-R-xx** | Phase-2 targets set by the team (`phase2/P2-01` §4) and phase-2 risks (`phase2/P2-03` §2) |
 
 ## 2. References

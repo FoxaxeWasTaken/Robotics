@@ -4,6 +4,11 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ## [Unreleased]
 
+### Changed
+
+- Phase 2 scoped to the hand-in of 2026-11-20 (#74): `v2.0.0` is Connect Four in sim, `v2.1.0` the real arm. `phase2/` rewritten from an expert review that measured the design on prototypes [MES-63 to MES-66]: `/brain/drop` instead of a `PickPlace` action, the phase-1 camera unmoved, the base at the origin, a contact set for the tokens, a `CONNECT4` mode on one branch, a dated plan with its cut-offs. The real arm's findings are in `P2-02` §8.
+- `CHANGELOG.md` is updated in the milestone's last PR (`15` §6, the `release` skill), which saves a review before the tag.
+
 ## [1.3.0] - 2026-11-07
 
 The end of phase 1: the pick & place runs on the real arm (milestone `v1.3.0`). The same stack drives the real SO-101 with a USB webcam, at the sim's speeds: 14 of 17 cycles, filmed, on our own calibration of the camera and of the arm. `v1.2.0` was not tagged: the real camera and the real pick & place came in one session. Next: phase 2, Connect Four.
