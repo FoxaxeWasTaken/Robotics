@@ -111,31 +111,28 @@ Phase 2 ends in `09` stage 8: the sim video, the team on camera, the slides (the
 
 ## 3. Calendar to the hand-in
 
+The team works on Thursdays and Fridays, the weekend as a reserve. Monday to Wednesday hold no gate: only reviews, CI and nightlies.
+
 | Date | Gate | Tickets |
 | --- | --- | --- |
-| Sat 7 – Sun 8 | Scope docs merged | #74 |
-| Mon 9 | Spike go / no-go; package, engine, turns, drop pose | #76, #77, #78, #230, #83 |
-| Tue 10 – Thu 12 | Scene, services, mode (the 11th is a holiday) | #79, #80, #231 |
-| Thu 12 – Sat 14 | Reader, `/brain/drop`, handover | #81, #82, #84, #85 |
-| **Sat 14** | **First full game on the stack** | #86 |
-| Sun 15 | Console; game bench; a game on each PR | #232, #87, #233 |
-| Mon 16 – Tue 17 | Games in the nightly, guide, results. **Tue 17: target for the last feature PR**, nightly dispatched at once | #233, #234 |
-| Wed 18 | Videos, the team on camera. 22:00: latest safe feature PR | #97 |
-| Thu 19 | Rehearsal. 12:00: latest safe last PR, with `[2.0.0]` and the docs, opened once the gate is read. 22:00: safe tag | #98, #229 |
+| Thu 12 ✅ | Scope docs, the spike (a go), the engine, the turns and the drop pose merged | #74, #76, #77, #78, #83, #230 |
+| Thu 12 – Fri 13 | Scene, sim services, mode | #79, #80, #231 |
+| Fri 13 – Sat 14 | Reader, `/brain/drop`, handover | #81, #82, #84, #85 |
+| **Sun 15** | **First full game on the stack**; console, game bench, a game on each PR | #86, #232, #87, #233 |
+| Mon 16 – Wed 18 | No work day. Reviews; the nightly runs the games on what is merged | |
+| Thu 19 | Guide, results, videos, the team on camera, rehearsal. **16:00: the last PR**, with `[2.0.0]` and the docs, opened once the gate is read; the nightly dispatched at its merge | #234, #97, #98, #229 |
 | Fri 20 | 12:00: latest tag. The tag on the school copy checked. **23:42: hand-in** | #229 |
 
-The worst chain from the last feature merge is about 35 h (nightly, a fix with a 15 h review, nightly, last PR with a 15 h review, nightly: estimated), hence the 2026-11-17 target. Tickets grouped in PRs by this table, one commit per ticket.
+A feature not merged on Sunday 15 has one work day left, Thursday 19, shared with the release: it is cut first (§4). The release chain is the last PR's review, a nightly on its commit (about 20 min plus the games), then `tools/release.sh`. Tickets grouped in PRs by this table, one commit per ticket.
 
 ## 4. Cut-offs
 
 | Date | If | Then |
 | --- | --- | --- |
-| 2026-11-09 | Spike no-go | Change the sim geometry; level 0 only as a last resort |
-| 2026-11-10 | Contact unstable in the merged scene | The token welded to the jaw, sim only |
-| 2026-11-11 | Tokens do not stack | `drop_token` places them at their rest poses |
-| 2026-11-12 | Token hold through ROS unproven | A sim-only weld on the pinch |
 | 2026-11-12 | No grid measured | #75 moves to `v2.1.0`, the sim stays on the model |
-| 2026-11-14 | No full game on the stack | Cut the polish of the console and the engine human of the bench |
 | 2026-11-14 | Drops below 95 % because of the pose | Targets from `connect4_grid.yaml`, markers kept as a check |
-| 2026-11-16 | Bench not stable | 3 games in the report instead of 10, said in the results |
-| 2026-11-18 | A ticket not merged | Moved to `v2.1.0`: `release.sh` refuses an open ticket |
+| 2026-11-15 | No full game on the stack | Cut the polish of the console and the engine human of the bench; the game comes first on Thursday 19 |
+| 2026-11-15 | Bench not stable | 3 games in the report instead of 10, said in the results |
+| 2026-11-19 12:00 | A ticket not merged | Moved to `v2.1.0`: `release.sh` refuses an open ticket |
+
+Closed by measurements: the spike is a go (#76); in the merged scene the contacts hold, the tokens stack and the closed jaws keep a token through the driver's own tick [MES-67], so neither the weld nor the rest poses are needed.
