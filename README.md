@@ -107,6 +107,8 @@ tools/so101-arm zero-offsets -n 3            # the arm held at the URDF zero: th
 
 Phase 2 plays Connect Four against the arm: it reads the grid with its camera and drops its own tokens. In simulation first, on the real arm after that ([design](docs/project/phase2/README.md), [plan](docs/project/phase2/P2-04_roadmap.md)).
 
+<img src="docs/project/media/connect4_scene.png" width="420" alt="The simulated Connect Four grid with red and yellow tokens, a marker at each corner, and the arm on its riser beside it">
+
 `CONNECT4=true tools/so101 up` starts the game's simulation: the grid, its 42 tokens and its markers in front of the arm, and the simulated player's services (`/sim/connect4/drop_token`, `give_token`, `reset_board`). The board reader, the drop and the game itself come next.
 
 ## Going further

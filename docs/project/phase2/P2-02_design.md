@@ -224,6 +224,10 @@ Both phases live on `main`, with no long-lived branch: phase 1 stays what the st
 
 **Scene**: `so101_bringup/sim_scene.py` generates it with `mujoco.MjSpec` from a copy of the provided scene, the same generator as the phase-1 camera and markers; the driver loads it through `scene_path`. `sim/` is never touched.
 
+<img src="../media/connect4_scene.png" width="480" alt="The Connect Four grid with tokens in its windows and a marker at each corner, the arm on its riser beside it, seen by the scene camera">
+
+The game's scene as the phase-1 camera sees it at 640×480, a game under way, the arm at `HANDOVER`.
+
 | Item | Value | Source |
 | --- | --- | --- |
 | Base | **Stays at the origin**: floor and table lowered, so MuJoCo world = `base_link` holds (`driver_node.py:425`), for the ground truth, the FK tests and the extrinsics | [MES-63], [MES-65] |
