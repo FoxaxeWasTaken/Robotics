@@ -7,7 +7,7 @@
 
 - **Inputs**: `/joint_states`, `/object_position`, `/drop_box_position`, services `/brain/start`, `/brain/stop`, `/go_to_target`.
 - **Outputs**: `/joint_command` (only channel to the motors, C-05), `/brain_state`, `/end_effector_pose`, `/brain/markers`.
-- **Phase 2** adds the `/brain/drop` and `/brain/handover` services, in game mode only; `fsm.py` does not change (ADR-037 Update, `phase2/P2-02` §6).
+- **Phase 2**, in game mode only (`connect4.enabled`): the services `/brain/drop` and `/brain/handover`, one move of the Connect Four game each (§5.1). `fsm.py` and `grasp_planner.py` do not change (ADR-037 Update, `phase2/P2-02` §6).
 - **Starting point**: the course stub (ADR-039).
 - **Today**: the full cycle runs with the real perception, in sim (4.3a, #139) and on the real arm (6.5a, #72). `fsm.py` (§3) is driven by the node's 50 Hz tick, with `/brain/start`, `/brain/stop` and `/brain_state`; `PLAN` runs the planner in a worker process (§4); the plan and the locked cube show on `/brain/markers` (§7). The ground-truth stub (`so101_bringup/test/gt_stub.launch.py`, 4.2c, C-06) stays for development and for the tests that isolate the brain. The success rate: the nightly bench (`08` §2).
 
@@ -19,6 +19,7 @@ so101_brain/
 ├── fsm.py              # PURE state machine (no ROS import) → testable with a fake clock
 ├── kinematics.py       # FK/IK façade (ikpy) — see 04
 ├── grasp_planner.py    # grasp / pre-grasp / lift / drop (strategy ADR-009)
+├── drop.py             # phase 2, PURE: the drop pose and one move of the game, step by step (§5.1)
 └── trajectory.py       # min-jerk, duration, 50 Hz sampling
 ```
 
@@ -135,9 +136,21 @@ sequenceDiagram
 - The gripper is commanded in the same message as the joints (partial command if only `gripper`).
 - Speeds: `v_max` = 1.0 rad/s, sim and real arm since 2026-11-06 (ADR-023 Update) — parameter.
 
+### 5.1 The moves of the game (phase 2, game mode)
+
+`/brain/drop` and `/brain/handover` (`01` §3.2) each run one `drop.Move`: a list of steps the tick runs in `IDLE`, in the slot of `/go_to_target`'s motion, with the cycle's rules (min-jerk from the measured joints, the reach tolerances, a timeout at T + the margin, the grip judged as `GRASP` does).
+
+- **`/brain/drop`** (`drop.drop_steps`, `phase2/P2-02` §2.3): close and check the grip, rise to the pre-drop's height, turn to the column, descend at 0.3 rad/s, open, lift straight up through waypoints 5 mm apart, come back to `HANDOVER`. Every pose is solved in the service call, before anything moves: an unreachable target is refused with the arm still, and no IK runs during the move.
+- **`/brain/handover`** (`drop.handover_steps`): the jaws open, one motion to `connect4.handover_pose`.
+- **The reply comes at the end of the move**: the service callbacks are coroutines in their own callback group, which wait for the tick to finish the move. In the default group, a pending callback froze the tick [MES-64]. `/brain_state` stays `IDLE`.
+- **One commander at a time**: a move is refused during a cycle (`not_idle:<state>`), during another move or a `/go_to_target` motion (`busy`), and away from `HANDOVER` (`not_at_handover`: the path starts there, under the grid's top). During a move, `/brain/start` and `/go_to_target` are refused.
+- **`/brain/stop` cuts a move**: the FSM freezes the arm (`STOPPED`, then `IDLE`), the reply is `stopped`. `/joint_states` older than `fsm.max_joint_state_age_s` end it with `no_joint_states`, and the commands stop.
+- **Empty jaws**: `no_token` once the jaws are open again, the arm never commanded.
+- Each move logs its duration and the tick periods meanwhile.
+
 ## 6. Parameters (YAML `so101_bringup/config/brain.yaml`)
 
-Declared by `brain_node` (read-only, with ranges): every value of `motion.*`, `grasp.*` and `fsm.Params`, the timeouts of §3.1, the ages, the box footprint, the shortest motion and its margin included (`test_parameters.py`); `fsm.park_pose` is checked against the URDF limits at startup. A key the node does not declare stops it at startup. On the real arm, `brain_real.yaml` sets `motion.v_max_rad_s` to 0.5 (`01` §3.3).
+Declared by `brain_node` (read-only, with ranges): every value of `motion.*`, `grasp.*` and `fsm.Params`, the timeouts of §3.1, the ages, the box footprint, the shortest motion and its margin included (`test_parameters.py`); `fsm.park_pose` and `connect4.handover_pose` are checked against the URDF limits at startup. A key the node does not declare stops it at startup. On the real arm, `brain_real.yaml` sets `motion.v_max_rad_s` to 0.5 (`01` §3.3).
 
 | Parameter | Default | Origin |
 | --- | --- | --- |
@@ -165,6 +178,8 @@ Declared by `brain_node` (read-only, with ranges): every value of `motion.*`, `g
 | `fsm.verify_timeout_s` | 2 s | `VERIFY`: no detection → `DONE` with a warning |
 | `fsm.box_half_size_m` | 0.05 m | The box footprint (`08` §3), for `VERIFY` and the lock (#143) |
 | `fsm.park_pose` | [1.9, -1.7, 1.5, 0.7, 0.0] | Off the workspace view: the cube never hidden, the box at worst 9 % hidden with the provided camera, 1 % with the moved one [MES-45]; elbow 1.6 pressed the lower arm on the shoulder, 0.01 rad short [MES-39]; **to validate mechanically on the real arm** |
+| `connect4.enabled` | false | Game mode (§5.1); set by `sim.launch.py connect4:=true`, not in `brain.yaml` |
+| `connect4.handover_pose` | [-1.0, -0.6, 0.6, 1.1, 1.57] | `HANDOVER`: pan ≤ −0.7 hides no cell of the grid from the camera, a token in the jaws [MES-65], [MES-68]; checked against the URDF limits at startup |
 
 ## 7. Observability
 
@@ -189,6 +204,9 @@ Declared by `brain_node` (read-only, with ranges): every value of `motion.*`, `g
 | Perception container stopped during `TRANSPORT` → the cycle still completes (`VERIFY` → `DONE` with a warning) | Robustness demo, case 3a (#103; first scripted in `experiences/exp_fault_scenarios.py watch`, #54) |
 | Unreachable target (r = 0.5 m) → `ERROR:unreachable`, **no** command sent | Integration (`test_brain_launch.py`, test_9) |
 | A full cycle with the ground-truth stub: `DONE`, the cube in the box | System, sim (`so101_bringup/test/test_pick_place_gt_launch.py`) |
+| A move of the game, step by step: the order, the lift's waypoints, the descent's speed, empty jaws, a timeout | Unit `drop.py` (`test_drop.py`) |
+| `/brain/drop` and `/brain/handover` on a fake arm: the reply at `HANDOVER`, every refusal with the arm still, a stop, a dead driver, the tick's period during a move; no such service outside game mode | Integration (`test_drop_services.py`, `test_parameters.py`) |
+| Tokens dropped into random columns of the sim's grid, 10 tries with empty jaws first | System, sim (`so101_bringup/test/test_connect4_drop_launch.py`) [MES-69] |
 | 50-episode evaluation bench (randomized cube and box) | System (`08`) |
 
 ## 9. Alternatives to the hand-written FSM

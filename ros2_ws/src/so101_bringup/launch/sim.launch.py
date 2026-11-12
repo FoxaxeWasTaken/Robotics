@@ -16,8 +16,9 @@ the external camera moved to the pose of config/sim_scene.yaml (#47). calibratio
 of config/markers_sim.yaml and gives 640x480 images (driver_calibration.yaml), for the extrinsic calibration
 (3.4, #44). lighting:=dim darkens and warms every light (config/sim_scene.yaml): the robustness demo (#103).
 connect4:=true is the game of phase 2 (#79, phase2/P2-02 §7): the grid, its tokens and its markers in the
-scene, from so101_connect4's connect4_grid.yaml, 640x480 images (driver_connect4.yaml), and the driver's
-/sim/connect4/* services, the simulated person, in place of /sim/randomize (#80).
+scene, from so101_connect4's connect4_grid.yaml, 640x480 images (driver_connect4.yaml), the driver's
+/sim/connect4/* services, the simulated person, in place of /sim/randomize (#80), and the brain's /brain/drop
+and /brain/handover (#84, #85).
 The ghost arm (#200): a second robot_state_publisher draws the driver's setpoint (/joint_setpoint) as the
 ghost/ TF tree, for the "Commanded arm (ghost)" display of RViz, unchecked by default.
 """
@@ -129,7 +130,10 @@ def generate_launch_description():
                 executable="brain",
                 name="so101_brain",
                 output="screen",
-                parameters=files("brain"),
+                parameters=[
+                    *files("brain"),
+                    {"connect4.enabled": ParameterValue(LaunchConfiguration("connect4"), value_type=bool)},
+                ],
             ),
             Node(  # the ghost arm: the setpoint the driver sends, drawn over the measured arm (#200)
                 package="robot_state_publisher",

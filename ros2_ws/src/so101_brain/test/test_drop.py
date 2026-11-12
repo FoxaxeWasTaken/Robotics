@@ -1,5 +1,6 @@
-"""The drop pose of phase 2 (drop.py, phase2/P2-02 §2): on the 7 columns of the layout of P2-02 §7, the held
-token's centre on the target, the jaws normal to the grid, the approach tilted 70°. No ROS, no sim."""
+"""The drop of phase 2 (drop.py, phase2/P2-02 §2): on the 7 columns of the layout of P2-02 §7, the held
+token's centre on the target, the jaws normal to the grid, the approach tilted 70°; then one move of
+/brain/drop and of /brain/handover, step by step, on an arm that follows its commands. No ROS, no sim."""
 
 import time
 from pathlib import Path
@@ -8,7 +9,9 @@ import numpy as np
 import pytest
 from ament_index_python.packages import get_package_share_directory
 
+from so101_brain import drop
 from so101_brain.drop import ROLL, TILT_DEG, TOKEN_IN_TCP, release_pose
+from so101_brain.fsm import Params
 from so101_brain.kinematics import PAN_AXIS_X, Kinematics
 
 URDF = Path(get_package_share_directory("so101_description")) / "urdf" / "so101.urdf"
@@ -76,3 +79,179 @@ def test_the_seed_does_not_change_the_pose(kin):
 )
 def test_an_unreachable_target_gives_none(kin, target):
     assert release_pose(kin, np.array(target)) is None
+
+
+HANDOVER = np.array([-1.0, -0.6, 0.6, 1.1, 1.57])  # brain.yaml's connect4.handover_pose
+P = Params()
+DT = 0.02
+
+
+def names(steps):
+    return [step.name for step in steps]
+
+
+@pytest.mark.parametrize("column", range(7))
+def test_a_move_rises_first_then_turns_to_the_column_descends_and_lifts_straight_up(kin, column):
+    target = COLUMNS[column]
+    steps = drop.drop_steps(kin, target, HANDOVER, P)
+    by_name = {step.name: step for step in steps}
+    lifts = [step for step in steps if step.name.startswith("lift")]
+    assert names(steps) == [
+        "close",
+        "rise",
+        "column",
+        "descent",
+        "release",
+        *names(lifts),
+        "clear",
+        "handover",
+    ]
+    pre, release = by_name["column"].q, by_name["descent"].q
+    # height first: the pan stays HANDOVER's while the other joints take the pre-drop's
+    np.testing.assert_allclose(by_name["rise"].q, [HANDOVER[0], *pre[1:]])
+    np.testing.assert_allclose(token_centre(kin, pre) - target, [0, 0, drop.PRE_DROP], atol=1e-3)
+    np.testing.assert_allclose(token_centre(kin, release), target, atol=1e-3)
+    assert by_name["descent"].v == drop.DESCENT_V
+    # the lift: straight up every 5 mm to the pre-drop, never one joint move (it swept the guide, MES-63)
+    heights = [token_centre(kin, step.q) - target for step in lifts]
+    assert len(lifts) == 5
+    for k, offset in enumerate(heights, start=1):
+        np.testing.assert_allclose(offset, [0, 0, k * drop.LIFT_STEP], atol=1e-3)
+    np.testing.assert_allclose(lifts[-1].q, pre)
+    np.testing.assert_allclose(by_name["clear"].q, by_name["rise"].q)
+    np.testing.assert_allclose(by_name["handover"].q, HANDOVER)
+    # the jaws: closed first, opened at the release only
+    assert [(step.name, step.gripper) for step in steps if step.gripper is not None] == [
+        ("close", P.close_pct),
+        ("release", P.open_pct),
+    ]
+
+
+def test_a_lift_waypoint_without_a_pose_is_skipped(kin, monkeypatch):
+    solve, calls = drop.release_pose, []
+
+    def no_pose_at_10_mm(kin, target, q_seed=None):
+        calls.append(target)
+        return None if len(calls) == 4 else solve(kin, target, q_seed)  # pre-drop, release, 5 mm, 10 mm
+
+    monkeypatch.setattr(drop, "release_pose", no_pose_at_10_mm)
+    steps = drop.drop_steps(kin, COLUMNS[3], HANDOVER, P)
+    lifts = [name for name in names(steps) if name.startswith("lift")]
+    assert lifts == ["lift_1", "lift_3", "lift_4", "lift_5"]
+
+
+def test_a_move_to_an_unreachable_target_has_no_steps(kin):
+    assert drop.drop_steps(kin, np.array([0.7, 0.0, 0.2]), HANDOVER, P) is None
+
+
+class Arm:
+    """An arm that follows every command at once, the jaws too; its closing effort is `effort` while the
+    jaws are commanded closed."""
+
+    def __init__(self, q, effort=0.5, follows=True, stops_at_pct=0.0):
+        self.q, self.effort, self.follows, self.stops_at = (
+            np.array(q, dtype=float),
+            effort,
+            follows,
+            stops_at_pct,
+        )
+        self.gripper, self.t, self.log = 100.0, 0.0, []
+
+    def run(self, move, limit=60.0):
+        """Steps the move to its result: (result, the seconds it took)."""
+        while self.t < limit:
+            closing, name = self.gripper <= self.stops_at, move.name
+            out = move.step(self.t, self.q.copy(), self.effort if closing else 0.0, self.gripper)
+            self.log.append((self.t, name, out))
+            if out.command is not None and self.follows:
+                self.q = np.array(out.command)
+            if out.gripper is not None:
+                self.gripper = max(out.gripper, self.stops_at)
+            if out.result is not None:
+                return out.result, self.t
+            self.t += DT
+        raise AssertionError(f"still in {move.name} after {limit} s")
+
+    def commands(self, name):
+        return [out.command for _, step, out in self.log if step == name and out.command is not None]
+
+
+def test_a_drop_runs_its_steps_in_order_and_ends_at_handover(kin):
+    steps = drop.drop_steps(kin, COLUMNS[3], HANDOVER, P)
+    arm = Arm(HANDOVER)
+    result, seconds = arm.run(drop.Move(steps, P))
+    assert result == ""
+    np.testing.assert_allclose(arm.q, HANDOVER)
+    assert arm.gripper == P.open_pct
+    visited = list(dict.fromkeys(step for _, step, _ in arm.log))
+    assert visited == names(steps)
+    print(f"one move on a perfect arm: {seconds:.1f} s")
+    assert seconds < 15.0
+
+
+def test_the_arm_waits_for_the_closing_time_before_the_grip_is_judged(kin):
+    arm = Arm(HANDOVER)
+    arm.run(drop.Move(drop.drop_steps(kin, COLUMNS[0], HANDOVER, P), P))
+    first_motion = next(t for t, _, out in arm.log if out.command is not None)
+    assert first_motion == pytest.approx(P.grasp_wait_s, abs=DT)
+
+
+def test_empty_jaws_are_no_token_the_arm_never_commanded_the_jaws_open_again_at_the_result(kin):
+    arm = Arm(HANDOVER, effort=0.0)
+    result, seconds = arm.run(drop.Move(drop.drop_steps(kin, COLUMNS[3], HANDOVER, P), P))
+    assert result == "no_token"
+    # the result waits for the jaws: a token given right after it needs them open (the sim refuses it)
+    assert seconds == pytest.approx(P.grasp_timeout_s + P.release_wait_s, abs=DT)
+    opened = next(t for t, _, out in arm.log if out.gripper == P.open_pct)
+    assert opened == pytest.approx(P.grasp_timeout_s, abs=DT)
+    assert [out.command for _, _, out in arm.log if out.command is not None] == []
+    assert arm.gripper == P.open_pct
+
+
+def test_jaws_stopped_above_their_goal_hold_a_token_without_any_effort(kin):
+    """The real arm publishes no effort (#69): the phase-1 rule, the jaws' gap."""
+    arm = Arm(HANDOVER, effort=0.0, stops_at_pct=P.close_pct + P.hold_gap_pct + 1.0)
+    result, _ = arm.run(drop.Move(drop.drop_steps(kin, COLUMNS[3], HANDOVER, P), P))
+    assert result == ""
+
+
+def test_an_arm_that_does_not_follow_times_out_in_its_step(kin):
+    steps = drop.drop_steps(kin, COLUMNS[3], HANDOVER, P)
+    arm = Arm(HANDOVER, follows=False)
+    result, seconds = arm.run(drop.Move(steps, P))
+    assert result == "timeout:rise"
+    rise = min_jerk_duration(HANDOVER, steps[1].q, P.v_max)
+    assert seconds == pytest.approx(P.grasp_wait_s + rise + P.motion_margin_s, abs=3 * DT)
+
+
+def min_jerk_duration(start, goal, v_max):
+    return max(P.min_motion_s, float(np.max(np.abs(goal - start))) * 1.875 / v_max)
+
+
+def test_the_descent_never_goes_faster_than_its_speed(kin):
+    arm = Arm(HANDOVER)
+    arm.run(drop.Move(drop.drop_steps(kin, COLUMNS[6], HANDOVER, P), P))
+    descent = np.array(arm.commands("descent"))
+    assert len(descent) > 10
+    assert np.max(np.abs(np.diff(descent, axis=0))) / DT <= drop.DESCENT_V * 1.01
+
+
+def test_each_leg_starts_from_the_measured_joints(kin):
+    """Nothing jumps if the arm lagged (06 §5)."""
+    steps = drop.drop_steps(kin, COLUMNS[3], HANDOVER, P)
+    lagging = HANDOVER + np.array([0.004, -0.004, 0.004, 0.0, 0.0])  # within the reach tolerance
+    move = drop.Move(steps, P)
+    out, t = None, 0.0
+    while out is None or out.command is None:
+        out = move.step(t, lagging, 0.5, 0.0)
+        t += DT
+    np.testing.assert_allclose(out.command, lagging)
+
+
+def test_a_handover_opens_the_jaws_and_reaches_the_pose():
+    arm = Arm([0.0, 0.0, 0.0, 0.0, 0.0])
+    arm.gripper = 0.0
+    result, _ = arm.run(drop.Move(drop.handover_steps(HANDOVER, P), P))
+    assert result == ""
+    np.testing.assert_allclose(arm.q, HANDOVER)
+    assert arm.log[0][2].gripper == P.open_pct and arm.gripper == P.open_pct
