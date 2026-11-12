@@ -36,7 +36,7 @@ On the real arm (`v2.1.0`), the same scenario with a person: the token handed be
 
 | ID | Target | Measured by |
 | --- | --- | --- |
-| P2-01 | Board reading: **100 %** of the cells right on 50 sim board states. *`v2.1.0`: ≥ 95 % of the boards fully right on 20 real photos* | `test_board_reader` (sim ground truth allowed in tests, C-06) |
+| P2-01 | Board reading: **100 %** of the cells right on 50 sim board states. *`v2.1.0`: ≥ 95 % of the boards fully right on 20 real photos* | `so101_bringup/test/test_connect4_reading.py`: 10 states in `colcon test`, 50 measured [MES-68] (sim ground truth allowed in tests, C-06) |
 | P2-02 | Drop into the requested column: **≥ 95 %** in sim (N = 50). *`v2.1.0`: ≥ 90 % on the real arm (N = 30)* | One run recorded as a MES (#84) |
 | P2-03 | The token is held from the close to the release, **≥ 98 %** in sim; an empty gripper is **always** detected (the arm never plays without a token). *`v2.1.0`: ≥ 95 % on a real handover* | #85, 10 tries without a token |
 | P2-04 | Engine: only legal moves; wins 100/100 against a random player; move chosen in **< 2 s** | Unit tests |

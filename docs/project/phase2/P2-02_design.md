@@ -1,7 +1,7 @@
 # P2-02 — Design: setup, kinematics, perception, game, software
 
 > Authors: [KIN] Kinematics, [VIS] Vision, [DEC] Decision, [CTRL] Control · Reviewers: [ARC], [SAFE], [QA]
-> Requirements: C-05, C-06, C-51, C-54 · Decisions: ADR-035 to ADR-038 · Measurements: MES-27 to MES-32, MES-63 to MES-67
+> Requirements: C-05, C-06, C-51, C-54 · Decisions: ADR-035 to ADR-038 · Measurements: MES-27 to MES-32, MES-63 to MES-68
 
 **`v2.0.0` is the sim, `v2.1.0` the real arm** (ADR-034 Update). The numbers of §2, §3, §5 and §7 were measured on 2026-11-07 on prototypes kept in `experiences/connect4/`, the assumed grid model and no real grid; #76 puts them on one layout. §8 keeps what the real arm will need.
 
@@ -86,13 +86,15 @@ flowchart LR
 ```
 
 - **One camera, the phase-1 one, and it does not move** [MES-65]: `sim_scene.yaml`, with `camera_extrinsics.yaml` reused, no new calibration. The base stays at the origin (§7): raising it would put the grid 79 mm off in the same file, 0.4 mm with the floor lowered. There is no `board_cam`. The grid is at azimuth −40°, square to the camera.
-- **640×480 in game mode**: cells of 28–33 × 21–29 px, the 4 markers of 30 mm found every time; at 320×240 they are unreliable below 60 mm. The image rate falls to 3 to 5 Hz, the 50 Hz tick holds (p99 20 to 22 ms). Nothing may assume 10 Hz.
+- **640×480 in game mode**: cells of 28–33 × 21–29 px, the 4 markers of 30 mm found every time; at 320×240 they are unreliable below 60 mm. The image comes at 10 Hz and the 50 Hz tick holds (p99 21.6 ms) [MES-67]; the reader assumes no rate, it counts new image stamps. It subscribes Reliable: a best-effort subscriber gets 1 image in 10 at this size.
 - **Grid pose**: `detect_markers` from phase 1, then an own `solvePnP`, since `calibration.py` handles the table plane only. Published as `/connect4/grid_pose`, with the TF of the grid. Accuracy at the slot entries: 0.3 mm along, 0.8 mm across, 0.9 mm in height [MES-65]. It is also the check: a fixed placement alone reads within 8 mm on one axis, and 5 mm + 5 mm + 1° breaks it.
 - **Classification**: fraction of pixels inside each color's range within a disc per cell, on the token face plane, not the grid mid-plane. Red: the cube's ranges unchanged; yellow: `hsv_ranges(18, 40, 120, 30)`; threshold 0.35. **2100 of 2100 cells** right on 50 boards, shadows on, the arm at `HANDOVER` holding a token; 100 % too at 320×240 and in dim light [MES-65].
 - **Column pitch and row pitch differ**: tokens stack at their diameter, 34 mm, not at the column pitch [MES-63].
 - **Stability**: `/connect4/board` is published on stable reads only, 5 identical reads counted on new image stamps; its stamp is the first image of the streak, so `game_node` rejects a read older than the drop. No FK needed.
 - **Validation**: `board.py` checks gravity and counts, an invalid board carries its reason. What the turn expects is in `turns.py` (§5).
 - **Why not `perception_node`**: it would take tokens for the cube, and `fsm.py`'s `VERIFY` would retry. In game mode `board_reader_node` runs in its place (§6.1).
+- **Markers**: 3 of the 4 are enough for the pose (a hand may hide one); with fewer, the board is published invalid, `markers:<n>`, and no pose.
+- **On the game's scene, through `board.py`**: 2100 cells of 2100 on 50 random states, the arm at `HANDOVER` holding a token; the grid's pose within 0.1 mm along, 0.3 mm across and 0.7 mm in height of the scene's [MES-68].
 - **Costs**: a read takes 21 ms; the perception image needs no change [MES-65].
 
 ### 3.1 Wrist camera (staff suggestion, step P2.8, `v2.1.0`)
@@ -173,10 +175,10 @@ New package `so101_connect4` (ament_python):
 | --- | --- | --- |
 | `game.py` | pure, unit-tested | Engine (§4) |
 | `turns.py` | pure, unit-tested | Turns (§5) |
-| `board.py` | pure, unit-tested | Cell geometry, classification, validation, `column_target`; no ROS |
+| `board.py` | pure, unit-tested | The grid's pose from its markers, cell geometry, classification, validation, `column_target` (the drop's clearance and aim are in `connect4_grid.yaml`, `drop`), the stable-read filter, the debug drawing; no ROS |
 | `client.py` | console, bench | `/connect4/state` and the services, no rule |
 | `play.py` | control container | The console, `tools/so101 play` |
-| `board_reader_node` | perception container | Camera → `/connect4/board`, `/connect4/grid_pose`, debug image |
+| `board_reader_node` | perception container | Camera → `/connect4/board`, `/connect4/grid_pose` and the TF `base_link` → `connect4_grid`, debug image; `board_reader.launch.py`, `config/board_reader.yaml` |
 | `game_node` | control container | Around `turns.py`; calls `/brain/drop` and `/brain/handover` |
 | `config/connect4_grid.yaml` | both containers | The layout (§7): here because the perception container does not build `so101_bringup` |
 
@@ -186,9 +188,9 @@ Next to it: `so101_brain/drop.py`, pure (§2), and `so101_driver/connect4_sim.py
 
 | Name | Type | Server or producer → consumers | Content |
 | --- | --- | --- | --- |
-| `/connect4/board` (topic) | `so101_interfaces/msg/Connect4Board` (new) | board_reader → game_node | `header`, stamp = first image of the stable streak; `int8[42] cells` (row-major from the bottom row, 0 empty, 1 human, 2 robot), `bool valid`, `string reason`; stable reads only; Reliable, depth 1 |
-| `/connect4/grid_pose` (topic) | `geometry_msgs/PoseStamped` | board_reader → game_node, RViz | Grid frame in `base_link`: origin at the center of cell (column 0, row 0) in the mid-plane, x outward along the columns (column 0 nearest the arm), z up, y = z × x; Reliable, transient_local, depth 1 |
-| `/connect4/debug_image` (topic) | `sensor_msgs/Image` | board_reader → RViz | Grid outline, classified cells, chosen column; Best effort |
+| `/connect4/board` (topic) | `so101_interfaces/msg/Connect4Board` (new) | board_reader → game_node | `header`, stamp = first image of the stable streak; `int8[42] cells` (row-major from the bottom row, 0 empty, 1 human, 2 robot), `bool valid`, `string reason` (`markers:<n>`, `out_of_view`, `gravity:<column>`, `counts:<human>-<robot>`); stable reads only; Reliable, depth 1 |
+| `/connect4/grid_pose` (topic) | `geometry_msgs/PoseStamped` | board_reader → game_node, RViz | Grid frame in `base_link`: origin at the center of cell (column 0, row 0) in the mid-plane, x outward along the columns (column 0 nearest the arm), z up, y = z × x; at each image whose markers give a pose, with the TF `base_link` → `connect4_grid`; Reliable, transient_local, depth 1 |
+| `/connect4/debug_image` (topic) | `sensor_msgs/Image` | board_reader → RViz | Each cell's disc, filled in its color when read as a token; a status line: the read's validity or its reason, the game's state from `/connect4/state`. Reliable, depth 1: best effort loses 9 images in 10 at 640×480 [MES-67] |
 | `/connect4/state` (topic) | `std_msgs/String`, JSON | game_node → console, bench, debug image | `state`, `reason`, `turn`, `board`, `legal`, `last`, `result`, `missed`; Reliable, transient_local, depth 1 |
 | `/connect4/new_game` (service) | `std_srvs/SetBool` | game_node | `data: true`, the robot plays first. Refused during a move |
 | `/connect4/human_done`, `/connect4/stop` (services) | `std_srvs/Trigger` | game_node | End of the human's turn; abort |
@@ -215,7 +217,7 @@ Both phases live on `main`, with no long-lived branch: phase 1 stays what the st
 
 - The switch goes `docker/.env` → compose → `control_entrypoint.sh` → `connect4:=` on `sim.launch.py`, as `USE_SIM` does. `CONNECT4=true tools/so101 up` needs no `.env` edit. `up` applies it, `restart` keeps the old environment [MES-66].
 - A leftover `CONNECT4=true` cannot break phase 1: `tools/so101 test` runs with `CONNECT4=false`, `bench` starts its own stack with the default arguments, and `cycle` refuses a stack in game mode and says to `down` then `up`. With the default arguments, tests check the nodes started and that the scene has no grid; the generated scene is byte-identical to the one before the game [MES-67].
-- The perception container builds `so101_connect4` too (4 packages, about 6 s) and starts `board_reader.launch.py` in game mode; that file and `game.launch.py` are empty until #82 and #86, so in game mode the perception container stops once built.
+- The perception container builds `so101_connect4` too, with `so101_interfaces` (5 packages, about 9 s), and starts the board reader, `board_reader.launch.py`, in game mode. `game.launch.py` is empty until #86.
 - The game's images are 0.9 MB each: a **Reliable** subscriber gets the 10 Hz, a best-effort one about 1 Hz (`ros2 topic hz` is one) [MES-67]. The board reader subscribes as the contract says, Reliable, depth 2.
 - `CONNECT4=true` with `USE_SIM=false` is refused in `v2.0.0`.
 - The tag `v1.3.0` is phase 1 as released: a checkout of it is the fallback.
