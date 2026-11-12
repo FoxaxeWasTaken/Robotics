@@ -11,7 +11,7 @@
 | Step | Lane | Tickets | Outcome | Level (`P2-01` §2) |
 | --- | --- | --- | --- | --- |
 | **P2.0** Pitch ✅ | CP | #73, #74 | Validated by the teaching staff; scope set to the sim | — |
-| **P2.1** Layout and drop spike | B | #75, #76 | One layout, go / no-go on dropping | Go: 1; no-go: 0 |
+| **P2.1** Drop spike ✅ | B | #76 | One layout, go / no-go on dropping | Go: 1; no-go: 0 |
 | **P2.2** Game engine | B | #77, #78, #230 | Package, `game.py`, `turns.py` tested | — |
 | **P2.3** Scene and loading | A | #79, #80, #231 | Game scene, sim services, `CONNECT4` mode | — |
 | **P2.4** Board reader | C | #81, #82 | Grid read from the camera | — |
@@ -39,14 +39,14 @@ flowchart LR
   S1 -. "no-go" .-> F["Level 0<br/>tic-tac-toe with cubes"]
 ```
 
-**Critical path**: #76 → #79 → #80 → #84 → #86 → #87 → #229. #75 blocks nothing: the sim runs on the model of `P2-02` §7, and every dimension is a parameter.
+**Critical path**: #76 → #79 → #80 → #84 → #86 → #87 → #229. The measures of a purchased grid (#75) are `v2.1.0`: the sim runs on the model of `P2-02` §7, and every dimension is a parameter of `connect4_grid.yaml`.
 
 ### 1.2 Who does what
 
 | Lane | Tickets | Note |
 | --- | --- | --- |
 | A — Driver, infra | #79, #80, #231, #233 | Scene, sim services, mode, CI |
-| B — Kinematics and brain | #75, #76, #77, #78, #83, #84, #85, #230 | Spike, engine, turns, `/brain/drop` |
+| B — Kinematics and brain | #76, #77, #78, #83, #84, #85, #230 | Spike, engine, turns, `/brain/drop` |
 | C — Perception | #81, #82 | Grid reading |
 | Shared | #86, #87, #232, #234, #97, #98, #229 | Everyone plays a game and can explain each block before the defense (C-50) |
 
@@ -56,10 +56,10 @@ flowchart LR
 
 - **Done**: validated by the teaching staff on 2026-10-09 (ADR-034); questions of `P2-03` §4 answered on 2026-10-16; scope set to the sim on 2026-11-07, after an expert review that measured it [MES-63 to MES-66].
 
-### Step P2.1 — Layout and drop spike (#75, #76)
+### Step P2.1 — Drop spike ✅ (#76)
 
 - **Goal**: know that the arm can drop a token, on one layout, before building around it. The expert review proved each part on a prototype: #76 puts them together.
-- **Tasks**: `experiences/connect4/scene/exp_connect4_scene.py` on the layout of `P2-02` §7 with the pose of `experiences/connect4/drop/`; 100 drops, 100 with a TCP offset of ±5 mm, capture sweep, full stacks read with the method of `experiences/connect4/reading/`. The purchased grid's numbers (#75) go in if they are in hand.
+- **Tasks**: `experiences/connect4/scene/exp_connect4_scene.py` on the layout of `P2-02` §7 with the pose of `experiences/connect4/drop/`; 100 drops, 100 with a TCP offset of ±5 mm, capture sweep, full stacks read with the method of `experiences/connect4/reading/`.
 - **Done when**: results recorded; **go** if ≥ 95 % without TCP offset and ≥ 80 % with ±5 mm. No-go: change the sim geometry (slot gap, guide), it is a parameter; still no-go: **level 0** with the same software.
 
 ### Step P2.2 — Game engine (#77, #78, #230)
@@ -129,10 +129,9 @@ A feature not merged on Sunday 15 has one work day left, Thursday 19, shared wit
 
 | Date | If | Then |
 | --- | --- | --- |
-| 2026-11-12 | No grid measured | #75 moves to `v2.1.0`, the sim stays on the model |
 | 2026-11-14 | Drops below 95 % because of the pose | Targets from `connect4_grid.yaml`, markers kept as a check |
 | 2026-11-15 | No full game on the stack | Cut the polish of the console and the engine human of the bench; the game comes first on Thursday 19 |
 | 2026-11-15 | Bench not stable | 3 games in the report instead of 10, said in the results |
 | 2026-11-19 12:00 | A ticket not merged | Moved to `v2.1.0`: `release.sh` refuses an open ticket |
 
-Closed by measurements: the spike is a go (#76); in the merged scene the contacts hold, the tokens stack and the closed jaws keep a token through the driver's own tick [MES-67], so neither the weld nor the rest poses are needed.
+No grid was measured by 2026-11-12: #75 is in `v2.1.0`, the sim stays on the model. Closed by measurements: the spike is a go (#76); in the merged scene the contacts hold, the tokens stack and the closed jaws keep a token through the driver's own tick [MES-67], so neither the weld nor the rest poses are needed.
