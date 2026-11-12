@@ -180,8 +180,9 @@ New package `so101_connect4` (ament_python):
 | `game.py` | pure, unit-tested | Engine (§4) |
 | `turns.py` | pure, unit-tested | Turns (§5) |
 | `board.py` | pure, unit-tested | The grid's pose from its markers, cell geometry, classification, validation, `column_target` (the drop's clearance and aim are in `connect4_grid.yaml`, `drop`), the stable-read filter, the debug drawing; no ROS |
-| `client.py` | console, bench | `/connect4/state` and the services, no rule |
-| `play.py` | control container | The console, `tools/so101 play` |
+| `client.py` | console, bench | `/connect4/state` and the services, no rule. A turn is one call: the robot's token given, the person's dropped, `human_done`. A new game is asked first and the grid cleared after: the node takes a board not empty yet as "not yet" (§5) |
+| `play.py` | control container | The console, `tools/so101 play`: draws the state at each change, keys 1 to 7, `n`, `r`, `s`, `q`. A column key outside the person's turn or on a full column changes nothing; on the robot's turn (it starts, `no_token`, `token_lost`) it gives the token by itself |
+| `so101_bringup/sim_hand.py`, `connect4_play` | control container | The simulated person's hand over `/sim/connect4/*`, given to the client; the console's entry point. Outside `so101_connect4`, which names no sim service (guard) |
 | `board_reader_node` | perception container | Camera → `/connect4/board`, `/connect4/grid_pose` and the TF `base_link` → `connect4_grid`, debug image; `board_reader.launch.py`, `config/board_reader.yaml` |
 | `game_node` | control container | Around `turns.py`; calls `/brain/drop` and `/brain/handover`; `game.launch.py`, `config/game.yaml` (the delays of §5, the engine's `max_depth`, `budget_s` and `seed`) |
 | `config/connect4_grid.yaml` | both containers | The layout (§7): here because the perception container does not build `so101_bringup` |

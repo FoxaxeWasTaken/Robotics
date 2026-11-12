@@ -24,6 +24,8 @@ Usage: tools/so101 [--dry-run] <command> [options]
   shell                 a shell in the control container, the workspace sourced
   rviz                  RViz with the project's configuration
   cycle                 /sim/randomize (sim only), /brain/start, then /brain_state until DONE, ERROR or STOPPED
+  play                  play Connect Four against the robot from this terminal, the stack started with
+                        CONNECT4=true tools/so101 up: 1 to 7 a column, n a new game, q quit
   bench --stub|--perception [-n N] [--bags DIR]
                         the evaluation bench on ROS domain $BENCH_DOMAIN, N episodes (10), in the control
                         container: --perception the real pipeline, --stub the ground truth in its place.
@@ -115,6 +117,13 @@ case \$state in ERROR*) $call /brain/start std_srvs/srv/Trigger > /dev/null ;; e
 timeout 120 ros2 topic echo --field data /brain_state std_msgs/msg/String 2> /dev/null \
 | while read -r s; do case \$s in ---|IDLE) continue ;; esac; [ \"\$s\" = \"\$last\" ] || echo \"\$s\"; last=\$s; \
 case \$s in DONE*|ERROR*|STOPPED*) break ;; esac; done"
+    ;;
+  play)
+    # A TTY in the container from a terminal, for the keys; a pipe keeps -T and its input is read as keys.
+    tty=-T
+    [ -t 0 ] && tty=""
+    ros $tty "[ \"\$CONNECT4\" = true ] || { echo 'so101 play: the stack does not run the game: tools/so101 down, then CONNECT4=true tools/so101 up' >&2; exit 1; }; \
+ros2 run so101_bringup connect4_play"
     ;;
   bench)
     mode="" episodes=10 bags=""

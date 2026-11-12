@@ -17,6 +17,7 @@ tools/so101 down                          # SIGINT → destroy_node() → clean 
 
 # A cycle, the bench, the tests
 tools/so101 cycle                         # /sim/randomize (sim), /brain/start, then /brain_state until DONE or ERROR
+tools/so101 play                          # game mode (CONNECT4=true tools/so101 up): Connect Four from this terminal
 tools/so101 bench --perception -n 10      # evaluation bench, real pipeline, on ROS domain 77 (below)
 tools/so101 bench --stub -n 10            # the same with the ground-truth stub in place of perception
 tools/so101 robustness 3a                 # a case of the robustness demo, on ROS domain 78, the stack stopped
