@@ -48,3 +48,13 @@ The staff allows changing the scene: our own scenes (calibration markers, phase-
 ## Update (2026-10-26, #44, #47)
 
 The mechanism exists for phase 1: `so101_bringup.sim_scene` copies the provided scene folder and edits it with `mujoco.MjSpec`; `sim.launch.py` generates the scene at launch and passes it to the driver's `scene_path`, which reconnects `SO101Sim` right after the provided `_connect_arm`. Every sim run uses it now: the external camera moved (`config/sim_scene.yaml`, #47); `calibration:=true` adds the ArUco markers (`config/markers_sim.yaml`, #44). The phase-2 scene extends the same generator. A camera of the provided scene is oriented by `xyaxes`: the copy sets `xyaxes` too, since a `quat` set alone does not override it.
+
+## Update (2026-11-07, [MES-63], [MES-65])
+
+The game scene is one more option of `so101_bringup.sim_scene`, not a `scene_connect4.xml`. Three changes:
+
+- **The base stays at the origin.** Raising it (Update of 2026-10-09) breaks MuJoCo world = `base_link` (`driver_node.py:425`), the ground truth and the extrinsics: 79 mm off, against 0.4 mm with the floor and the grid lowered, by 10 cm in sim.
+- **The external camera stays where it is**, at 640×480 in game mode, with `camera_extrinsics.yaml` reused. No `board_cam`, no `camera_name`, no wrist camera in the scene: the driver has one camera path, and a second one has no case in sim.
+- **The phase-1 cube** is a ghost set by the generator (no contact, no visual), with no parking at run time.
+
+Sim services: `drop_token`, `give_token`, `reset_board`, and the true board under `expose_ground_truth`. The contact working set is in `phase2/P2-02` §7: the provided defaults lose the token. `/sim/randomize` does not exist in game mode.

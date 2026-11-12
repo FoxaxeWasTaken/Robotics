@@ -172,9 +172,9 @@ gitGraph
 | Types | `feat` `fix` `docs` `test` `refactor` `perf` `build` `ci` `chore` `revert` | — |
 | PR merges | **Squash merge**: 1 PR = 1 commit on `main`, author = PR author, co-authors kept (`Co-authored-by`) | Linear history, always attributable (C-07) |
 | `main` branch | Protected: PR, 1 approval, green CI, no force-push (private repo: needs GitHub Pro, §12.5) | — |
-| Versions | SemVer, a **minor version per usable increment**, a patch for a fix that matters; one GitHub **milestone** per version, every ticket in one (ADR-028 Update of 2026-11-02) | `v1.0.0` sim pick & place · `v1.1.0` real-arm tooling · `v1.3.0` real camera and pick & place, the end of phase 1 (no `v1.2.0`) · `v2.x` phase 2 (no `v0.x` tag was made) |
-| Release | One GitHub Release per tag: notes (CHANGELOG), bench report, **link** to the video. It needs its milestone's other tickets closed, a nightly on the exact commit and the quality gate passed; it closes the milestone and opens the next one: `tools/release.sh vX.Y.Z` checks all of it and does the writes (#211, the `release` skill) | — |
-| Changelog | [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), updated in the PR preparing the tag | Option: generated from commits (git-cliff) |
+| Versions | SemVer, a **minor version per usable increment**, a patch for a fix that matters; one GitHub **milestone** per version, every ticket in one (ADR-028 Update of 2026-11-02) | `v1.0.0` sim pick & place · `v1.1.0` real-arm tooling · `v1.3.0` real camera and pick & place, the end of phase 1 (no `v1.2.0`) · `v2.0.0` Connect Four in sim · `v2.1.0` Connect Four on the real arm (no `v0.x` tag was made) |
+| Release | One GitHub Release per tag: notes (CHANGELOG), bench report, **link** to the video. It needs its milestone's other tickets closed, a nightly on the exact commit and the quality gate passed, read **before** the last PR (#227); it closes the milestone and opens the next one: `tools/release.sh vX.Y.Z` checks all of it and does the writes (#211, the `release` skill) | — |
+| Changelog | [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), updated in the milestone's last PR, which leaves the tag to the nightly on that commit | Option: generated from commits (git-cliff) |
 | Language | **English** for code, commits, docs and presentations | Consistency with the conventional commits and the defense |
 
 ## 7. Where does each file go? (ADR-029)
@@ -220,7 +220,7 @@ Default proposal for **our** code: **Apache-2.0** (consistent with the rest, com
 | Every PR | PR template checklist; branch deleted after merge | Author |
 | Weekly | Board review in the sync (§12.4): Backlog → Ready, blocked tickets, WIP; review the risk register (`10`); merge Dependabot PRs; an open "Course repository: new commits" issue (the nightly watches the course, #137) | CP |
 | Every tag | CHANGELOG, bench report in `results/`, GitHub Release | CP + QA |
-| End of project | Final README (demo, results), videos, `v2.0.0` tag, public visibility (after staff approval), archive | Everyone |
+| End of project | Final README (demo, results), videos, `v2.0.0` tag; public visibility and archive afterwards (#99) | Everyone |
 
 ## 11. Putting the prepared tree in place (keeping the history)
 
@@ -283,7 +283,7 @@ flowchart LR
 | Epic | One issue per roadmap stage (label `epic`); tickets are its **sub-issues** (automatic progress bar) |
 | Ticket | ≤ L; closed by a PR, alone or grouped with related tickets (one commit and one `Closes #` each); title `[<step><letter>] <imperative summary>`, e.g. `[3.4b] Extrinsic calibration tool`; body = *Task* form (CONTRIBUTING §8) |
 | Dependencies | Native **blocked by** relationship (Issue → Relationships), never a label |
-| Milestones | The functional SemVer versions of §6 (`v0.1.0 — Foundations and driver` … `v2.0.0 — Phase 2 and final defense`), **no due date** (the plan follows logic, not dates, `09`) |
+| Milestones | The functional SemVer versions of §6 (`v0.1.0 — Foundations and driver` … `v2.0.0 — Phase 2 and final defense`, `v2.1.0 — Connect Four on the real arm`); the plan follows logic, not dates (`09`), so **no due date**, except `v2.0.0`: the hand-in |
 | Labels | `task`, `bug`, `epic`, `safety`, `staff-question`, `area:infra` `area:ci` `area:bringup` `area:driver` `area:kinematics` `area:perception` `area:brain` `area:eval` `area:docs` `area:connect4`; `report` for an issue that collects reports, not a work item ("Nightly bench results", #151): the project views leave it out |
 
 ### 12.3 Fields, views, automations

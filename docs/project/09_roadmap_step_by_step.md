@@ -1,8 +1,8 @@
 # 09 — Step-by-step roadmap
 
 > Author: [CP] Project lead · Reviewers: all experts
-> The dated milestones of the brief (S4, S7) are **deliberately ignored**: this document gives **the logical order of work** and, for each step, **when it is done**. Two expectations of the brief (update of 2026-10-08) still shape the order: the pick & place should ideally work by the mid-term review, hence the **early vertical slice** (4.3); and the final defense includes **phase 2** (own application), hence **stage 7**, started as soon as 4.3 works, in parallel with the real arm.
-> **Phase 2 has its own roadmap**, same rules: [`phase2/P2-04_roadmap.md`](phase2/P2-04_roadmap.md) (Connect Four, steps P2.0 to P2.9); it details stage 7 below.
+> The dated milestones of the brief (S4, S7) are **deliberately ignored**: this document gives **the logical order of work** and, for each step, **when it is done**. Two expectations of the brief (update of 2026-10-08) still shape the order: the pick & place should ideally work by the mid-term review, hence the **early vertical slice** (4.3); and the final defense includes **phase 2** (own application), hence **stage 7**, started as soon as 4.3 works, in parallel with the real arm. Stage 7 now has a date: the hand-in is 2026-11-20 23:42 (`phase2/P2-04` §3).
+> **Phase 2 has its own roadmap**, same rules: [`phase2/P2-04_roadmap.md`](phase2/P2-04_roadmap.md) (Connect Four, steps P2.0 to P2.9, `v2.0.0` ends at P2.6, in sim); it details stage 7 below.
 > Vocabulary: **stages 0–8** are this roadmap's work packages; **phase 1** (pick & place) and **phase 2** (go further) are the brief's two parts (`00` §1).
 
 ## 0. Steering principles
@@ -24,7 +24,7 @@
 | **4. Brain and pick & place (sim)** | 4.1 → 4.5 | Full cycle, ≥ 90 % over 50 randomized episodes (C-42) |
 | **5. Hardening** | 5.1 → 5.4 | Clean configuration, documentation, shared understanding, the `v1.0.0` release, the robustness demo |
 | **6. Real arm** | 6.1 → 6.5 | Filmed real pick & place (C-43); 6.1 starts right after stage 1 |
-| **7. Phase 2: go further** | 7.1 → 7.2 | Own application on top of phase 1: pitched, built, filmed (C-54). Chosen and validated: Connect Four ([`phase2/`](phase2/README.md)), own roadmap [`phase2/P2-04`](phase2/P2-04_roadmap.md) |
+| **7. Phase 2: go further** | 7.1 → 7.2 | Own application on top of phase 1: pitched, built, filmed (C-54). Chosen and validated: Connect Four, in sim for the hand-in, on the real arm after it ([`phase2/`](phase2/README.md)), own roadmap [`phase2/P2-04`](phase2/P2-04_roadmap.md) |
 | **8. Delivery** | 8.1 | Demo videos, defense, final release (C-53) |
 
 ### 1.1 Dependencies and critical path
@@ -300,13 +300,13 @@ The owners are those of `.github/CODEOWNERS` (0.1d), which requests their review
 - **When**: as soon as the vertical slice (4.3) works (the pitch itself earlier if the teaching staff asks for it).
 - **Tasks**: 2–3 ideas checked against the constraints above; check-in "idea in one sentence / the tech to add / the risk" [BOOT p17], [BOOT2 p16]; choose one with the staff; ADR; break it into tickets (same anatomy, `15` §12), riskiest part first.
 - **Done when**: pitch validated by the teaching staff; ADR merged; phase-2 tickets created.
-- **Choice (2026-10-09)**: **Connect Four against the robot** (ADR-034, [`phase2/`](phase2/README.md)), **validated by the teaching staff** the same day. The phase-2 tickets P2.1a to P2.8d exist under epic E7 (#75 to #95); the demo scenario of 7.1b (#74) remains.
+- **Choice (2026-10-09)**: **Connect Four against the robot** (ADR-034, [`phase2/`](phase2/README.md)), **validated by the teaching staff** the same day. The phase-2 tickets exist under epic E7: #75 to #87 and #230 to #234 for `v2.0.0`, #88 to #95 for `v2.1.0`; the demo scenario is `phase2/P2-01` §3.
 
 ### Step 7.2 — Phase-2 project
 
 - **Tasks**: risk spike first (an `experiences/` script with a measurement, go/no-go); then build on top of the phase-1 pipeline (same interfaces, same quality rules, sim first); define the demo scenario early.
-- **Done when**: the demo scenario runs in sim with a measured success rate (on the real arm if possible), filmed.
-- **Connect Four roadmap**: steps P2.0 to P2.9 in [`phase2/P2-04`](phase2/P2-04_roadmap.md), the first one (buy and measure a store-bought grid, then the drop spike) can start now; risks and tests in [`phase2/P2-03`](phase2/P2-03_plan_risks_tests.md).
+- **Done when**: the demo scenario runs in sim with a measured success rate, filmed (the real arm is `v2.1.0`).
+- **Connect Four roadmap**: steps P2.0 to P2.9 in [`phase2/P2-04`](phase2/P2-04_roadmap.md), the first one (the drop spike, on one layout) can start now, with the calendar in its §3; risks and tests in [`phase2/P2-03`](phase2/P2-03_plan_risks_tests.md).
 
 Ideas compatible with the current pipeline (the brief suggests "AI for control or perception, LLM, VLM, voice control, imitation learning, RL"; the slides add candy handout, drawing, tidying a workbench):
 
@@ -324,5 +324,5 @@ Ideas compatible with the current pipeline (the brief suggests "AI for control o
 
 ### Step 8.1 — Demo and defense
 
-- **Tasks**: 30 s video (real + RViz) + backup video, and a demo video **with the team on it** [BRIEF]; phase-2 demo video; slides **in English**: architecture, decisions (ADRs), **measurements** (bench, accuracy, perception), limitations, **phase 2**; clean repo (README, docs, tags).
+- **Tasks**: the phase-1 real videos exist (`v1.3.0`); a demo video **with the team on it** [BRIEF], and the phase-2 video, both on the sim game; slides **in English**: architecture, decisions (ADRs), **measurements** (bench, accuracy, perception), limitations, **phase 2**; clean repo (README, docs, tags).
 - **Done when**: timed rehearsal done; every member can answer a question on any block, phase 2 included.

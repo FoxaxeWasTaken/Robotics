@@ -47,3 +47,7 @@ The measured grid does not fit (far column out of reach, or clearance below 3 cm
 ## Update (2026-10-16, teaching staff)
 
 Wrist camera: probably the WowRobo 2 MP USB module for SO-ARM100/101 (30 fps, 3 m cable), on a printable wrist mount (STL shared on Teams); some users fix a webcam directly. Availability per campus: the staff will confirm. The grid webcam can be any USB webcam (a phone only as a stopgap: latency).
+
+## Update (2026-11-07, `v2.0.0` is the sim)
+
+This hardware is `v2.1.0`. In `v2.0.0` the sim models it: the same grid model, the depth guide (30 mm) because it widens the capture from 3 mm to −10/+6 mm across [MES-63], [MES-64], a riser of 10 cm as a lowered floor. The handover becomes `/sim/connect4/give_token`; the slow close, the squeeze, `/brain/set_gripper` and `/connect4/token_given` wait for a person next to the arm (#90). The wrist camera leaves the scene: the 2026-11-07 review proposes to cut it, to decide at the start of `v2.1.0` (`phase2/P2-02` §8).
