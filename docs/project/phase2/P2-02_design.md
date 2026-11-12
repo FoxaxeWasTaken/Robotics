@@ -1,7 +1,7 @@
 # P2-02 — Design: setup, kinematics, perception, game, software
 
 > Authors: [KIN] Kinematics, [VIS] Vision, [DEC] Decision, [CTRL] Control · Reviewers: [ARC], [SAFE], [QA]
-> Requirements: C-05, C-06, C-51, C-54 · Decisions: ADR-035 to ADR-038 · Measurements: MES-27 to MES-32, MES-63 to MES-66
+> Requirements: C-05, C-06, C-51, C-54 · Decisions: ADR-035 to ADR-038 · Measurements: MES-27 to MES-32, MES-63 to MES-67
 
 **`v2.0.0` is the sim, `v2.1.0` the real arm** (ADR-034 Update). The numbers of §2, §3, §5 and §7 were measured on 2026-11-07 on prototypes kept in `experiences/connect4/`, the assumed grid model and no real grid; #76 puts them on one layout. §8 keeps what the real arm will need.
 
@@ -228,9 +228,10 @@ Both phases live on `main`, with no long-lived branch: phase 1 stays what the st
 | Riser | **10 cm**, not 8: at 8 `lower_arm` hits the guide and column 6 is lost; 14/14 at 10 cm | [MES-63] |
 | Grid | Model of §1, unless #75 measures one: 7 × 6, column pitch 37 mm, **row pitch 34 mm**, slot gap 9.5 mm, slot entries 25 cm above the table, box geoms | [MES-28], [MES-63] |
 | Placement | Azimuth −40°, columns at r = 0.14 … 0.36 m, the slot plane 3.85 mm off the pan axis along −y of the grid frame (the TCP line's side; the fixed jaw is on +y) | [MES-63], [MES-64], [MES-65] |
-| Tokens | 42, Ø 34 × 6.5 mm, free joints, spares parked near the origin: far ones streak the shadows | [MES-65] |
+| Tokens | 42, Ø 34 × 6.5 mm, 4 g, free joints: `token_red_0` to `20`, `token_yellow_0` to `20`. Spares lie on the table out of the arm's reach and of the camera's view: in view, each is a red or yellow blob beside the grid | [MES-65], [MES-67] |
 | Depth guide | 30 mm high | [MES-63] |
-| Markers | 4, `DICT_4X4_50`, 30 mm, on the grid frame | [MES-65] |
+| Frame | Both faces are plates with a Ø 29 mm window per cell; a 45 mm post on each side, from the table to the slot entries. Contacts are hidden boxes (plates, walls, slot floor, guide); the posts are drawn only, the arm stays 17 mm or more from them at the 7 releases | [MES-67] |
+| Markers | 4, `DICT_4X4_50`, ids 10 to 13, 30 mm on a 39 mm white plate, at the top and the bottom of each post, on the front face; `so101_connect4/layout.py` gives their corners in the grid frame | [MES-65] |
 | `HANDOVER` | Candidate `[-1.0, -0.6, 0.6, 1.1, 1.57]`: pan ≤ −0.7 hides nothing from the camera | [MES-65] |
 
 **Contact working set** [MES-63], [MES-64]. The provided defaults fail: tokens creep at 70 mm/s, jaws squeeze through a token, and it is lost. `solref` 20 ms: 84 tokens of 84 through the slot bottom. Margin 0.5 mm: NaN.
@@ -239,14 +240,13 @@ Both phases live on `main`, with no long-lived branch: phase 1 stays what the st
 | --- | --- |
 | Cone, `impratio` | Elliptic, 100 |
 | Token `solref`, `solmix` | 4 ms, 1000 |
-| Token `solimp` with the jaws | 0.99 0.999 0.0005 0.5 2, priority 1 |
 | Free-joint damping | 0.005 |
 | Margin | 0 |
 | Sleeping | On, tolerance 0.01: required, the tick p99 reaches 29.7 ms without it |
 | Timestep | 2 ms |
-| Rendering | `shadowsize` 0 to 1024 and floor `reflectance` 0: chosen in #79 for image ≥ 3 Hz, tick p99 ≤ 25 ms |
+| Rendering | `shadowsize` 0 and floor `reflectance` 0: the image at 10 Hz in 640×480, the tick p99 21.5 ms [MES-67] |
 
-With it: 378 drops of 378 in the right cell, settled within 0.66 s; a full stack; the token held up to 1.5 rad/s, slip under 4 mm; the driver's tick p99 20.3 ms with 42 tokens, as phase 1 [MES-63]. MuJoCo's sleeping needs the 3.15 of the image; the kit's lock file says 3.10.
+The set is the one the drop spike ran (#76); the stiffer `solimp` and the priority of the first drop prototype are not in it: the spike held 100 tokens of 100 without them. It lives in `connect4_grid.yaml`, under `contact`. With it: 378 drops of 378 in the right cell, settled within 0.66 s; a full stack; the token held up to 1.5 rad/s, slip under 4 mm; the driver's tick p99 20.3 ms with 42 tokens, as phase 1 [MES-63]. MuJoCo's sleeping needs the 3.15 of the image; the kit's lock file says 3.10.
 
 **Phase-1 objects**: `connect()` calls `randomize_object()`, which needs `pickup_object_free`. The cube stays in the scene as a ghost set by the generator (`contype` 0, gravity compensated, no visual), the box is moved. Nothing is parked at run time.
 

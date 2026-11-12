@@ -1,9 +1,9 @@
 # Phase 2 — Connect Four against the robot
 
 > Authors: [CP] Project lead, [KIN] Kinematics · Reviewers: all experts
-> Requirements: C-54 · Decisions: ADR-034 to ADR-038 · Measurements: MES-21, MES-27 to MES-32, MES-63 to MES-66 · Roadmap: [P2-04](P2-04_roadmap.md)
+> Requirements: C-54 · Decisions: ADR-034 to ADR-038 · Measurements: MES-21, MES-27 to MES-32, MES-63 to MES-67 · Roadmap: [P2-04](P2-04_roadmap.md)
 
-**Status: VALIDATED** by the teaching staff on 2026-10-09 (roadmap step 7.1, ADR-034). **`v2.0.0`, the hand-in of 2026-11-20 23:42, is the game in simulation; the real arm is `v2.1.0`** (ADR-034 Update). Nothing is implemented yet: the design was measured on prototypes on 2026-11-07 ([`../experiences/connect4/`](../experiences/connect4/README.md)), and the next step is the drop spike on one layout ([`P2-04`](P2-04_roadmap.md) §3 gives the dates).
+**Status: VALIDATED** by the teaching staff on 2026-10-09 (roadmap step 7.1, ADR-034). **`v2.0.0`, the hand-in of 2026-11-20 23:42, is the game in simulation; the real arm is `v2.1.0`** (ADR-034 Update). The design was measured on prototypes on 2026-11-07 ([`../experiences/connect4/`](../experiences/connect4/README.md)) and the drop spike on one layout is a go (#76). Implemented: the `so101_connect4` package with the engine, the turns and the grid layout, the drop pose `release_pose`, and the game's sim scene (`sim.launch.py connect4:=true`). Not yet: the sim services, the board reader, `/brain/drop`, the game node ([`P2-04`](P2-04_roadmap.md) §3 gives the dates).
 
 ## 1. The pitch (check-in format [BOOT2 p16])
 
@@ -58,7 +58,7 @@ flowchart LR
 | [P2-03_plan_risks_tests.md](P2-03_plan_risks_tests.md) | Risk register `P2-R-xx`, test and measurement plan, CI, questions for the staff |
 | [P2-04_roadmap.md](P2-04_roadmap.md) | **Roadmap**: steps P2.0 to P2.9 with "Done when", lanes, the calendar to the hand-in and its cut-offs |
 
-**Relation with the phase-1 documents**: this folder only describes what phase 2 **adds**. Shared registers stay in the parent folder: decisions in [`../adr/`](../adr/README.md) (ADR-034 to 038), measurements in [`../11_cross_review_and_measurements.md`](../11_cross_review_and_measurements.md) (MES-27 to 32, MES-63 to 66, RC-39 to 44), terms in [`../12_glossary_references.md`](../12_glossary_references.md), scripts in [`../experiences/`](../experiences/README.md). Phase-2 identifiers carry a `P2-` prefix so they never collide with phase-1 ones (`P2-02` §3 is this folder, `02` §3 is the phase-1 environment document).
+**Relation with the phase-1 documents**: this folder only describes what phase 2 **adds**. Shared registers stay in the parent folder: decisions in [`../adr/`](../adr/README.md) (ADR-034 to 038), measurements in [`../11_cross_review_and_measurements.md`](../11_cross_review_and_measurements.md) (MES-27 to 32, MES-63 to 67, RC-39 to 44), terms in [`../12_glossary_references.md`](../12_glossary_references.md), scripts in [`../experiences/`](../experiences/README.md). Phase-2 identifiers carry a `P2-` prefix so they never collide with phase-1 ones (`P2-02` §3 is this folder, `02` §3 is the phase-1 environment document).
 
 ## 5. Key measurements
 
@@ -71,4 +71,5 @@ flowchart LR
 | Is ikpy enough, or is Pinocchio needed? | ikpy, fine for a turn-based game | [MES-21], [MES-64] |
 | Can the camera read the grid? | The phase-1 camera, unmoved, at 640×480: 2100 of 2100 cells on 50 boards, grid pose within 0.8 mm across | [MES-65] |
 | Do tokens behave in sim? | With a measured contact set: 378 drops of 378, full stacks, held up to 1.5 rad/s, the tick unchanged. With the provided defaults: lost | [MES-63] |
+| Does the running driver hold the scene? | Yes: tick p99 21.5 ms and the image at 10 Hz in 640×480 while 42 tokens fall, 42 of 42 in their cell | [MES-67] |
 | Is the engine strong enough? | Depth 10 to 12 in 1 s in pure Python, 100/100 against random | [MES-66] |

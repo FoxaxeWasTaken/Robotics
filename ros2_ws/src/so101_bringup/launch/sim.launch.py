@@ -15,6 +15,8 @@ In sim, the driver runs on our scene, generated at launch by so101_bringup.sim_s
 the external camera moved to the pose of config/sim_scene.yaml (#47). calibration:=true adds the ArUco markers
 of config/markers_sim.yaml and gives 640x480 images (driver_calibration.yaml), for the extrinsic calibration
 (3.4, #44). lighting:=dim darkens and warms every light (config/sim_scene.yaml): the robustness demo (#103).
+connect4:=true is the game of phase 2 (#79, phase2/P2-02 §7): the grid, its tokens and its markers in the
+scene, from so101_connect4's connect4_grid.yaml, and 640x480 images (driver_connect4.yaml).
 The ghost arm (#200): a second robot_state_publisher draws the driver's setpoint (/joint_setpoint) as the
 ghost/ TF tree, for the "Commanded arm (ghost)" display of RViz, unchecked by default.
 """
@@ -71,6 +73,11 @@ def generate_launch_description():
                 default_value="",
                 description="Sim: a lighting entry of config/sim_scene.yaml (dim), robustness demo (#103)",
             ),
+            DeclareLaunchArgument(
+                "connect4",
+                default_value="false",
+                description="Sim: the Connect Four scene of phase 2 at 640x480 (P2-02 §7)",
+            ),
             Node(
                 package="so101_driver",
                 executable="driver",
@@ -81,7 +88,11 @@ def generate_launch_description():
                     *files(
                         "driver",
                         IfElseSubstitution(
-                            LaunchConfiguration("calibration"), "driver_calibration.yaml", "driver.yaml"
+                            LaunchConfiguration("connect4"),
+                            "driver_connect4.yaml",
+                            IfElseSubstitution(
+                                LaunchConfiguration("calibration"), "driver_calibration.yaml", "driver.yaml"
+                            ),
                         ),
                     ),
                     {
@@ -90,6 +101,7 @@ def generate_launch_description():
                                 LaunchConfiguration("use_sim"),
                                 LaunchConfiguration("calibration"),
                                 LaunchConfiguration("lighting"),
+                                LaunchConfiguration("connect4"),
                             ),
                             value_type=str,
                         ),

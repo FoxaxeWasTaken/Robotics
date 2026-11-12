@@ -179,7 +179,7 @@ The brain recovers the gripper percentage with the inverse conversion from `so10
   - position only: the box stays axis-aligned (it is square).
 - `seed` (int, default `0`): one seed, two independent streams (`numpy.random.SeedSequence`): the provided `randomize_object()` (set on `SO101Sim` after `_connect_arm`, which takes no seed) and the box sampler. Same seed, same sequence of `/sim/randomize` calls. The cube pose at startup stays unseeded (drawn inside `connect()`).
 - `expose_ground_truth` (**`false` by default**): when `true`, publishes `/sim/ground_truth/object` and `/sim/ground_truth/drop_box` (`PoseStamped`, 10 Hz, `base_link`, stamped at read time). The MuJoCo world is `base_link`: the robot base sits at the scene origin with no rotation (`test_sim_tools.py`). **Evaluation bench only**, never read by brain or perception (C-06, CI grep).
-- `scene_path` (#44): loads one of our scenes (calibration scene with ArUco markers, ADR-013; Connect Four scene, ADR-036) without modifying `sim/`: right after the provided `_connect_arm`, the driver reconnects `SO101Sim` with that scene (ADR-036).
+- `scene_path` (#44): loads one of our scenes (calibration scene with ArUco markers, ADR-013; Connect Four scene, ADR-036) without modifying `sim/`: right after the provided `_connect_arm`, the driver reconnects `SO101Sim` with that scene (ADR-036). `sim.launch.py connect4:=true` gives it the game's scene at 640×480 (`driver_connect4.yaml`): `so101_bringup.sim_scene` adds the grid, its 42 tokens and its markers from `so101_connect4/config/connect4_grid.yaml` (`phase2/P2-02` §7). On it the tick p99 is 21.5 ms and the image comes at 10 Hz while a whole game of tokens falls [MES-67].
 
 ## 8. Lifecycle and shutdown
 

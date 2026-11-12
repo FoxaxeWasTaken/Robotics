@@ -39,7 +39,7 @@ WAIT_TARGET → PLAN → APPROACH → DESCEND → GRASP → LIFT → TRANSPORT �
 - **One stack, two worlds.** `USE_SIM` in `docker/.env` moves the driver between MuJoCo and the real SO-101. The same nodes run on both; only a few measured values change ([`01` §3.3](docs/project/01_architecture.md)).
 - **It sees for itself.** Perception locates the cube and the target with HSV detection, pixel → 3D and a median filter, on our own camera calibration. No ground truth reaches the pipeline, and a CI guard checks it.
 - **It checks its work.** The brain verifies each grasp and each drop, and takes up to 3 attempts: an empty gripper, a cube moved mid-action, a drop outside the target.
-- **It is built like a product.** A 3-episode end-to-end bench on every PR, 50 episodes each night `main` changes, mutation testing on the modules that protect the arm, 39 architecture decisions and 66 recorded measurements.
+- **It is built like a product.** A 3-episode end-to-end bench on every PR, 50 episodes each night `main` changes, mutation testing on the modules that protect the arm, 39 architecture decisions and 67 recorded measurements.
 
 ## Quickstart (simulation)
 
@@ -127,11 +127,11 @@ The bench starts its own driver, brain and perception on ROS domain 77 (below), 
 <details>
 <summary><b>Status: what is done, what is next</b></summary>
 
-As of 2026-11-07.
+As of 2026-11-12.
 
 | Done | Next (see [roadmap](docs/project/09_roadmap_step_by_step.md)) |
 | --- | --- |
-| Environment (Docker images, X11, DDS, usbipd), CI, hooks, design docs with measured spikes; the phase-1 sim criterion met on our calibration, 50/50 (4.5b, C-42) | Phase 2 in sim: the drop spike on one layout (P2.1, #76), then the game, for the hand-in of 2026-11-20 |
+| Environment (Docker images, X11, DDS, usbipd), CI, hooks, design docs with measured spikes; the phase-1 sim criterion met on our calibration, 50/50 (4.5b, C-42) | Phase 2 in sim, for the hand-in of 2026-11-20. Done: the drop spike, a go (#76), the engine and the turns (`so101_connect4`), the drop pose, the game's sim scene (`sim.launch.py connect4:=true`). Next: the sim services (#80), the board reader (#81, #82), `/brain/drop` (#84), the game node (#86) |
 | Driver: `/joint_states` at 30 Hz, `/joint_command`, speed limiter, joint-limit clamp, camera at 10 Hz with `camera_info`, `/sim/randomize`, ground truth for the bench only; real-arm safety and webcam; a warning for each late tick, a clean stop on SIGINT (#158, #176) | Later, on the real arm: a startup check that the camera has not moved (#222), the colors measured by a tool (#223), replay tests on real images (#48), a guided setup script (#224) |
 | Perception: HSV detection that holds under a dim, warm light, pixel → 3D, median filter, cube yaw, `/object_position` and `/drop_box_position`, debug image, our ArUco extrinsic calibration and the camera TF; a cube cut by the image edge or partly hidden is not published (3.4b–c, 3.5c, MES-47, MES-52, MES-53); on the real bench, the intrinsics from a ChArUco board and the camera's pose from that board touched by the arm (6.2b, 6.3a) | |
 | Brain: FK/IK (no self-collision), `/go_to_target`, grasp planner in a worker process, the full state machine, markers in RViz; grasp verification and retries checked on fault scenarios, effort threshold measured (4.4a, MES-48) | |

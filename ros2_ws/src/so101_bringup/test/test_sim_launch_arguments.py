@@ -78,6 +78,34 @@ def test_without_calibration_the_driver_keeps_its_image_size_and_gets_the_moved_
 def test_the_real_arm_gets_no_generated_scene():
     _, values = driver_parameters(use_sim="false", calibration="true")
     assert values["scene_path"] == ""
+    _, values = driver_parameters(use_sim="false", connect4="true")
+    assert values["scene_path"] == ""
+
+
+def test_connect4_is_off_by_default_and_the_scene_has_no_grid():
+    """#79: phase 1 does not move. The game is asked for, never a default."""
+    assert defaults()["connect4"] == "false"
+    _, values = driver_parameters()
+    scene = Path(values["scene_path"]).read_text()
+    assert 'name="grid"' not in scene and "token_" not in scene
+
+
+def test_connect4_starts_the_driver_on_the_game_scene_at_640x480():
+    """#79: the grid, its 42 tokens and its markers (P2-02 §7), the image size the board reader needs."""
+    files, values = driver_parameters(connect4="true")
+    assert files[-1] == "driver_connect4.yaml"
+    config = Path(get_package_share_directory("so101_bringup")) / "config" / "driver_connect4.yaml"
+    size = yaml.safe_load(config.read_text())["so101_driver"]["ros__parameters"]
+    assert (size["camera_width"], size["camera_height"]) == (640, 480)
+    model = mujoco.MjModel.from_xml_path(values["scene_path"])
+    assert model.body("grid").id > 0
+    assert sum(model.body(i).name.startswith("token_") for i in range(model.nbody)) == 42
+
+
+def test_connect4_with_calibration_stops_the_launch():
+    """The calibration markers lie on the table, which the game lowers by the riser."""
+    with pytest.raises(ValueError, match="one at a time"):
+        driver_parameters(connect4="true", calibration="true")
 
 
 def test_perception_is_included_only_when_asked():
