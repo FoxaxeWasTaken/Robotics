@@ -14,6 +14,11 @@ reach.py first (brute-force reach map, reach.npy, 3.7 MB: never commit it), the 
   ./run.sh repark           (d) every token back to its parking place
   ./run.sh riser            question 1: raise the base or lower the floor
 
+#76, one layout (P2-02 §7), the brain's Kinematics, so through tools/so101 run (the workspace built):
+  tools/so101 run 'python3 -u /repo/docs/project/experiences/connect4/scene/exp_connect4_scene.py spike'
+      clearance on the 7 columns, 100 drops, 100 with +-5 mm on the TCP, capture sweep: go / no-go
+  ... exp_connect4_scene.py stacks [--n N]   N grids filled through the guide, read back with reading/
+
 drv.py: the real DriverNode on this scene (tools/so101 run --out <here> 'python3 -u /out/drv.py').
 render_cost.py: OSMesa frame cost per quality setting.
 """
@@ -46,6 +51,7 @@ PARAMS = {
     "riser": 0.08,
     "r0": 0.14,  # first column from the pan axis; the last is at r0 + 6 pitch = 0.362
     "az": 0.0,  # azimuth of the grid plane around the pan axis, rad
+    "plane": 0.0,  # m, the grid plane off the pan axis along its normal (-sin az, cos az, 0) (#76)
     "rows": 6,
     "cols": 7,
     "tokens": 42,
@@ -94,8 +100,9 @@ def add_grid(spec, p, table_z):
     x0, x1 = r[0] - p["pitch"] / 2, r[-1] + p["pitch"] / 2
     L, zb, H = x1 - x0, bottom_z(p), p["entry"] - bottom_z(p)
     xc, zc = (x0 + x1) / 2, zb + H / 2
+    origin = np.array([PAN_X, 0, table_z]) + p["plane"] * np.array([-np.sin(p["az"]), np.cos(p["az"]), 0])
     grid = spec.worldbody.add_body(
-        name="grid", pos=[PAN_X, 0, table_z], quat=[np.cos(p["az"] / 2), 0, 0, np.sin(p["az"] / 2)]
+        name="grid", pos=origin, quat=[np.cos(p["az"] / 2), 0, 0, np.sin(p["az"] / 2)]
     )
     wall = {"type": mujoco.mjtGeom.mjGEOM_BOX, "group": 3, "friction": [p["friction"], 0.005, 0.0001]}
     wall |= {"solref": [p["solref"], 1], "margin": p["margin"], "condim": p["condim"]}
@@ -251,8 +258,9 @@ class Sim:
         return j.qposadr[0], j.dofadr[0]
 
     def column_xy(self, col):
-        r = self.p["r0"] + self.p["pitch"] * col
-        return np.array([PAN_X + r * np.cos(self.p["az"]), r * np.sin(self.p["az"])])
+        """The column's centre in the grid plane, seen from above."""
+        r, a = self.p["r0"] + self.p["pitch"] * col, self.p["az"]
+        return np.array([PAN_X, 0]) + r * np.array([np.cos(a), np.sin(a)]) + self.p["plane"] * np.array([-np.sin(a), np.cos(a)])
 
     def place(self, i, col, z_above_table, yaw=0.0, dy=0.0, dx=0.0):
         """Teleport token i, its disc in the grid plane (axis along the grid normal)."""
@@ -298,7 +306,7 @@ class Sim:
         a = p["az"]
         rel = pos[:2] - np.array([PAN_X, 0])
         along = rel @ np.array([np.cos(a), np.sin(a)])
-        across = rel @ np.array([-np.sin(a), np.cos(a)])
+        across = rel @ np.array([-np.sin(a), np.cos(a)]) - p["plane"]
         z = pos[2] - self.table_z
         col = (along - p["r0"]) / p["pitch"]
         row = (z - bottom_z(p)) / p["d"] - 0.5
@@ -1042,7 +1050,289 @@ def capture(args):
     return out
 
 
-COMMANDS = {"capture": capture, "settle": settle, "cost": cost, "cost2": cost2, "scene": scene, "drop": drop, "grip": grip, "move": move, "repark": repark, "riser": riser}
+# ------------------------------------------------------------------------------------------------- #76
+# One layout for all the numbers (#76): P2-02 §7 (connect4_grid.yaml), with the drop pose of drop/e7_cycle.py
+# through the brain's Kinematics. Earlier commands keep their own layouts, as they ran for MES-63.
+LAYOUT = GAME_OPTIONS | {
+    "az": np.radians(-40.0),  # [MES-65]
+    "plane": -0.00385,  # the slot plane 3.85 mm off the pan axis, on the side of the TCP line [MES-64]
+    "guide_h": 0.030,  # [MES-63]
+    "camera": None,  # the phase-1 camera, unmoved [MES-65]
+}
+HANDOVER_Q = (-1.0, -0.6, 0.6, 1.1, 1.57)  # P2-02 §7's candidate: pan <= -0.7 hides nothing from the camera
+ROLL = 1.6195  # rad, the jaws normal to the grid [MES-64]; so101_brain/drop.py (#83)
+TILT = 70.0  # deg, the approach in the arm plane [MES-64]
+TOKEN_IN_TCP = np.array([-0.00315, 0.0, -0.001])  # m, the held token's centre in gripper_frame_link [MES-64]
+# m: the token centre aimed off the slot plane towards the fixed jaw (P2-02 §2.2). The token rests on it, at -x of
+# the TCP; at azimuth a the jaws' x is (sin a, -cos a, 0) = -normal, so the fixed jaw is on the +normal side.
+AIM = 0.001
+RELEASE_ABOVE = 0.008  # m, the token's bottom above the guide at the release (P2-02 §2.3)
+PRE_DROP = 0.025  # m above the release: height first, then a joint descent (at 30 mm, column 6 is near its reach)
+OPEN, SQUEEZE = 40.0, 0.0  # gripper % at HANDOVER and closed on the token [MES-64]
+DESCENT_V = 0.3  # rad/s
+# m above the release: the lift goes straight up through IK waypoints. One joint move from the release to the
+# pre-drop swept the fixed jaw into the guide: 0.0 mm at column 6, 15.3 mm like this (#76)
+LIFT_STEPS = (0.005, 0.01, 0.015, 0.02, PRE_DROP)
+_KIN = []
+_AIM = []  # --aim-mm
+
+
+def aim():
+    return _AIM[0] if _AIM else AIM
+
+
+def brain_kinematics():
+    """so101_brain's Kinematics on the URDF the workspace installs (tools/so101 run builds it)."""
+    if not _KIN:
+        from ament_index_python.packages import get_package_share_directory
+        from so101_brain.kinematics import Kinematics
+
+        _KIN.append(Kinematics(str(Path(get_package_share_directory("so101_description")) / "urdf" / "so101.urdf")))
+    return _KIN[0]
+
+
+def release_pose(target, q_seed):
+    """drop/e7_cycle.py's rel_pose, as so101_brain/drop.py (#83): the joints that put the token's centre on target."""
+    from so101_brain.grasp_planner import tilted_down
+
+    kin = brain_kinematics()
+    azimuth, seed = kin.arm_azimuth(target), np.asarray(q_seed, dtype=float)
+    for _ in range(2):
+        z = tilted_down(TILT, azimuth)
+        x = np.array([np.sin(azimuth), -np.cos(azimuth), 0.0])
+        p = target - np.column_stack([x, np.cross(z, x), z]) @ TOKEN_IN_TCP
+        q = kin.ik_pos(p, q_seed=seed, roll=ROLL)
+        if q is None:
+            return None
+        azimuth, seed = -q[0], q
+    return kin.ik_point(p, tilted_down(TILT, azimuth), q_seed=seed, roll=ROLL)
+
+
+class Clearance:
+    """The smallest distance between the arm's geoms and the depth guide's, over the ticks it watches."""
+
+    def __init__(self, rig):
+        m = rig.m
+        base = m.body("base").id
+
+        def on_arm(b):
+            while b:
+                if b == base:
+                    return True
+                b = m.body_parentid[b]
+            return False
+
+        self.rig = rig
+        self.arm = [g for g in range(m.ngeom) if on_arm(m.geom_bodyid[g]) and m.geom_contype[g]]
+        self.guide = [m.geom(f"guide_{s}").id for s in ("front", "back")]
+        self.min, self.where, self.phase = np.inf, "", ""
+
+    def __call__(self):
+        m, d = self.rig.m, self.rig.d
+        for a in self.arm:
+            for g in self.guide:
+                dist = mujoco.mj_geomDistance(m, d, a, g, 0.05, None)
+                if dist < self.min:
+                    body = m.body(m.geom_bodyid[a]).name
+                    self.min, self.where = dist, f"{body}/{m.geom(a).name or a} in {self.phase}"
+
+
+def robot_move(rig, col, token, hand=(0.0, 0.0), tcp_err=(0.0, 0.0)):
+    """One move of /brain/drop on the layout: HANDOVER, give_token with `hand` (along the grid, in depth, m), close,
+    pre-drop height first, a joint descent to the release, open, back. `tcp_err` (along, across, m) moves the
+    target, as a perception error would. Returns (cell or None, facts)."""
+    p, a = rig.p, rig.p["az"]
+    along_v, normal = np.array([np.cos(a), np.sin(a), 0.0]), np.array([-np.sin(a), np.cos(a), 0.0])
+    xy = rig.column_xy(col)
+    target = np.array([*xy, rig.table_z + p["entry"] + p["guide_h"] + RELEASE_ABOVE + p["d"] / 2])
+    target = target + aim() * normal + tcp_err[0] * along_v + tcp_err[1] * normal
+    rig.goto(HANDOVER_Q, OPEN, v=1.0, gv=200.0)
+    pos, R = rig.tcp_frame()
+    rig.give(token, center=(PAD[0], hand[0], hand[1]))  # gripper body frame: x the jaws, y along the grid, z depth
+    goal = dict(zip(ARM5, HANDOVER_Q, strict=True))
+    for _ in range(int(OPEN / 25.0 / 0.02) + 25):
+        rig.control_tick(goal, SQUEEZE, gv=25.0)
+    held = bool(rig.effort() > 0.06)  # the brain's grasp check in sim [MES-48]
+    q_pre = release_pose(target + [0, 0, PRE_DROP], HANDOVER_Q)
+    q_rel = release_pose(target, q_pre) if q_pre is not None else None
+    facts = {"held": held}
+    if q_rel is None:
+        return None, {**facts, "fail": "unreachable"}
+    clearance = Clearance(rig)
+    rig.goto((HANDOVER_Q[0], *q_pre[1:]), SQUEEZE, v=1.0, gv=25.0)  # up first: HANDOVER is below the grid top
+    clearance.phase = "to pre-drop"
+    rig.goto(q_pre, SQUEEZE, v=1.0, gv=25.0, watch=clearance)
+    clearance.phase = "descent"
+    rig.goto(q_rel, SQUEEZE, v=DESCENT_V, gv=25.0, watch=clearance)
+    facts["token_err_mm"] = round(float(np.linalg.norm(rig.token_state(token)[0][:3] - target)) * 1e3, 1)
+    goal = dict(zip(ARM5, q_rel, strict=True))
+    clearance.phase = "release"
+    for _ in range(25):
+        rig.control_tick(goal, OPEN, gv=200.0)
+        clearance()
+    settled = wait_settled(rig, token, timeout=2.0)
+    clearance.phase = "lift"
+    q = q_rel
+    for h in LIFT_STEPS:  # straight up through IK waypoints: one joint move from the release swept the guide
+        q = release_pose(target + [0, 0, h], q) if h < PRE_DROP else q_pre
+        rig.goto(q if q is not None else q_pre, OPEN, v=1.0, gv=200.0, watch=clearance)
+    rig.goto((HANDOVER_Q[0], *q_pre[1:]), OPEN, v=1.0, gv=200.0)
+    rig.goto(HANDOVER_Q, OPEN, v=1.0, gv=200.0)
+    z = rig.token_state(token)[0][2] - rig.table_z
+    cell = rig.cell_of(token)
+    if cell is not None and cell[1] >= p["rows"]:  # resting on the slot entry, above the grid: jammed
+        cell = None
+    facts |= {"clearance_mm": round(float(clearance.min) * 1e3, 1), "closest": clearance.where}
+    facts |= {"settled": settled is not None, "jammed": bool(cell is None and z > bottom_z(p))}  # above the stack
+    return cell, facts
+
+
+def drops(n, tcp_mm, seed):
+    """n moves into random columns, give_token's offsets (+-3 mm along, +-5 mm in depth) and +-tcp_mm on the
+    target; a new scene when the grid is half full. Counts by outcome."""
+    rng = np.random.default_rng(seed)
+    out, rig, heights, k = [], None, None, 0
+    while k < n:
+        if rig is None or sum(heights) >= 21:
+            path, p, tz = build(tempfile.mkdtemp(prefix="so101_"), **LAYOUT)
+            rig, heights = Rig(path, p, tz), [0] * p["cols"]
+            rig.go_home(HANDOVER_Q, OPEN)
+        col = int(rng.choice([c for c in range(7) if heights[c] < 6]))
+        hand = (rng.uniform(-0.003, 0.003), rng.uniform(-0.005, 0.005))
+        err = tuple(rng.uniform(-tcp_mm, tcp_mm, 2) / 1e3)
+        cell, facts = robot_move(rig, col, sum(heights), hand=hand, tcp_err=err)
+        if facts.get("fail") == "unreachable":
+            facts["target_r_mm"] = round((p["r0"] + p["pitch"] * col + err[0]) * 1e3, 1)
+        ok = cell == (col, heights[col])
+        out.append({"col": col, "ok": ok, "cell": cell, "hand_mm": (np.array(hand) * 1e3).round(1).tolist(),
+                    "tcp_mm": (np.array(err) * 1e3).round(1).tolist(), **facts})
+        if cell is not None:
+            heights[cell[0]] += 1  # the camera wins: where it landed
+        else:  # lost or jammed: out of the count, a new scene
+            rig = None
+        k += 1
+    return out
+
+
+def summary(name, moves):
+    ok = sum(m["ok"] for m in moves)
+    wrong = sum(m["cell"] is not None and not m["ok"] for m in moves)
+    jammed = sum(m.get("jammed", False) for m in moves)
+    unreachable = sum(m.get("fail") == "unreachable" for m in moves)
+    lost = len(moves) - ok - wrong - jammed - unreachable
+    print(f"{name}: {ok}/{len(moves)} in the right cell ({100 * ok / len(moves):.0f} %); wrong cell {wrong}, "
+          f"jammed {jammed}, lost {lost}, unreachable {unreachable}; not held {sum(not m['held'] for m in moves)}",
+          flush=True)
+    return {"name": name, "ok": ok, "n": len(moves), "wrong": wrong, "jammed": jammed, "lost": lost,
+            "unreachable": unreachable}
+
+
+def spike(args):
+    """#76 on the layout of P2-02 §7: the arm-to-guide clearance on the 7 columns, 100 drops with give_token's
+    offsets, 100 with +-5 mm on the TCP too, the capture along and across. Go: >= 95 % and >= 80 %."""
+    results = {}
+    path, p, tz = build(tempfile.mkdtemp(prefix="so101_"), **LAYOUT)
+    rig = Rig(path, p, tz)
+    rig.go_home(HANDOVER_Q, OPEN)
+    columns = []
+    for col in range(p["cols"]):
+        cell, facts = robot_move(rig, col, col)
+        columns.append({"col": col, "cell": cell, **facts})
+        print(columns[-1], flush=True)
+    results["columns"] = columns
+    print(f"clearance arm-guide, 7 columns: min {min(c['clearance_mm'] for c in columns)} mm", flush=True)
+    for name, tcp in (("give_token offsets", 0.0), ("+-5 mm TCP on top", 5.0)):
+        moves = drops(args.n or 100, tcp, args.seed)
+        results[name] = {"summary": summary(name, moves), "moves": moves}
+    sweep = []
+    for axis, values in (("along", (-20, -16, -12, -8, -4, 0, 4, 8, 12, 16, 20)),
+                         ("across", (-12, -10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10, 12))):
+        for mm in values:
+            path, p, tz = build(tempfile.mkdtemp(prefix="so101_"), **LAYOUT)
+            rig = Rig(path, p, tz)
+            rig.go_home(HANDOVER_Q, OPEN)
+            err = (mm / 1e3, 0.0) if axis == "along" else (0.0, mm / 1e3)
+            cell, facts = robot_move(rig, 3, 0, tcp_err=err)
+            sweep.append({"axis": axis, "mm": mm, "ok": cell == (3, 0), "cell": cell, **facts})
+    for axis in ("along", "across"):
+        row = [s for s in sweep if s["axis"] == axis]
+        zero = next(i for i, s in enumerate(row) if s["mm"] == 0)
+        lo = hi = zero
+        while lo > 0 and row[lo - 1]["ok"]:
+            lo -= 1
+        while hi < len(row) - 1 and row[hi + 1]["ok"]:
+            hi += 1
+        window = f"{row[lo]['mm']} to {row[hi]['mm']} mm" if row[zero]["ok"] else "none"
+        print(f"capture {axis} (around the aimed point, unbroken): {window} "
+              f"({''.join('o' if s['ok'] else '.' for s in row)}, {row[0]['mm']} to {row[-1]['mm']} mm)", flush=True)
+    results["capture"] = sweep
+    a, b = (results[k]["summary"] for k in ("give_token offsets", "+-5 mm TCP on top"))
+    go = a["ok"] >= 0.95 * a["n"] and b["ok"] >= 0.80 * b["n"]
+    print(f"{'GO' if go else 'NO-GO'}: {a['ok']}/{a['n']} (>= 95 %), {b['ok']}/{b['n']} with +-5 mm (>= 80 %); "
+          f"aim {aim() * 1e3:+.1f} mm towards the fixed jaw", flush=True)
+    return results
+
+
+def read_stacks(rig):
+    """The tokens where the moves left them, copied into reading/'s scene on the same layout (the phase-1 camera,
+    640x480, the 30 mm markers, shadows 1024, no floor reflection), then read as reading/final.py does: the grid
+    pose from the markers (PnP), a disc per cell, the HSV fractions. Returns (cells right, cells, markers)."""
+    sys.path.insert(0, str(Path(__file__).parent.parent / "reading"))
+    import common
+    from classify import read
+
+    common.TABLE_Z = rig.table_z  # reading/ lowered its floor by 8 cm, the layout by 10
+    g = common.Grid(az=np.degrees(LAYOUT["az"]), marker=0.03, table=rig.table_z)
+    g.t = g.t + LAYOUT["plane"] * g.y  # the slot plane off the pan axis, as the physics scene
+    g.T[:3, 3] = g.t
+    w = common.World(g, 640, 480, cam=common.P1_CAM, shadow=1024, reflect=0.0)
+    w.arm(HANDOVER_Q)
+    truth = np.zeros((common.ROWS, common.COLS), int)
+    used = {"r": 0, "y": 0}
+    for i in range(rig.p["tokens"]):
+        cell = rig.cell_of(i)
+        if cell is None:
+            continue
+        color = "r" if i % 2 == 0 else "y"  # the physics scene's colors: red even, yellow odd
+        truth[cell[1], cell[0]] = 1 if color == "r" else 2
+        a = w.tok_adr[f"{color}{used[color]}"]
+        used[color] += 1
+        w.d.qpos[a : a + 7] = rig.token_state(i)[0]
+    rgb = w.render()
+    found = common.pnp(common.detect(rgb), g, w.K)
+    if found is None:
+        w.close()
+        return 0, truth.size, 0
+    out = read(rgb, g, w.K, found[0], thr=0.35)[0]
+    w.close()
+    return int((out == truth).sum()), truth.size, len(found[2])
+
+
+def stacks(args):
+    """Full stacks (#76): the robot fills the grid through the guide, row by row (42 moves), then reading/'s method
+    reads the 42 cells. --n: grids filled (default 2)."""
+    results = []
+    for k in range(args.n or 2):
+        rng = np.random.default_rng(args.seed + k)
+        path, p, tz = build(tempfile.mkdtemp(prefix="so101_"), **LAYOUT)
+        rig = Rig(path, p, tz)
+        rig.go_home(HANDOVER_Q, OPEN)
+        moves = []
+        for token in range(p["tokens"]):
+            col = token % p["cols"]
+            hand = (rng.uniform(-0.003, 0.003), rng.uniform(-0.005, 0.005))
+            cell, facts = robot_move(rig, col, token, hand=hand)
+            moves.append({"col": col, "ok": cell == (col, token // p["cols"]), "cell": cell, **facts})
+        right, cells, markers = read_stacks(rig)
+        full = sum(m["ok"] for m in moves)
+        print(f"grid {k}: {full}/{len(moves)} tokens in their cell, jammed {sum(m['jammed'] for m in moves)}, "
+              f"clearance min {min(m['clearance_mm'] for m in moves)} mm; read {right}/{cells} cells "
+              f"({markers}/4 markers)", flush=True)
+        results.append({"moves": moves, "read_right": right, "cells": cells, "markers": markers})
+    return results
+
+
+COMMANDS = {"spike": spike, "stacks": stacks, "capture": capture, "settle": settle, "cost": cost, "cost2": cost2, "scene": scene, "drop": drop, "grip": grip, "move": move, "repark": repark, "riser": riser}
 
 
 def main():
@@ -1057,10 +1347,13 @@ def main():
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--set", default="", help="scene parameters, e.g. riser=0.1,r0=0.12")
     parser.add_argument("--offset", type=float, default=0.0)
+    parser.add_argument("--aim-mm", type=float, help="spike, stacks: the aim towards the fixed jaw (default 1)")
     args = parser.parse_args()
+    if args.aim_mm is not None:
+        _AIM.append(args.aim_mm / 1e3)
     result = COMMANDS[args.command](args)
     if args.json and result is not None:
-        Path(args.json).write_text(json.dumps(result, indent=1))
+        Path(args.json).write_text(json.dumps(result, indent=1, default=lambda o: o.item() if hasattr(o, "item") else str(o)))
 
 
 if __name__ == "__main__":

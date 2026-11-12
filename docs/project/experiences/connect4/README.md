@@ -17,6 +17,9 @@ From the repository root, with the `tek5/control` image built:
 # scene/: run.sh mounts its own folder and writes there; reach.py first, `move` seeds from its map
 docs/project/experiences/connect4/scene/run.sh drop
 tools/so101 run --out docs/project/experiences/connect4/scene 'python3 -u /out/drv.py'
+# #76, one layout (P2-02 §7): the go / no-go rates, the capture, the clearance; then full grids read back (~2 min)
+tools/so101 run 'python3 -u /repo/docs/project/experiences/connect4/scene/exp_connect4_scene.py spike'
+tools/so101 run 'python3 -u /repo/docs/project/experiences/connect4/scene/exp_connect4_scene.py stacks'
 
 # drop/ and reading/: the sources in /repo, the folder in /out
 tools/so101 run --out docs/project/experiences/connect4/drop 'cd /out && python3 -u e7_cycle.py'

@@ -50,3 +50,7 @@ The questions of `phase2/P2-03` §4 were asked and answered on 2026-10-16: the a
 The hand-in is 2026-11-20 23:42. **`v2.0.0` is level 1, the game in simulation; level 2, the real arm, is `v2.1.0`** (`phase2/P2-01` §2). Phase 1 already runs on the real arm (`v1.3.0`), and a real game adds a riser, a handover next to a person and a new camera setup: an expert review found five blocking safety points and a drop precision still unproven (`phase2/P2-02` §8), too much for two weeks. The teaching staff validated a pitch aiming at the real arm: the defense says so plainly.
 
 A drop-spike no-go first changes the sim geometry, a parameter; tic-tac-toe stays the last fallback. The spike's prototypes already pass [MES-63], [MES-64]; #76 decides on one layout. `PickPlace` became a `/brain/drop` service (ADR-037 Update).
+
+## Update (2026-11-12, #76: the drop spike is a go)
+
+**Go.** On the one layout of `phase2/P2-02` §7, with the drop pose of [MES-64]: 100/100 drops with the handover offsets, 100/100 with ±5 mm on the TCP too, against 95 % and 80 % [MES-63]. Two grids filled through the guide and read back, 84/84 cells. The level stays 1, the game in sim; the geometry keeps its values. The lift after the release goes straight up through IK waypoints (`P2-02` §2.3): one joint move swept the jaw into the guide at column 6.
