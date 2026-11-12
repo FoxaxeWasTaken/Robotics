@@ -2,6 +2,7 @@
 
 import subprocess
 import sys
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
 import yaml
@@ -28,6 +29,7 @@ def test_the_two_launch_files_of_the_game_mode_are_installed():
     """#231: board_reader.launch.py for the perception container, game.launch.py for the control one."""
     launch = Path(get_package_share_directory("so101_connect4")) / "launch"
     for name in ("board_reader.launch.py", "game.launch.py"):
-        scope = {}
-        exec(compile((launch / name).read_text(), name, "exec"), scope)
-        assert scope["generate_launch_description"]() is not None
+        spec = spec_from_file_location(name.split(".")[0], launch / name)  # its real path: coverage finds it
+        module = module_from_spec(spec)
+        spec.loader.exec_module(module)
+        assert module.generate_launch_description() is not None
