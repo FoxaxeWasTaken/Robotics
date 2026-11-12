@@ -39,7 +39,7 @@ The token does not sit on the TCP: it rests on the fixed jaw, its centre 3.15 mm
 ```text
 release_pose(kin, target, q_seed):      # target = token centre, base_link
     roll = +1.6195 rad                  # +90° + 2.8°: jaws normal to the grid
-    p = target - token offset           # 3.15 mm along the TCP's x; aim 1 mm towards the fixed jaw
+    p = target - token offset           # 3.15 mm along the TCP's x; aim 1 mm towards the fixed jaw (+y, grid frame)
     q = ik_pos(p, q_seed, roll)         # gives the pan
     q = ik_point(p, approach tilted 70°, q_seed = q, roll)
     return q, or None (unreachable: report it)
@@ -56,7 +56,7 @@ release_pose(kin, target, q_seed):      # target = token centre, base_link
 2. → pre-drop: **height first**, then the column, min-jerk (`04` §6).
 3. Descent to `release_pose` at 0.3 rad/s, token bottom about 8 mm above the guide. Joint interpolation from the pre-drop: no Cartesian line needed.
 4. Open: the token falls through the guide.
-5. Lift, back to `HANDOVER`, gripper open. The service replies.
+5. Lift **straight up through IK waypoints** every 5 mm to the pre-drop, 25 mm above the release, then back to `HANDOVER`, gripper open. The service replies. One joint move from the release to the pre-drop swept the fixed jaw into the guide at column 6, and at 30 mm column 6 is at its reach [MES-63].
 
 A move lasts 5 to 8 s: 4.7–5.2 s measured without the pre-drop (close 0.8 s, two legs of 1.7–1.9 s, open 0.5 s) [MES-64], the pre-drop adds the rest (estimated).
 
@@ -227,7 +227,7 @@ Both phases live on `main`, with no long-lived branch: phase 1 stays what the st
 | Base | **Stays at the origin**: floor and table lowered, so MuJoCo world = `base_link` holds (`driver_node.py:425`), for the ground truth, the FK tests and the extrinsics | [MES-63], [MES-65] |
 | Riser | **10 cm**, not 8: at 8 `lower_arm` hits the guide and column 6 is lost; 14/14 at 10 cm | [MES-63] |
 | Grid | Model of §1, unless #75 measures one: 7 × 6, column pitch 37 mm, **row pitch 34 mm**, slot gap 9.5 mm, slot entries 25 cm above the table, box geoms | [MES-28], [MES-63] |
-| Placement | Azimuth −40°, columns at r = 0.14 … 0.36 m, grid plane 3.85 mm off the pan axis on the fixed-jaw side | [MES-64], [MES-65] |
+| Placement | Azimuth −40°, columns at r = 0.14 … 0.36 m, the slot plane 3.85 mm off the pan axis along −y of the grid frame (the TCP line's side; the fixed jaw is on +y) | [MES-63], [MES-64], [MES-65] |
 | Tokens | 42, Ø 34 × 6.5 mm, free joints, spares parked near the origin: far ones streak the shadows | [MES-65] |
 | Depth guide | 30 mm high | [MES-63] |
 | Markers | 4, `DICT_4X4_50`, 30 mm, on the grid frame | [MES-65] |
