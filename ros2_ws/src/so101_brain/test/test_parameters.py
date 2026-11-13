@@ -48,7 +48,8 @@ def test_the_moves_of_the_game_are_served_in_game_mode_only():
     """#84: phase 1 keeps the services it had. Before the first /joint_states, a move is refused."""
     phase_1 = {"/brain/start", "/brain/stop", "/go_to_target"}
     services, _ = game()
-    assert phase_1 <= services and not {"/brain/drop", "/brain/handover"} & services
+    assert phase_1 <= services
+    assert not {"/brain/drop", "/brain/handover"} & services
     services, refusal = game("connect4.enabled:=true")
     assert phase_1 | {"/brain/drop", "/brain/handover"} <= services
     assert refusal == "no_joint_states"

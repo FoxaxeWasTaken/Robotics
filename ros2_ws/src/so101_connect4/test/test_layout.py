@@ -39,16 +39,19 @@ def test_the_markers_sit_on_the_front_face_of_the_posts_between_the_table_and_th
     entry = table + LAYOUT["grid"]["slot_entry_height"]
     for center in centers.values():
         assert center[1] > LAYOUT["grid"]["slot_gap"] / 2  # the front face, +y
-        assert table < center[2] - half and center[2] + half < entry
+        assert table < center[2] - half
+        assert center[2] + half < entry
         on_a_post = center[0] + half < -0.037 / 2 or center[0] - half > 6.5 * 0.037
         assert on_a_post  # never over a window
-    assert centers[10][0] < 0 < centers[11][0] and centers[10][2] > centers[12][2]
+    assert centers[10][0] < 0 < centers[11][0]
+    assert centers[10][2] > centers[12][2]
 
 
 def test_marker_corners_follow_the_order_cv2_aruco_detects_seen_from_the_front():
     corners = layout.marker_corners(LAYOUT, 10)
     top_left, top_right, _, bottom_left = corners
     assert top_left[0] > top_right[0]  # the viewer's right is -x
-    assert top_left[2] > bottom_left[2] and np.isclose(top_right[2], top_left[2])
+    assert top_left[2] > bottom_left[2]
+    assert np.isclose(top_right[2], top_left[2])
     assert np.allclose(corners.mean(axis=0), layout.marker_centers(LAYOUT)[10])
     assert np.isclose(np.linalg.norm(top_left - top_right), LAYOUT["markers"]["size"])

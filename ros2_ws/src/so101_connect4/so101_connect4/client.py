@@ -31,10 +31,12 @@ def last_move(last) -> str:
         return f"{text} (it meant column {last['planned'] + 1})"
     if "depth" not in last:
         return text
-    end = "loses" if "loses_in" in last else "wins" if "wins_in" in last else ""
-    moves = last.get(f"{end}_in", 0) // 2  # the winner's moves after this one
-    left = f" in {moves} move{'s' if moves > 1 else ''}" if moves else ""
-    return f"{text} (depth {last['depth']}{f', it {end}{left}' if end else ''})"
+    end = next((end for end in ("loses", "wins") if f"{end}_in" in last), "")
+    if not end:
+        return f"{text} (depth {last['depth']})"
+    moves = last[f"{end}_in"] // 2  # the winner's moves after this one
+    left = {0: "", 1: " in 1 move"}.get(moves, f" in {moves} moves")
+    return f"{text} (depth {last['depth']}, it {end}{left})"
 
 
 def answer(spin_once, client, request=None, timeout_s=10.0):

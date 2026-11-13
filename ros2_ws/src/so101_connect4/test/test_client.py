@@ -125,6 +125,7 @@ def test_the_level_is_the_game_nodes_depth_set_from_outside(game, stack):  # noq
     assert game.set_depth(4) == (True, "")
     assert game.wait(lambda state: state["max_depth"] == 4, 5.0)
     refused = game.set_depth(0)
-    assert not refused[0] and "engine.max_depth" in refused[1]
+    assert not refused[0]
+    assert "engine.max_depth" in refused[1]
     stack.spin_for(0.3)
     assert game.state["max_depth"] == 4

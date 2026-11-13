@@ -131,7 +131,8 @@ def test_the_engine_is_asked_for_the_robots_side_once_it_has_tokens():
     robot_plays(c, 2)
     cells = human_plays(c, 4)
     me, mask = c.out.think
-    assert me != 0 and (me, mask) == game.from_cells(cells, ROBOT)
+    assert me != 0
+    assert (me, mask) == game.from_cells(cells, ROBOT)
 
 
 def test_a_win_with_the_move_itself_is_a_win_in_one_ply():
@@ -140,7 +141,8 @@ def test_a_win_with_the_move_itself_is_a_win_in_one_ply():
     c.step(engine=choice(2, score=1000 - 1 - 1))  # 1 stone on the board, the win is this move
     c.step(move_reply=(True, "dropped"))
     c.read(with_tokens(cells, (2, ROBOT)))
-    assert c.turns.last["wins_in"] == 1 and "loses_in" not in c.turns.last
+    assert c.turns.last["wins_in"] == 1
+    assert "loses_in" not in c.turns.last
 
 
 def test_the_seconds_are_published_to_the_hundredth():
@@ -204,8 +206,7 @@ def test_a_human_move_then_a_robot_move():
     c = new_game()
     human_plays(c, 3)
     assert c.state is State.THINK
-    me, mask = c.out.think
-    assert (me, mask) == game.from_cells(c.turns.cells, ROBOT)
+    assert c.out.think == game.from_cells(c.turns.cells, ROBOT)
     robot_plays(c, 2)
     assert c.state is State.WAIT_HUMAN
     assert c.turns.turn == "human"

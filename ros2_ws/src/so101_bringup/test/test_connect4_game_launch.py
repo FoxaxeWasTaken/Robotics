@@ -62,10 +62,11 @@ class TestConnect4Game(unittest.TestCase):
             end = time.monotonic() + STARTUP_TIMEOUT
             while time.monotonic() < end and not all(node.get_publishers_info_by_topic(t) for t in PUBLISHED):
                 rclpy.spin_once(node, timeout_sec=0.2)
-            for topic, expected in PUBLISHED.items():
+            for topic, (reliability, durability) in PUBLISHED.items():
                 (publisher,) = node.get_publishers_info_by_topic(topic)
                 qos = publisher.qos_profile
-                self.assertEqual((qos.reliability, qos.durability), expected, topic)
+                self.assertEqual(qos.reliability, reliability, topic)
+                self.assertEqual(qos.durability, durability, topic)
             # the reader takes every image: a best-effort subscriber gets 1 of the 10 Hz at 640x480 [MES-67]
             readers = [
                 s.qos_profile.reliability

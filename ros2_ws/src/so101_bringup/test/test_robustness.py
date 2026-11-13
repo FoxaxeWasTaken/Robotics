@@ -161,7 +161,9 @@ def test_a_step_that_is_not_reached_is_not_handled_and_says_which():
     results = [{"reached": False, "got": "ERROR:timeout:MOVE", "moved": 0.0}]
     result, why = game_verdict(case, results)
     assert result == NOT_HANDLED
-    assert "step 1" in why and "ERROR:timeout:MOVE" in why and case.steps[0].action in why
+    assert "step 1" in why
+    assert "ERROR:timeout:MOVE" in why
+    assert case.steps[0].action in why
 
 
 def test_a_run_cut_short_is_not_handled():

@@ -73,7 +73,8 @@ def test_a_dropped_token_waits_above_its_column_its_disc_in_the_slot_plane(sim, 
     ok, message = person.drop_token(3, HUMAN)
     assert ok, message
     x, y, z = in_grid(sim, "token_red_0")
-    assert np.isclose(x, 3 * GRID["column_pitch"], atol=1e-6) and np.isclose(y, 0.0, atol=1e-6)
+    assert np.isclose(x, 3 * GRID["column_pitch"], atol=1e-6)
+    assert np.isclose(y, 0.0, atol=1e-6)
     entry = (GRID["rows"] - 0.5) * GRID["row_pitch"] + GRID["headroom"]
     assert entry < z - TOKEN["diameter"] / 2 < entry + GRID["depth_guide_height"]  # inside the guide
     axis = sim.data.body("token_red_0").xmat.reshape(3, 3)[:, 2]
@@ -82,12 +83,13 @@ def test_a_dropped_token_waits_above_its_column_its_disc_in_the_slot_plane(sim, 
 
 
 def test_each_drop_takes_the_next_spare_token_of_its_color(sim, person):
-    assert (
-        person.drop_token(0, HUMAN)[0] and person.drop_token(1, ROBOT)[0] and person.drop_token(2, HUMAN)[0]
-    )
+    assert person.drop_token(0, HUMAN)[0]
+    assert person.drop_token(1, ROBOT)[0]
+    assert person.drop_token(2, HUMAN)[0]
     moved = {name for name in ("token_red_0", "token_red_1", "token_yellow_0") if not parked(sim, name)}
     assert moved == {"token_red_0", "token_red_1", "token_yellow_0"}
-    assert parked(sim, "token_red_2") and parked(sim, "token_yellow_1")
+    assert parked(sim, "token_red_2")
+    assert parked(sim, "token_yellow_1")
 
 
 def test_a_full_column_an_unknown_column_and_an_unknown_color_are_refused(sim, person):
@@ -95,15 +97,18 @@ def test_a_full_column_an_unknown_column_and_an_unknown_color_are_refused(sim, p
         put(sim, f"token_red_{row}", 2, row)
     for column, color, why in ((2, HUMAN, "full"), (7, HUMAN, "column"), (0, 3, "color")):
         ok, message = person.drop_token(column, color)
-        assert not ok and why in message, (column, color, message)
-    assert parked(sim, "token_red_6") and parked(sim, "token_yellow_0")  # nothing moved
+        assert not ok, (column, color, message)
+        assert why in message, (column, color, message)
+    assert parked(sim, "token_red_6")  # nothing moved
+    assert parked(sim, "token_yellow_0")
 
 
 def test_a_drop_with_no_spare_token_left_is_refused(sim, person):
     for i in range(PER_COLOR):
         put(sim, f"token_red_{i}", i % 7, i // 7)
     ok, message = person.drop_token(6, HUMAN)
-    assert not ok and "spare" in message
+    assert not ok
+    assert "spare" in message
 
 
 def test_the_board_is_row_major_from_the_bottom_red_for_the_human_yellow_for_the_robot(sim, person):
@@ -129,7 +134,9 @@ def test_a_given_token_floats_between_the_open_jaws_on_the_fixed_one(sim, person
     assert ok, message
     x, y, z = in_gripper(sim, "token_yellow_0")
     assert np.isclose(x, TOKEN["thickness"] / 2 + 0.0005, atol=1e-6)  # half a thickness off the fixed jaw
-    assert abs(y) <= 0.003 and abs(z) <= 0.005 and (y, z) != (0.0, 0.0)  # the hand's seeded offset
+    assert abs(y) <= 0.003  # the hand's seeded offset
+    assert abs(z) <= 0.005
+    assert (y, z) != (0.0, 0.0)
     axis = sim.data.body("token_yellow_0").xmat.reshape(3, 3)[:, 2]
     jaws = sim.data.body("gripper").xmat.reshape(3, 3)[:, 0]
     assert np.isclose(abs(axis @ jaws), 1.0, atol=1e-6)
@@ -143,8 +150,10 @@ def test_a_given_token_floats_between_the_open_jaws_on_the_fixed_one(sim, person
 def test_give_token_is_refused_while_the_jaws_are_not_open(sim, person):
     set_arm(sim, HANDOVER, 5.0)
     ok, message = person.give_token(MIN_OPEN_PCT - 1.0)
-    assert not ok and "open" in message
-    assert parked(sim, "token_yellow_0") and person.floating is None
+    assert not ok
+    assert "open" in message
+    assert parked(sim, "token_yellow_0")
+    assert person.floating is None
 
 
 def test_the_closing_jaws_take_the_token_and_it_holds_under_gravity(sim, person):
@@ -163,14 +172,19 @@ def test_the_closing_jaws_take_the_token_and_it_holds_under_gravity(sim, person)
 
 def test_a_second_give_moves_the_token_still_floating_and_takes_no_other(sim, person):
     set_arm(sim, HANDOVER, 50.0)
-    assert person.give_token(50.0)[0] and person.give_token(50.0)[0]
-    assert person.floating == "token_yellow_0" and parked(sim, "token_yellow_1")
+    assert person.give_token(50.0)[0]
+    assert person.give_token(50.0)[0]
+    assert person.floating == "token_yellow_0"
+    assert parked(sim, "token_yellow_1")
 
 
 def test_reset_board_parks_every_token_and_drops_the_one_given(sim, person):
     set_arm(sim, HANDOVER, 50.0)
     put(sim, "token_red_0", 1, 0)
-    assert person.drop_token(4, ROBOT)[0] and person.give_token(50.0)[0]
+    assert person.drop_token(4, ROBOT)[0]
+    assert person.give_token(50.0)[0]
     person.reset_board()
     assert all(parked(sim, f"token_{color}_{i}") for color in ("red", "yellow") for i in range(PER_COLOR))
-    assert person.floating is None and not np.any(sim.data.qfrc_applied) and not any(person.board())
+    assert person.floating is None
+    assert not np.any(sim.data.qfrc_applied)
+    assert not any(person.board())

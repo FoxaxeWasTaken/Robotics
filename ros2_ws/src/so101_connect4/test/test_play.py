@@ -153,7 +153,8 @@ def test_the_game_keys_call_the_game_and_show_a_refusal(console, key, call):
 def test_q_quits_and_nothing_is_drawn_before_the_first_state(console):
     console.game.state = None
     assert console.step("4")
-    assert console.lines == [] and console.game.calls == []
+    assert console.lines == []
+    assert console.game.calls == []
     assert not console.step("q")
 
 

@@ -98,22 +98,24 @@ class Console:
             self._say(self.game.stop())
         elif key in LEVEL_KEYS:
             self._say(self.game.set_depth(LEVEL_KEYS[key]))
-        elif key == "?":
-            if not (mine and state["turn"] == "human"):
-                self.write(f"not your turn: {state['state']}")
-            else:
-                position = engine.from_cells(state["board"], engine.HUMAN)
-                self.write(f"hint: column {engine.best_move(*position, max_depth=HINT_DEPTH).column + 1}")
-        elif key in tuple("1234567"):
+        elif key == "?" or key in tuple("1234567"):
             if not (mine and state["turn"] == "human"):  # a token dropped now would end in FIX_BOARD
                 self.write(f"not your turn: {state['state']}")
-            elif int(key) - 1 not in state["legal"]:
-                self.write(f"column {key} is full")
             else:
-                self._played = state
-                self._say(self.game.play(int(key) - 1))
+                self._turn(state, key)
         elif key and not key.isspace():
             self.write(KEYS)
+
+    def _turn(self, state, key):
+        """The person's turn: a hint, or their token in the column of `key`."""
+        if key == "?":
+            position = engine.from_cells(state["board"], engine.HUMAN)
+            self.write(f"hint: column {engine.best_move(*position, max_depth=HINT_DEPTH).column + 1}")
+        elif int(key) - 1 not in state["legal"]:
+            self.write(f"column {key} is full")
+        else:
+            self._played = state
+            self._say(self.game.play(int(key) - 1))
 
     def _say(self, reply):
         if not reply[0]:

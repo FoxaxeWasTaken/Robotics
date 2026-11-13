@@ -91,7 +91,8 @@ def test_connect4_is_off_by_default_and_the_scene_has_no_grid():
     assert defaults()["connect4"] == "false"
     _, values = driver_parameters()
     scene = Path(values["scene_path"]).read_text()
-    assert 'name="grid"' not in scene and "token_" not in scene
+    assert 'name="grid"' not in scene
+    assert "token_" not in scene
     assert values["connect4_layout"] == ""
 
 

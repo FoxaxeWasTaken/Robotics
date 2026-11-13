@@ -92,7 +92,8 @@ def test_the_file_is_the_ros_calibration_format(tmp_path):
     path = tmp_path / "intrinsics.yaml"
     save_camera_info(path, K, D, SIZE, 0.3)
     calib = yaml.safe_load(path.read_text())
-    assert (calib["image_width"], calib["image_height"]) == SIZE
+    assert calib["image_width"] == SIZE[0]
+    assert calib["image_height"] == SIZE[1]
     assert calib["camera_matrix"]["data"] == K.ravel().tolist()
     assert calib["distortion_coefficients"]["data"] == D.tolist()
     assert len(calib["rectification_matrix"]["data"]) == 9
