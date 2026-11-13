@@ -306,7 +306,7 @@ The owners are those of `.github/CODEOWNERS` (0.1d), which requests their review
 
 - **Tasks**: risk spike first (an `experiences/` script with a measurement, go/no-go); then build on top of the phase-1 pipeline (same interfaces, same quality rules, sim first); define the demo scenario early.
 - **Done when**: the demo scenario runs in sim with a measured success rate, filmed (the real arm is `v2.1.0`).
-- **Connect Four roadmap**: steps P2.0 to P2.9 in [`phase2/P2-04`](phase2/P2-04_roadmap.md), P2.0 to P2.5 are done (the spike, the engine, the scene, the board reader, one move through the brain), P2.6, the game on the stack, is next, with the calendar in its §3; risks and tests in [`phase2/P2-03`](phase2/P2-03_plan_risks_tests.md).
+- **Connect Four roadmap**: steps P2.0 to P2.9 in [`phase2/P2-04`](phase2/P2-04_roadmap.md), P2.0 to P2.5 are done (the spike, the engine, the scene, the board reader, one move through the brain). P2.6 is under way: a full game runs on the stack, played from a terminal (`tools/so101 play`) and measured by the game bench, on each PR and each night; its robustness demo, its records, the player guide and the results file are next, with the calendar in its §3; risks and tests in [`phase2/P2-03`](phase2/P2-03_plan_risks_tests.md).
 
 Ideas compatible with the current pipeline (the brief suggests "AI for control or perception, LLM, VLM, voice control, imitation learning, RL"; the slides add candy handout, drawing, tidying a workbench):
 

@@ -33,6 +33,8 @@ dry "restart viz" -- restart viz
 echo "ok: up, down, logs, shell, rviz, build and restart print their docker compose command"
 dry "exec -T control" "/sim/randomize" "/brain/start" "/brain_state" "DONE*|ERROR*|STOPPED*) break" -- cycle
 echo "ok: cycle randomizes, starts and follows /brain_state to the end of the cycle"
+dry "exec -T control" "CONNECT4" "tools/so101 down" "ros2 run so101_bringup connect4_play" -- play
+echo "ok: play starts the console in the control container, and says how to start the game when it does not run"
 
 export CALLS=/dev/null
 # cycle for real against fakes (#164): docker runs the command without its `source`, ros2 answers the services and
@@ -77,6 +79,8 @@ dry "-e ROS_DOMAIN_ID=77 control" "&& set -m;" "pgrep -f \"[/]lib/so101_\"" "gre
   "evaluate --episodes 10 --out /ros2_ws/eval_bench.csv'" -- bench --perception
 dry "-e ROS_DOMAIN_ID=77 control" "test/gt_stub.launch.py" "--episodes 3 " "--bags /ros2_ws/bags" \
   -- bench --stub -n 3 --bags /ros2_ws/bags
+dry "-e ROS_DOMAIN_ID=77 control" "expose_ground_truth:=true perception:=true connect4:=true" \
+  "evaluate --games 2 --out /ros2_ws/eval_games.csv'" -- bench --game -n 2
 echo "ok: bench runs on ROS domain 77 only, refuses a busy domain, real pipeline or stub, N episodes, bags"
 
 # From a terminal, bench gets one in the container (#58): with exec -T, Ctrl+C stopped only the docker client and

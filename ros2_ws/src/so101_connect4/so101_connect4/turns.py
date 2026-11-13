@@ -17,13 +17,14 @@ the end of the move (P2-02 §6), and the reply decides.
 | human token never seen | READ_BOARD timeout | FIX_BOARD not_seen:human |
 | two tokens, wrong color, not at the landing cell | READ_BOARD | FIX_BOARD not_one_*_token |
 | board invalid | reader's valid = false | FIX_BOARD <its reason> |
+| new game: tokens left, grid not read | READ_BOARD timeout, "not yet" before | FIX_BOARD board_not_empty |
 | board never stable | reader silent, READ_BOARD timeout | FIX_BOARD not_seen:* |
 | no token in the jaws | /brain/drop reply no_token, arm still | WAIT_HUMAN, turn robot: give a token |
 | token lost | READ_BOARD timeout with a recent unchanged read | WAIT_HUMAN, turn robot: give a token |
 | token in the wrong column | READ_BOARD | the camera wins, the game goes on, `missed` counts it |
 | brain refuses, drop fails | /brain/drop or /brain/handover reply | ERROR |
 | timeouts | READ_BOARD 5 s, THINK 5 s, MOVE 90 s (then /brain/stop); WAIT_HUMAN, FIX_BOARD none | as above |
-| /connect4/stop, STOPPED in MOVE | any state | ERROR, /brain/stop called |
+| /connect4/stop; STOPPED or the reply `stopped` in MOVE | any state | ERROR stopped, /brain/stop called |
 | human won, robot won, draw | READ_BOARD | GAME_OVER, `result` |
 | new game | IDLE, WAIT_HUMAN, FIX_BOARD, GAME_OVER, ERROR; not MOVE, THINK, READ_BOARD | MOVE, read: empty |
 | robot plays first | new_game(data=true) | WAIT_HUMAN, turn robot, then the same path as a lost token |
@@ -59,6 +60,7 @@ class Expect(StrEnum):
 NEW_GAME_FROM = {State.IDLE, State.WAIT_HUMAN, State.FIX_BOARD, State.GAME_OVER, State.ERROR}
 HUMAN_DONE_FROM = {State.WAIT_HUMAN, State.FIX_BOARD}
 NO_TOKEN = "no_token"  # /brain/drop's refusal when the jaws closed on nothing (P2-02 §6)
+STOPPED = "stopped"  # the reply of a move cut by /brain/stop
 
 
 @dataclass(frozen=True)
@@ -85,7 +87,7 @@ class Inputs:
     robot_first: bool = False  # with new_game
     human_done: bool = False
     stop: bool = False
-    engine: int | None = None  # the column once the engine has answered
+    engine: game.Choice | None = None  # the engine's answer, once it has one
     move_reply: tuple | None = None  # (success, message) of /brain/drop or /brain/handover, at the move's end
     brain_states: tuple = ()  # /brain_state messages since the last step: STOPPED cuts a move
 
@@ -109,12 +111,13 @@ class Turns:
         self.cells = (EMPTY,) * CELLS
         self.turn = "human"
         self.result = ""
-        self.last = None  # {"who", "column", "planned"}
+        self.last = None  # {"who", "column", "planned"}; the robot's: and the engine's reason, _why
         self.lost = self.missed = self.moves = 0
         self._expect = Expect.EMPTY
         self._robot_first = False
         self._column = None
-        self._since = 0.0
+        self._why = {}  # of the robot's move: the engine's score and depth, wins_in or loses_in if proven
+        self._since = None  # the first step's time: the node's clock does not start at 0
 
     @property
     def label(self) -> str:
@@ -145,6 +148,8 @@ class Turns:
 
     def step(self, now, inputs) -> Outputs:
         self._now, self._in, self._out = now, inputs, Outputs()
+        if self._since is None:
+            self._since = now
         i, t = inputs, now - self._since
         stopped = self.state is State.MOVE and "STOPPED" in i.brain_states
         if i.stop or stopped:
@@ -159,7 +164,10 @@ class Turns:
             case State.READ_BOARD:
                 self._read(t)
             case State.THINK if i.engine is not None:
-                self._column = i.engine
+                self._column = i.engine.column
+                self._why = {"score": i.engine.score, "depth": i.engine.depth}
+                if plies := game.ends_in(i.engine.score, self.moves):
+                    self._why["wins_in" if plies > 0 else "loses_in"] = abs(plies)
                 self._go(State.MOVE)
             case State.THINK if t > self.p.think_timeout_s:
                 self._go(State.ERROR, "timeout:THINK")
@@ -199,22 +207,24 @@ class Turns:
                 self.lost += 1
                 self.turn = "robot"
                 self._go(State.WAIT_HUMAN, "token_lost")
+            elif self._expect is Expect.EMPTY and board is not None and board.received > self._since:
+                self._go(State.FIX_BOARD, "board_not_empty" if board.valid else board.reason)
             else:
                 self._go(State.FIX_BOARD, f"not_seen:{self._expect}")
 
     def _judge(self, board):
+        expect = self._expect
+        if expect is Expect.EMPTY:
+            # Right after the board's reset the reader may still show the last game: not empty is "not yet".
+            if board.valid and not any(board.cells):
+                self.turn = "robot" if self._robot_first else "human"
+                self._go(State.WAIT_HUMAN)
+            return
         if not board.valid:
             self._go(State.FIX_BOARD, board.reason)
             return
         new = [(i, v) for i, (a, v) in enumerate(zip(self.cells, board.cells, strict=True)) if a != v]
-        expect = self._expect
-        if expect is Expect.EMPTY:
-            if any(board.cells):
-                self._go(State.FIX_BOARD, "board_not_empty")
-            else:
-                self.turn = "robot" if self._robot_first else "human"
-                self._go(State.WAIT_HUMAN)
-        elif expect is Expect.SAME:
+        if expect is Expect.SAME:
             if new:
                 self._go(State.FIX_BOARD, "unexpected_token")
             else:
@@ -233,7 +243,9 @@ class Turns:
         self.moves += 1
         who = "robot" if player == ROBOT else "human"
         planned = self._column if player == ROBOT else column
-        self.last = {"who": who, "column": column, "planned": planned}
+        self.last = {"who": who, "column": column, "planned": planned} | (
+            self._why if player == ROBOT else {}
+        )
         self.missed += column != planned  # the camera says where it went: the game goes on from there
         winner = game.winner(self.cells)
         if winner != EMPTY:
@@ -264,5 +276,7 @@ class Turns:
             self.lost += 1
             self.turn = "robot"
             self._go(State.WAIT_HUMAN, NO_TOKEN)
+        elif message == STOPPED:  # /brain/stop cut the move: the same reason as its /brain_state
+            self._go(State.ERROR, "stopped")
         else:
             self._go(State.ERROR, f"brain_refused:{message}")

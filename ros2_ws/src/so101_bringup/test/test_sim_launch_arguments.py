@@ -114,28 +114,36 @@ def test_connect4_with_calibration_stops_the_launch():
         driver_parameters(connect4="true", calibration="true")
 
 
-def included(package, **configurations):
-    """Whether sim.launch.py includes that package's launch file, with these arguments over the defaults."""
+def included(launch_file, **configurations):
+    """Whether sim.launch.py includes that launch file, with these arguments over the defaults."""
     context = LaunchContext()
     context.launch_configurations.update(defaults(), **configurations)
     (include,) = [
         e
         for e in entities()
         if isinstance(e, IncludeLaunchDescription)
-        and package in e.launch_description_source.location  # its description, before it is resolved
+        and launch_file in e.launch_description_source.location  # its description, before it is resolved
     ]
     return include.condition.evaluate(context)
 
 
 def test_perception_is_included_only_when_asked():
-    assert included("so101_perception") is False
-    assert included("so101_perception", perception="true") is True
+    assert included("perception.launch.py") is False
+    assert included("perception.launch.py", perception="true") is True
+
+
+def test_with_the_game_perception_is_the_board_reader():
+    """#87: the one-container bench of the game needs the grid read, not the cube looked for."""
+    assert included("board_reader.launch.py", perception="true", connect4="true") is True
+    assert included("perception.launch.py", perception="true", connect4="true") is False
+    assert included("board_reader.launch.py", perception="true") is False
+    assert included("board_reader.launch.py", connect4="true") is False  # the perception container's job
 
 
 def test_the_game_is_included_only_with_connect4():
     """#231: so101_connect4's game.launch.py, the game node's place; phase 1 starts the nodes it did."""
-    assert included("so101_connect4") is False
-    assert included("so101_connect4", connect4="true") is True
+    assert included("game.launch.py") is False
+    assert included("game.launch.py", connect4="true") is True
     nodes = sorted(e.node_package for e in entities() if isinstance(e, Node))
     assert nodes == ["robot_state_publisher", "so101_brain", "so101_driver", "tf2_ros"]
 

@@ -18,5 +18,10 @@ setup(
     tests_require=["pytest"],
     description="Phase 2, Connect Four: the game engine, the turns and the board reader (ADR-037).",
     license="Apache-2.0",
-    entry_points={"console_scripts": ["board_reader = so101_connect4.board_reader_node:main"]},
+    entry_points={
+        "console_scripts": [
+            "board_reader = so101_connect4.board_reader_node:main",
+            "game_node = so101_connect4.game_node:main",
+        ]
+    },
 )

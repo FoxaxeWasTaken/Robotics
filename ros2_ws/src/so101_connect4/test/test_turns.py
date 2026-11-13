@@ -53,6 +53,11 @@ class Clock:
         return self.turns.label
 
 
+def choice(column, score=0, depth=1):
+    """The engine's answer, as game.best_move gives it."""
+    return game.Choice(column, score, depth, nodes=1, seconds=0.0)
+
+
 def new_game(robot_first=False):
     """A clock at WAIT_HUMAN of a new game: HANDOVER reached, the empty board read."""
     c = Clock()
@@ -77,7 +82,7 @@ def human_plays(c, column):
 
 def robot_plays(c, column, lands=None):
     """From THINK: the engine's column, the drop, its reply, the reader sees the token in `lands`."""
-    out = c.step(engine=column)
+    out = c.step(engine=choice(column))
     assert c.state is State.MOVE
     assert out.drop == column
     assert not out.handover
@@ -106,7 +111,37 @@ def test_a_human_move_then_a_robot_move():
     assert c.state is State.WAIT_HUMAN
     assert c.turns.turn == "human"
     assert c.turns.moves == 2
-    assert c.turns.last == {"who": "robot", "column": 2, "planned": 2}
+    assert c.turns.last == {"who": "robot", "column": 2, "planned": 2, "score": 0, "depth": 1}
+
+
+def test_the_robots_last_move_says_why_score_depth_and_a_proven_win():
+    """#244: what the engine knows of its move, for the console and the debug image."""
+    c = new_game()
+    cells = human_plays(c, 3)
+    c.step(engine=choice(2, score=4, depth=10))
+    c.step(move_reply=(True, "dropped"))
+    c.read(with_tokens(cells, (2, ROBOT)))
+    assert c.turns.last == {"who": "robot", "column": 2, "planned": 2, "score": 4, "depth": 10}
+    cells = human_plays(c, 3)
+    c.step(engine=choice(6, score=1000 - 3 - 3))  # 3 stones on the board, the win 3 plies away
+    c.step(move_reply=(True, "dropped"))
+    c.read(with_tokens(cells, (6, ROBOT)))
+    assert c.turns.last["wins_in"] == 3
+    assert "loses_in" not in c.turns.last
+    cells = human_plays(c, 0)
+    c.step(engine=choice(0, score=5 + 2 - 1000, depth=3))  # 5 stones, the loss 2 plies away
+    c.step(move_reply=(True, "dropped"))
+    c.read(with_tokens(cells, (0, ROBOT)))
+    assert c.turns.last["loses_in"] == 2
+    assert c.turns.last["depth"] == 3
+
+
+def test_the_humans_last_move_carries_no_engine_reason():
+    c = new_game()
+    human_plays(c, 3)
+    robot_plays(c, 2)
+    human_plays(c, 4)
+    assert c.turns.last == {"who": "human", "column": 4, "planned": 4}
 
 
 def test_a_stale_read_is_not_yet_an_error():
@@ -166,12 +201,36 @@ def test_a_new_game_is_refused_while_thinking_or_reading(state):
     assert c.state is state
 
 
-def test_a_board_not_empty_at_a_new_game():
+def test_a_board_not_empty_at_a_new_game_is_not_yet_then_a_board_to_fix():
+    """The reader may still show the last game's board right after the reset: only the timeout judges."""
+    c = Clock()
+    c.step(new_game=True)
+    c.step(move_reply=(True, ""))
+    for _ in range(20):  # 3 s of reads
+        c.read(with_tokens(EMPTY_BOARD, (3, HUMAN)))
+    assert c.state is State.READ_BOARD
+    c.wait(5.1)
+    assert c.label == "FIX_BOARD:board_not_empty"
+
+
+def test_the_last_games_board_then_the_empty_one_starts_the_game():
     c = Clock()
     c.step(new_game=True)
     c.step(move_reply=(True, ""))
     c.read(with_tokens(EMPTY_BOARD, (3, HUMAN)))
-    assert c.label == "FIX_BOARD:board_not_empty"
+    c.read(EMPTY_BOARD, valid=False, reason="markers:2")
+    assert c.state is State.READ_BOARD
+    c.read(EMPTY_BOARD)
+    assert c.state is State.WAIT_HUMAN
+
+
+def test_a_grid_never_read_at_a_new_game_takes_the_readers_reason():
+    c = Clock()
+    c.step(new_game=True)
+    c.step(move_reply=(True, ""))
+    for _ in range(60):
+        c.read(EMPTY_BOARD, valid=False, reason="markers:2")
+    assert c.label == "FIX_BOARD:markers:2"
 
 
 def test_a_human_token_never_seen():
@@ -214,7 +273,7 @@ def test_an_invalid_board_takes_the_readers_reason():
 def test_a_board_never_stable_after_the_robots_drop():
     c = new_game()
     human_plays(c, 3)
-    c.step(engine=3)
+    c.step(engine=choice(3))
     c.step(move_reply=(True, ""))
     c.board = None  # the reader stays silent
     c.wait(5.1)
@@ -224,7 +283,7 @@ def test_a_board_never_stable_after_the_robots_drop():
 def test_no_token_in_the_jaws_gives_the_turn_back_to_the_robot():
     c = new_game()
     human_plays(c, 3)
-    c.step(engine=4)
+    c.step(engine=choice(4))
     c.step(move_reply=(False, NO_TOKEN))
     assert c.label == "WAIT_HUMAN:no_token"
     assert c.turns.turn == "robot"
@@ -237,7 +296,7 @@ def test_no_token_in_the_jaws_gives_the_turn_back_to_the_robot():
 def test_a_token_lost_during_the_move():
     c = new_game()
     cells = human_plays(c, 3)
-    c.step(engine=4)
+    c.step(engine=choice(4))
     c.step(move_reply=(True, ""))
     for _ in range(52):  # fresh reads keep coming, all without the robot's token
         c.read(cells)
@@ -252,15 +311,24 @@ def test_a_token_in_the_wrong_column_goes_on_from_where_it_fell():
     robot_plays(c, 4, lands=5)
     assert c.state is State.WAIT_HUMAN
     assert c.turns.missed == 1
-    assert c.turns.last == {"who": "robot", "column": 5, "planned": 4}
+    assert (c.turns.last["column"], c.turns.last["planned"]) == (5, 4)
 
 
 def test_the_brain_refuses():
     c = new_game()
     human_plays(c, 3)
-    c.step(engine=4)
+    c.step(engine=choice(4))
     c.step(move_reply=(False, "unreachable"))
     assert c.label == "ERROR:brain_refused:unreachable"
+
+
+def test_a_move_cut_by_a_stop_has_one_reason_whichever_message_comes_first():
+    """/brain/stop called by someone else: the drop's reply `stopped` may come before /brain_state."""
+    c = new_game()
+    human_plays(c, 3)
+    c.step(engine=choice(4))
+    c.step(move_reply=(False, "stopped"))
+    assert c.label == "ERROR:stopped"
 
 
 def test_the_handover_fails():
@@ -280,7 +348,7 @@ def test_the_engine_times_out():
 def test_a_move_times_out_and_stops_the_brain():
     c = new_game()
     human_plays(c, 3)
-    c.step(engine=4)
+    c.step(engine=choice(4))
     stopped = False
     for _ in range(901):
         stopped = stopped or c.step().stop_brain
@@ -297,7 +365,7 @@ def test_stop_from_any_state_stops_the_brain(state):
             human_plays(c, 0)
         elif state is State.MOVE:
             human_plays(c, 0)
-            c.step(engine=1)
+            c.step(engine=choice(1))
         elif state is State.READ_BOARD:
             c.step(human_done=True)
     assert c.state is state
@@ -308,7 +376,7 @@ def test_stop_from_any_state_stops_the_brain(state):
 def test_a_brain_stopped_by_someone_else_ends_the_move():
     c = new_game()
     human_plays(c, 0)
-    c.step(engine=1)
+    c.step(engine=choice(1))
     out = c.step(brain_states=("STOPPED",))
     assert c.label == "ERROR:stopped"
     assert not out.stop_brain  # already stopped
@@ -525,7 +593,7 @@ def play_one(seed, faults, depth=2):
         )
         inputs, engine = {}, None
         if out.think:
-            engine = game.best_move(*out.think, None, depth, seed=seed).column
+            engine = game.best_move(*out.think, None, depth, seed=seed)
         if out.stop_brain:
             w.brain_stop()
         if out.drop is not None or out.handover:

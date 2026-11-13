@@ -24,6 +24,7 @@ flowchart TB
 | **Sim-backed** (needs `so101_sim`) | Closed-loop grasp, IK accuracy against MuJoCo, the launch files, a full cycle with the ground-truth stub | `pytest`, `launch_testing` | `so101_bringup/test/` only: never under `so101_brain` or `so101_perception` (CI guard) | Every PR (CI) |
 | **Scripts** (CI and tooling) | `tools/so101`, the nightly report, the CI skip rules, the course watch: their behavior without network or Docker (fake `gh`, `--dry-run`) | `bash` | `tools/ci/test_*.sh` | Every commit that changes them (pre-commit) |
 | **System** (full stack in sim) | Evaluation bench: N randomized pick & place episodes | `ros2 run so101_bringup evaluate` + test-only ground truth | `so101_bringup/so101_bringup/evaluate.py` | Every PR (N = 3, `e2e-smoke`; not a draft or a docs-only PR), nightly (N = 50) |
+| **System, phase 2** (the stack in game mode) | Game bench: N Connect Four games against a scripted person (§3.1) | `ros2 run so101_bringup evaluate --games N` + test-only ground truth | `so101_bringup/so101_bringup/games.py` | Every PR (N = 1, `e2e-game`, not a required check yet), nightly (N = 10) |
 | **Real-arm acceptance** | Manual protocol (`07` §3.2) + accuracy measurement | Checklist | — | Every session on the arm |
 
 **Mutation testing** of the modules that protect the arm (step 5.1c, [MES-42]): mutmut injects small bugs into `so101_driver/command.py` (merge, clamp, NaN) and `so101_brain/fsm.py`, and counts those no test catches. Its configuration is the `[mutmut]` section of each package's `setup.cfg`: mutmut runs from the package folder, where the module names resolve. By hand, from the repository root, about 1 min:
@@ -52,7 +53,7 @@ docker run --rm -v "$PWD/ros2_ws/src:/src:ro" tek5/control bash -lc '
 | Cycle duration | < 30 s | Ground-truth stub: median 14.6 s, max 17.7 [MES-40]; real perception: p50 14.5 s, p95 17.5 s over 50 episodes [MES-46]; p50 17.4 s, p95 18.0 s in CI (`e2e-smoke`, 2026-10-24) |
 | Ground truth used in the pipeline | **0** | CI grep |
 
-Phase-2 targets: `phase2/P2-01` §4.
+Phase-2 targets: `phase2/P2-01` §4. Full games on the sim: 10 of 10 against a random person, p50 59.7 s [MES-71].
 
 **Timing trends** (#60): recorded each night by the `quality` job (`trends.csv`, `14` §6), never a gate. First values, in a container on the development machine (2026-10-27): `ik_pos` median 10.1 ms, `ik_pose` 4.3 ms; the period of the driver's `/joint_states` timer, camera on, p50 39.9 ms and p99 40.9 ms for a 33.3 ms setting (30 Hz): the executor, which also runs the 50 Hz control step, slips under the camera's rendering (MES-34). The control step has no topic of its own: that timer is its proxy.
 
@@ -81,6 +82,17 @@ print success rate, p50/p95 duration, failure-cause breakdown
   - Summary line: `success 3/3 (100 %); duration p50 15.7 s, p95 17.5 s; causes: none`. The durations are those of the successful cycles.
   - `--bags`: one `episode_NNN` rosbag per failed episode (the topics of `13` §1 plus the ground truth); a successful episode's bag is deleted.
   - `--seed` checks the driver's `seed` parameter and stops (exit 2) when it differs; no ground truth also stops it (exit 2), and so does no `/end_effector_pose` in time: the brain computes it from `/joint_states`, and refuses a `/brain/start` without them (#132). Each of these checks waits up to 60 s, and the first one, to the driver's parameters, prints how long it took and which request got the reply: on a CI runner, a fresh process once did not find the driver within 10 s, once did not get `/end_effector_pose` within 10 s, and once found the driver but got no reply in 60 s (#141). That request changes nothing, so it is sent again every 5 s without a reply; the others are sent once. The calls during the episodes wait 10 s, so a driver that dies mid-run still stops the bench quickly.
+
+### 3.1 Game bench (phase 2)
+
+`ros2 run so101_bringup evaluate --games N --out <csv> [--human random|engine] [--bags <dir>] [--seed S] [--timeout 600] [--min-success M]` (`so101_bringup/games.py`, #87), against the stack in game mode with `expose_ground_truth:=true`. `tools/so101 bench --game [-n N]` starts that stack in one container on the bench's domain: `sim.launch.py expose_ground_truth:=true perception:=true connect4:=true`, where `perception:=true` is the board reader.
+
+- **A game**: `/connect4/new_game` (the robot first in the even games), the grid cleared, then a scripted person plays through `so101_connect4`'s client and `sim_hand.py`, the console's own (`phase2/P2-02` §6): at each `WAIT_HUMAN`, the robot's token is given, the person's dropped, `human_done`. It ends at `GAME_OVER`, `FIX_BOARD`, `ERROR`, or the bench timeout (600 s, then `/connect4/stop`). The person does not wait for its token to land: the game node takes an unchanged board as "not yet".
+- **The person**: `--human random`, a random legal column (the night's and the PR's: a game lasts about a minute, 7 or 8 tokens, the robot wins by its fourth); `--human engine`, the engine at its medium level, for long games.
+- **Success**, against `/sim/ground_truth/connect4_board`: `GAME_OVER`, the board the game ends with is the true one, its winner is the true one (a draw needs a full grid), no token lost, none in another column than asked, and no arm joint further than 0.05 rad from where it was when the person's turn began (target P2-05).
+- CSV columns: `game, seed, human, first, final_state, result, plies, missed, lost, duration_s, success, cause`. `cause`: `fix_board:<reason>`, `error:<reason>`, `bench_timeout`, `new_game:<refusal>`, `hand:<the sim's refusal>`, `bench:<a service without a reply>` (the game fails, the next one is played), `arm_moved`, `token_lost`, `wrong_column`, `wrong_board`, `wrong_winner`.
+- Summary line: `games 10/10 (100 %); duration p50 58.1 s, p95 60.5 s; causes: none`. It starts with `games`, never with `success`: `tools/ci/bench_report.sh` reads the pick & place line by that word.
+- `--bags`: one `game_NNN` rosbag per failed game: `/joint_states`, `/joint_command`, `/brain_state`, `/connect4/state`, `/connect4/board`, `/connect4/grid_pose` and the true board. `--seed` checks the driver's seed, as for the episodes; no true board, or a game node that is not `ready`, stops the bench before the first game (exit 2).
 
 ## 4. Automated guards (CI)
 

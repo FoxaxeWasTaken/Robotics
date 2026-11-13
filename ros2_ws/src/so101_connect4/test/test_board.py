@@ -14,7 +14,7 @@ from ament_index_python.packages import get_package_share_directory
 from so101_connect4 import board, layout
 from so101_connect4.board import EMPTY, HUMAN, ROBOT
 from so101_perception.calibration import detect_markers
-from so101_perception.geometry import load_extrinsics
+from so101_perception.geometry import load_extrinsics, quaternion
 
 LAYOUT = layout.load()
 GRID = LAYOUT["grid"]
@@ -145,6 +145,14 @@ def test_the_drop_target_is_over_the_guide_above_the_column_1_mm_towards_the_fix
         assert x == pytest.approx(column * GRID["column_pitch"]) and y == pytest.approx(0.001)
         # table 10 cm under base_link, entries at 25 cm, guide 30 mm, 8 mm clear, the token's radius
         assert target[2] == pytest.approx(-0.10 + 0.25 + 0.030 + 0.008 + 0.017)
+
+
+def test_a_pose_message_gives_back_the_transform_it_was_made_from():
+    """/connect4/grid_pose, as board_reader writes it: a position and a quaternion x, y, z, w."""
+    T = np.eye(4)
+    T[:3, :3], _ = cv2.Rodrigues(np.array([0.3, -1.1, 0.6]))
+    T[:3, 3] = 0.2, -0.17, 0.11
+    np.testing.assert_allclose(board.transform(T[:3, 3], quaternion(T[:3, :3])), T, atol=1e-12)
 
 
 def test_a_read_is_stable_after_5_identical_ones_stamped_as_the_first():

@@ -64,6 +64,33 @@ grep -q '^issue comment 12 ' "$GH_LOG" && grep -qF "did not finish" "$GH_LOG.bod
   fail "$(cat "$GH_LOG.body")"
 echo "ok: a bench that stopped before its summary line is reported too, with the run"
 
+# Phase 2 (#233): the game bench's log as a second argument; one verdict line for both benches, or release.sh,
+# which accepts any "Target ...: met.", would pass a version on one bench only.
+run2() {  # run2 <bench log> <games log>: as run, the issue 12 open
+  : > "$GH_LOG" && rm -f "$GH_LOG.body" && : > "$tmp/summary.md"
+  printf '%s\n' "$1" > "$tmp/bench.log" && printf '%s\n' "$2" > "$tmp/games.log"
+  GITHUB_STEP_SUMMARY="$tmp/summary.md" GH_OPEN=12 GAMES=10 bash "$report" "$tmp/bench.log" "$tmp/games.log" > "$tmp/out.log" 2>&1 ||
+    fail "exit $?: $(cat "$tmp/out.log")"
+}
+run2 "$FULL" "games 9/10 (90 %); duration p50 61.0 s, p95 70.2 s; causes: fix_board:not_seen:human: 1"
+for e in "success 46/50 (92 %)" "games 9/10 (90 %)" "fix_board:not_seen:human: 1" "10 games of Connect Four" \
+  "Target ≥ 90 % and ≥ 8/10 games: met." '`v1.1.0 — Tooling`: **releasable**'; do
+  grep -qF "$e" "$GH_LOG.body" || fail "no '$e' in the comment: $(cat "$GH_LOG.body")"
+done
+[[ "$(grep -c '^Target ' "$GH_LOG.body")" = 1 ]] || fail "more than one verdict line: $(cat "$GH_LOG.body")"
+echo "ok: with the game bench, both summary lines and one verdict for the two targets"
+run2 "$FULL" "games 7/10 (70 %); duration p50 61.0 s, p95 70.2 s; causes: bench_timeout: 3"
+grep -qF "Target ≥ 90 % and ≥ 8/10 games: not met." "$GH_LOG.body" || fail "$(cat "$GH_LOG.body")"
+grep -qF 'not yet, the bench missed its target' "$GH_LOG.body" || fail "release line: $(cat "$GH_LOG.body")"
+run2 "success 40/50 (80 %); duration p50 15.0 s, p95 17.0 s; causes: object_lost: 10" "games 10/10 (100 %); duration p50 61.0 s, p95 70.2 s; causes: none"
+grep -qF "Target ≥ 90 % and ≥ 8/10 games: not met." "$GH_LOG.body" || fail "$(cat "$GH_LOG.body")"
+echo "ok: one bench under its target: not met, and the version is not releasable"
+run2 "$FULL" "evaluate: the game node is not ready"
+grep -qF "The games did not finish" "$GH_LOG.body" || fail "$(cat "$GH_LOG.body")"
+! grep -qE 'Target .*: met\.' "$GH_LOG.body" || fail "met without a games line: $(cat "$GH_LOG.body")"
+grep -qF 'not yet, the bench missed its target' "$GH_LOG.body" || fail "release line: $(cat "$GH_LOG.body")"
+echo "ok: games that did not finish are never a met target"
+
 run "$FULL"
 grep -q '^issue create --title Nightly bench results --label report ' "$GH_LOG" && grep -q '^issue comment 42 ' "$GH_LOG" ||
   fail "$(cat "$GH_LOG")"

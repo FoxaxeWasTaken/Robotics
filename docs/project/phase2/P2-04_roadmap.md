@@ -98,6 +98,7 @@ flowchart LR
 
 - **Tasks**: `game_node`, the console `tools/so101 play`, the game bench, phase 2 in the CI, the player guide and the results file; the robustness demo of the game, its fault cases in one command each, as phase 1's (#243). From the review of 2026-11-12: the engine's levels, seed and reasons (#244), the moves and the timings of each game (#245), their display in the console and the debug image (#246), faster empty legs (#247).
 - **Done when**: P2-06 (≥ 8/10 full games), P2-07 (a member who did not write the game plays from a fresh clone), P2-08 (a game on each PR, the games in the nightly report).
+- **Done so far** (2026-11-13): the game node, the engine's three levels, the console and the game bench (#86, #244, #232, #87), and the game in the CI, its ticket open until the job is a required check (#233). First full game on the stack; 10 games of 10 against a random person, 2 of 2 against the engine [MES-71]. Still to do: #245, #243, #246, #247, #234.
 
 ### Step P2.7 — Real arm (`v2.1.0`, #88 to #91, #248): level 2
 
@@ -109,7 +110,7 @@ Look and correct before the release, compared with the guide on the real arm. Th
 
 ### Step P2.9 — Stretch (optional): level 3
 
-One or two features of `P2-02` §9, only once P2.6 is green and ahead of §3. Difficulty levels are a parameter of #78.
+One or two features of `P2-02` §9, only once P2.6 is green and ahead of §3. Difficulty levels are a parameter of the game node, `engine.max_depth` (#244).
 
 ## 2. Delivery
 

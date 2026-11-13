@@ -30,7 +30,13 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import IfElseSubstitution, LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import (
+    AndSubstitution,
+    IfElseSubstitution,
+    LaunchConfiguration,
+    NotSubstitution,
+    PathJoinSubstitution,
+)
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
@@ -63,7 +69,9 @@ def generate_launch_description():
                 description="Sim: /sim/ground_truth/*, bench only",
             ),
             DeclareLaunchArgument(
-                "perception", default_value="false", description="Also start so101_perception"
+                "perception",
+                default_value="false",
+                description="Also start the perception: with connect4, the board reader",
             ),
             DeclareLaunchArgument(
                 "calibration",
@@ -155,7 +163,21 @@ def generate_launch_description():
                         [FindPackageShare("so101_perception"), "launch", "perception.launch.py"]
                     )
                 ),
-                condition=IfCondition(LaunchConfiguration("perception")),
+                condition=IfCondition(
+                    AndSubstitution(
+                        LaunchConfiguration("perception"), NotSubstitution(LaunchConfiguration("connect4"))
+                    )
+                ),
+            ),
+            IncludeLaunchDescription(  # with the game, the perception is the board reader (P2-02 §6.1)
+                PythonLaunchDescriptionSource(
+                    PathJoinSubstitution(
+                        [FindPackageShare("so101_connect4"), "launch", "board_reader.launch.py"]
+                    )
+                ),
+                condition=IfCondition(
+                    AndSubstitution(LaunchConfiguration("perception"), LaunchConfiguration("connect4"))
+                ),
             ),
             IncludeLaunchDescription(  # the game's nodes of this container (#231)
                 PythonLaunchDescriptionSource(
