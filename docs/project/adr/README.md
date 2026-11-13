@@ -51,6 +51,7 @@ flowchart LR
     A34 --> A37["037 Task layer"]
     A35 --> A38["038 Hardware v2"]
     A37 --> A40["040 Game software"]
+    A38 --> A41["041 Token dispenser"]
   end
   A5 --> A8
   A5 --> A12
@@ -107,6 +108,7 @@ flowchart LR
 | [ADR-038](ADR-038-connect4-hardware-v2.md) | Connect Four hardware: store-bought grid on a riser, depth guide, token handover, wrist camera | DECIDED + RECOMMENDED | KIN → CTRL, SAFE, VIS | C-41, C-51, C-54 |
 | [ADR-039](ADR-039-start-from-course-stubs.md) | The repository starts from the course stubs; the bootstrap prototype stays outside | DECIDED | CP → ARC, QA, CTRL | C-07, C-50, C-53 |
 | [ADR-040](ADR-040-connect4-game-software.md) | Connect Four in sim: the engine, the turns, the reading of the grid, the bench | DECIDED (built and measured on the sim) | DEC → VIS, KIN, QA, SAFE | C-05, C-06, C-42, C-54 |
+| [ADR-041](ADR-041-connect4-token-dispenser.md) | Connect Four: the robot takes its tokens from a dispenser, three stacked rails with open pick stations | DECIDED for the sim; the printed part is `v2.1.0` | KIN → CTRL, VIS, SAFE | C-41, C-54 |
 
 ## Template for a new ADR
 

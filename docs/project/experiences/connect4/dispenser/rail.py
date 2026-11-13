@@ -1,4 +1,4 @@
-"""rail.py [azimuth_deg r z slope_deg tokens]: a spike of a gravity rail that feeds the robot its tokens.
+"""rail.py [azimuth_deg r z slope_deg tokens roll_damping sleep open_pct nudge_N]: a spike of a gravity rail that feeds the robot its tokens.
 
 The rail stands in the arm's own vertical plane (the jaws close across it, as at a drop): tokens on edge roll down
 to a stop, the pick station, whose walls are low so that the jaws reach the token's faces. Measured here:
@@ -35,7 +35,7 @@ LAYOUT = layout.load()
 TOKEN, CONTACT = LAYOUT["token"], LAYOUT["contact"]
 RADIUS, THICK = TOKEN["diameter"] / 2, TOKEN["thickness"]
 GAP = THICK + 0.003  # the slot across: the grid's own slots leave 3 mm too
-WALL, LOW, HIGH, STOP = 0.002, 0.009, 0.030, 0.010  # m: walls' thickness, their height at the station and behind
+WALL, LOW, HIGH, STOP = 0.002, 0.007, 0.030, 0.010  # m: walls' thickness, their height at the station and behind
 ARM_BODIES = ["shoulder", "upper_arm", "lower_arm", "wrist", "gripper", "moving_jaw_so101_v1"]
 
 a, s = np.radians(AZIMUTH), np.radians(SLOPE)
@@ -159,7 +159,7 @@ load_rail()
 fed = held_ok = 0
 for i in range(COUNT):
     waited = 0.0
-    if NUDGE:  # a sleeping body is not woken by the loss of its support: a force does it
+    if NUDGE:  # the queue fell asleep while it followed the lifted token (wake_probe.py): a force wakes it
         for j in range(i, COUNT):
             data.qfrc_applied[model.joint(f"{token(j)}_free").dofadr[0] + 2] = -NUDGE
         run(DT)
@@ -207,7 +207,6 @@ for i in range(COUNT):
     run(0.8)
 print(f"  fed {fed}/{COUNT}, held {held_ok}/{COUNT}")
 sim.disconnect()
-sys.exit(0)
 
 # The reference: a token given by the simulated hand at HANDOVER (the flow of the 50 drops of 50), closed on.
 from so101_driver.connect4_sim import Connect4Sim  # noqa: E402

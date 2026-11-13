@@ -109,7 +109,8 @@ def test_a_game_of_42_tokens_falls_with_the_tick_and_the_image_rate_kept(game):
         colors = [HUMAN if i % 2 else ROBOT for i in range(GRID["columns"] * GRID["rows"])]
         start, dropped = time.monotonic(), 0
         while (now := time.monotonic() - start) < SECONDS:
-            node._goal["shoulder_pan"] = -1.0 + 0.5 * np.sin(now)  # the arm moves, away from the grid
+            # the arm moves, between the grid (azimuth -40 deg) and the dispenser (+60 deg), away from both
+            node._goal["shoulder_pan"] = -0.1 + 0.3 * np.sin(now)
             node._goal["wrist_flex"] = 0.8 + 0.3 * np.sin(1.3 * now)
             if dropped < len(colors) and now > FIRST_DROP + DROP_EVERY * dropped:
                 request = DropToken.Request(column=dropped % GRID["columns"], color=colors[dropped])

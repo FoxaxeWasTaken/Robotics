@@ -32,6 +32,25 @@ token:
   mass: 0.004  # kg
   friction: 0.3
   robot_color: yellow  # yellow or red: the tokens the robot plays; the person plays the other color (#255)
+dispenser:  # where the robot takes its tokens (ADR-041): three straight rails stacked in the arm's vertical plane.
+  # Tokens stand on edge between two walls and slide down to a stop: the lowest place of a rail is its pick
+  # station. Its frame (layout.py): origin at the centre of the token waiting at the lowest station, x outwards.
+  rails: 3
+  tokens_per_rail: 7  # 21: one side of a game
+  slope: 0.4363  # rad (25 deg): the scene's tokens slide, they do not roll [MES-75]; a printed part may be gentler
+  slot_gap: 0.0095  # m across, the grid's own: 3 mm of play around a token
+  wall: 0.002  # m, the two side walls
+  floor: 0.003  # m, under the tokens
+  station_wall_height: 0.007  # m at a station: the open jaws go 5 mm under the token's centre [MES-75]
+  rail_wall_height: 0.030  # m behind the station
+  stop_width: 0.004  # m: a fin in the tokens' plane, as high as a token; the jaws close on either side of it
+  rail_pitch: 0.040  # m between two rails' floors, across them: a token, a floor and 3 mm
+  station_step: 0.040  # m outwards from a station to the next one up: the gripper clears the rail above
+  placement:  # in base_link, for the sim scene only: the nodes measure the dispenser's pose (#258)
+    azimuth: 1.0472  # rad (60 deg): the scene camera sees its markers, it hides nothing of the grid
+    station_r: 0.27  # m from the pan axis to the lowest station [MES-75: the pick pose reaches 0.25 to 0.41]
+    station_z: 0.02  # m above base_link
+    plane_offset: 0.00385  # m: the tokens' plane off the pan axis, as the grid's slots
 contact:  # sim only: the working set of P2-02 §7, as the drop spike ran it [MES-63]
   timestep: 0.002  # s
   cone: elliptic

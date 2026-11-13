@@ -49,6 +49,40 @@ def grid_pose(layout) -> np.ndarray:
     return T
 
 
+def dispenser_pose(layout) -> np.ndarray:
+    """T_base_dispenser (4x4) where the layout puts the dispenser (ADR-041): the scene builds it there, the
+    reader measures it. Its frame: origin at the centre of the token waiting at the lowest station, x outwards
+    from the arm, z up, y = z cross x: the tokens stand in the x-z plane."""
+    place = layout["dispenser"]["placement"]
+    a = place["azimuth"]
+    T = np.eye(4)
+    T[:3, 0], T[:3, 1] = [np.cos(a), np.sin(a), 0.0], [-np.sin(a), np.cos(a), 0.0]
+    T[:2, 3] = layout["placement"]["pan_axis"]
+    T[:3, 3] += place["station_r"] * T[:3, 0] - place["plane_offset"] * T[:3, 1]
+    T[2, 3] = place["station_z"]
+    return T
+
+
+def rail_axes(layout) -> tuple:
+    """(up a rail, across it) in the dispenser frame: the rails' slope."""
+    slope = layout["dispenser"]["slope"]
+    return np.array([np.cos(slope), 0.0, np.sin(slope)]), np.array([-np.sin(slope), 0.0, np.cos(slope)])
+
+
+def station(layout, rail) -> np.ndarray:
+    """Centre of the token to take on `rail` (0 the lowest), in the dispenser frame: each station is
+    station_step further out than the one below, on a rail one rail_pitch above."""
+    dispenser = layout["dispenser"]
+    along, across = rail_axes(layout)
+    up_the_rail = (dispenser["station_step"] - dispenser["rail_pitch"] * across[0]) / along[0]
+    return rail * (up_the_rail * along + dispenser["rail_pitch"] * across)
+
+
+def waiting(layout, rail, place) -> np.ndarray:
+    """Centre of the token waiting at `place` of `rail` (0 at its station), in the dispenser frame."""
+    return station(layout, rail) + place * layout["token"]["diameter"] * rail_axes(layout)[0]
+
+
 def cell(layout, column, row) -> np.ndarray:
     """Centre of a cell in the grid frame; row `rows` is the slot entry's level, half a row too high."""
     return np.array([column * layout["grid"]["column_pitch"], 0.0, row * layout["grid"]["row_pitch"]])

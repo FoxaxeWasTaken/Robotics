@@ -101,8 +101,9 @@ def test_the_grid_stands_where_the_layout_puts_it(sim):
     assert np.allclose(sim.data.body("grid").xmat.reshape(3, 3), T_GRID[:3, :3], atol=1e-6)
 
 
-def test_42_tokens_half_red_half_yellow_wait_on_the_table_out_of_the_cameras_view(sim):
-    names = [f"token_{color}_{i}" for color in ("red", "yellow") for i in range(21)]
+def test_42_tokens_the_persons_21_wait_on_the_table_out_of_the_cameras_view(sim):
+    """The robot's 21 wait in the dispenser's rails (test_connect4_dispenser.py, #257)."""
+    names = [f"token_{layout.colors(LAYOUT)[1]}_{i}" for i in range(21)]
     T = sim.get_camera_extrinsics()  # test only
     R, t = T[:3, :3] @ FLIP, T[:3, 3]
     K = opencv_intrinsics(sim.get_camera_intrinsics())
