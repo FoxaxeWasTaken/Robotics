@@ -3,7 +3,7 @@ stack of test_game_node.py. The hand is a fake: the client names no sim service.
 
 import pytest
 from std_srvs.srv import Trigger
-from test_game_node import stack  # noqa: F401  (the fixture)
+from test_game_node import DISPENSER, stack  # noqa: F401  (the fixture)
 from test_turns import EMPTY_BOARD, with_tokens
 
 from so101_connect4 import client
@@ -30,6 +30,10 @@ class FakeHand:
     def reset_board(self):
         self.stack.cells = EMPTY_BOARD
         return self._done(("reset",))
+
+    def fill_dispenser(self):
+        self.stack.waiting = (1, 1, 1)
+        return self._done(("fill",))
 
 
 @pytest.fixture
@@ -129,3 +133,41 @@ def test_the_level_is_the_game_nodes_depth_set_from_outside(game, stack):  # noq
     assert "engine.max_depth" in refused[1]
     stack.spin_for(0.3)
     assert game.state["max_depth"] == 4
+
+
+# With a token dispenser (#259): nobody gives a token; the person fills a dispenser found empty.
+
+
+@pytest.mark.parametrize("stack", [DISPENSER], indirect=True)
+def test_with_a_dispenser_a_turn_gives_no_token(game, stack):  # noqa: F811
+    game.new_game()
+    game.wait(lambda state: state["state"] == "WAIT_HUMAN", 10.0)
+    assert game.play(3) == (True, "")
+    assert game.hand.calls[1:] == [("drop", 3)]
+    assert game.wait(lambda state: state["moves"] == 2 and state["state"] == "WAIT_HUMAN", 10.0)
+    assert [call[0] for call in stack.calls[1:]] == ["pick", "drop"]
+
+
+@pytest.mark.parametrize("stack", [DISPENSER], indirect=True)
+def test_a_dispenser_found_empty_is_filled_at_the_robots_turn_then_done_is_said(game, stack):  # noqa: F811
+    stack.waiting = (0, 0, 0)
+    game.new_game()
+    game.wait(lambda state: state["state"] == "WAIT_HUMAN", 10.0)
+    game.play(3)
+    assert game.wait(lambda state: state["reason"] == "dispenser_empty", 10.0)
+    assert game.play() == (True, "")
+    assert game.hand.calls[2:] == [("fill",)]
+    assert game.wait(lambda state: state["moves"] == 2 and state["state"] == "WAIT_HUMAN", 10.0)
+
+
+@pytest.mark.parametrize("stack", [DISPENSER], indirect=True)
+def test_a_pick_that_closed_on_nothing_is_tried_again_without_a_fill(game, stack):  # noqa: F811
+    stack.replies["pick"] = (False, "no_token")
+    game.new_game()
+    game.wait(lambda state: state["state"] == "WAIT_HUMAN", 10.0)
+    game.play(3)
+    assert game.wait(lambda state: state["reason"] == "no_token", 10.0)
+    stack.replies["pick"] = (True, "done in 9.0 s")
+    assert game.play() == (True, "")
+    assert game.hand.calls[1:] == [("drop", 3)]
+    assert game.wait(lambda state: state["moves"] == 2 and state["state"] == "WAIT_HUMAN", 10.0)

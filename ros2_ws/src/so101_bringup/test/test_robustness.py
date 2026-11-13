@@ -143,8 +143,8 @@ def test_the_five_slide_questions_and_a_stop_are_asked_of_the_game():
 
 
 def test_an_expectation_is_the_fields_of_a_state_or_of_a_reply():
-    state = {"state": "WAIT_HUMAN", "reason": "no_token", "turn": "robot", "lost": 1}
-    assert matches({"state": "WAIT_HUMAN", "reason": "no_token", "lost": 1}, state)
+    state = {"state": "WAIT_HUMAN", "reason": "dispenser_empty", "turn": "robot", "lost": 0}
+    assert matches({"state": "WAIT_HUMAN", "reason": "dispenser_empty", "lost": 0}, state)
     assert not matches({"state": "WAIT_HUMAN", "turn": "human"}, state)
     assert matches({"success": False}, {"success": False, "message": "column 0 is full"})
     assert not matches({"success": False, "message": "unreachable"}, {"success": False, "message": "busy"})

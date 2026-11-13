@@ -250,6 +250,8 @@ class DriverNode(rclpy.node.Node):
                 self.create_service(DropToken, "/sim/connect4/drop_token", self._srv_drop_token)
                 self.create_service(Trigger, "/sim/connect4/give_token", self._srv_give_token)
                 self.create_service(Trigger, "/sim/connect4/reset_board", self._srv_reset_board)
+                self.create_service(Trigger, "/sim/connect4/empty_dispenser", self._srv_empty_dispenser)
+                self.create_service(Trigger, "/sim/connect4/fill_dispenser", self._srv_fill_dispenser)
             else:
                 self.create_service(Trigger, "/sim/randomize", self._srv_randomize)
             if expose_ground_truth:
@@ -454,6 +456,18 @@ class DriverNode(rclpy.node.Node):
         with self._backend_lock:
             self._connect4.reset_board()
         response.success, response.message = True, "tokens parked"
+        return response
+
+    def _srv_empty_dispenser(self, request, response):
+        """Sim only, game mode: the simulated person takes every token out of the dispenser (ADR-041)."""
+        with self._backend_lock:
+            response.success, response.message = self._connect4.empty_dispenser()
+        return response
+
+    def _srv_fill_dispenser(self, request, response):
+        """Sim only, game mode: the simulated person fills the dispenser with the tokens not played."""
+        with self._backend_lock:
+            response.success, response.message = self._connect4.fill_dispenser()
         return response
 
     def _publish_ground_truth(self):

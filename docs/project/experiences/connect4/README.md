@@ -8,7 +8,7 @@ What the expert review of phase 2 ran to measure the sim, kept as it ran. **Thro
 | `drop/` | Pose of a drop, paths, clearance, grip, duration, async service | MES-64 | #83, #84, #85 |
 | `reading/` | Camera, pixels per cell, classification, grid pose accuracy | MES-65 | #81, #82 |
 | `game/` | Engine, turns, console client, fake stack; `levels.py`: the package's engine, depth against depth; `play_keys.py` and `record_debug.py`: a game through the console on a pipe, the README's game GIF and the image of a circled four from `/connect4/debug_image` | MES-66, MES-70 | #78, #230, #86, #232, #244, #246 |
-| `dispenser/` (2026-11-13) | Where the arm can take a token, what the open jaws need free, a gravity rail's feed and a pick with real contacts; `wake_probe.py`: what stalls a sleeping queue; `render_overview.py`: the README's picture of the scene | MES-75 | #257 |
+| `dispenser/` (2026-11-13) | Where the arm can take a token, what the open jaws need free, a gravity rail's feed and a pick with real contacts; `wake_probe.py`: what stalls a sleeping queue; `render_overview.py`: the README's picture of the scene; `pick_probe.py`: the pick with the token and the aim off the slot's middle; `pose_noise.py`: the measured poses image by image during a game | MES-75, MES-77 | #257, #259 |
 
 ## Running
 
@@ -39,6 +39,8 @@ tools/so101 run 'python3 /repo/docs/project/experiences/connect4/game/levels.py 
 tools/so101 run --game --out /tmp/frames 'cd /repo/docs/project/experiences/connect4/game &&
   (python3 record_debug.py record /out > /dev/null &) ; python3 play_keys.py "e 1,m 7,h ? 1,7,1,7,1"'
 python3 docs/project/experiences/connect4/game/record_debug.py gif /tmp/frames docs/project/media/demo_connect4.gif
+# the README's GIF (#259): the keys "h 1,7,1,7,1,7", then one image in 4 (the game at 16x, 0.99 MB)
+python3 docs/project/experiences/connect4/game/record_debug.py gif /tmp/frames docs/project/media/demo_connect4.gif 4
 # #257: where a token can be taken; then one rail, 7 tokens fed and taken (azimuth, r, z, slope, tokens, the
 # tokens' angular damping or -1 for the scene's, sleep, jaws' opening %, the wake's force in N)
 tools/so101 run 'python3 /repo/docs/project/experiences/connect4/dispenser/reach.py'
@@ -47,6 +49,10 @@ tools/so101 run 'python3 /repo/docs/project/experiences/connect4/dispenser/rail.
 tools/so101 run --out docs/project/media 'python3 /repo/docs/project/experiences/connect4/dispenser/render_overview.py'
 # what stalls a sleeping queue, one variable at a time (the package's scene, with its dispenser)
 tools/so101 run 'python3 /repo/docs/project/experiences/connect4/dispenser/wake_probe.py'
+# #259: the pick at a station (0 to 2), the token and the aim each -1.5, 0 and +1.5 mm off the slot's middle
+tools/so101 run 'python3 /repo/docs/project/experiences/connect4/dispenser/pick_probe.py 2'
+# the measured poses against the layout's, for 150 s, in a container where the game's stack runs and a game is played
+python3 docs/project/experiences/connect4/dispenser/pose_noise.py 150
 ```
 
 `reach.npy` (3.7 MB) is generated, never committed. `drop/e5_async.py` is the test of a service that replies at the end of a move while the 50 Hz timer runs.

@@ -130,7 +130,7 @@ def lighting_verdict(successes: int, episodes: int) -> tuple[str, str]:
 
 STILL_RAD = 0.05  # an arm joint further than this from its place at a step's start: the arm moved (P2-05)
 WAITS_PERSON = {"state": "WAIT_HUMAN", "turn": "human"}
-NO_TOKEN = {"state": "WAIT_HUMAN", "reason": "no_token", "lost": 1}
+DISPENSER_EMPTY = {"state": "WAIT_HUMAN", "reason": "dispenser_empty", "turn": "robot", "lost": 0}
 
 
 @dataclass(frozen=True)
@@ -158,10 +158,11 @@ GAME_CASES = {
         ),
     ),
     "g2": GameCase(
-        question="The grasp fails: no token is given before the robot's move.",
+        question="The grasp fails: the dispenser is empty when the robot is to take its token.",
         steps=(
-            Step("turn_without_token", state=NO_TOKEN, still=True),
-            Step("give_token", state=WAITS_PERSON | {"moves": 2}),
+            Step("empty_dispenser", reply={"success": True}),
+            Step("turn", state=DISPENSER_EMPTY, still=True),
+            Step("refill", state=WAITS_PERSON | {"moves": 2}),
         ),
     ),
     "g3": GameCase(
@@ -191,7 +192,7 @@ GAME_CASES = {
             Step("turn", state={"state": "MOVE"}),
             Step("wait_5_s", reply={"success": True}),
             Step("stop", state={"state": "ERROR", "reason": "stopped"}),
-            Step("wait_2_s", reply={"success": True}, still=True),  # the arm frozen above the column
+            Step("wait_2_s", reply={"success": True}, still=True),  # the arm frozen at the dispenser
             Step("new_game", state=WAITS_PERSON | {"moves": 0}),
         ),
     ),

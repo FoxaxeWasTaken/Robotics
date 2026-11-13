@@ -7,8 +7,8 @@ what it returns; the services answer at once, their effect shows on /brain_state
 the grasp planner in a worker process, which never touches a ROS object; the tick polls it.
 Publishes the TCP pose from forward kinematics. In IDLE, /go_to_target solves a position IK and returns at
 once, the tick streams the min-jerk trajectory (04 §6).
-In game mode (connect4.enabled, phase2/P2-02 §2.3), /brain/drop and /brain/handover run one move of drop.Move
-in the same slot of the tick, in IDLE, and reply at its end; fsm.py does not know them.
+In game mode (connect4.enabled, phase2/P2-02 §2.3), /brain/drop, /brain/pick and /brain/handover run one move
+of drop.Move in the same slot of the tick, in IDLE, and reply at its end; fsm.py does not know them.
 """
 
 import inspect
@@ -134,7 +134,6 @@ PARAMETERS = {
     ),
 }
 HANDOVER = (-0.8, -0.6, 0.6, 1.1, 1.57)  # default of connect4.handover_pose [MES-65]
-AT_HANDOVER_RAD = 0.05  # /brain/drop starts with every arm joint this close to it: its path starts there
 MARKERS = (("pre_grasp", (1.0, 1.0, 0.0)), ("grasp", (0.0, 1.0, 0.0)), ("drop", (0.0, 0.0, 1.0)))  # 06 §7
 
 
@@ -195,7 +194,9 @@ class BrainNode(rclpy.node.Node):
         self._game = self.declare_parameter(
             "connect4.enabled",
             False,
-            ParameterDescriptor(description="Game mode: /brain/drop and /brain/handover", read_only=True),
+            ParameterDescriptor(
+                description="Game mode: /brain/drop, /brain/pick, /brain/handover", read_only=True
+            ),
         ).value
         self._handover = np.array(
             self._declare_pose(
@@ -204,7 +205,8 @@ class BrainNode(rclpy.node.Node):
                 "HANDOVER, where a token is given and the camera sees the whole grid: 5 arm joints in rad",
             )
         )
-        self._move = None  # the running /brain/drop or /brain/handover (_begin)
+        self._move = None  # the running /brain/drop, /brain/pick or /brain/handover (_begin)
+        self._pick_cut = False  # the last move was a pick that did not end well (_srv_handover)
         # ROS ignores a key no node declares: a typo in brain_real.yaml would keep the sim's value (#57).
         if unknown := sorted(set(self._parameter_overrides) - set(self._parameters)):  # rclpy: no public API
             raise ValueError(f"Unknown parameters {unknown}: a typo in a config file? (06 §6)")
@@ -240,6 +242,7 @@ class BrainNode(rclpy.node.Node):
             group = ReentrantCallbackGroup()
             self.create_service(Drop, "/brain/drop", self._srv_drop, callback_group=group)
             self.create_service(Trigger, "/brain/handover", self._srv_handover, callback_group=group)
+            self.create_service(Drop, "/brain/pick", self._srv_pick, callback_group=group)
         self._publish_state()
 
         self.get_logger().info("Brain node ready.")
@@ -389,20 +392,33 @@ class BrainNode(rclpy.node.Node):
 
     async def _srv_drop(self, request, response):
         """One move of the game, from HANDOVER to the column and back (P2-02 §2.3): replies at its end."""
+        return await self._from_handover("drop", drop.drop_steps, request, response)
+
+    async def _srv_pick(self, request, response):
+        """A token taken at a station of the dispenser, from HANDOVER and back (ADR-041): replies there."""
+        return await self._from_handover("pick", drop.pick_steps, request, response)
+
+    async def _from_handover(self, name, solve, request, response):
+        """A move to the request's target that starts at HANDOVER, its steps from `solve`."""
         refusal, steps = self._refusal(), None
-        if refusal is None and np.max(np.abs(self._joints[0] - self._handover)) > AT_HANDOVER_RAD:
+        if refusal is None and np.max(np.abs(self._joints[0] - self._handover)) > drop.AT_HANDOVER:
             refusal = "not_at_handover"
         if refusal is None:  # IK inline, as /go_to_target: nothing moves yet, and no pose is solved later
             target = np.array([request.target.x, request.target.y, request.target.z])
-            steps = drop.drop_steps(self._kin, target, self._handover, self._p)
+            steps = solve(self._kin, target, self._handover, self._p)
             refusal = None if steps else "unreachable"
-        reply = (False, refusal) if refusal else await self._begin("drop", steps)
+        reply = (False, refusal) if refusal else await self._begin(name, steps)
         response.success, response.message = reply
         return response
 
     async def _srv_handover(self, request, response):
-        """The jaws open, the arm to HANDOVER: replies there."""
-        refusal, steps = self._refusal(), drop.handover_steps(self._handover, self._p)
+        """The jaws open, the arm to HANDOVER: replies there. After a pick cut short the arm may be down in
+        a station of the dispenser: it rises straight up first. Above the grid, where a drop cut short
+        leaves it, the direct way is the measured one [MES-73]."""
+        refusal = self._refusal()
+        if refusal is None:
+            out_of_a_station = (self._kin, self._joints[0]) if self._pick_cut else ()
+            steps = drop.handover_steps(self._handover, self._p, *out_of_a_station)
         reply = (False, refusal) if refusal else await self._begin("handover", steps)
         response.success, response.message = reply
         return response
@@ -450,6 +466,7 @@ class BrainNode(rclpy.node.Node):
         """The move's reply and its log line: the seconds of each step ended, the tick periods meanwhile (the
         first one holds the IK)."""
         m, self._move = self._move, None
+        self._pick_cut = m["name"] == "pick" and result != ""
         ticks = np.array(m["ticks"][1:] or [0.0]) * 1000
         text = f"done in {self._now() - m['start']:.1f} s" if result == "" else result
         steps = ", ".join(f"{name} {seconds:.1f}" for name, seconds in m["move"].seconds.items())

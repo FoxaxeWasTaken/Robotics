@@ -12,9 +12,9 @@
 ![OpenCV](https://img.shields.io/badge/OpenCV-4.10-5C3EE8?logo=opencv&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 
-<img src="docs/project/media/demo_connect4.gif" height="240" alt="A Connect Four game against the simulated arm, seen by the scene camera: the arm drops yellow tokens into the grid, each cell read is drawn as a disc, the robot's last move and its reason are written at the top, and the winning four is circled in green">
+<img src="docs/project/media/demo_connect4.gif" height="240" alt="A Connect Four game against the simulated arm, seen by the scene camera: the arm takes each yellow token at its dispenser, at the bottom right, and drops it into the grid; each cell read is drawn as a disc, each station of the dispenser is ringed in green, the robot's last move and its reason are written at the top, and the winning four is circled in green">
 
-*A game against the simulated arm at 4× speed, as the board reader draws it: the cells it reads, the robot's reason, the winning four.*
+*A game against the simulated arm at 16× speed, as the board reader draws it: the cells it reads, the stations of the dispenser, the robot's reason, the winning four.*
 
 | **50/50** | **2100/2100** | **10/10** | **6/6** |
 | --- | --- | --- | --- |
@@ -42,8 +42,8 @@
 
 - **It reads the grid** with the scene camera: four ArUco markers give the grid's pose, each of the 42 cells is classified by its color, and a move counts once 5 images in a row agree.
 - **It thinks**: a negamax engine with three levels, which answers in 0.2 s and says why it played (its search depth, and "it wins in 2 moves" once the game is decided).
-- **It plays**: the arm takes the token given between its jaws, checks it holds it, and releases it above the column.
-- **It notices what goes wrong**: a token in the wrong place, a move not seen, an empty gripper, a column out of reach. The game stops with its reason and waits for you; the arm never moves during your turn.
+- **It plays**: the arm takes a token at its dispenser, which the camera places and reads as it does the grid, checks it holds it, and releases it above the column.
+- **It notices what goes wrong**: a token in the wrong place, a move not seen, an empty gripper, an empty dispenser, a column out of reach. The game stops with its reason and waits for you; the arm never moves during your turn.
 
 **Pick & place** (phase 1, in simulation and on the real arm). Each cycle runs on its own, from one command:
 
@@ -86,12 +86,12 @@ tools/so101 play                             # the game, in a second terminal; i
 tools/so101 down                             # before coming back to the pick & place
 ```
 
-<img src="docs/project/media/connect4_scene.png" width="480" alt="The simulated scene of the game: the Connect Four grid with red and yellow tokens and a marker at each corner, the arm on its riser, and the token dispenser, three stacked rails of yellow tokens behind a foot plate that carries four markers">
+<img src="docs/project/media/connect4_scene.png" width="480" alt="The simulated scene of the game: the Connect Four grid with red and yellow tokens and a marker at each corner, the arm on its riser, and the token dispenser, three stacked rails of yellow tokens behind a marker plate that carries four markers">
 
 | Key | What it does |
 | --- | --- |
 | `n`, `r` | A new game: you start (`n`), or the robot starts (`r`) |
-| `1` to `7` | Your red token in that column, numbered as on the screen. The simulated hand drops it and gives the robot its yellow token |
+| `1` to `7` | Your red token in that column, numbered as on the screen. The simulated hand drops it; the robot takes its own yellow token at the dispenser |
 | `?` | A hint: the column the engine would play in your place |
 | `e`, `m`, `h` | The robot's level: easy, medium, hard (the default). It applies from its next move |
 | `s` | Stops the arm and the game |
@@ -99,7 +99,8 @@ tools/so101 down                             # before coming back to the pick & 
 
 - **The screen** shows the grid, the level, the robot's last move with its reason, and what to do. The winning four is drawn as `*`.
 - **The colors**: the robot plays yellow (`Y`) and you red (`R`). To swap them, set `token.robot_color: red` in [`connect4_grid.yaml`](ros2_ws/src/so101_connect4/config/connect4_grid.yaml) and start the stack again (`tools/so101 restart`): the simulated hand, the camera's reading and the screen follow.
-- **A robot's move takes about 12 s** (17 on the far column), a game against a careless player about a minute, a close one up to 5 minutes.
+- **A robot's move takes about 20 s**: 8 to 12 s to take its token at the dispenser, then 12 s to drop it (17 on the far column). A game against a careless player lasts about a minute and a half.
+- **The dispenser** holds the robot's 21 tokens, enough for a whole game; a new game fills it again. Found empty, the game waits (`dispenser_empty`) and the console fills it. To play as before the dispenser, a token given between the jaws at each turn, set `token_source: hand` in [`game.yaml`](ros2_ws/src/so101_connect4/config/game.yaml) and start the stack again.
 - **`FIX_BOARD`** means the grid the camera sees is not the one the game expects: `not_seen:human` when your move did not show, `board_not_empty` when tokens are left at a new game, a token played out of turn. Nothing moves. In simulation, press `n` for a new game.
 - **`ERROR`** follows a stop (`s`) or a move the arm could not finish; `n` starts again.
 - `tools/so101 bench --game -n 3` plays measured games against a scripted player: it runs in the control container (after `tools/so101 up`) and starts its own stack on ROS domain 77. `tools/so101 robustness g1` (to `g6`) shows one fault case, in its own container: after `tools/so101 down`.
@@ -122,11 +123,11 @@ In game mode, a board reader takes perception's place and a game node sits above
 
 | Metric | Result | Source |
 | --- | --- | --- |
-| **Connect Four**, simulation: full games without intervention, the robot at its hard level | **10/10** against a random player, 2/2 against the engine; target ≥ 8/10. One game on each PR, 10 each night `main` changes: 10/10 on the runner, a game 51 to 112 s | [`results/phase2_2026-11-13.md`](results/phase2_2026-11-13.md), MES-71 |
-| Connect Four: a token dropped in the requested column | **50/50**, held 50/50, empty jaws refused 10/10; a move 11.5 to 17.0 s | MES-69, MES-73 |
+| **Connect Four**, simulation: full games without intervention, the robot at its hard level | **10/10** against a random player, 2/2 against the engine; **20/20** with the robot taking its tokens at the dispenser (MES-77); target ≥ 8/10. One game on each PR, 10 each night `main` changes: 10/10 on the runner, a game 51 to 112 s | [`results/phase2_2026-11-13.md`](results/phase2_2026-11-13.md), MES-71 |
+| Connect Four: a token taken at the dispenser, then dropped in the requested column | **50/50**, held 50/50, empty jaws refused 10/10; a pick 8.2 to 12.3 s, a drop 11.5 to 17.0 s | MES-69, MES-73, MES-77 |
 | Connect Four: the grid read by the camera, 50 random game states | **2100/2100** cells; the grid's pose within 0.7 mm | MES-68 |
 | Connect Four: the engine | 100/100 against a random player; hard beats medium 26 – 7, medium beats easy 28 – 2 (40 games each); a move in 0.2 s | MES-66, MES-70, MES-72 |
-| Connect Four: fault cases of a game (a token out of turn, no token given, the reader stopped, a column out of reach, a dim light, a stop) | All six handled | [`results/robustness_demo.md`](results/robustness_demo.md) |
+| Connect Four: fault cases of a game (a token out of turn, the dispenser empty, the reader stopped, a column out of reach, a dim light, a stop) | All six handled | [`results/robustness_demo.md`](results/robustness_demo.md) |
 | Pick & place, simulation, real perception, randomized cube and box | 50/50, and 50 more each night `main` changes: [latest results](https://github.com/FoxaxeWasTaken/Robotics/issues?q=is%3Aissue+in%3Atitle+%22Nightly+bench+results%22) | [`results/bench_sim_2026-10-27.md`](results/bench_sim_2026-10-27.md), MES-45, MES-46 |
 | Pick & place, **real arm**, USB webcam, the sim's speeds, retries included | **14/17**, target ≥ 7/10 | [`results/bench_real_2026-11-06.md`](results/bench_real_2026-11-06.md) |
 | Real camera, intrinsics | RMS 0.36 px, 25 views | MES-58 |
@@ -178,7 +179,7 @@ As of 2026-11-13.
 
 | Done | Next (see [roadmap](docs/project/09_roadmap_step_by_step.md)) |
 | --- | --- |
-| Environment (Docker images, X11, DDS, usbipd), CI, hooks, design docs with measured spikes; the phase-1 sim criterion met on our calibration, 50/50 (4.5b, C-42) | Phase 2 in sim, for the hand-in of 2026-11-20. Done: the drop spike, a go (#76), the engine and the turns (`so101_connect4`), the drop pose, the game's sim scene with the simulated player's services, the board reader that reads the grid from the camera (`CONNECT4=true tools/so101 up`), one move of the game through the brain (`/brain/drop` and `/brain/handover`: 50 tokens of 50 in their column), the game node with three levels, the console `tools/so101 play`, the game bench (`evaluate --games`), one game on each PR and ten each night, the robustness demo of the game (`tools/so101 robustness g1` to `g6`), the robot's reason, the level keys and the hint in the console, faster moves. the results of the first nightly on the game's code ([`results/phase2_2026-11-13.md`](results/phase2_2026-11-13.md)). A token dispenser stands in the scene, three stacked rails with the robot's 21 tokens, and the camera places it and reads its stations (#257, #258). Next: the arm takes its tokens there instead of being handed them (#259), the measured poses checked before each move (#260), a game replayed from this README by a member who did not write it (#234), the videos (#97) |
+| Environment (Docker images, X11, DDS, usbipd), CI, hooks, design docs with measured spikes; the phase-1 sim criterion met on our calibration, 50/50 (4.5b, C-42) | Phase 2 in sim, for the hand-in of 2026-11-20. Done: the drop spike, a go (#76), the engine and the turns (`so101_connect4`), the drop pose, the game's sim scene with the simulated player's services, the board reader that reads the grid from the camera (`CONNECT4=true tools/so101 up`), one move of the game through the brain (`/brain/drop`, `/brain/pick` and `/brain/handover`: 50 tokens of 50 in their column), the game node with three levels, the console `tools/so101 play`, the game bench (`evaluate --games`), one game on each PR and ten each night, the robustness demo of the game (`tools/so101 robustness g1` to `g6`), the robot's reason, the level keys and the hint in the console, faster moves. the results of the first nightly on the game's code ([`results/phase2_2026-11-13.md`](results/phase2_2026-11-13.md)). A token dispenser stands in the scene, three stacked rails with the robot's 21 tokens, the camera places it and reads its stations (#257, #258), and the arm takes its tokens there by itself (`/brain/pick`, #259: 50 tokens of 50 taken and dropped). Next: the measured poses checked before each move (#260), a game replayed from this README by a member who did not write it (#234), the videos (#97) |
 | Driver: `/joint_states` at 30 Hz, `/joint_command`, speed limiter, joint-limit clamp, camera at 10 Hz with `camera_info`, `/sim/randomize`, ground truth for the bench only; real-arm safety and webcam; a warning for each late tick, a clean stop on SIGINT (#158, #176) | Later, on the real arm: a startup check that the camera has not moved (#222), the colors measured by a tool (#223), replay tests on real images (#48), a guided setup script (#224) |
 | Perception: HSV detection that holds under a dim, warm light, pixel → 3D, median filter, cube yaw, `/object_position` and `/drop_box_position`, debug image, our ArUco extrinsic calibration and the camera TF; a cube cut by the image edge or partly hidden is not published (3.4b–c, 3.5c, MES-47, MES-52, MES-53); on the real bench, the intrinsics from a ChArUco board and the camera's pose from that board touched by the arm (6.2b, 6.3a) | |
 | Brain: FK/IK (no self-collision), `/go_to_target`, grasp planner in a worker process, the full state machine, markers in RViz; grasp verification and retries checked on fault scenarios, effort threshold measured (4.4a, MES-48) | |

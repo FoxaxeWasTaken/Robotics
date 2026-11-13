@@ -2,7 +2,7 @@
 
 This folder gathers **every choice** of the project, its rationale (imposed by the brief or decided by the team, with evidence), and **the step-by-step path** to complete the project cleanly.
 
-> Written by a virtual team of experts who **checked each other's work** (`11_cross_review_and_measurements.md`). Disagreements were settled by **reproducible measurements** (`experiences/`, tools actually run; 76 measurements, `11` §4): out of 53 objections, **45 initial proposals were changed**. The folder contains **40 diagrams** (plus one in the root README), all rendered and checked by mermaid-cli.
+> Written by a virtual team of experts who **checked each other's work** (`11_cross_review_and_measurements.md`). Disagreements were settled by **reproducible measurements** (`experiences/`, tools actually run; 77 measurements, `11` §4): out of 53 objections, **45 initial proposals were changed**. The folder contains **40 diagrams** (plus one in the root README), all rendered and checked by mermaid-cli.
 
 ## Where to start?
 
@@ -49,7 +49,7 @@ flowchart LR
 | [08_quality_tests.md](08_quality_tests.md) | Test pyramid, target metrics, evaluation bench, conventions, Git workflow (summary) |
 | [09_roadmap_step_by_step.md](09_roadmap_step_by_step.md) | **The step-by-step roadmap**: 9 stages (phase 2 of the brief = stage 7), 35 steps, each with "Done when…" |
 | [10_risks.md](10_risks.md) | Risk register (P × I) and mitigations |
-| [11_cross_review_and_measurements.md](11_cross_review_and_measurements.md) | **Cross-review log** (53 objections) and register of the 76 measurements |
+| [11_cross_review_and_measurements.md](11_cross_review_and_measurements.md) | **Cross-review log** (53 objections) and register of the 77 measurements |
 | [12_glossary_references.md](12_glossary_references.md) | Glossary and references |
 | [13_runbook_troubleshooting.md](13_runbook_troubleshooting.md) | Everyday commands, decision tree and troubleshooting table |
 | [14_quality_pipeline_ci.md](14_quality_pipeline_ci.md) | **Quality pipeline**: feedback loops, check matrix, tool choices, PR CI and nightly, test conventions, lint adoption |

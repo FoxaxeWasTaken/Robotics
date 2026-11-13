@@ -9,7 +9,7 @@ import pytest
 
 from so101_connect4 import game
 from so101_connect4.game import CELLS, COLUMNS, EMPTY, HUMAN, ROBOT
-from so101_connect4.turns import NO_TOKEN, Board, Inputs, State, Turns
+from so101_connect4.turns import NO_TOKEN, Board, Inputs, State, Stations, Turns
 
 EMPTY_BOARD = (EMPTY,) * CELLS
 
@@ -26,13 +26,20 @@ def with_tokens(cells, *tokens):
 class Clock:
     """Turns stepped at 10 Hz on a fake clock; `board` is the last /connect4/board, as the node keeps it."""
 
-    def __init__(self):
-        self.turns, self.now, self.board, self.out = Turns(), 0.0, None, None
+    def __init__(self, dispenser=False):
+        self.turns, self.now, self.board, self.out = Turns(dispenser=dispenser), 0.0, None, None
+        self.stations = None  # the last /connect4/stations
 
     def step(self, dt=0.1, **inputs):
         self.now += dt
-        self.out = self.turns.step(self.now, Inputs(board=self.board, **inputs))
+        self.out = self.turns.step(self.now, Inputs(board=self.board, stations=self.stations, **inputs))
         return self.out
+
+    def sees(self, *waiting):
+        """A stable read of the dispenser's stations arrives, then a step sees it."""
+        self.now += 0.05
+        self.stations = Stations(tuple(bool(there) for there in waiting), self.now)
+        return self.step()
 
     def read(self, cells, valid=True, reason=""):
         """A stable read arrives, then a step sees it."""
@@ -58,9 +65,9 @@ def choice(column, score=0, depth=1):
     return game.Choice(column, score, depth, nodes=1, seconds=0.0)
 
 
-def new_game(robot_first=False):
+def new_game(robot_first=False, dispenser=False):
     """A clock at WAIT_HUMAN of a new game: HANDOVER reached, the empty board read."""
-    c = Clock()
+    c = Clock(dispenser)
     assert c.step(new_game=True, robot_first=robot_first).handover
     assert c.state is State.MOVE
     c.step(move_reply=(True, "at HANDOVER"))
@@ -108,6 +115,7 @@ def test_before_any_game_the_state_says_idle_an_empty_board_and_nothing_played()
         "moves": 0,
         "first": "human",
         "history": [],
+        "token_source": "hand",
         "seconds": {"move": 0.0, "read": 0.0, "wait": 0.0, "think": 0.0},
         "lost": 0,
         "missed": 0,
@@ -652,6 +660,7 @@ def test_the_snapshot_holds_what_the_console_and_the_bench_need():
         "first",
         "history",
         "seconds",
+        "token_source",
     }
     assert snapshot["state"] == "THINK"
     assert snapshot["board"][3] == HUMAN
@@ -677,6 +686,8 @@ class World:
         self.reply = None
         self.labels = []
         self.board = None
+        self.rails = list(faults.get("rails", (7, 7, 7)))  # tokens left in each rail of the dispenser
+        self.stations = None
 
     def drop_token(self, now, column, color):
         self.flying.append((now + self.FALL_S, column, color))
@@ -694,13 +705,17 @@ class World:
         if now >= self.next_read:
             self.next_read = now + 0.2
             self.frames.append(tuple(self.grid))
+            if self.rng.random() >= self.f.get("unseen", 0):
+                self.stations = Stations(tuple(left > 0 for left in self.rails), now)
             unstable = self.rng.random() < self.f.get("never_stable", 0)
             if len(self.frames) == 5 and len(set(self.frames)) == 1 and not unstable:
                 bad = self.rng.random() < self.f.get("invalid", 0)
                 self.board = Board(self.frames[-1], not bad, "gravity" if bad else "", now)
         if self.motion and now >= self.motion[0]:
             column, self.motion = self.motion[1], None
-            if column is not None:
+            if column == "pick":
+                self.held = True
+            elif column is not None:
                 self.held = False
                 r = self.rng.random()
                 if r >= self.f.get("lost", 0):  # else the token fell out of the grid
@@ -722,6 +737,17 @@ class World:
         else:
             self.motion = (now + (1.0 if column is None else 6.0), column)
 
+    def brain_pick(self, now, station):
+        """/brain/pick: refused at once, or a reply at the end, no_token when the jaws closed on nothing."""
+        assert self.rails[station] > 0, "the arm is sent to a station nothing waits at"
+        if self.rng.random() < self.f.get("refuse", 0):
+            self.reply = (False, "unreachable")
+        elif self.rng.random() < self.f.get("slips", 0):
+            self.reply = (False, NO_TOKEN)
+        else:
+            self.rails[station] -= 1
+            self.motion = (now + 5.0, "pick")
+
     def brain_stop(self):
         if self.motion:
             self.motion = None
@@ -729,10 +755,11 @@ class World:
         self.labels.append("STOPPED")
 
 
-def play_one(seed, faults, depth=2):
-    """One game; (turns, ticks the arm moved outside MOVE)."""
+def play_one(seed, faults, depth=2, dispenser=False):
+    """One game; (turns, ticks the arm moved outside MOVE). With a dispenser, nobody gives a token: the
+    person fills it when the robot waits."""
     rng = random.Random(seed)
-    w, t, now = World(rng, faults), Turns(), 0.0
+    w, t, now = World(rng, faults), Turns(dispenser=dispenser), 0.0
     inputs = {"new_game": True, "robot_first": seed % 2 == 1}
     engine = None
     stop_at = rng.uniform(5, 200) if rng.random() < faults.get("stop", 0) else None
@@ -744,7 +771,15 @@ def play_one(seed, faults, depth=2):
         stop_at = None if stop else stop_at
         out = t.step(
             now,
-            Inputs(board=board, brain_states=states, move_reply=reply, engine=engine, stop=stop, **inputs),
+            Inputs(
+                board=board,
+                brain_states=states,
+                move_reply=reply,
+                engine=engine,
+                stop=stop,
+                stations=w.stations,
+                **inputs,
+            ),
         )
         inputs, engine = {}, None
         if out.think:
@@ -754,12 +789,17 @@ def play_one(seed, faults, depth=2):
         if out.drop is not None or out.handover:
             assert out.drop is None or out.drop in t.snapshot()["legal"]
             w.brain_move(now, out.drop)
+        if out.pick is not None:
+            w.brain_pick(now, out.pick)
         moved_outside += w.motion is not None and t.state is not State.MOVE
         snapshot = t.snapshot()
         if t.state is State.WAIT_HUMAN:  # the console's or the bench's key: drop, give a token, done
             if snapshot["turn"] == "human":
                 w.drop_token(now, rng.choice(snapshot["legal"]), HUMAN)
-            w.held = rng.random() >= faults.get("no_give", 0)
+            if dispenser and snapshot["turn"] == "robot":
+                w.rails = [7, 7, 7]
+            elif not dispenser:
+                w.held = rng.random() >= faults.get("no_give", 0)
             inputs = {"human_done": True}
         elif t.state in (State.GAME_OVER, State.ERROR, State.FIX_BOARD):
             return t, moved_outside
@@ -788,3 +828,158 @@ def test_random_games_move_the_arm_in_move_only_and_always_end(faults):
         assert moved_outside == 0, (seed, t.label)
         if not faults:
             assert t.state is State.GAME_OVER, (seed, t.label)
+
+
+@pytest.mark.parametrize(
+    "faults",
+    [
+        pytest.param({}, id="clean"),
+        pytest.param({"rails": (1, 0, 2)}, id="few-tokens"),
+        pytest.param({"slips": 0.2}, id="pick-slips"),
+        pytest.param({"unseen": 0.9}, id="dispenser-rarely-read"),
+        pytest.param({"lost": 0.2, "wrong": 0.1}, id="token-lost-or-wrong-column"),
+        pytest.param({"stop": 0.3}, id="stops"),
+        pytest.param(
+            {"rails": (2, 1, 0), "slips": 0.1, "unseen": 0.5, "lost": 0.1, "refuse": 0.02, "stop": 0.1},
+            id="everything",
+        ),
+    ],
+)
+def test_random_games_with_a_dispenser_never_pick_at_an_empty_station_and_always_end(faults):
+    """The fake brain asserts that the station it is sent to holds a token."""
+    for seed in range(30):
+        t, moved_outside = play_one(seed, faults, dispenser=True)
+        assert moved_outside == 0, (seed, t.label)
+        if not {"refuse", "stop", "lost", "wrong"} & set(faults):  # nothing the person cannot answer
+            assert t.state is State.GAME_OVER, (seed, t.label)
+
+
+# The robot takes its tokens at the dispenser (#259): a robot's MOVE is a pick, then the drop.
+
+
+def to_move(c, column=3):
+    """From a new game with a dispenser: the human plays, the engine answers `column`: MOVE, no call yet."""
+    human_plays(c, 0)
+    out = c.step(engine=choice(column))
+    assert c.state is State.MOVE
+    assert (out.pick, out.drop, out.handover) == (None, None, False)
+    return c
+
+
+def test_with_a_dispenser_the_state_says_so():
+    assert Turns(dispenser=True).snapshot()["token_source"] == "dispenser"
+
+
+def test_a_new_game_with_a_dispenser_still_starts_at_handover():
+    c = Clock(dispenser=True)
+    out = c.step(new_game=True)
+    assert (out.handover, out.pick, out.drop) == (True, None, None)
+
+
+def test_the_robot_takes_its_token_at_the_highest_station_that_holds_one_then_drops_it():
+    """The highest first: the wrist turns the least from HANDOVER, 8.2 s a pick against 12.3 [MES-77]."""
+    c = to_move(new_game(dispenser=True))
+    out = c.sees(1, 1, 0)
+    assert (out.pick, out.drop) == (1, None)
+    assert c.state is State.MOVE
+    assert c.step().pick is None  # called once
+    out = c.step(move_reply=(True, "done in 9.4 s"))
+    assert (out.pick, out.drop) == (None, 3)  # the token is in the jaws at HANDOVER: the drop
+    assert c.state is State.MOVE
+    c.step(move_reply=(True, "done in 12.0 s"))
+    assert c.state is State.READ_BOARD
+    c.read(with_tokens(c.turns.cells, (3, ROBOT)))
+    assert c.label == "WAIT_HUMAN"
+    assert c.turns.turn == "human"
+    assert c.turns.last["column"] == 3
+
+
+def test_the_station_is_chosen_on_a_read_newer_than_the_move():
+    """The last read may be older than the last pick: the queue it showed has moved since."""
+    c = new_game(dispenser=True)
+    c.sees(1, 1, 1)
+    to_move(c)
+    assert c.step().pick is None
+    assert c.sees(1, 1, 1).pick == 2
+
+
+def test_an_empty_dispenser_waits_for_the_person_who_fills_it_and_says_done():
+    c = to_move(new_game(dispenser=True))
+    out = c.sees(0, 0, 0)
+    assert (out.pick, out.drop, out.stop_brain) == (None, None, False)
+    assert c.label == "WAIT_HUMAN:dispenser_empty"
+    assert c.turns.turn == "robot"
+    assert c.turns.lost == 0  # no token was lost: none was there
+    board = c.turns.cells
+    c.step(human_done=True)
+    c.read(board)  # nothing new on the grid: the robot plays
+    assert c.state is State.THINK
+    c.step(engine=choice(3))
+    assert c.sees(1, 0, 0).pick == 0
+
+
+def test_a_dispenser_the_camera_does_not_read_waits_for_the_person_after_the_read_timeout():
+    c = to_move(new_game(dispenser=True))
+    c.wait(c.turns.p.read_timeout_s - 0.3)
+    assert c.state is State.MOVE
+    c.wait(0.5)
+    assert c.label == "WAIT_HUMAN:dispenser_not_seen"
+    assert c.turns.turn == "robot"
+    assert not c.out.stop_brain  # nothing moves yet
+
+
+def test_a_pick_that_closes_on_nothing_gives_the_turn_back_as_a_token_not_given():
+    c = to_move(new_game(dispenser=True))
+    c.sees(1, 1, 1)
+    out = c.step(move_reply=(False, NO_TOKEN))
+    assert out.drop is None
+    assert c.label == "WAIT_HUMAN:no_token"
+    assert c.turns.lost == 1
+
+
+def test_a_pick_the_brain_refuses_is_an_error_and_nothing_is_dropped():
+    c = to_move(new_game(dispenser=True))
+    c.sees(1, 1, 1)
+    out = c.step(move_reply=(False, "unreachable"))
+    assert out.drop is None
+    assert c.label == "ERROR:brain_refused:unreachable"
+
+
+def test_the_moves_timeout_covers_the_choice_of_the_station_the_pick_and_the_drop():
+    c = to_move(new_game(dispenser=True))
+    c.wait(2.0)  # the dispenser read late
+    c.sees(1, 1, 1)
+    c.wait(40.0)
+    c.step(move_reply=(True, "done"))
+    c.wait(c.turns.p.move_timeout_s - 45.0)
+    assert c.state is State.MOVE
+    c.wait(6.0)
+    assert c.label == "ERROR:timeout:MOVE"
+    assert c.turns.seconds["move"] > c.turns.p.move_timeout_s
+
+
+def test_a_stop_during_the_pick_ends_the_game():
+    c = to_move(new_game(dispenser=True))
+    c.sees(1, 1, 1)
+    out = c.step(move_reply=(False, "stopped"))
+    assert out.drop is None
+    assert c.label == "ERROR:stopped"
+
+
+def test_without_a_dispenser_the_stations_are_ignored():
+    c = new_game()
+    human_plays(c, 0)
+    c.stations = Stations((False, False, False), c.now)
+    out = c.step(engine=choice(3))
+    assert (out.pick, out.drop) == (None, 3)
+
+
+def test_a_game_stopped_during_a_pick_starts_again_with_a_handover_not_a_drop():
+    c = to_move(new_game(dispenser=True))
+    c.sees(1, 1, 1)
+    c.step(stop=True)
+    assert c.label == "ERROR:stopped"
+    assert c.step(new_game=True).handover
+    out = c.step(move_reply=(True, "at HANDOVER"))
+    assert (out.pick, out.drop) == (None, None)
+    assert c.state is State.READ_BOARD

@@ -145,7 +145,7 @@ def test_a_token_stands_in_the_slot_with_the_play_of_the_grids_slots():
 # The dispenser's markers (#258): flat, facing up, on one side of the rails, under the jaws' reach.
 
 
-def test_the_dispenser_has_four_markers_of_its_own_on_its_foot_before_the_lowest_station():
+def test_the_dispenser_has_four_markers_of_its_own_on_its_marker_plate_before_the_lowest_station():
     """One level: a shelf beside a higher station would hide the stations below it from the camera."""
     markers = LAYOUT["dispenser"]["markers"]
     centres = layout.dispenser_marker_centers(LAYOUT)

@@ -2,8 +2,8 @@
 services, shared by the console (play.py) and the bench, so the two cannot drift.
 
 No rule: what is legal and whose turn it is come from the state. No sim service either: the person's hand
-is an object the caller gives, with drop_token(column), give_token() and reset_board(), each returning
-(success, message). In sim it is so101_bringup's sim_hand.
+is an object the caller gives, with drop_token(column), give_token(), fill_dispenser() and reset_board(),
+each returning (success, message). In sim it is so101_bringup's sim_hand.
 """
 
 import json
@@ -85,8 +85,13 @@ class GameClient:
 
     def play(self, column=None) -> tuple:
         """The person's turn: the robot's token between its jaws, the person's own in `column` (None when the
-        robot is to play), then human_done. The first step that fails ends it, with its message."""
+        robot is to play), then human_done. With a token dispenser (the state's token_source) nobody gives
+        a token: the person fills a dispenser found empty. The first step that fails ends it, with its
+        message."""
+        state = self.state or {}
         steps = [self.hand.give_token]
+        if state.get("token_source") == "dispenser":
+            steps = [self.hand.fill_dispenser] if state["reason"] == "dispenser_empty" else []
         if column is not None:
             steps.append(lambda: self.hand.drop_token(column))
         for step in [*steps, self.human_done]:

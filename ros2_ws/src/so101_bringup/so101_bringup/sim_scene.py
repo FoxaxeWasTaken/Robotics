@@ -133,10 +133,13 @@ def _add_connect4(spec, folder, layout):
     for color, rgba in (("red", RED), ("yellow", YELLOW)):
         for i in range(grid["columns"] * grid["rows"] // 2):
             name = f"token_{color}_{i}"
+            parked = token_parking(color, i, table_z, token["thickness"])
             if color == robot:  # the robot's wait in the dispenser's rails, the person's lie on the table
                 pos, quat = _waiting_pose(layout, i)
+                # where the simulated person lays it when it empties the dispenser (connect4_sim)
+                spec.worldbody.add_site(name=f"spare_{name}", pos=parked, size=[0.001] * 3, rgba=[0, 0, 0, 0])
             else:
-                pos, quat = token_parking(color, i, table_z, token["thickness"]), [1, 0, 0, 0]
+                pos, quat = parked, [1, 0, 0, 0]
             body = spec.worldbody.add_body(name=name, pos=pos, quat=quat)
             body.add_joint(name=f"{name}_free", type=mujoco.mjtJoint.mjJNT_FREE).damping = [
                 contact["damping"],
@@ -178,7 +181,10 @@ def _add_dispenser(spec, folder, layout, table_z, solid):
     mujoco.mju_mat2Quat(tilt, np.column_stack([along, [0.0, 1.0, 0.0], across]).ravel())
     gap, wall, stop = dispenser["slot_gap"], dispenser["wall"], 0.003
     start = -radius - stop  # the stop's back, along the rail from the station
-    cut = radius + 0.003  # where the low walls of the station end
+    # Where the low walls of the station end: a token lifted straight up moves up the sloped rail, and it is
+    # above the high walls only once it has swept their height times the slope's tangent. Ending 3 mm behind
+    # the token, a token held 1.5 mm off the slot's middle rubbed the high wall and stopped the lift [MES-77].
+    cut = radius + dispenser["rail_wall_height"] * np.tan(dispenser["slope"]) + 0.002
     end = (dispenser["tokens_per_rail"] - 1) * diameter + radius + 0.004
     part = {"type": BOX, "rgba": [0.85, 0.85, 0.9, 1], "quat": tilt, **solid}
 
@@ -193,19 +199,26 @@ def _add_dispenser(spec, folder, layout, table_z, solid):
     low, high = -radius + dispenser["station_wall_height"], -radius + dispenser["rail_wall_height"]
     for rail in range(dispenser["rails"]):
         box("floor", rail, (start, end), 0, (floor, -radius), gap / 2 + wall)
-        box("stop", rail, (start, -radius), 0, (-radius, radius), dispenser["stop_width"] / 2)
+        box(
+            "stop",
+            rail,
+            (start, -radius),
+            dispenser["stop_offset"],
+            (-radius, radius),
+            dispenser["stop_width"] / 2,
+        )
         for side, name in ((1, "left"), (-1, "right")):
             y = side * (gap + wall) / 2
             box(f"station_{name}", rail, (start, cut), y, (-radius, low), wall / 2)
             box(f"wall_{name}", rail, (cut, end), y, (-radius, high), wall / 2)
-    # Its foot: a plate before the lowest station that carries the four markers, flat and facing up
+    # Its marker plate: a plate before the lowest station that carries the four markers, flat and facing up
     # (layout.dispenser_marker_centers), and reaches under the rails.
     markers = dispenser["markers"]
     centres = np.array(list(connect4_layout.dispenser_marker_centers(layout).values()))
     low, high = centres.min(axis=0) - markers["plate"] / 2, centres.max(axis=0) + markers["plate"] / 2
     high[1] = gap / 2 + wall  # up to the rails' far wall
     body.add_geom(
-        name="dispenser_foot",
+        name="dispenser_marker_plate",
         type=BOX,
         size=[*(high - low)[:2] / 2, 0.001],
         pos=[*(high + low)[:2] / 2, centres[0][2] - 0.0015],
@@ -214,7 +227,7 @@ def _add_dispenser(spec, folder, layout, table_z, solid):
     )
     for i, centre in connect4_layout.dispenser_marker_centers(layout).items():
         _add_marker(spec, folder, body, layout["markers"]["dictionary"], i, markers, centre, [1, 0, 0, 0])
-    # What holds it all, drawn only: a leg under the foot, a post from the table to the top rail.
+    # What holds it all, drawn only: a leg under the marker plate, a post from the table to the top rail.
     top = connect4_layout.waiting(layout, dispenser["rails"] - 1, 2)
     table = table_z - T[2, 3]
     drawn = {"type": BOX, "rgba": [0.75, 0.75, 0.8, 1], "contype": 0, "conaffinity": 0}

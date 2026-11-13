@@ -1,5 +1,8 @@
-# One move of the Connect Four game (phase2/P2-02 §2.3): the token held at HANDOVER goes into a column.
-geometry_msgs/Point target  # the token's centre at the release, base_link, m (so101_connect4.board.column_target)
+# One move of the Connect Four game (phase2/P2-02 §2.3). /brain/drop: the token held at HANDOVER goes into a
+# column. /brain/pick: a token is taken at a station of the dispenser and brought to HANDOVER (ADR-041).
+# The token's centre in base_link, m: at the release (so101_connect4.board.column_target), or where it waits at
+# its station (board.station_target)
+geometry_msgs/Point target
 ---
 bool success    # replied at the end of the move, the arm back at HANDOVER
 string message  # "done in <s> s"; or no_token, unreachable, not_at_handover, not_idle:<state>, busy, no_joint_states, stopped, timeout:<step>

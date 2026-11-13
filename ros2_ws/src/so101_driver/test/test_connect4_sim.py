@@ -212,3 +212,9 @@ def test_with_the_robot_on_red_the_true_board_counts_red_as_the_robots(sim, red_
     cells = red_robot.board()
     assert cells[0] == ROBOT
     assert cells[7] == HUMAN
+
+
+def test_on_a_scene_without_a_dispenser_there_is_none_to_empty_or_to_fill(sim, person):
+    """The dispenser of the game's scene is so101_bringup's test_connect4_dispenser.py (#259)."""
+    assert person.empty_dispenser() == (False, "no dispenser in this scene")
+    assert person.fill_dispenser() == (False, "no dispenser in this scene")

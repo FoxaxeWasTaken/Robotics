@@ -1,6 +1,7 @@
 """The drop of phase 2 (docs/project/phase2/P2-02 §2): the joints that hold a token above a column of an
 edge-on grid, the jaws normal to the grid (release_pose), and one move of /brain/drop or /brain/handover as
-steps (drop_steps, handover_steps) that Move runs tick by tick, as fsm.Fsm does a cycle. Pure, no ROS.
+steps (drop_steps, handover_steps) that Move runs tick by tick, as fsm.Fsm does a cycle; pick_steps is the
+move of /brain/pick, a token taken at a station of the dispenser with the same pose (ADR-041). Pure, no ROS.
 kinematics.py and fsm.py are unchanged: release_pose composes ik_pos and ik_point, Move takes fsm.Params.
 
 The target is the token's centre, not the TCP: the token rests on the fixed jaw, 3.15 mm off the TCP. The pose
@@ -29,6 +30,18 @@ DESCENT_V = 0.3  # rad/s, from the pre-drop to the release; the motion's v_max i
 # the driver's limiter (1.5) [MES-73]. A ratio: an overlay that slows the arm slows these legs too.
 EMPTY_SPEEDUP = 1.4
 NO_TOKEN = "no_token"  # Move's result when the jaws closed on nothing
+PICK_ABOVE = 0.040  # m above a station's token: the jaws pass over the station's walls [MES-75]
+PICK_STEP = 0.010  # m between the waypoints of the way down and up: 16 of them every 5 mm took 8 s
+PICK_OPEN_PCT = 40.0  # the jaws on the way down into a station [MES-75]
+# m along the jaws' axis. On the way down the fixed jaw stays PICK_ASIDE further from the token than the
+# pose that holds one: there it passed 0.8 mm from the token's face, the slot leaves the token 1.5 mm of play
+# and the camera places a station within 1.5 mm, so it landed on a token and stopped. Then the arm moves
+# sideways until the fixed jaw is where it holds a token in the slot's middle: a token closed on sits
+# PICK_SEAT nearer the fixed jaw than TOKEN_IN_TCP says, and lifted there it rubbed the rail's wall [MES-77]
+PICK_ASIDE = 0.0025
+PICK_SEAT = 0.0008
+AT_HANDOVER = 0.05  # rad: every arm joint this close to HANDOVER is there; a drop or a pick starts there
+HANDOVER_RISE = 0.040  # m straight up before a handover from elsewhere: out of a station [MES-77]
 
 
 def release_pose(kin, target, q_seed=None) -> np.ndarray | None:
@@ -69,6 +82,7 @@ class Step:
     gripper: float | None = None  # %, sent as the step starts
     wait: float = 0.0  # s, its shortest time
     held_by: float | None = None  # s: the token is held by then (judged from `wait` on), or the move ends
+    otherwise: tuple = ()  # the steps after the jaws opened again on nothing: the way out, then no_token
 
 
 @dataclass(frozen=True)
@@ -110,9 +124,61 @@ def drop_steps(kin, target, handover, p) -> list | None:
     ]
 
 
-def handover_steps(handover, p) -> list:
-    """The jaws open, the arm to `handover`: where a token is given and the camera sees the whole grid."""
-    return [Step("handover", q=np.asarray(handover, dtype=float), gripper=p.open_pct)]
+def pick_steps(kin, target, handover, p) -> list | None:
+    """The steps of one pick at the dispenser (ADR-041), from `handover` with empty jaws: above the station,
+    straight down beside the token with the jaws part open, sideways until the fixed jaw is seated on it,
+    close and check the grip, straight up, back to `handover` with the token. `target`: the centre of the
+    token that waits at the station, in the middle of its slot, base_link. Closed on nothing, the jaws open
+    and the arm comes back the same way before the move says no_token. None if any pose of the way is out of
+    reach: the way down has no waypoint to spare, a jaw passes 3 mm from the dispenser [MES-75]."""
+    handover, target = np.asarray(handover, dtype=float), np.asarray(target, dtype=float)
+    jaws = _release_axes(kin.arm_azimuth(target))[:, 0]  # from the token to the fixed jaw
+    count = round(PICK_ABOVE / PICK_STEP)
+
+    def way(aside, heights, seed):
+        """The poses at these heights above the station, `aside` along the jaws' axis; None if one is out
+        of reach."""
+        poses = []
+        for k in heights:
+            seed = release_pose(kin, target + aside * jaws + np.array([0.0, 0.0, k * PICK_STEP]), seed)
+            if seed is None:
+                return None
+            poses.append(seed)
+        return poses
+
+    down = way(PICK_ASIDE, range(count, -1, -1), handover)  # from above the station down to it
+    up = down and way(-PICK_SEAT, range(count + 1), down[-1])  # seated, then up
+    if not up:
+        return None
+    back = (
+        *(Step(f"lift_{k}", q=q) for k, q in enumerate(up[1:], start=1)),
+        Step("handover", q=handover),
+    )
+    return [
+        Step("above", q=down[0], gripper=PICK_OPEN_PCT),
+        *(Step(f"down_{k}", q=q) for k, q in enumerate(down[1:], start=1)),
+        Step("seat", q=up[0]),
+        Step("close", gripper=p.close_pct, wait=p.grasp_wait_s, held_by=p.grasp_timeout_s, otherwise=back),
+        *back,
+    ]
+
+
+def handover_steps(handover, p, kin=None, q=None) -> list:
+    """The jaws open, the arm to `handover`: where it waits, and the camera sees the whole grid. With `kin`
+    and the joints `q`, away from `handover`, the arm first rises HANDOVER_RISE straight up, the tool's
+    orientation kept: a pick cut short may have left it down in a station of the dispenser, and one joint
+    motion from there sweeps the stop [MES-77]. A waypoint without a pose ends the rise there."""
+    handover, rise = np.asarray(handover, dtype=float), []
+    if q is not None and np.max(np.abs(np.asarray(q, dtype=float) - handover)) > AT_HANDOVER:
+        pose, seed = kin.fk(q), q
+        for k in range(1, round(HANDOVER_RISE / PICK_STEP) + 1):
+            seed = kin.ik_pose(pose[:3, 3] + [0.0, 0.0, k * PICK_STEP], pose[:3, :3], q_seed=seed)
+            if seed is None:
+                break
+            rise.append(Step(f"rise_{k}", q=seed))
+    steps = [*rise, Step("handover", q=handover)]
+    steps[0] = Step(steps[0].name, q=steps[0].q, gripper=p.open_pct)
+    return steps
 
 
 class Move:
@@ -183,7 +249,8 @@ class Move:
                 # Nothing held: the jaws open again, and the result waits for them. A token given right after
                 # the reply needs them open.
                 self._end(now)
-                self._steps = [Step("reopen", gripper=self._p.open_pct, wait=self._p.release_wait_s)]
+                reopen = Step("reopen", gripper=self._p.open_pct, wait=self._p.release_wait_s)
+                self._steps = [reopen, *step.otherwise]
                 self._result = NO_TOKEN
             else:
                 return Out(command, sent)

@@ -12,6 +12,11 @@ READ_BOARD, and READ_BOARD only from a new game's MOVE, from a robot's MOVE, or 
 MOVE the node calls /brain/drop (a column) or /brain/handover (a new game: the arm to HANDOVER); both reply at
 the end of the move (P2-02 §6), and the reply decides.
 
+With a token dispenser (`dispenser`, the node's token_source, ADR-041) a robot's MOVE is two calls:
+/brain/pick at the highest station the camera sees a token at, on a read of the stations newer than the MOVE,
+then /brain/drop. No hand gives the token, so WAIT_HUMAN with the robot to play is rare: an empty dispenser,
+one the camera does not read, a pick that closed on nothing.
+
 | Event | Seen by | Then |
 | illegal column, full column | client, `legal` of /connect4/state; driver refuses too | nothing changes |
 | human token never seen | READ_BOARD timeout | FIX_BOARD not_seen:human |
@@ -19,7 +24,9 @@ the end of the move (P2-02 §6), and the reply decides.
 | board invalid | reader's valid = false | FIX_BOARD <its reason> |
 | new game: tokens left, grid not read | READ_BOARD timeout, "not yet" before | FIX_BOARD board_not_empty |
 | board never stable | reader silent, READ_BOARD timeout | FIX_BOARD not_seen:* |
-| no token in the jaws | /brain/drop reply no_token, arm still | WAIT_HUMAN, turn robot: give a token |
+| no token in the jaws | /brain/drop or /brain/pick reply no_token | WAIT_HUMAN, turn robot: give a token |
+| dispenser empty | /connect4/stations, no station holds a token | WAIT_HUMAN dispenser_empty: fill it |
+| dispenser not read | no /connect4/stations for the read timeout | WAIT_HUMAN dispenser_not_seen |
 | token lost | READ_BOARD timeout with a recent unchanged read | WAIT_HUMAN, turn robot: give a token |
 | token in the wrong column | READ_BOARD | the camera wins, the game goes on, `missed` counts it |
 | brain refuses, drop fails | /brain/drop or /brain/handover reply | ERROR |
@@ -60,7 +67,8 @@ class Expect(StrEnum):
 NEW_GAME_FROM = {State.IDLE, State.WAIT_HUMAN, State.FIX_BOARD, State.GAME_OVER, State.ERROR}
 HUMAN_DONE_FROM = {State.WAIT_HUMAN, State.FIX_BOARD}
 TIMED = {State.MOVE: "move", State.READ_BOARD: "read", State.WAIT_HUMAN: "wait", State.THINK: "think"}
-NO_TOKEN = "no_token"  # /brain/drop's refusal when the jaws closed on nothing (P2-02 §6)
+NO_TOKEN = "no_token"  # /brain/drop's and /brain/pick's refusal when the jaws closed on nothing (P2-02 §6)
+CHOOSE, PICK = "choose", "pick"  # the steps of a MOVE before its drop, with a dispenser
 STOPPED = "stopped"  # the reply of a move cut by /brain/stop
 
 
@@ -81,6 +89,12 @@ class Board:
 
 
 @dataclass(frozen=True)
+class Stations:
+    waiting: tuple  # for each rail of the dispenser from the lowest: a token waits at its station
+    received: float  # s, on the step clock
+
+
+@dataclass(frozen=True)
 class Inputs:
     ready: bool = True  # first /end_effector_pose, /connect4/grid_pose, /brain/drop found
     board: Board | None = None  # last /connect4/board
@@ -91,12 +105,14 @@ class Inputs:
     engine: game.Choice | None = None  # the engine's answer, once it has one
     move_reply: tuple | None = None  # (success, message) of /brain/drop or /brain/handover, at the move's end
     brain_states: tuple = ()  # /brain_state messages since the last step: STOPPED cuts a move
+    stations: Stations | None = None  # last /connect4/stations
 
 
 @dataclass
 class Outputs:
     think: tuple | None = None  # (me, mask): submit best_move
     drop: int | None = None  # column: call /brain/drop
+    pick: int | None = None  # station of the dispenser: call /brain/pick
     handover: bool = False  # call /brain/handover: the arm to HANDOVER, the gripper open
     stop_brain: bool = False
     transition: str | None = None
@@ -105,6 +121,7 @@ class Outputs:
 @dataclass
 class Turns:
     p: Params = field(default_factory=Params)
+    dispenser: bool = False  # the robot takes its tokens at the dispenser; else a hand gives them
 
     def __post_init__(self):
         self.state = State.IDLE
@@ -121,6 +138,7 @@ class Turns:
         self._expect = Expect.EMPTY
         self._robot_first = False
         self._column = None
+        self._taking = None  # in a MOVE with a dispenser: CHOOSE a station, then PICK; None: the drop
         self._why = {}  # of the robot's move: the engine's score and depth, wins_in or loses_in if proven
         self._since = None  # the first step's time: the node's clock does not start at 0
 
@@ -152,6 +170,7 @@ class Turns:
             "seconds": {state: round(spent, 2) for state, spent in self.seconds.items()},
             "lost": self.lost,
             "missed": self.missed,
+            "token_source": "dispenser" if self.dispenser else "hand",
         }
 
     def step(self, now, inputs) -> Outputs:
@@ -199,7 +218,10 @@ class Turns:
             self.seconds[TIMED[self.state]] += spent
         self.state, self.reason, self._since = state, reason, self._now
         self._out.transition = f"{old} → {self.label} ({spent:.2f} s in {old})"
+        self._taking = None  # a pick cut by a stop leaves nothing for the next MOVE
         match state:
+            case State.MOVE if self.dispenser and self._column is not None:
+                self._taking = CHOOSE
             case State.MOVE:
                 self._out.drop, self._out.handover = self._column, self._column is None
             case State.THINK:
@@ -273,7 +295,27 @@ class Turns:
             self.turn = "human"
             self._go(State.WAIT_HUMAN)
 
+    def _choose(self, t):
+        """The station to take the token from, on a read of the dispenser newer than this MOVE."""
+        stations = self._in.stations
+        if stations is not None and stations.received > self._since:
+            if any(stations.waiting):
+                # the highest: the nearest to HANDOVER, the wrist turns the least [MES-77]
+                self._out.pick = max(rail for rail, there in enumerate(stations.waiting) if there)
+                self._taking = PICK
+            else:
+                self._wait_for_the_dispenser("dispenser_empty")
+        elif t > self.p.read_timeout_s:
+            self._wait_for_the_dispenser("dispenser_not_seen")
+
+    def _wait_for_the_dispenser(self, reason):
+        self.turn = "robot"
+        self._go(State.WAIT_HUMAN, reason)
+
     def _move(self, t):
+        if self._taking is CHOOSE:
+            self._choose(t)
+            return
         reply = self._in.move_reply
         if reply is None:
             if t > self.p.move_timeout_s:
@@ -281,7 +323,10 @@ class Turns:
                 self._go(State.ERROR, "timeout:MOVE")
             return
         success, message = reply
-        if success:
+        taking, self._taking = self._taking, None
+        if success and taking is PICK:  # the token is in the jaws at HANDOVER: the same MOVE goes on
+            self._out.drop = self._column
+        elif success:
             self._expect = Expect.EMPTY if self._column is None else Expect.ROBOT
             self._go(State.READ_BOARD)
         elif message == NO_TOKEN:  # the jaws closed on nothing: the arm has not moved

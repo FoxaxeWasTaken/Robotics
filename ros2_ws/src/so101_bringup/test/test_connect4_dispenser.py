@@ -14,7 +14,7 @@ import mujoco
 import numpy as np
 import pytest
 from ament_index_python.packages import get_package_share_directory
-from so101_sim import SO101Sim
+from so101_sim import ARM_JOINTS, SO101Sim
 from test_connect4_scene import ARM_BODIES, CAMERA, GRID, HANDOVER, LAYOUT, SCENE, T_GRID, URDF, set_arm
 
 from so101_brain import drop
@@ -22,10 +22,11 @@ from so101_brain.drop import release_pose
 from so101_brain.fsm import Params
 from so101_brain.kinematics import Kinematics
 from so101_bringup import sim_scene
-from so101_common.robot import pct_to_rad
+from so101_common.robot import pct_to_rad, rad_to_pct
 from so101_connect4 import board, layout
 from so101_driver.camera import opencv_intrinsics
 from so101_driver.connect4_sim import HUMAN, ROBOT, Connect4Sim
+from so101_driver.effort import normalized_effort
 from so101_perception.calibration import detect_markers
 from so101_perception.geometry import load_extrinsics
 
@@ -221,6 +222,242 @@ def test_a_whole_drop_from_handover_stays_clear_of_the_dispenser(sim):
         assert out.result == "", (column, out.result)
     print("handover and drops, arm to dispenser, mm:", closest)
     assert min(gap for gap, *_ in closest.values()) > 10.0, closest
+
+
+# The pick (#259): /brain/pick's steps on the scene, as the brain's tick runs them.
+
+PICKS = int(os.environ.get("CONNECT4_DISPENSER_PICKS", "2"))  # tokens taken of each rail; 7 is all of them
+
+
+@pytest.mark.parametrize("rail", range(RAILS))
+def test_a_whole_pick_from_handover_stays_clear_of_the_dispenser(sim, rail):
+    """Every pose of the way on an arm that follows its commands, at a station nothing waits at: the jaws
+    part open on the way down beside the token's place, shut on nothing, wide open on the way back."""
+    kin, p = Kinematics(str(URDF)), Params()
+    gripper = sim.model.joint("gripper").qposadr[0]
+    target = (T_DISPENSER @ [*layout.station(LAYOUT, rail), 1.0])[:3]
+    move, q, tick, closest = (
+        drop.Move(drop.pick_steps(kin, target, np.array(HANDOVER), p), p),
+        np.array(HANDOVER),
+        0,
+        {},
+    )
+    while True:
+        out = move.step(tick * 0.02, q, 0.0, 0.0)
+        q = q if out.command is None else out.command
+        if out.gripper is not None:
+            sim.data.qpos[gripper] = pct_to_rad(out.gripper)
+        set_arm(sim, q)
+        step = move.name.partition("_")[0]  # the step that runs now
+        closest[step] = min(closest.get(step, (np.inf,)), clearance(sim))
+        if out.result is not None:
+            break
+        tick += 1
+    assert out.result == drop.NO_TOKEN
+    print(f"pick at station {rail}, arm to dispenser by step, mm:", closest)
+    assert set(closest) == {"above", "down", "seat", "close", "reopen", "lift", "handover", ""}
+    assert min(gap for gap, *_ in closest.values()) > 2.0, closest  # shut on nothing too, beside the stop
+
+
+def test_a_handover_from_any_pose_of_a_pick_stays_clear_of_the_dispenser(sim):
+    """A stop cuts a pick anywhere; the next game starts with /brain/handover from there: the jaws open, the
+    arm rises straight up, then turns to HANDOVER (06 §5.1). In one joint motion from the bottom of a station
+    the moving jaw swept 9 mm into the stop."""
+    kin, p = Kinematics(str(URDF)), Params()
+    gripper = sim.model.joint("gripper").qposadr[0]
+    closest = {}
+    for rail in range(RAILS):
+        target = (T_DISPENSER @ [*layout.station(LAYOUT, rail), 1.0])[:3]
+        steps = drop.pick_steps(kin, target, np.array(HANDOVER), p)
+        seated = next(i for i, step in enumerate(steps) if step.name == "seat")
+        for i, step in enumerate(steps):
+            if step.q is None or step.name == "handover":
+                continue
+            # the jaws as the pick has them there: part open on the way down, then shut, on a token or not
+            for jaws in [drop.PICK_OPEN_PCT] if i < seated else [drop.PICK_OPEN_PCT, p.close_pct]:
+                back = drop.handover_steps(HANDOVER, p, kin, np.array(step.q))
+                move, q, tick = drop.Move(back, p), np.array(step.q), 0
+                sim.data.qpos[gripper] = pct_to_rad(jaws)
+                while True:
+                    out = move.step(tick * 0.02, q, 0.0, 0.0)
+                    q = q if out.command is None else out.command
+                    if tick == 25:
+                        sim.data.qpos[gripper] = pct_to_rad(p.open_pct)  # the jaws need 0.5 s to open
+                    set_arm(sim, q)
+                    key = (rail, step.name, jaws)
+                    closest[key] = min(closest.get(key, (np.inf,)), clearance(sim))
+                    if out.result is not None:
+                        break
+                    tick += 1
+    worst = min(closest.items(), key=lambda item: item[1][0])
+    print("handover from a pick's poses, arm to dispenser, mm: the closest", worst)
+    assert worst[1][0] > 2.0, closest
+
+
+def touching(sim) -> set:
+    """The (arm body, dispenser geom) pairs in contact now."""
+    model = sim.model
+    arm = {model.body(name).id for name in ARM_BODIES}
+    pairs = set()
+    for contact in sim.data.contact[: sim.data.ncon]:
+        for a, b in ((contact.geom1, contact.geom2), (contact.geom2, contact.geom1)):
+            if model.geom_bodyid[a] in arm and model.geom(b).name.startswith("dispenser_"):
+                pairs.add((model.body(model.geom_bodyid[a]).name, model.geom(b).name))
+    return pairs
+
+
+def drive(sim, person, move) -> tuple:
+    """A move on the scene with its contacts, the brain's tick and the driver's at 50 Hz: (its result, s,
+    what of the dispenser the arm touched)."""
+    gripper, tick, touched = sim.model.joint("gripper").qposadr[0], 0, set()
+    while True:
+        q = np.array([sim.data.qpos[sim.model.joint(name).qposadr[0]] for name in ARM_JOINTS])
+        effort = normalized_effort(sim.model, sim.data, ["gripper"])[0]
+        out = move.step(tick * 0.02, q, effort, rad_to_pct(sim.data.qpos[gripper]))
+        if out.command is not None:
+            for name, value in zip(ARM_JOINTS, out.command, strict=True):
+                sim.data.ctrl[sim.model.actuator(name).id] = value
+        if out.gripper is not None:
+            sim.data.ctrl[sim.model.actuator("gripper").id] = pct_to_rad(out.gripper)
+        if out.result is not None:
+            return out.result, tick * 0.02, touched
+        run(sim, person, 0.02)
+        touched |= touching(sim)
+        tick += 1
+
+
+def pick(sim, person, rail, aim=0.0) -> tuple:
+    """A pick at a station; `aim`: how far across the slot the brain is told the token is, m."""
+    kin, p = Kinematics(str(URDF)), Params()
+    target = (T_DISPENSER @ [*layout.station(LAYOUT, rail), 1.0])[:3] + aim * T_DISPENSER[:3, 1]
+    return drive(sim, person, drop.Move(drop.pick_steps(kin, target, np.array(HANDOVER), p), p))
+
+
+@pytest.mark.parametrize("rail", [0, RAILS - 1])
+def test_a_pick_takes_the_token_wherever_it_stands_in_its_slot_and_wherever_the_camera_puts_it(
+    sim, person, rail
+):
+    """The slot leaves the token 1.5 mm of play on each side, and the camera places a station within 1.5 mm
+    [MES-76]: every corner of the two. Aimed at the slot's middle, the fixed jaw came down 0.8 mm from the
+    token's face, landed on a token 1 mm nearer and stopped there: one game of ten lost a pick [MES-77]."""
+    name, across, picks = token(rail, 0), T_DISPENSER[:3, 1], {}
+    joint = sim.model.joint(f"{name}_free").qposadr[0]
+    for stands in (-0.0015, 0.0, 0.0015):
+        for aim in (-0.0015, 0.0, 0.0015):
+            person.reset_board()
+            sim.data.ctrl[sim.model.actuator("gripper").id] = pct_to_rad(Params().open_pct)
+            run(sim, person, 1.0)
+            sim.data.qpos[joint : joint + 3] += across * stands
+            run(sim, person, 0.5)
+            result, _, touched = pick(sim, person, rail, aim)
+            held = np.linalg.norm(sim.data.body(name).xpos - sim.data.site("gripperframe").xpos)
+            key = (round(stands * 1e3, 1), round(aim * 1e3, 1))
+            picks[key] = (result or "done", round(held * 1e3, 1), touched)
+            if result:  # the arm stopped in the station: back to HANDOVER for the next one
+                set_arm(sim, HANDOVER)
+    print(f"picks at station {rail}, (token mm, aim mm): (result, token to TCP mm, touched):", picks)
+    assert {result for result, *_ in picks.values()} == {"done"}, picks
+    assert max(held for _, held, _ in picks.values()) < 6.0, picks
+    assert all(touched == set() for *_, touched in picks.values()), picks
+
+
+def test_the_arm_takes_the_tokens_of_each_rail_and_the_next_one_comes_to_the_station(sim, person):
+    """The real contacts: the token leaves its station between the jaws and is at HANDOVER with the arm,
+    held where a hand gives one (connect4_sim.give_token); the arm touches nothing of the dispenser; the
+    queue comes down behind."""
+    run(sim, person, 2.0)
+    taken, open_pct = {}, Params().open_pct
+    for rail in range(RAILS):
+        for place in range(PICKS):
+            name = token(rail, place)
+            assert off_place(sim, name, layout.station(LAYOUT, rail))[0] < 0.001, (rail, place)
+            result, seconds, touched = pick(sim, person, rail)
+            assert result == "", (rail, place, result)
+            assert touched == set(), (rail, place)
+            R = sim.data.body("gripper").xmat.reshape(3, 3)
+            across, along, depth = R.T @ (sim.data.body(name).xpos - sim.data.site("gripperframe").xpos)
+            tilt = np.degrees(
+                np.arccos(min(1.0, abs(R[:, 0] @ sim.data.body(name).xmat.reshape(3, 3)[:, 2])))
+            )
+            taken[rail, place] = (
+                round(seconds, 1),
+                *np.round([across * 1e3, along * 1e3, depth * 1e3, tilt], 1),
+            )
+            assert max(abs(across), abs(along), abs(depth)) < 0.005, taken  # between the jaws, at the TCP
+            assert tilt < 8.0, taken
+            # the person takes it out of the jaws: the next pick starts with empty jaws
+            sim.data.ctrl[sim.model.actuator("gripper").id] = pct_to_rad(open_pct)
+            joint = sim.model.joint(f"{name}_free").qposadr[0]
+            sim.data.qpos[joint : joint + 3] = [-0.6, -0.4 + 0.05 * len(taken), 0.0]
+            run(sim, person, 1.0)
+    print("picks (s; mm across the jaws, along, in depth from the TCP; tilt deg):", taken)
+
+
+def test_a_token_taken_at_the_dispenser_is_dropped_in_its_column(sim, person):
+    kin, p = Kinematics(str(URDF)), Params()
+    run(sim, person, 2.0)
+    assert pick(sim, person, 0)[0] == ""
+    column = board.column_target(LAYOUT, T_GRID, 3)
+    result, *_ = drive(sim, person, drop.Move(drop.drop_steps(kin, column, np.array(HANDOVER), p), p))
+    assert result == ""
+    run(sim, person, 1.0)
+    cells = person.board()
+    assert cells[3] == ROBOT, cells
+    assert sum(cells) == ROBOT
+
+
+def test_a_pick_at_an_emptied_station_is_no_token_and_the_arm_comes_back(sim, person):
+    for place in range(PER_RAIL):  # the person empties the top rail
+        joint = sim.model.joint(f"{token(2, place)}_free").qposadr[0]
+        sim.data.qpos[joint : joint + 3] = [-0.6, -0.4 + 0.05 * place, 0.0]
+    run(sim, person, 1.0)
+    result, _, touched = pick(sim, person, 2)
+    assert result == drop.NO_TOKEN
+    assert touched == set()
+    q = [sim.data.qpos[sim.model.joint(name).qposadr[0]] for name in ARM_JOINTS]
+    np.testing.assert_allclose(q, HANDOVER, atol=0.05)
+
+
+def test_the_person_empties_the_dispenser_then_fills_it_with_the_tokens_not_played(sim, person):
+    """What a robustness case needs (#259): an empty dispenser in the middle of a game, then filled again.
+    Each rail gets its own tokens back from its station up; the one in the grid stays there."""
+    run(sim, person, 2.0)
+    assert person.drop_token(3, ROBOT)[0]  # played: the top token of the lowest rail
+    run(sim, person, 1.0)
+    played = token(0, PER_RAIL - 1)
+    assert person.empty_dispenser() == (True, "20 tokens taken out of the dispenser")
+    run(sim, person, 1.0)
+    table = -LAYOUT["placement"]["riser"]
+    for rail in range(RAILS):
+        for place in range(PER_RAIL):
+            name = token(rail, place)
+            if name != played:
+                assert np.linalg.norm(in_dispenser(sim, name)) > 0.3, name
+                assert abs(sim.data.body(name).xpos[2] - table - TOKEN["thickness"] / 2) < 0.002, name  # flat
+    assert not person.give_token(100.0)[0]  # no spare token: the hand takes them in the rails
+    assert person.fill_dispenser() == (True, "20 tokens in the dispenser")
+    run(sim, person, 2.0)
+    for rail in range(RAILS):
+        for place in range(PER_RAIL - (rail == 0)):
+            off, aside = off_place(sim, token(rail, place), layout.waiting(LAYOUT, rail, place))
+            assert off < 0.001, (rail, place, off)
+            assert aside < PLAY, (rail, place, aside)
+    assert person.board()[3] == ROBOT
+    assert sum(person.board()) == ROBOT
+    assert person.give_token(100.0)[0]
+
+
+def test_filling_the_dispenser_leaves_the_token_between_the_jaws_and_closes_the_gaps_of_a_rail(sim, person):
+    run(sim, person, 2.0)
+    assert pick(sim, person, 1)[0] == ""  # the arm holds the first token of the middle rail
+    run(sim, person, 1.5)  # the queue came down: 6 tokens from the station up
+    assert person.fill_dispenser() == (True, "20 tokens in the dispenser")
+    run(sim, person, 1.0)
+    held = sim.data.body(token(1, 0)).xpos - sim.data.site("gripperframe").xpos
+    assert np.linalg.norm(held) < 0.01
+    for place in range(PER_RAIL - 1):
+        off, _ = off_place(sim, token(1, place + 1), layout.waiting(LAYOUT, 1, place))
+        assert off < 0.001, (place, off)
 
 
 # The dispenser read by the camera (#258): its pose from its own markers, its stations by the tokens' color.

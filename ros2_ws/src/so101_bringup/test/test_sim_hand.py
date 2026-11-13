@@ -27,6 +27,8 @@ def driver():
     node.create_service(DropToken, "/sim/connect4/drop_token", serve("drop_token"))
     node.create_service(Trigger, "/sim/connect4/give_token", serve("give_token"))
     node.create_service(Trigger, "/sim/connect4/reset_board", serve("reset_board"))
+    node.create_service(Trigger, "/sim/connect4/empty_dispenser", serve("empty_dispenser"))
+    node.create_service(Trigger, "/sim/connect4/fill_dispenser", serve("fill_dispenser"))
     executor = SingleThreadedExecutor()
     executor.add_node(node)
     node.hand = SimHand(node, spin_once=lambda: executor.spin_once(timeout_sec=0.01))
@@ -46,3 +48,9 @@ def test_the_hand_drops_a_red_token_gives_a_yellow_one_and_clears_the_grid(drive
 def test_a_refusal_of_the_driver_comes_back_with_its_message(driver):
     driver.reply = (False, "column 4 is full")
     assert driver.hand.drop_token(4) == (False, "column 4 is full")
+
+
+def test_the_hand_empties_the_dispenser_and_fills_it(driver):
+    assert driver.hand.empty_dispenser() == (True, "done")
+    assert driver.hand.fill_dispenser() == (True, "done")
+    assert driver.calls == [("empty_dispenser",), ("fill_dispenser",)]

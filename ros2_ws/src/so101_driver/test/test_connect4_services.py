@@ -10,7 +10,13 @@ from std_srvs.srv import Trigger
 from so101_driver.driver_node import DriverNode
 from so101_interfaces.srv import DropToken
 
-SERVICES = {"/sim/connect4/drop_token", "/sim/connect4/give_token", "/sim/connect4/reset_board"}
+SERVICES = {
+    "/sim/connect4/drop_token",
+    "/sim/connect4/give_token",
+    "/sim/connect4/reset_board",
+    "/sim/connect4/empty_dispenser",
+    "/sim/connect4/fill_dispenser",
+}
 TRUTH = "/sim/ground_truth/connect4_board"
 
 
@@ -99,3 +105,10 @@ def test_the_true_board_is_published_with_expose_ground_truth(game):
 
 def test_no_true_board_without_expose_ground_truth(game):
     assert not [topic for topic in names(game.get_topic_names_and_types) if "ground_truth" in topic]
+
+
+def test_emptying_and_filling_the_dispenser_answer_what_the_simulated_person_says(game):
+    """The driver's own small scene has no dispenser: the refusal passes through."""
+    for serve in (game._srv_empty_dispenser, game._srv_fill_dispenser):
+        reply = serve(Trigger.Request(), Trigger.Response())
+        assert (reply.success, reply.message) == (False, "no dispenser in this scene")

@@ -18,6 +18,8 @@ MIN_OPEN_PCT = 30.0  # give_token needs the jaws that open
 OFF_FIXED_JAW = 0.0005  # m between the given token's face and the fixed jaw
 GIVE_ALONG, GIVE_DEPTH = 0.003, 0.005  # m: how far a hand misses the TCP, along the grid and in depth
 PARKED = 0.01  # m: a token that close to its start pose is a spare one
+IN_JAWS = 0.03  # m from the TCP: a token that close is between the jaws
+NO_DISPENSER = "no dispenser in this scene"
 OFF_RAIL = 0.005  # m: a robot's token further than that from its rail's line has left the dispenser
 AT_STATION = 0.001  # m: a queue whose first token is further from its station is on its way down
 WAKE_FORCE = 1e-6  # N, downwards, for one tick: it wakes a sleeping token, it moves nothing [MES-75]
@@ -112,29 +114,32 @@ class Connect4Sim:
                 return name
         return None
 
+    def _cell(self, name):
+        """The index of the grid's cell a token is in, row-major from the bottom row, or None."""
+        data = self._sim.data
+        R, origin = data.xmat[self._grid].reshape(3, 3), data.xpos[self._grid]
+        x, y, z = (data.body(name).xpos - origin) @ R
+        column, row = round(x / self._pitch), round(z / self._row_pitch)
+        in_cell = (
+            abs(x / self._pitch - column) < IN_CELL
+            and abs(z / self._row_pitch - row) < IN_CELL
+            and abs(y) < self._slot
+            and 0 <= column < self._columns
+            and 0 <= row < self._rows
+        )
+        return row * self._columns + column if in_cell else None
+
     def board(self) -> list:
         """The true board: 42 cells, row-major from the bottom row, 0 empty, HUMAN or ROBOT. A token counts
         once at rest in a cell."""
         data = self._sim.data
-        R, origin = data.xmat[self._grid].reshape(3, 3), data.xpos[self._grid]
         cells = [0] * (self._columns * self._rows)
         for value, color in self._color.items():
             for name in self._tokens[color]:
                 _, v = self._addresses(name)
-                x, y, z = (data.body(name).xpos - origin) @ R
-                column, row = round(x / self._pitch), round(z / self._row_pitch)
-                in_cell = (
-                    abs(x / self._pitch - column) < IN_CELL
-                    and abs(z / self._row_pitch - row) < IN_CELL
-                    and abs(y) < self._slot
-                )
-                if (
-                    in_cell
-                    and 0 <= column < self._columns
-                    and 0 <= row < self._rows
-                    and np.linalg.norm(data.qvel[v : v + 3]) < AT_REST
-                ):
-                    cells[row * self._columns + column] = value
+                cell = self._cell(name)
+                if cell is not None and np.linalg.norm(data.qvel[v : v + 3]) < AT_REST:
+                    cells[cell] = value
         return cells
 
     def drop_token(self, column, color) -> tuple:
@@ -178,6 +183,41 @@ class Connect4Sim:
         self.floating = name
         mujoco.mj_forward(model, data)
         return True, f"{name} between the jaws"
+
+    def empty_dispenser(self) -> tuple:
+        """The person takes every token out of the rails and lays it flat on the table, at its `spare_` site
+        of the scene: a dispenser found empty in the middle of a game."""
+        if self._dispenser < 0:
+            return False, NO_DISPENSER
+        names = [name for queue in self._rails() for name, _ in queue]
+        for name in names:
+            self._place(name, self._sim.data.site(f"spare_{name}").xpos, np.eye(3))
+        mujoco.mj_forward(self._sim.model, self._sim.data)
+        return True, f"{len(names)} tokens taken out of the dispenser"
+
+    def fill_dispenser(self) -> tuple:
+        """The person puts back in the rails every robot's token that is neither in the grid nor between the
+        jaws: each rail gets its own, from its station up, where the scene started them."""
+        if self._dispenser < 0:
+            return False, NO_DISPENSER
+        model, data = self._sim.model, self._sim.data
+        tcp, names, count = data.site("gripperframe").xpos, self._tokens[self._color[ROBOT]], 0
+        for first in range(0, len(names), self._per_rail):
+            back = [
+                name
+                for name in names[first : first + self._per_rail]
+                if self._cell(name) is None
+                and name != self.floating
+                and np.linalg.norm(data.body(name).xpos - tcp) > IN_JAWS
+            ]
+            for place, name in enumerate(back):
+                (q, v), start = self._addresses(name), self._addresses(names[first + place])[0]
+                data.qpos[q : q + 7] = model.qpos0[start : start + 7]
+                data.qvel[v : v + 6] = 0
+                data.qfrc_applied[v : v + 6] = 0
+            count += len(back)
+        mujoco.mj_forward(model, data)
+        return True, f"{count} tokens in the dispenser"
 
     def tick(self):
         """Each control tick of the driver."""
