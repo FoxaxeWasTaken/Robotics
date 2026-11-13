@@ -413,7 +413,8 @@ class BrainNode(rclpy.node.Node):
             return f"not_idle:{self._fsm.label}"
         if self._move is not None or self._motion is not None:
             return "busy"
-        if self._joints is None:  # stale ones: the move's first tick ends it, nothing commanded (_step_move)
+        # Checked here, before any pose is solved: a dead driver is refused at once, nothing commanded.
+        if self._joints is None or self._now() - self._joints[2] > self._p.max_joint_state_age_s:
             return "no_joint_states"
         return None
 
@@ -434,7 +435,9 @@ class BrainNode(rclpy.node.Node):
         q, _, received, effort, gripper = self._joints
         if self._fsm.state is not State.IDLE:  # /brain/stop: the FSM froze the arm
             return self._end_move("stopped")
-        if now - received > self._p.max_joint_state_age_s:  # the FSM ignores stale joints in IDLE
+        # The joints' age counts from the move's start: solving its poses held the executor, and the joints
+        # that came meanwhile are still queued at the first tick (over 0.5 s on a slow machine, #252).
+        if now - max(received, m["start"]) > self._p.max_joint_state_age_s:  # the FSM ignores them in IDLE
             return self._end_move("no_joint_states")  # no command: the driver is gone
         m["ticks"].append(period)
         out = m["move"].step(now, q, effort, gripper)

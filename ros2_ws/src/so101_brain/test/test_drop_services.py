@@ -21,6 +21,7 @@ from std_msgs.msg import String
 from std_srvs.srv import Trigger
 from test_drop import COLUMNS, token_centre
 
+from so101_brain import brain_node, drop
 from so101_brain.brain_node import BrainNode
 from so101_brain.fsm import State
 from so101_brain.kinematics import Kinematics
@@ -237,6 +238,26 @@ def test_an_unreachable_target_is_refused_without_any_command(arm):
     reply = arm.call(arm.drop, drop_request((0.7, 0.0, 0.2)), timeout=3.0)
     assert (reply.success, reply.message) == (False, "unreachable")
     assert len(arm.commands) == before
+
+
+def test_a_drop_whose_poses_take_long_to_solve_still_starts(arm, monkeypatch):
+    """The poses are solved in the service call, which holds the executor: the /joint_states that came
+    meanwhile are still queued at the move's first tick. On a slow machine the solve took over
+    fsm.max_joint_state_age_s, and the move ended there with `no_joint_states` (a CI runner, #252)."""
+    solve = drop.drop_steps
+
+    def slow(*args):
+        time.sleep(0.8)  # longer than the age that makes joints stale, 0.5 s
+        return solve(*args)
+
+    monkeypatch.setattr(brain_node.drop, "drop_steps", slow)
+    arm.to_handover()
+    arm.token = True
+    try:
+        reply = arm.call(arm.drop, drop_request())
+    finally:
+        arm.token = False
+    assert reply.success, reply.message
 
 
 def test_a_dead_driver_refuses_a_move_and_ends_a_running_one(arm):
