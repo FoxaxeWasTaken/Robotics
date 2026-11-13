@@ -7,7 +7,7 @@ from rclpy.executors import SingleThreadedExecutor
 from std_srvs.srv import Trigger
 
 from so101_bringup.sim_hand import SimHand
-from so101_interfaces.srv import DropToken
+from so101_interfaces.srv import DropToken, MoveGrid
 
 
 @pytest.fixture
@@ -29,6 +29,13 @@ def driver():
     node.create_service(Trigger, "/sim/connect4/reset_board", serve("reset_board"))
     node.create_service(Trigger, "/sim/connect4/empty_dispenser", serve("empty_dispenser"))
     node.create_service(Trigger, "/sim/connect4/fill_dispenser", serve("fill_dispenser"))
+
+    def moved(request, response):
+        node.calls.append(("move_grid", request.nearer, request.around))
+        response.success, response.message = node.reply
+        return response
+
+    node.create_service(MoveGrid, "/sim/connect4/move_grid", moved)
     executor = SingleThreadedExecutor()
     executor.add_node(node)
     node.hand = SimHand(node, spin_once=lambda: executor.spin_once(timeout_sec=0.01))
@@ -54,3 +61,8 @@ def test_the_hand_empties_the_dispenser_and_fills_it(driver):
     assert driver.hand.empty_dispenser() == (True, "done")
     assert driver.hand.fill_dispenser() == (True, "done")
     assert driver.calls == [("empty_dispenser",), ("fill_dispenser",)]
+
+
+def test_the_hand_sets_the_grid_down_elsewhere(driver):
+    assert driver.hand.move_grid(0.010, 0.05) == (True, "done")
+    assert driver.calls == [("move_grid", 0.010, 0.05)]

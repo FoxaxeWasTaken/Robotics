@@ -1,7 +1,7 @@
 # P2-03 — Risks, tests and questions
 
 > Authors: [CP] Project lead, [QA] Quality · Reviewers: all experts
-> Requirements: C-54 · Decisions: ADR-034 to ADR-038 · Roadmap: [`P2-04`](P2-04_roadmap.md) (stage 7 of `09`)
+> Requirements: C-54 · Decisions: ADR-034 to ADR-038, ADR-040 to ADR-042 · Roadmap: [`P2-04`](P2-04_roadmap.md) (stage 7 of `09`)
 
 ## 1. Plan
 
@@ -45,15 +45,17 @@ Same scale as `10` (P = probability, I = impact, 1 to 3; Crit. = P × I).
 | Unit | `turns.py`: every transition and failure row; a random walk of events: the arm moves in `MOVE` only | pytest | P2-05 |
 | Unit | `board.py`: synthetic boards, reference PNGs rendered from the scene | pytest | P2-01 |
 | Unit | `release_pose`: the 7 columns, token centre within 1 mm, jaw error < 0.2°, tilt 70°; unreachable → `None` | pytest | ADR-035 |
+| Unit | Positions from perception (P2-02 §2.5): `clearance.py`, the distance of points to boxes in a frame, the arm's points from the URDF's meshes, a move judged along its joint lines; `drop.edge_on` and `drop.wait_pose`; the brain's refusals and `check_only` on a fake arm; `placement.py`, one check per column and station, asked again when a pose has moved | pytest | ADR-042 |
 | Package | Each package with its own fakes: `so101_driver` (services), `so101_brain` (`/brain/drop`, fake driver), `so101_connect4` (fake camera, fake brain). colcon's coverage counts per package, and only the test's process: a bringup test covers no driver code, a launched node no line, so `test_drop_services.py` runs the brain in its own process | pytest, `colcon test` | Quality gate, 80 % on new code |
 | Package | `so101_connect4` on its fake stack: `game_node` (`test_game_node.py`), the client and the console (`test_client.py`, `test_play.py`), the parameters of the two nodes, each with its range (`test_parameters.py`) | pytest, in-process nodes | P2-05, P2-08 |
 | Package | `so101_bringup`: the game bench's score and CSV (`test_games.py`), the simulated person (`test_sim_hand.py`), the robustness cases' verdicts (`test_robustness.py`, `test_robustness_game.py`) | pytest | P2-06 |
 | Integration (sim) | The game's whole stack as processes (`test_connect4_game_launch.py`): the QoS of the game's topics against `01` §3.1; a game cut by the bench's timeout fails as `bench_timeout`, keeps its rosbag, and the game node is told to stop. The robustness demo of the game on a fake stack (`test_robustness_game_stack.py`) | `so101_bringup/test`, launch_testing | P2-06, P2-08 |
 | Integration (sim) | Scene: tick and image rate with 42 tokens; a render finds the 4 markers | `so101_bringup/test` | #79 |
+| Integration (sim) | Positions from perception (P2-02 §2.5): the brain's model of the arm against MuJoCo's distance to the grid, within 3 mm; a game's moves keep twice the 5 mm margin; the grid 2 cm nearer or 5 mm further is refused; on the stack, the grid set down elsewhere between two games is found, judged and played | `so101_bringup/test/test_connect4_clearance.py`, `test_connect4_game_launch.py` [MES-78] | #260 |
 | Integration (sim) | Board reader against the scene's truth (tests only, C-06), under the default light and the dim one: 10 states each in `colcon test`, 50 once as a MES [MES-68], [MES-73] | `so101_bringup/test` | P2-01 |
 | Integration (sim) | One drop in `colcon test`; 50 drops once as a MES, random columns; 10 tries without a token | `so101_bringup/test` (`CONNECT4_DROPS=50`) [MES-69] | P2-02, P2-03 |
 | End-to-end (sim) | Game bench: N games against a scripted human, random or engine | `evaluate --games` (`08`) | P2-06 |
-| End-to-end (sim) | Robustness demo of the game: the course's five fault questions asked of a game, and a stop mid-move, one command each | `tools/so101 robustness g1` to `g6` (#243), `results/robustness_demo.md` | `06` §10, P2-03, P2-05 |
+| End-to-end (sim) | Robustness demo of the game: the course's five fault questions asked of a game, a stop mid-move, and the grid set down elsewhere (played 2 cm away; refused where the arm would hit it), one command each | `tools/so101 robustness g1` to `g8` (#243, #260), `results/robustness_demo.md` | `06` §10, P2-03, P2-05 |
 | Spike | 100 drops, 100 with ±5 mm TCP offset, capture sweep, full stacks | `experiences/connect4/scene/` | Go / no-go, #76 |
 | Real (`v2.1.0`) | 30 drops, 30 handovers, 20 board photos, 3 filmed games; guide vs camera if the wrist camera is kept | manual protocol, results in `results/` | `P2-01` real parts |
 

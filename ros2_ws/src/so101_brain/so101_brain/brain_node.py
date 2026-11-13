@@ -8,7 +8,9 @@ the grasp planner in a worker process, which never touches a ROS object; the tic
 Publishes the TCP pose from forward kinematics. In IDLE, /go_to_target solves a position IK and returns at
 once, the tick streams the min-jerk trajectory (04 §6).
 In game mode (connect4.enabled, phase2/P2-02 §2.3), /brain/drop, /brain/pick and /brain/handover run one move
-of drop.Move in the same slot of the tick, in IDLE, and reply at its end; fsm.py does not know them.
+of drop.Move in the same slot of the tick, in IDLE, and reply at its end; fsm.py does not know them. Where the
+grid and the dispenser stand comes from the camera (/connect4/grid_pose, /connect4/dispenser_pose): a move is
+solved, then judged against them before anything moves (P2-02 §2.5).
 """
 
 import inspect
@@ -36,7 +38,7 @@ from std_msgs.msg import String
 from std_srvs.srv import Trigger
 from visualization_msgs.msg import Marker, MarkerArray
 
-from so101_brain import drop
+from so101_brain import clearance, drop
 from so101_brain.fsm import Detection, Fsm, Inputs, Params, State
 from so101_brain.grasp_planner import GraspPlanner
 from so101_brain.kinematics import Kinematics
@@ -205,6 +207,23 @@ class BrainNode(rclpy.node.Node):
                 "HANDOVER, where a token is given and the camera sees the whole grid: 5 arm joints in rad",
             )
         )
+        boxes = self.declare_parameter(
+            "connect4.grid_boxes",
+            rclpy.Parameter.Type.DOUBLE_ARRAY,
+            ParameterDescriptor(
+                description="The grid's volume, in the frame of /connect4/grid_pose: per box, its low corner "
+                "then its high corner, m; a move that passes nearer than clearance.MARGIN is refused",
+                read_only=True,
+            ),
+        ).value
+        self._boxes = np.array(boxes or [], dtype=float).reshape(-1, 6).reshape(-1, 2, 3)
+        if np.any(self._boxes[:, 0] >= self._boxes[:, 1]):
+            raise ValueError(f"connect4.grid_boxes {boxes}: each box is its low corner, then its high corner")
+        self._arm = clearance.Arm(urdf) if self._game and len(self._boxes) else None
+        # The parameter: where the arm waits while the camera has seen no dispenser, then the IK's seed
+        self._wait_seed = self._handover
+        self._grid = self._dispenser = None  # where the camera sees them: 4x4 frames in base_link
+        self._solved = -np.inf  # when a service call last ended its solve (_refusal)
         self._move = None  # the running /brain/drop, /brain/pick or /brain/handover (_begin)
         self._pick_cut = False  # the last move was a pick that did not end well (_srv_handover)
         # ROS ignores a key no node declares: a typo in brain_real.yaml would keep the sim's value (#57).
@@ -243,6 +262,13 @@ class BrainNode(rclpy.node.Node):
             self.create_service(Drop, "/brain/drop", self._srv_drop, callback_group=group)
             self.create_service(Trigger, "/brain/handover", self._srv_handover, callback_group=group)
             self.create_service(Drop, "/brain/pick", self._srv_pick, callback_group=group)
+            for name in ("grid", "dispenser"):  # latched, as the board reader publishes them
+                self.create_subscription(
+                    PoseStamped,
+                    f"/connect4/{name}_pose",
+                    lambda msg, name=name: self._cb_frame(name, msg),
+                    latched,
+                )
         self._publish_state()
 
         self.get_logger().info("Brain node ready.")
@@ -304,6 +330,12 @@ class BrainNode(rclpy.node.Node):
             q = np.array([positions[name] for name in ARM_JOINT_NAMES])
             gripper = rad_to_pct(positions["gripper"]) if "gripper" in positions else None
             self._joints = (q, msg.header.stamp, self._now(), float(efforts.get("gripper", 0.0)), gripper)
+
+    def _cb_frame(self, name, msg: PoseStamped):
+        p, o = msg.pose.position, msg.pose.orientation
+        T = np.eye(4)
+        T[:3, :3], T[:3, 3] = Rotation.from_quat([o.x, o.y, o.z, o.w]).as_matrix(), [p.x, p.y, p.z]
+        setattr(self, f"_{name}", T)
 
     def _cb_object(self, msg: PoseStamped):
         """Stores the cube detection; orientation = the cube yaw about z (01 §3.1)."""
@@ -399,29 +431,71 @@ class BrainNode(rclpy.node.Node):
         return await self._from_handover("pick", drop.pick_steps, request, response)
 
     async def _from_handover(self, name, solve, request, response):
-        """A move to the request's target that starts at HANDOVER, its steps from `solve`."""
-        refusal, steps = self._refusal(), None
-        if refusal is None and np.max(np.abs(self._joints[0] - self._handover)) > drop.AT_HANDOVER:
+        """A move to the request's target that starts at HANDOVER, its steps from `solve`. With check_only
+        nothing moves and the arm may be anywhere: the reply says whether the move would start. During a
+        move a check is `busy`: its IK would hold the tick, so the 50 Hz commands, for half a second."""
+        check, frame = request.check_only, self._grid if name == "drop" else self._dispenser
+        moving = self._move is not None or self._motion is not None
+        refusal, steps = ("busy" if moving else None) if check else self._refusal(), None
+        handover = self._wait() if check else self._handover
+        if refusal is None and not check and np.max(np.abs(self._joints[0] - handover)) > drop.AT_HANDOVER:
             refusal = "not_at_handover"
+        if refusal is None and (self._grid is None or frame is None):
+            refusal = "no_grid_pose" if self._grid is None else "no_dispenser_pose"
+        if refusal is None and handover is None:
+            refusal = "unreachable"  # the dispenser, so the place to wait at
         if refusal is None:  # IK inline, as /go_to_target: nothing moves yet, and no pose is solved later
             target = np.array([request.target.x, request.target.y, request.target.z])
-            steps = solve(self._kin, target, self._handover, self._p)
-            refusal = None if steps else "unreachable"
-        reply = (False, refusal) if refusal else await self._begin(name, steps)
+            steps = solve(self._kin, target, handover, self._p)
+            refusal = "unreachable" if not steps else None if drop.edge_on(frame, steps) else "not_edge_on"
+        refusal = refusal or self._unsafe(name, steps, handover)
+        self._solved = self._now()
+        if check:
+            reply = (refusal is None, refusal or "")
+        else:
+            reply = (False, refusal) if refusal else await self._begin(name, steps)
         response.success, response.message = reply
         return response
 
     async def _srv_handover(self, request, response):
-        """The jaws open, the arm to HANDOVER: replies there. After a pick cut short the arm may be down in
-        a station of the dispenser: it rises straight up first. Above the grid, where a drop cut short
-        leaves it, the direct way is the measured one [MES-73]."""
-        refusal = self._refusal()
+        """The jaws open, the arm to where it waits: replies there. After a pick cut short the arm may be
+        down in a station of the dispenser: it rises straight up first. Above the grid, where a drop cut
+        short leaves it, the direct way is the measured one [MES-73]."""
+        refusal, wait = self._refusal(), None
+        if refusal is None:
+            wait = self._wait()
+            refusal = None if wait is not None else "unreachable"
         if refusal is None:
             out_of_a_station = (self._kin, self._joints[0]) if self._pick_cut else ()
-            steps = drop.handover_steps(self._handover, self._p, *out_of_a_station)
+            steps = drop.handover_steps(wait, self._p, *out_of_a_station)
+            refusal = self._unsafe("handover", steps, self._joints[0])
+            self._solved = self._now()
+        if refusal is None:
+            self._handover = wait  # where a pick and a drop start from, until the next handover
         reply = (False, refusal) if refusal else await self._begin("handover", steps)
         response.success, response.message = reply
         return response
+
+    def _wait(self):
+        """The joints the arm waits at: beside the dispenser where the camera sees it, or
+        connect4.handover_pose while it has seen none (token_source: hand); None when out of reach."""
+        if self._dispenser is None:
+            return self._wait_seed
+        return drop.wait_pose(self._kin, self._dispenser, self._wait_seed)
+
+    def _unsafe(self, name, steps, q):
+        """unsafe_path:<step>, the first of the steps from the joints `q` that passes nearer the measured
+        grid than clearance.MARGIN; None when they keep clear, or with no grid to judge them against."""
+        if self._arm is None or self._grid is None:
+            return None
+        gaps = clearance.along(self._arm, self._kin, q, steps, self._p.open_pct, self._grid, self._boxes)
+        for step, gap in gaps:  # the first step that passes too near: the ones after it are not judged
+            if gap < clearance.MARGIN:
+                self.get_logger().warning(
+                    f"/brain/{name}: unsafe_path:{step}, {gap * 1e3:.1f} mm from the grid"
+                )
+                return f"unsafe_path:{step}"
+        return None
 
     def _refusal(self):
         """Why no move of the game can start now, or None. One commander at a time."""
@@ -429,8 +503,12 @@ class BrainNode(rclpy.node.Node):
             return f"not_idle:{self._fsm.label}"
         if self._move is not None or self._motion is not None:
             return "busy"
-        # Checked here, before any pose is solved: a dead driver is refused at once, nothing commanded.
-        if self._joints is None or self._now() - self._joints[2] > self._p.max_joint_state_age_s:
+        # Checked here, before any pose is solved: a dead driver is refused at once, nothing commanded. The
+        # joints' age counts from the end of the last solve: a solve holds the executor, a check_only one too,
+        # and the joints that came meanwhile are still queued when the next request is judged (#260).
+        if self._joints is None or (
+            self._now() - max(self._joints[2], self._solved) > self._p.max_joint_state_age_s
+        ):
             return "no_joint_states"
         return None
 

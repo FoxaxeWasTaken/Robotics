@@ -47,7 +47,7 @@ def status(state, mine="R") -> str:
     if kind == "GAME_OVER":
         return f"{RESULTS[state['result']]}; n: new game, r: the robot first"
     if kind == "IDLE":
-        return "n: new game, r: the robot first" if state["ready"] else "waiting for the stack"
+        return "n: new game, r: the robot first" if state["ready"] else f"waiting: {state['not_ready']}"
     waits = {"MOVE": "the robot plays", "THINK": "the robot thinks", "READ_BOARD": "the grid is read"}
     return waits.get(kind) or f"{kind}: {reason}; n: new game"
 

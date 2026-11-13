@@ -19,7 +19,7 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
-from test_drop import COLUMNS, STATIONS, token_centre
+from test_drop import COLUMNS, DISPENSER, STATIONS, about_pan, frame, token_centre
 
 from so101_brain import brain_node, drop
 from so101_brain.brain_node import BrainNode
@@ -36,6 +36,24 @@ URDF = Path(get_package_share_directory("so101_description")) / "urdf" / "so101.
 LATCHED = QoSProfile(
     depth=10, reliability=ReliabilityPolicy.RELIABLE, durability=DurabilityPolicy.TRANSIENT_LOCAL
 )
+# Where the camera sees the grid (#260): a frame along its columns, here at column 0's release target. Its
+# volume in that frame, as connect4.grid_boxes: the body (posts, plates, base) from the table to the slot
+# entries, 55 mm under a held token's centre, then the depth guide above the columns.
+GRID = frame(-40.0, COLUMNS[0])
+GRID_BOXES = [
+    -0.0635,
+    -0.00775,
+    -0.305,
+    0.2855,
+    0.00775,
+    -0.055,
+    -0.0185,
+    -0.017,
+    -0.055,
+    0.2405,
+    0.017,
+    -0.025,
+]
 
 
 class FakeArm(rclpy.node.Node):
@@ -56,6 +74,10 @@ class FakeArm(rclpy.node.Node):
         self.create_subscription(PoseStamped, "/end_effector_pose", self.poses.append, 10)
         self.create_subscription(String, "/brain_state", lambda m: self.states.append(m.data), LATCHED)
         self.create_subscription(Log, "/rosout", lambda m: self.logs.append(m.msg), 100)
+        self.pub_poses = {
+            name: self.create_publisher(PoseStamped, f"/connect4/{name}_pose", LATCHED)
+            for name in ("grid", "dispenser")
+        }
         # Steady clock: a WSL2 clock step would pause the fake driver, and the brain would see it as dead.
         self.create_timer(1.0 / 30.0, self.publish_states, clock=Clock(clock_type=ClockType.STEADY_TIME))
         self.drop = self.create_client(Drop, "/brain/drop")
@@ -124,24 +146,42 @@ class FakeArm(rclpy.node.Node):
         reply = self.call(self.handover)
         assert reply.success, reply.message
 
+    def place(self, grid=None, dispenser=None):
+        """The camera's side: where it sees the grid, the dispenser (frames in base_link), until the brain
+        has them."""
+        for name, T in (("grid", grid), ("dispenser", dispenser)):
+            if T is None:
+                continue
+            msg, yaw = PoseStamped(), np.arctan2(T[1, 0], T[0, 0])
+            msg.header.frame_id = "base_link"
+            msg.pose.position.x, msg.pose.position.y, msg.pose.position.z = (float(v) for v in T[:3, 3])
+            msg.pose.orientation.z, msg.pose.orientation.w = float(np.sin(yaw / 2)), float(np.cos(yaw / 2))
+            self.pub_poses[name].publish(msg)
+            end = time.monotonic() + STARTUP_TIMEOUT
+            while (seen := getattr(self.brain, f"_{name}")) is None or not np.allclose(seen, T, atol=1e-9):
+                assert time.monotonic() < end, f"the brain does not get the {name}'s pose"
+                self.executor_.spin_once(timeout_sec=0.01)
+
     def arm_commands(self, since):
         return [c for arrival, c in self.commands if arrival > since and "shoulder_pan" in c]
 
 
-def drop_request(target=COLUMNS[3]):
-    request = Drop.Request()
+def drop_request(target=COLUMNS[3], check_only=False):
+    request = Drop.Request(check_only=check_only)
     request.target.x, request.target.y, request.target.z = (float(v) for v in target)
     return request
 
 
 @pytest.fixture(scope="module")
 def arm():
-    rclpy.init(args=["--ros-args", "-p", "connect4.enabled:=true"])
+    boxes = f"connect4.grid_boxes:={GRID_BOXES}"
+    rclpy.init(args=["--ros-args", "-p", "connect4.enabled:=true", "-p", boxes])
     brain, fake = BrainNode(), FakeArm()
     fake.brain = brain
     fake.executor_ = SingleThreadedExecutor()
     fake.executor_.add_node(brain)
     fake.executor_.add_node(fake)
+    fake.place(grid=GRID, dispenser=DISPENSER)
     yield fake
     fake.executor_.shutdown()
     fake.destroy_node()
@@ -262,6 +302,27 @@ def test_a_drop_whose_poses_take_long_to_solve_still_starts(arm, monkeypatch):
     finally:
         arm.token = False
     assert reply.success, reply.message
+
+
+def test_a_request_right_after_a_long_check_is_not_refused_as_a_dead_driver(arm, monkeypatch):
+    """A check_only request holds the executor for its IK, as a move's solve does: the /joint_states that
+    came meanwhile are still queued when the next request is judged. The game node asks ten checks in a row
+    at its start; a /brain/handover between two of them was refused, `no_joint_states` (found by
+    test_connect4_drop_launch, #260)."""
+    solve = drop.drop_steps
+
+    def slow(*args):
+        time.sleep(0.8)  # longer than the age that makes joints stale, 0.5 s
+        return solve(*args)
+
+    monkeypatch.setattr(brain_node.drop, "drop_steps", slow)
+    arm.to_handover()
+    for _ in range(3):  # whatever order the executor takes the queued callbacks in
+        check = arm.request(arm.drop, drop_request(check_only=True))
+        move = arm.request(arm.handover)  # waits behind the check
+        assert arm.reply(check, timeout=5.0).success
+        reply = arm.reply(move)
+        assert reply.success, reply.message
 
 
 def test_a_dead_driver_refuses_a_move_and_ends_a_running_one(arm):
@@ -402,3 +463,155 @@ def test_a_handover_after_a_pick_cut_short_rises_straight_up_first_and_not_after
     arm.spin_for(0.5)
     assert arm.call(arm.handover).success
     assert re.match(r"/brain/handover: done in \S+ s \(handover \d", handover_line(arm)), handover_line(arm)
+
+
+# Positions from perception (#260): the brain knows the grid and the dispenser where the camera sees them.
+def moved(T, along=0.0) -> np.ndarray:
+    """The frame moved along its own x, m."""
+    out = T.copy()
+    out[:3, 3] += along * T[:3, 0]
+    return out
+
+
+def test_a_drop_or_a_pick_is_refused_until_the_camera_has_placed_the_grid_and_the_dispenser(arm):
+    arm.to_handover()
+    before, brain = len(arm.commands), arm.brain
+    grid, dispenser = brain._grid, brain._dispenser
+    try:
+        brain._grid = None
+        assert arm.call(arm.drop, drop_request(), timeout=3.0).message == "no_grid_pose"
+        assert arm.call(arm.pick, drop_request(STATIONS[0]), timeout=3.0).message == "no_grid_pose"
+        brain._grid, brain._dispenser = grid, None
+        assert arm.call(arm.pick, drop_request(STATIONS[0]), timeout=3.0).message == "no_dispenser_pose"
+    finally:
+        brain._grid, brain._dispenser = grid, dispenser
+    assert len(arm.commands) == before
+
+
+def test_a_drop_whose_way_passes_too_near_the_measured_grid_is_refused_without_any_command(arm):
+    """The grid 25 mm nearer the arm: every column still has a pose, and the shoulder would pass through
+    its near post [MES-78]."""
+    arm.to_handover()
+    before = len(arm.commands)
+    try:
+        arm.place(grid=moved(GRID, -0.025))
+        reply = arm.call(arm.drop, drop_request(COLUMNS[3] - 0.025 * GRID[:3, 0]), timeout=5.0)
+        assert not reply.success
+        assert (reply.success, reply.message) == (False, "unsafe_path:column")  # the first step too near
+        line = next(text for text in reversed(arm.logs) if text.startswith("/brain/drop"))
+        assert re.fullmatch(r"/brain/drop: unsafe_path:column, -?\d+\.\d mm from the grid", line), line
+    finally:
+        arm.place(grid=GRID)
+    assert len(arm.commands) == before
+    arm.token = True
+    reply = arm.call(arm.drop, drop_request())  # the grid back where it was: the same drop is done
+    arm.token = False
+    assert reply.success, reply.message
+
+
+def test_a_drop_on_a_grid_that_is_not_edge_on_is_refused_without_any_command(arm):
+    arm.to_handover()
+    before = len(arm.commands)
+    try:
+        arm.place(grid=frame(-40.0, COLUMNS[3], turned_deg=3.0))  # turned about the column aimed at
+        reply = arm.call(arm.drop, drop_request(COLUMNS[3]), timeout=5.0)
+        assert (reply.success, reply.message) == (False, "not_edge_on")
+        arm.place(dispenser=frame(60.0, STATIONS[1], turned_deg=6.0))
+        reply = arm.call(arm.pick, drop_request(STATIONS[1]), timeout=5.0)
+        assert (reply.success, reply.message) == (False, "not_edge_on")
+    finally:
+        arm.place(grid=GRID, dispenser=DISPENSER)
+    assert len(arm.commands) == before
+
+
+def test_a_check_only_request_judges_the_move_from_anywhere_and_moves_nothing(arm):
+    """What the game asks before it says ready: would this drop, this pick, be done?"""
+    arm.to_handover()
+    arm.q["shoulder_pan"] = 0.0  # away from HANDOVER: a check does not need the arm there
+    arm.wait_for_fresh_joint_states()
+    before, start = len(arm.commands), time.monotonic()
+    for client, target in ((arm.drop, COLUMNS[0]), (arm.drop, COLUMNS[6]), (arm.pick, STATIONS[2])):
+        reply = arm.call(client, drop_request(target, check_only=True), timeout=5.0)
+        assert (reply.success, reply.message) == (True, ""), reply.message
+    assert time.monotonic() - start < 6.0
+    reply = arm.call(arm.drop, drop_request((0.7, 0.0, 0.2), check_only=True), timeout=5.0)
+    assert (reply.success, reply.message) == (False, "unreachable")
+    try:
+        arm.place(grid=moved(GRID, -0.025))
+        reply = arm.call(
+            arm.drop, drop_request(COLUMNS[3] - 0.025 * GRID[:3, 0], check_only=True), timeout=5.0
+        )
+        assert reply.message.startswith("unsafe_path:"), reply.message
+        arm.place(grid=frame(-40.0, COLUMNS[3], turned_deg=3.0))
+        reply = arm.call(arm.drop, drop_request(COLUMNS[3], check_only=True), timeout=5.0)
+        assert (reply.success, reply.message) == (False, "not_edge_on")
+    finally:
+        arm.place(grid=GRID)
+    assert len(arm.commands) == before
+
+
+def test_a_check_asked_during_a_move_is_refused_at_once_and_the_move_goes_on(arm):
+    """A check holds the executor for its IK, half a second: during a move the 50 Hz commands would stop
+    that long, and the joints would look stale at the next tick (test_connect4_drop_launch, #260)."""
+    arm.to_handover()
+    arm.q["shoulder_pan"] = -0.3  # away from HANDOVER: the way back is a move of a second
+    arm.wait_for_fresh_joint_states()
+    move = arm.request(arm.handover)
+    arm.spin_for(0.3)
+    assert not move.done()
+    start = time.monotonic()
+    for client, target in ((arm.drop, COLUMNS[3]), (arm.pick, STATIONS[0])):
+        reply = arm.call(client, drop_request(target, check_only=True), timeout=3.0)
+        assert (reply.success, reply.message) == (False, "busy")
+    assert time.monotonic() - start < 0.2
+    assert arm.reply(move).success
+    np.testing.assert_allclose(arm.arm(), HANDOVER, atol=0.01)
+    reply = arm.call(arm.drop, drop_request(check_only=True), timeout=5.0)  # asked again once it has ended
+    assert (reply.success, reply.message) == (True, "")
+
+
+def test_the_arm_waits_beside_the_dispenser_where_the_camera_sees_it(arm):
+    """HANDOVER is where the layout puts the dispenser; elsewhere the arm waits at the same place beside it,
+    and a pick and a drop start from there."""
+    arm.to_handover()
+    np.testing.assert_allclose(arm.arm(), HANDOVER, atol=0.01)
+    turned = about_pan(DISPENSER, 10.0)
+    stations = [(about_pan(frame(0.0, station), 10.0))[:3, 3] for station in STATIONS]
+    try:
+        arm.place(dispenser=turned)
+        assert arm.call(arm.handover).success
+        np.testing.assert_allclose(
+            arm.arm(), np.array(HANDOVER) + np.array([-np.radians(10.0), 0, 0, 0, 0]), atol=0.01
+        )
+        arm.token = True
+        reply = arm.call(arm.pick, drop_request(stations[0]))
+        assert reply.success, reply.message
+        reply = arm.call(arm.drop, drop_request())
+        assert reply.success, reply.message
+        np.testing.assert_allclose(
+            arm.arm(), np.array(HANDOVER) + np.array([-np.radians(10.0), 0, 0, 0, 0]), atol=0.01
+        )
+        # a dispenser nobody can reach: the arm stays where it waits
+        before = len(arm.commands)
+        arm.place(dispenser=moved(DISPENSER, 0.3))
+        reply = arm.call(arm.handover, timeout=5.0)
+        assert (reply.success, reply.message) == (False, "unreachable")
+        assert len(arm.commands) == before
+    finally:
+        arm.token = False
+        arm.place(dispenser=DISPENSER)
+    assert arm.call(arm.handover).success
+    np.testing.assert_allclose(arm.arm(), HANDOVER, atol=0.01)
+
+
+def test_a_handover_whose_line_crosses_the_measured_grid_is_refused(arm):
+    """The arm left beyond the grid, low: the joint line back to HANDOVER goes through it [MES-69]."""
+    arm.to_handover()
+    arm.q.update(shoulder_pan=1.3, shoulder_lift=0.2, elbow_flex=0.4, wrist_flex=0.6)
+    arm.wait_for_fresh_joint_states()
+    before = len(arm.commands)
+    reply = arm.call(arm.handover, timeout=5.0)
+    assert (reply.success, reply.message) == (False, "unsafe_path:handover")
+    assert len(arm.commands) == before
+    arm.q.update(dict(zip(JOINTS[:5], HANDOVER, strict=True)))
+    arm.to_handover()

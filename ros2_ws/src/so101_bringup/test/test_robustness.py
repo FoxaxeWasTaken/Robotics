@@ -137,9 +137,23 @@ def reached(*moved):
     return [{"reached": True, "got": "", "moved": rad} for rad in moved]
 
 
-def test_the_five_slide_questions_and_a_stop_are_asked_of_the_game():
-    assert sorted(GAME_CASES) == ["g1", "g2", "g3", "g4", "g5", "g6"]
+def test_the_five_slide_questions_a_stop_and_a_grid_set_down_elsewhere_are_asked_of_the_game():
+    assert sorted(GAME_CASES) == ["g1", "g2", "g3", "g4", "g5", "g6", "g7", "g8"]
     assert all(case.question and case.steps for case in GAME_CASES.values())
+
+
+def test_a_grid_set_down_elsewhere_is_played_and_one_too_near_is_refused_with_the_arm_still():
+    """#260: where the grid stands comes from the camera. g7: a turn, the grid moved, a new game, a turn
+    there. g8: the grid where a leg would hit it: not ready with the reason, no game, no drop, no motion."""
+    assert [step.action for step in GAME_CASES["g7"].steps] == ["turn", "move_grid", "new_game", "turn"]
+    assert GAME_CASES["g7"].steps[-1].state["moves"] == 2
+    too_near, new_game, drop = GAME_CASES["g8"].steps
+    refusal = "column 1: unsafe_path:column"
+    assert (too_near.action, too_near.reply) == ("move_grid_too_near", {"success": True, "message": refusal})
+    assert new_game.reply == {"success": False, "message": f"not ready: {refusal}"}
+    assert (drop.action, drop.reply) == ("drop_on_grid", {"success": False, "message": "unsafe_path:column"})
+    assert new_game.still
+    assert drop.still
 
 
 def test_an_expectation_is_the_fields_of_a_state_or_of_a_reply():

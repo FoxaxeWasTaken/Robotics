@@ -61,6 +61,11 @@ class Kinematics:
         """4x4 pose of gripper_frame_link (TCP) in base_link."""
         return self._chain.forward_kinematics(self._full(q))
 
+    def link_frames(self, q) -> list:
+        """4x4 poses in base_link of the 5 arm links, shoulder to gripper: the frames the URDF gives each
+        link's meshes in (clearance.py)."""
+        return self._chain.forward_kinematics(self._full(q), full_kinematics=True)[1:6]
+
     def arm_azimuth(self, p) -> float:
         """Azimuth of a point seen from the pan axis (not from the origin), in rad."""
         return float(np.arctan2(p[1], p[0] - PAN_AXIS_X))

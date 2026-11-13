@@ -1,0 +1,7 @@
+# Sim only: the simulated person sets the empty Connect Four grid down elsewhere (phase2/P2-02 §7, #260). Both
+# from where the scene starts the grid: 0 and 0 put it back.
+float64 nearer  # m towards the arm, along the grid's own line
+float64 around  # rad around the arm's pan axis
+---
+bool success    # false: a token is in the grid, it would stay behind
+string message

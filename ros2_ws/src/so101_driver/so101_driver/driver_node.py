@@ -47,7 +47,7 @@ from so101_driver.randomize import sample_box_xy
 from so101_driver.shutdown import move_to
 from so101_driver.zero_offsets import ZeroOffsets
 from so101_interfaces.msg import Connect4Board
-from so101_interfaces.srv import DropToken
+from so101_interfaces.srv import DropToken, MoveGrid
 
 # Calibration file of the real arm, mounted by docker compose (CALIBRATION_FILE in docker/.env).
 CALIBRATION_FILE = Path("/calibration/arm.json")
@@ -252,6 +252,7 @@ class DriverNode(rclpy.node.Node):
                 self.create_service(Trigger, "/sim/connect4/reset_board", self._srv_reset_board)
                 self.create_service(Trigger, "/sim/connect4/empty_dispenser", self._srv_empty_dispenser)
                 self.create_service(Trigger, "/sim/connect4/fill_dispenser", self._srv_fill_dispenser)
+                self.create_service(MoveGrid, "/sim/connect4/move_grid", self._srv_move_grid)
             else:
                 self.create_service(Trigger, "/sim/randomize", self._srv_randomize)
             if expose_ground_truth:
@@ -468,6 +469,12 @@ class DriverNode(rclpy.node.Node):
         """Sim only, game mode: the simulated person fills the dispenser with the tokens not played."""
         with self._backend_lock:
             response.success, response.message = self._connect4.fill_dispenser()
+        return response
+
+    def _srv_move_grid(self, request, response):
+        """Sim only, game mode: the simulated person sets the empty grid down elsewhere (#260)."""
+        with self._backend_lock:
+            response.success, response.message = self._connect4.move_grid(request.nearer, request.around)
         return response
 
     def _publish_ground_truth(self):

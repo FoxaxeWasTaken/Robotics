@@ -72,7 +72,14 @@ def test_the_board_is_drawn_top_row_first_with_the_keys_of_its_columns():
         ({"state": "GAME_OVER", "result": "draw"}, "a draw"),
         ({"state": "FIX_BOARD", "reason": "not_seen:human"}, "FIX_BOARD: not_seen:human"),
         ({"state": "ERROR", "reason": "stopped"}, "ERROR: stopped"),
-        ({"state": "IDLE", "ready": False}, "waiting for the stack"),
+        (
+            {"state": "IDLE", "ready": False, "not_ready": "no /connect4/grid_pose"},
+            "waiting: no /connect4/grid_pose",
+        ),
+        (
+            {"state": "IDLE", "ready": False, "not_ready": "column 7: unsafe_path:column"},
+            "waiting: column 7: unsafe_path:column",
+        ),
         ({"state": "IDLE"}, "n: new game"),
     ],
 )

@@ -70,6 +70,9 @@ class FakeStack(rclpy.node.Node):
             "pick": (True, "done in 9.0 s"),
         }
         self.waiting = (1, 1, 1)  # what the reader publishes on /connect4/stations; None: nothing
+        self.grid = T_BASE_GRID  # where the reader sees the grid: the drops' targets are on it
+        self.checked = []  # the check_only requests, in order: ("drop", column), ("pick", rail)
+        self.checks = {}  # their reply when not (True, ""), by request
         self.hold = False  # a move replies only once released: release(), or /brain/stop
         self.stop_cuts = True  # /brain/stop makes the held moves reply `stopped`
         self.held = []  # the futures of the held moves, in order
@@ -107,15 +110,24 @@ class FakeStack(rclpy.node.Node):
         target = np.array([request.target.x, request.target.y, request.target.z])
         rail = int(np.argmin([np.linalg.norm(target - t) for t in STATIONS]))
         np.testing.assert_allclose(target, STATIONS[rail], atol=1e-9)  # board.station_target, on its pose
+        if request.check_only:
+            return self.check(("pick", rail), response)
         return await self.move(("pick", rail), response)
 
     async def on_drop(self, request, response):
         target = np.array([request.target.x, request.target.y, request.target.z])
-        column = int(np.argmin([np.linalg.norm(target - t) for t in TARGETS]))
-        np.testing.assert_allclose(
-            target, TARGETS[column], atol=1e-9
-        )  # board.column_target, on the grid's pose
+        targets = [board.column_target(LAYOUT, self.grid, column) for column in range(COLUMNS)]
+        column = int(np.argmin([np.linalg.norm(target - t) for t in targets]))
+        np.testing.assert_allclose(target, targets[column], atol=1e-9)  # board.column_target, on the pose
+        if request.check_only:
+            return self.check(("drop", column), response)
         return await self.move(("drop", column), response)
+
+    def check(self, call, response):
+        """As the brain's check_only: the reply at once, nothing moves."""
+        self.checked.append(call)
+        response.success, response.message = self.checks.get(call, (True, ""))
+        return response
 
     async def on_handover(self, request, response):
         return await self.move(("handover",), response)
@@ -176,7 +188,7 @@ class FakeStack(rclpy.node.Node):
     def up(self):
         """The brain's first pose and the grid's: the game node is ready."""
         self.pub_pose.publish(PoseStamped())
-        self.pub_grid.publish(pose(T_BASE_GRID))
+        self.pub_grid.publish(pose(self.grid))
         self.pub_dispenser.publish(pose(T_BASE_DISPENSER))
         self.spin_until(lambda: self.states and self.states[-1]["ready"])
 
@@ -460,3 +472,68 @@ def test_a_token_source_the_node_does_not_know_stops_it():
             GameNode()
     finally:
         rclpy.shutdown()
+
+
+# Positions from perception (#260): the brain is asked, column by column, whether it would play where the
+# camera sees the grid; the game is ready once it would.
+CHECKING = "checking where the grid stands"
+
+
+def set_down(T, along) -> np.ndarray:
+    out = T.copy()
+    out[:3, 3] += along * T[:3, 0]
+    return out
+
+
+def test_a_game_is_ready_once_the_brain_would_play_every_column_where_the_grid_is_seen(stack):
+    stack.spin_until(lambda: stack.states)
+    assert stack.states[-1]["not_ready"].startswith("no /end_effector_pose, /connect4/grid_pose")
+    stack.up()
+    assert stack.checked == [("drop", column) for column in range(COLUMNS)]
+    assert stack.states[-1]["not_ready"] == ""
+    assert CHECKING in [state["not_ready"] for state in stack.states]
+    assert stack.calls == []  # nothing moved
+
+
+@pytest.mark.parametrize("stack", [DISPENSER], indirect=True)
+def test_with_a_dispenser_the_brain_is_asked_about_every_station_too(stack):
+    stack.up()
+    assert stack.checked[COLUMNS:] == [("pick", rail) for rail in range(len(STATIONS))]
+
+
+def test_a_grid_the_brain_would_not_play_on_is_not_ready_and_the_state_and_the_refusal_say_why(stack):
+    stack.checks[("drop", 6)] = (False, "unsafe_path:column")
+    stack.pub_pose.publish(PoseStamped())
+    stack.pub_grid.publish(pose(stack.grid))
+    stack.spin_until(lambda: stack.states and stack.states[-1]["not_ready"].startswith("column"))
+    assert stack.states[-1]["ready"] is False
+    assert stack.states[-1]["not_ready"] == "column 7: unsafe_path:column"
+    reply = stack.call(stack.new_game, SetBool.Request())
+    assert (reply.success, reply.message) == (False, "not ready: column 7: unsafe_path:column")
+    assert stack.calls == []
+
+
+def test_a_grid_moved_between_two_games_is_checked_and_played_where_it_now_stands(stack):
+    stack.up()
+    seen = len(stack.states)
+    stack.grid = set_down(T_BASE_GRID, -0.02)
+    stack.pub_grid.publish(pose(stack.grid))
+    stack.spin_until(lambda: len(stack.checked) == 2 * COLUMNS and stack.states[-1]["ready"])
+    assert CHECKING in [state["not_ready"] for state in stack.states[seen:]]
+    stack.start()
+    stack.human_plays(3)
+    stack.wait_for("WAIT_HUMAN", moves=2)  # the fake brain got the drop at its target on the grid's new pose
+    assert stack.calls[-1][0] == "drop"
+
+
+def test_the_brain_is_not_asked_while_it_moves_the_arm(stack):
+    stack.start()
+    stack.hold = True
+    stack.human_plays(3)
+    stack.spin_until(lambda: stack.calls[-1][0] == "drop")
+    stack.grid = set_down(T_BASE_GRID, -0.02)
+    stack.pub_grid.publish(pose(stack.grid))
+    stack.spin_for(1.0)
+    assert len(stack.checked) == COLUMNS
+    stack.held[-1].set_result((True, "done in 14.0 s"))
+    stack.spin_until(lambda: len(stack.checked) == 2 * COLUMNS)

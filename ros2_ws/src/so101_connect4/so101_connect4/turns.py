@@ -96,7 +96,7 @@ class Stations:
 
 @dataclass(frozen=True)
 class Inputs:
-    ready: bool = True  # first /end_effector_pose, /connect4/grid_pose, /brain/drop found
+    ready: bool = True  # the brain and the reader are seen, and the brain would play there (placement.py)
     board: Board | None = None  # last /connect4/board
     new_game: bool = False
     robot_first: bool = False  # with new_game

@@ -33,4 +33,12 @@ so101_brain:
       box_half_size_m: 0.05        # in the box: cube center within this of the box center, per axis (08 §3)
       park_pose: [1.9, -1.7, 1.5, 0.7, 0.0]  # off the workspace view, no self-contact [MES-39]; check on the real arm
     connect4:  # the game of phase 2 (phase2/P2-02 §2.3); connect4.enabled comes from sim.launch.py's connect4 argument
-      handover_pose: [-0.8, -0.6, 0.6, 1.1, 1.57]  # HANDOVER: a token is given there; pan <= -0.7 hides no cell from the camera [MES-65], -0.8 shortens the pan's turns [MES-73]
+      # HANDOVER: where the arm waits and a pick or a drop starts while the camera has seen no dispenser, then
+      # the seed of the pose beside the dispenser it sees (drop.wait_pose). pan <= -0.7 hides no cell from the
+      # camera [MES-65], -0.8 shortens the pan's turns [MES-73]
+      handover_pose: [-0.8, -0.6, 0.6, 1.1, 1.57]
+      # The grid's volume in the frame of /connect4/grid_pose, m: per box, its low corner then its high corner.
+      # Its body from the table to the slot entries, then the depth guide (so101_connect4's layout.grid_boxes).
+      # A move that passes nearer than 5 mm is refused, unsafe_path (P2-02 §2.5) [MES-78]
+      grid_boxes: [-0.0635, -0.00775, -0.061, 0.2855, 0.00775, 0.189,
+                   -0.0185, -0.017, 0.189, 0.2405, 0.017, 0.219]

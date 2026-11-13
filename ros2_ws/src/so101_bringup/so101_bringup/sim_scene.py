@@ -251,6 +251,8 @@ def _add_grid(spec, folder, layout, solid):
     T = connect4_layout.grid_pose(layout)
     quat = np.zeros(4)
     mujoco.mju_mat2Quat(quat, T[:3, :3].ravel())
+    # A fixed body, not a mocap one: tokens at rest on a mocap body never fall asleep, they crept at 2 mm/s
+    # and the tick slowed [MES-78]. The simulated person moves it by its pose in the model (move_grid, #260)
     body = spec.worldbody.add_body(name="grid", pos=T[:3, 3], quat=quat)
     x0, length = -pitch / 2, grid["columns"] * pitch
     xc = x0 + length / 2

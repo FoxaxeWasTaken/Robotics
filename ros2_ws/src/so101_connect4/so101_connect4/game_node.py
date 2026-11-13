@@ -13,6 +13,9 @@ services are called asynchronously and their reply is read by a later tick.
 - token_source: dispenser (ADR-041): /connect4/dispenser_pose and /connect4/stations (board_reader) are inputs
   too, and a robot's move starts with /brain/pick at board.station_target on the dispenser's pose as the
   camera sees it. token_source: hand: a person gives each token at HANDOVER.
+- `ready` needs more than the topics: the brain is asked (check_only) whether it would play every column,
+  and take a token at every station, where the camera sees them (placement.py, P2-02 §2.5). The state's
+  `not_ready` says what is missing or refused.
 """
 
 import json
@@ -34,7 +37,7 @@ from rclpy.signals import SignalHandlerOptions
 from std_msgs.msg import String, UInt8MultiArray
 from std_srvs.srv import SetBool, Trigger
 
-from so101_connect4 import board, game, layout, turns
+from so101_connect4 import board, game, layout, placement, turns
 from so101_interfaces.msg import Connect4Board
 from so101_interfaces.srv import Drop
 
@@ -78,6 +81,8 @@ class GameNode(rclpy.node.Node):
             raise ValueError(f"Unknown parameters {unknown}: a typo in a config file?")
         self._turns = turns.Turns(turns.Params(**delays), dispenser=self._dispenser_used)
         self._layout = layout.load()
+        self._placement = placement.Placement(self._layout, self._dispenser_used)
+        self._check = None  # the pending check_only call of the brain
         self._board = self._grid = None  # the last /connect4/board; the grid's frame in base_link
         self._dispenser = self._stations = None  # the dispenser's frame in base_link; the last stations
         self._brain_seen = False  # a first /end_effector_pose: the brain has /joint_states
@@ -154,13 +159,18 @@ class GameNode(rclpy.node.Node):
             }
         return [name for name, there in waited.items() if not there]
 
-    def _srv_new_game(self, request, response):
+    def _not_ready(self) -> str:
+        """Why no game can start: what is missing, then what the brain refuses where the grid stands."""
         missing = self._missing()
-        response.success = not self._new_game and self._turns.accepts_new_game(not missing)
+        return f"no {', '.join(missing)}" if missing else self._placement.reason
+
+    def _srv_new_game(self, request, response):
+        why = self._not_ready()
+        response.success = not self._new_game and self._turns.accepts_new_game(not why)
         if response.success:
             self._new_game, self._robot_first = True, request.data
         else:
-            response.message = f"not ready: no {', '.join(missing)}" if missing else self._refused()
+            response.message = f"not ready: {why}" if why else self._refused()
         return response
 
     def _srv_human_done(self, request, response):
@@ -181,8 +191,9 @@ class GameNode(rclpy.node.Node):
         if self._turns.state is turns.State.THINK and self._last_tick is not None:
             self._think_ticks.append(now - self._last_tick)
         self._last_tick = now
+        self._check_placement()
         inputs = turns.Inputs(
-            ready=not self._missing(),
+            ready=not self._not_ready(),
             board=self._board,
             new_game=self._new_game,
             robot_first=self._robot_first,
@@ -216,11 +227,27 @@ class GameNode(rclpy.node.Node):
         self._publish()
 
     @staticmethod
-    def _to(client, target):
+    def _to(client, target, check_only=False):
         """The pending call of a move of the brain to `target`, base_link."""
-        request = Drop.Request()
+        request = Drop.Request(check_only=check_only)
         request.target.x, request.target.y, request.target.z = (float(v) for v in target)
         return client.call_async(request)
+
+    def _check_placement(self):
+        """One step of placement.py: the brain's answer to the last check, the next one asked."""
+        reply = None
+        if self._check is not None and self._check.done():
+            result, self._check = self._check.result(), None
+            reply = result.success, result.message
+        served = self._drop.service_is_ready() and (not self._dispenser_used or self._pick.service_is_ready())
+        idle = served and self._turns.state in turns.NEW_GAME_FROM and self._move is None
+        before = self._placement.reason
+        ask = self._placement.step(self._grid, self._dispenser, reply, idle)
+        if (verdict := self._placement.reason) != before and verdict != placement.CHECKING:
+            self.get_logger().info(f"placement: {verdict or 'the brain would play every column'}")
+        if ask:  # a new check replaces the pending one: the late answer of a dropped one is never read
+            kind, _, target = ask
+            self._check = self._to(self._drop if kind == "drop" else self._pick, target, check_only=True)
 
     def _declare(self, name, default, description, low, high, read_only=True):
         """A parameter with its range, as the phase-1 nodes': an int range for an int default, else a float
@@ -257,7 +284,8 @@ class GameNode(rclpy.node.Node):
 
     def _publish(self):
         """At each change, and once at startup: the topic is latched."""
-        state = {"ready": not self._missing(), "max_depth": self._max_depth(), **self._turns.snapshot()}
+        why = self._not_ready()
+        state = {"ready": not why, "not_ready": why, "max_depth": self._max_depth(), **self._turns.snapshot()}
         text = json.dumps(state)
         if text != self._published:
             self._published = text

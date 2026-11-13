@@ -1,7 +1,7 @@
 """robustness_game - the robustness demo's cases on a Connect Four game (#243, docs/project/06 §10), run by
-robustness_demo for the cases g1 to g6:
+robustness_demo for the cases g1 to g8:
 
-    ros2 launch so101_bringup robustness_demo.launch.py case:=<g1..g6> [lighting:=dim]
+    ros2 launch so101_bringup robustness_demo.launch.py case:=<g1..g8> [lighting:=dim]
 
 A case (so101_bringup.robustness.GAME_CASES) is a list of steps on a game that waits for the person's first
 move: an action, then the /connect4/state or the reply that must follow, and whether the arm may move
@@ -9,17 +9,20 @@ meanwhile. The faults go through the simulated person's hand, the game's and the
 demo's own board reader, stopped and started again; never through the ground truth (C-06).
 """
 
+import math
 import random
 import signal
 import subprocess
 import time
 
-from rclpy.qos import QoSProfile
+from geometry_msgs.msg import PoseStamped
+from rclpy.qos import DurabilityPolicy, QoSProfile
 from sensor_msgs.msg import JointState
 
 from so101_bringup import games
 from so101_bringup.robustness import GAME_CASES, NOT_HANDLED, WAITS_PERSON, game_verdict, matches
 from so101_bringup.sim_hand import SimHand
+from so101_connect4 import board, layout, placement
 from so101_connect4.client import GameClient, call
 from so101_interfaces.msg import Connect4Board
 from so101_interfaces.srv import Drop
@@ -31,6 +34,9 @@ STARTUP_S = 60.0
 STEP_TIMEOUT_S = 120.0  # a move lasts 19 s at most [MES-69]
 GAME_TIMEOUT_S = 600.0
 STILL_WATCH_S = 1.0  # after a reply that must leave the arm still
+# The grid set down elsewhere, (m nearer the arm, rad around it): where a game is still played, its far end
+# 2 cm from where it was; and where the shoulder would pass through its near post [MES-78]
+MOVED, TOO_NEAR = (0.010, math.radians(3.0)), (0.025, 0.0)
 
 
 def label(state) -> str:
@@ -75,6 +81,9 @@ class Demo:
         node.create_subscription(JointState, "/joint_states", self._on_joints, 10)
         node.create_subscription(Connect4Board, "/connect4/board", self._on_board, QoSProfile(depth=1))
         self._drop = node.create_client(Drop, "/brain/drop")
+        self._grid = None  # where the camera sees the grid, as the game node gets it
+        latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        node.create_subscription(PoseStamped, "/connect4/grid_pose", self._on_grid, latched)
         self._actions = {
             "cheat": lambda: self._turn(COLUMN, COLUMN + 1),
             "turn": lambda: self.client.play(COLUMN),
@@ -86,6 +95,9 @@ class Demo:
             "stop_reader": self._stop_reader,
             "start_reader": self._start_reader,
             "drop_out_of_reach": self._drop_out_of_reach,
+            "move_grid": lambda: self._move_grid(*MOVED),
+            "move_grid_too_near": lambda: self._move_grid(*TOO_NEAR),
+            "drop_on_grid": self._drop_on_grid,
             "fill_column": self._fill_column,
             "drop_token": lambda: self.hand.drop_token(FULL),
             "game": self._game,
@@ -106,6 +118,10 @@ class Demo:
 
     def _on_board(self, msg):
         self.boards += 1
+
+    def _on_grid(self, msg):
+        p, o = msg.pose.position, msg.pose.orientation
+        self._grid = board.transform((p.x, p.y, p.z), (o.x, o.y, o.z, o.w))
 
     def _spin_and_say(self):
         """The client's spin, then each new state of the game once, with its time."""
@@ -155,9 +171,27 @@ class Demo:
         return self.boards > seen, "the board reader publishes again"
 
     def _drop_out_of_reach(self):
+        return self._drop_at(OUT_OF_REACH)
+
+    def _drop_at(self, target):
         request = Drop.Request()
-        request.target.x, request.target.y, request.target.z = OUT_OF_REACH
+        request.target.x, request.target.y, request.target.z = (float(v) for v in target)
         return call(self.client.spin_once, self._drop, request)
+
+    def _drop_on_grid(self):
+        """A drop asked of the brain itself, into the person's column of the grid where the camera sees it."""
+        return self._drop_at(board.column_target(layout.load(), self._grid, COLUMN))
+
+    def _move_grid(self, nearer, around):
+        """The person empties the grid and sets it down elsewhere; then what the game makes of it: its
+        refusal, once it has asked the brain again (placement.py)."""
+        self.hand.reset_board()
+        success, message = self.hand.move_grid(nearer, around)
+        if success:
+            self.wait(lambda state: state["not_ready"] == placement.CHECKING, STILL_WATCH_S * 10)
+            self.wait(lambda state: state["not_ready"] != placement.CHECKING, STARTUP_S)
+            message = self.state["not_ready"] or message
+        return success, message
 
     def _fill_column(self):
         for _ in range(games.game.ROWS):

@@ -6,7 +6,9 @@ tokens named token_red_<i> and token_yellow_<i>, each on a free joint, parked wh
 The layout's token.robot_color says which color the robot plays; the person plays the other (#255).
 
 The caller holds the driver's lock. Only MjData is written, never the model (the camera reads it unlocked),
-and nothing steps the simulation: mj_forward only refreshes the poses.
+and nothing steps the simulation: mj_forward only refreshes the poses. One exception, move_grid: the grid's
+pose in the model and, for one forward pass, the sleep flag; the camera draws the poses of a copy of MjData
+and reads neither.
 """
 
 import mujoco
@@ -41,6 +43,7 @@ class Connect4Sim:
         self._diameter = layout["token"]["diameter"]
         model = sim.model
         self._grid = model.body("grid").id
+        self._grid_start = model.body_pos[self._grid].copy(), model.body_quat[self._grid].copy()
         robot = layout["token"]["robot_color"]  # red or yellow, the person plays the other (#255)
         self._color = {HUMAN: "yellow" if robot == "red" else "red", ROBOT: robot}
         self._tokens = {color: [] for color in self._color.values()}
@@ -218,6 +221,30 @@ class Connect4Sim:
             count += len(back)
         mujoco.mj_forward(model, data)
         return True, f"{count} tokens in the dispenser"
+
+    def move_grid(self, nearer, around) -> tuple:
+        """The person sets the empty grid down elsewhere: `nearer` the arm along its own line (m) and carried
+        `around` the arm's pan axis (rad), both from where the scene starts it; 0 and 0 put it back. Where it
+        stands is the camera's to find (#260). (False, why) with a token in it: it would stay behind."""
+        if any(self.board()):
+            return False, "the grid is not empty"
+        model, data = self._sim.model, self._sim.data
+        position, quat = self._grid_start
+        start = np.zeros(9)
+        mujoco.mju_quat2Mat(start, quat)
+        start = start.reshape(3, 3)
+        c, s = np.cos(around), np.sin(around)
+        turn = np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+        pan = data.xanchor[model.joint("shoulder_pan").id]
+        mujoco.mju_mat2Quat(model.body_quat[self._grid], (turn @ start).ravel())
+        model.body_pos[self._grid] = pan + turn @ (position - nearer * start[:, 0] - pan)
+        # With sleep enabled MuJoCo computes a fixed body's pose once: one forward pass without it, so that
+        # MjData, the camera and the contacts follow the model [MES-78]
+        enabled, sleep = model.opt.enableflags, int(mujoco.mjtEnableBit.mjENBL_SLEEP)
+        model.opt.enableflags = enabled & ~sleep
+        mujoco.mj_forward(model, data)
+        model.opt.enableflags = enabled
+        return True, f"the grid {nearer * 1e3:.0f} mm nearer, {np.degrees(around):.1f} deg around the arm"
 
     def tick(self):
         """Each control tick of the driver."""

@@ -125,7 +125,7 @@ grep -qF "/end_effector_pose" <<< "$out" && grep -qF "/connect4/grid_pose" <<< "
   || fail "run --game does not wait for the brain and the board reader: $out"
 echo "ok: run builds our packages in a throwaway container (no network, domain 79, the repository read-only), --stack, --game, --out"
 
-for case in 1 2 3a 3b 4 5 g1 g2 g3 g4 g5 g6; do
+for case in 1 2 3a 3b 4 5 g1 g2 g3 g4 g5 g6 g7 g8; do
   dry "run --rm --no-deps -e ROS_DOMAIN_ID=78 control bash -lc 'source /ros2_ws/install/setup.bash && ros2 launch so101_bringup robustness_demo.launch.py case:=$case'" \
     -- robustness $case
 done

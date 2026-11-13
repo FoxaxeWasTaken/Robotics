@@ -1,8 +1,9 @@
 """Component test (launch_testing): one move of the game on the sim (#84, #85, targets P2-02 and P2-03 of
-phase2/P2-01 §4). The stack of sim.launch.py connect4:=true: the driver on the game's scene, the brain in game
-mode. The test is the game node and the person: /brain/handover, the robot's token, then /brain/drop on
-board.column_target of a random column, with the grid where the layout puts it. The token is taken by
-/brain/pick at the dispenser's highest station that holds one (#259), the dispenser where the layout puts it;
+phase2/P2-01 §4). The stack of sim.launch.py connect4:=true with the board reader: the driver on the game's
+scene, the brain in game mode. The test is the game node and the person: /brain/handover, the robot's token,
+then /brain/drop on board.column_target of a random column, the grid where the camera sees it (#260: the
+brain refuses a drop without the measured pose). The token is taken by /brain/pick at the dispenser's
+highest station that holds one (#259), the dispenser where the camera sees it too;
 CONNECT4_TOKEN_SOURCE=hand gives it with /sim/connect4/give_token instead, as before the dispenser.
 Empty jaws first: no_token, the arm still. The ground truth (the true board) only scores (C-06).
 CONNECT4_DROPS=50 runs the measurement of MES-69 (hand) or MES-77 (dispenser); colcon test drops one token."""
@@ -21,11 +22,12 @@ import rclpy
 from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import PoseStamped
 from rcl_interfaces.msg import Log
+from rclpy.qos import DurabilityPolicy, QoSProfile
 from sensor_msgs.msg import JointState
 from std_srvs.srv import Trigger
 from test_connect4_scene import HANDOVER, LAYOUT
 
-from so101_connect4 import board, layout
+from so101_connect4 import board
 from so101_interfaces.msg import Connect4Board
 from so101_interfaces.srv import Drop
 
@@ -38,6 +40,7 @@ LAND_TIMEOUT = 5.0  # s, from the reply: the token fell while the arm came back
 ARM = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")
 ROBOT = 2
 ROBOT_TOKENS = 21  # in the scene: the board is cleared when they are all played
+LATCH = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
 
 
 @pytest.mark.launch_test
@@ -46,7 +49,7 @@ def generate_test_description():
         launch.launch_description_sources.PythonLaunchDescriptionSource(
             os.path.join(get_package_share_directory("so101_bringup"), "launch", "sim.launch.py")
         ),
-        launch_arguments={"connect4": "true", "expose_ground_truth": "true"}.items(),
+        launch_arguments={"connect4": "true", "expose_ground_truth": "true", "perception": "true"}.items(),
     )
     return launch.LaunchDescription([sim, launch_testing.actions.ReadyToTest()])
 
@@ -57,6 +60,14 @@ class TestConnect4Drop(unittest.TestCase):
         rclpy.init()
         cls.node = rclpy.create_node("test_connect4_drop")
         cls.poses, cls.joints, cls.truth, cls.logs = [], [], [], []
+        cls.frames = {}  # the grid's and the dispenser's frames in base_link, as the camera sees them
+        for name in ("grid", "dispenser"):
+            cls.node.create_subscription(
+                PoseStamped,
+                f"/connect4/{name}_pose",
+                lambda m, name=name: cls.frames.update({name: m}),
+                LATCH,
+            )
         cls.node.create_subscription(PoseStamped, "/end_effector_pose", cls.poses.append, 10)
         cls.node.create_subscription(JointState, "/joint_states", cls.joints.append, 10)
         cls.node.create_subscription(Connect4Board, "/sim/ground_truth/connect4_board", cls.truth.append, 10)
@@ -90,6 +101,11 @@ class TestConnect4Drop(unittest.TestCase):
             rclpy.spin_once(self.node, timeout_sec=0.05)
         return list(self.truth[-1].cells)
 
+    def seen(self, name) -> np.ndarray:
+        """The frame of the grid or of the dispenser where the camera sees it now."""
+        p, o = self.frames[name].pose.position, self.frames[name].pose.orientation
+        return board.transform((p.x, p.y, p.z), (o.x, o.y, o.z, o.w))
+
     @staticmethod
     def to(target):
         request = Drop.Request()
@@ -104,27 +120,28 @@ class TestConnect4Drop(unittest.TestCase):
             self.assertTrue(given.success, given.message)
         else:  # the highest station that holds a token, as the game node chooses it
             rail = RAILS - 1 - played // PER_RAIL
-            reply = self.call(
-                self.pick, self.to(board.station_target(LAYOUT, layout.dispenser_pose(LAYOUT), rail))
-            )
+            reply = self.call(self.pick, self.to(board.station_target(LAYOUT, self.seen("dispenser"), rail)))
             if not reply.success:
                 return reply, 0.0
         start = time.monotonic()
-        target = board.column_target(LAYOUT, layout.grid_pose(LAYOUT), column)
+        target = board.column_target(LAYOUT, self.seen("grid"), column)
         return self.call(self.drop, self.to(target)), time.monotonic() - start
 
     def test_empty_jaws_are_refused_then_tokens_go_into_random_columns(self):
         end = time.monotonic() + STARTUP_TIMEOUT
-        while not self.poses and time.monotonic() < end:  # the brain has /joint_states (AGENTS.md)
+        # the brain has /joint_states (AGENTS.md), the camera has placed the grid and the dispenser
+        while not (self.poses and len(self.frames) == 2) and time.monotonic() < end:
             rclpy.spin_once(self.node, timeout_sec=0.1)
         self.assertTrue(self.poses, "no /end_effector_pose")
+        self.assertEqual(sorted(self.frames), ["dispenser", "grid"])
+        rclpy.spin_once(self.node, timeout_sec=1.0)  # the brain gets the same poses
         reply = self.call(self.handover)
         self.assertTrue(reply.success, reply.message)
         np.testing.assert_allclose(self.arm(), HANDOVER, atol=0.02)
 
         # P2-03, the other half: without a token, 10 tries, no_token, the arm never moves
         request = Drop.Request()
-        target = board.column_target(LAYOUT, layout.grid_pose(LAYOUT), 3)
+        target = board.column_target(LAYOUT, self.seen("grid"), 3)
         request.target.x, request.target.y, request.target.z = (float(v) for v in target)
         seen = len(self.joints)
         for _ in range(10):

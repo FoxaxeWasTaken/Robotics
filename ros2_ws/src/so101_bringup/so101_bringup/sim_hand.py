@@ -1,6 +1,7 @@
 """sim_hand.py - the simulated person's hand (docs/project/phase2/P2-02 §7): a token of the
 person's color into a column, one of the robot's between its jaws (the layout's token.robot_color), the grid
-cleared, the token dispenser emptied or filled, over the driver's /sim/connect4/* services.
+cleared, the token dispenser emptied or filled, the empty grid set down elsewhere, over the driver's
+/sim/connect4/* services.
 
 Sim only, as those services: so101_connect4 names none of them (CI guard), its client takes the hand as an
 object. The console (connect4_play) and the game bench (evaluate --games) share this one.
@@ -10,7 +11,7 @@ import rclpy
 from std_srvs.srv import Trigger
 
 from so101_connect4.client import call
-from so101_interfaces.srv import DropToken
+from so101_interfaces.srv import DropToken, MoveGrid
 
 
 class SimHand:
@@ -23,6 +24,7 @@ class SimHand:
         self._reset = node.create_client(Trigger, "/sim/connect4/reset_board")
         self._empty = node.create_client(Trigger, "/sim/connect4/empty_dispenser")
         self._fill = node.create_client(Trigger, "/sim/connect4/fill_dispenser")
+        self._move = node.create_client(MoveGrid, "/sim/connect4/move_grid")
 
     def drop_token(self, column) -> tuple:
         request = DropToken.Request(column=column, color=DropToken.Request.HUMAN)
@@ -39,3 +41,8 @@ class SimHand:
 
     def fill_dispenser(self) -> tuple:
         return call(self._spin_once, self._fill)
+
+    def move_grid(self, nearer, around) -> tuple:
+        """The empty grid `nearer` the arm (m) and carried `around` it (rad), from where the scene starts
+        it."""
+        return call(self._spin_once, self._move, MoveGrid.Request(nearer=nearer, around=around))
