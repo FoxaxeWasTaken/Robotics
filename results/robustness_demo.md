@@ -53,6 +53,21 @@ Not fixed here (out of scope of #103: a weakness found by the demo becomes its o
 
 **Fixed by #175** (MES-52): saturation floors between the lit floor and arm (S ≤ 113) and the box (S ≥ 164) and cube (S ≥ 205), V floors under their shaded sides (box S ≥ 140, V ≥ 20; cube S ≥ 150, V ≥ 30). Case 5 rerun on `fix/175-dim-light-box` (from `main` at `cdbd1d5`), the same machine, its own container: **5/5 cycles in `DONE` in each of 2 runs** under `dim`, cube and box on every image while the brain waits (9–13 images); the default-light bench 50/50.
 
+## The same questions asked of the Connect Four game (#243), 2026-11-13
+
+`tools/so101 robustness g1` to `g6`, the everyday stack stopped, as above: the demo's stack runs in game mode (`connect4:=true`, the board reader as its perception). Each case starts a game and waits for the person's first turn, then runs its steps (`so101_bringup/robustness.py`, `GAME_CASES`): an action, the `/connect4/state` or the reply that must follow, and whether the arm may move meanwhile (no arm joint more than 0.05 rad from its place at the step's start, target P2-05). The faults go through the simulated person's hand, the game's and the brain's services, or the demo's own board reader; never through the ground truth. One run each, in a throwaway container on the development machine, each verdict "handled":
+
+| Case | Fault injected | Observed `/connect4/state` | Verdict |
+| --- | --- | --- | --- |
+| **g1. The scene changes mid-action** | The person drops two tokens in one turn | `READ_BOARD` → `FIX_BOARD:counts:2-0` in 0.7 s, the arm still; `new_game` clears the grid: `MOVE` → `READ_BOARD` → `WAIT_HUMAN` | **Handled** |
+| **g2. The grasp fails** | No token given before the robot's move | `THINK` → `MOVE` → `WAIT_HUMAN:no_token` after 2.2 s, the jaws closed on nothing and open again, the arm still; a token given: `THINK` → `MOVE` (13.3 s) → `WAIT_HUMAN`, the game goes on | **Handled** |
+| **g3. The object leaves the view** | The board reader stopped, then the person plays | `READ_BOARD` → `FIX_BOARD:not_seen:human` at the 5 s timeout, the arm still; the reader started again publishes in 2.2 s, `human_done`: `THINK` → `MOVE` → `WAIT_HUMAN`, the game goes on | **Handled** |
+| **g4. The target is out of reach** | `/brain/drop` at (0.6, 0, 0.3) m; a seventh token for a full column | The brain replies `unreachable` in 0.05 s, the driver `column 0 is full`; no state changes, the arm still | **Handled** |
+| **g5. The lighting changes** (`--lighting dim`) | Every light ×0.4, tinted, as case 5 | A whole game against a random person: `GAME_OVER`, no token lost, none in another column | **Handled** |
+| **g6. A stop in the middle of a move** (ours) | `/connect4/stop` 5 s into the robot's move | `ERROR:stopped` in 0.1 s, the brain `STOPPED` then `IDLE`, the arm frozen above the grid for the 2 s watched; `new_game`: `MOVE` (3.2 s back to `HANDOVER`) → `WAIT_HUMAN` | **Handled** |
+
+One marker hidden still reads the 42 cells, two give `markers:2`: `so101_connect4/test/test_board_reader.py`, on images rendered from the game's scene.
+
 ## Limits and observations
 
 - **3a, `VERIFY` with perception dead**: with no detection for 2 s, `VERIFY` ends in `DONE` with a warning, as `06` §3.1 specifies. A cube that left the table and a perception that stopped look the same; known and accepted.
