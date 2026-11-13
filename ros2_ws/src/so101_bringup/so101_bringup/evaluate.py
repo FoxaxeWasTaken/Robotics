@@ -2,6 +2,7 @@
 
     ros2 run so101_bringup evaluate --episodes N --out <csv> [--bags <dir>] [--seed S] [--timeout 60]
                                     [--min-success M]
+    ros2 run so101_bringup evaluate --games N ...     the game bench of phase 2: games.py
 
 Each episode: /sim/randomize (cube and box), /brain/start from IDLE, then DONE, ERROR or the bench timeout
 (then /brain/stop). Scored with the driver's ground truth (expose_ground_truth, for this bench only, C-06):
@@ -159,10 +160,10 @@ class Bench:
         }
 
 
-def record(path: Path) -> subprocess.Popen:
+def record(path: Path, topics) -> subprocess.Popen:
     path.parent.mkdir(parents=True, exist_ok=True)
     return subprocess.Popen(
-        ["ros2", "bag", "record", "-o", str(path), *BAG_TOPICS],
+        ["ros2", "bag", "record", "-o", str(path), *topics],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -187,15 +188,21 @@ def run(args, bench: Bench) -> int:
     if not bench.spin_until(lambda: bench.pose is not None, STARTUP_S):
         print("evaluate: no /end_effector_pose: the brain does not see /joint_states", file=sys.stderr)
         return 2
+    return loop(args, bench, "episode", args.episodes, seed, FIELDS, BAG_TOPICS, summary)
+
+
+def loop(args, bench, unit, count, seed, fields, topics, summarize) -> int:
+    """`count` episodes or games (`unit`, the bench's method of that name): a CSV row and a line each, a
+    rosbag of each failed one with --bags, the summary, then --min-success."""
     rows = []
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w", newline="") as f:
-        writer = csv.DictWriter(f, FIELDS)
+        writer = csv.DictWriter(f, fields)
         writer.writeheader()
-        for number in range(1, args.episodes + 1):
-            bag = args.bags / f"episode_{number:03d}" if args.bags else None
-            recorder = record(bag) if bag else None
-            row = bench.episode(number, seed, args.timeout)
+        for number in range(1, count + 1):
+            bag = args.bags / f"{unit}_{number:03d}" if args.bags else None
+            recorder = record(bag, topics) if bag else None
+            row = getattr(bench, unit)(number, seed, args.timeout)
             if recorder:
                 recorder.send_signal(signal.SIGINT)
                 recorder.wait(timeout=15)
@@ -205,10 +212,10 @@ def run(args, bench: Bench) -> int:
             f.flush()
             rows.append(row)
             print(  # flushed: through tools/so101 stdout is a pipe, the line would wait for the end (#58)
-                f"episode {number}: {row['final_state']}, {row['duration_s']} s, {row['cause'] or 'success'}",
+                f"{unit} {number}: {row['final_state']}, {row['duration_s']} s, {row['cause'] or 'success'}",
                 flush=True,
             )
-    print(summary(rows), flush=True)
+    print(summarize(rows), flush=True)
     successes = sum(row["success"] for row in rows)
     if args.min_success is not None and successes < args.min_success:
         print(
@@ -220,18 +227,30 @@ def run(args, bench: Bench) -> int:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--episodes", type=int, required=True)
+    what = parser.add_mutually_exclusive_group(required=True)
+    what.add_argument("--episodes", type=int, help="pick & place cycles (08 §3)")
+    what.add_argument("--games", type=int, help="Connect Four games, the stack in game mode (games.py)")
+    parser.add_argument("--human", choices=["random", "engine"], default="random", help="with --games")
     parser.add_argument("--out", type=Path, required=True, help="CSV file, one row per episode")
     parser.add_argument("--bags", type=Path, help="keep a rosbag of each failed episode in this folder")
     parser.add_argument(
         "--seed", type=int, help="the driver's seed parameter, checked before the first episode"
     )
-    parser.add_argument("--timeout", type=float, default=60.0, help="bench timeout per episode, s (08 §3)")
+    parser.add_argument("--timeout", type=float, help="bench timeout per episode, s (60), or game (600)")
     parser.add_argument("--min-success", type=int, help="exit 1 below this many successes (the PR's E2E job)")
     args = parser.parse_args(argv)
+    args.timeout = args.timeout or (60.0 if args.games is None else 600.0)
+    return start(args)
+
+
+def start(args) -> int:
     rclpy.init()
     node = rclpy.create_node("evaluate")
     try:
+        if args.games is not None:
+            from so101_bringup import games  # here: games imports this module
+
+            return games.start(args, node)
         return run(args, Bench(node))
     # Ctrl-C from a terminal reaches the bench since #58; the CSV already holds the finished episodes.
     except KeyboardInterrupt:

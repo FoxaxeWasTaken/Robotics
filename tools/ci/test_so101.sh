@@ -79,6 +79,8 @@ dry "-e ROS_DOMAIN_ID=77 control" "&& set -m;" "pgrep -f \"[/]lib/so101_\"" "gre
   "evaluate --episodes 10 --out /ros2_ws/eval_bench.csv'" -- bench --perception
 dry "-e ROS_DOMAIN_ID=77 control" "test/gt_stub.launch.py" "--episodes 3 " "--bags /ros2_ws/bags" \
   -- bench --stub -n 3 --bags /ros2_ws/bags
+dry "-e ROS_DOMAIN_ID=77 control" "expose_ground_truth:=true perception:=true connect4:=true" \
+  "evaluate --games 2 --out /ros2_ws/eval_games.csv'" -- bench --game -n 2
 echo "ok: bench runs on ROS domain 77 only, refuses a busy domain, real pipeline or stub, N episodes, bags"
 
 # From a terminal, bench gets one in the container (#58): with exec -T, Ctrl+C stopped only the docker client and

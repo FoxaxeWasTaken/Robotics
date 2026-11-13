@@ -40,8 +40,8 @@ On the real arm (`v2.1.0`), the same scenario with a person: the token handed be
 | P2-02 | Drop into the requested column: **≥ 95 %** in sim (N = 50). *`v2.1.0`: ≥ 90 % on the real arm (N = 30)* | **50/50** [MES-69]: `test_connect4_drop_launch.py` with `CONNECT4_DROPS=50`; one drop in `colcon test` |
 | P2-03 | The token is held from the close to the release, **≥ 98 %** in sim; an empty gripper is **always** detected (the arm never plays without a token). *`v2.1.0`: ≥ 95 % on a real handover* | Held **50/50**, empty jaws refused **10/10**, the arm still [MES-69]; the same test, and `so101_brain`'s `test_drop_services.py` on a fake arm |
 | P2-04 | Engine: only legal moves; wins 100/100 against a random player; move chosen in **< 2 s** | Unit tests |
-| P2-05 | The arm **never moves** during the human's turn | `turns.py` tests, the bench's check on `/joint_states`. *`v2.1.0`: speeds near a person, `P2-02` §8* |
-| P2-06 | **≥ 8/10** full games in sim without intervention. *`v2.1.0`: ≥ 3 full games filmed on the real arm* | Game bench, each night; videos |
+| P2-05 | The arm **never moves** during the human's turn | `turns.py` tests; `test_game_node.py`: no call to the brain in `WAIT_HUMAN` or `FIX_BOARD`; the game bench fails a game where an arm joint moved 0.05 rad during a person's turn: none in 12 games [MES-71]. *`v2.1.0`: speeds near a person, `P2-02` §8* |
+| P2-06 | **≥ 8/10** full games in sim without intervention. *`v2.1.0`: ≥ 3 full games filmed on the real arm* | **10/10** against a random person, 2/2 against the engine [MES-71]; the game bench, `evaluate --games`, one game on each PR and ten each night; videos |
 | P2-07 | Anyone can play against the sim robot by following the README (public repository goal) | Replayed by a member who did not write the game, from a fresh clone (as MES-26) |
 | P2-08 | Same quality rules as phase 1: pure modules with tests, CI green, guards C-05 / C-06 extended to the new package; a game on each PR, the game bench in the nightly | CI (`P2-03` §3.1) |
 
