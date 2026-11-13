@@ -125,7 +125,10 @@ case $command in
   up)
     # The mode compose would start: --game, else CONNECT4 of the environment, else of docker/.env, else the
     # pick & place. An up in another mode than the running stack's would recreate its containers: refused.
-    wanted=${CONNECT4:-$(sed -n 's/^CONNECT4=//p' "$root/docker/.env" 2> /dev/null | tail -n 1)}
+    wanted=${CONNECT4:-}
+    if [ -z "$wanted" ] && [ -f "$root/docker/.env" ]; then  # a fresh clone has none
+      wanted=$(sed -n 's/^CONNECT4=//p' "$root/docker/.env" | tail -n 1)
+    fi
     if [ "${1:-}" = --game ]; then wanted=true; shift; fi
     none "$@"
     [ "$wanted" = true ] || wanted=false

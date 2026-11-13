@@ -215,6 +215,14 @@ out=$(RUNNING=true PATH="$tmp/mode:$PATH" "$so101" up 2>&1) && fail "up over a g
 grep -qF "the stack runs the Connect Four game" <<< "$out" || fail "up over a game said: $out"
 out=$(RUNNING=true PATH="$tmp/mode:$PATH" "$so101" up --game 2>&1) || true
 grep -qF "docker called: compose" <<< "$out" && grep -qF "up -d control perception viz" <<< "$out" || fail "up --game over a game did not go on: $out"
+# A fresh clone has no docker/.env (the CI neither): up read it for the mode and ended with exit 2
+mkdir -p "$tmp/clone/tools" "$tmp/clone/docker"
+cp tools/so101 "$tmp/clone/tools/"
+out=$(env -u CONNECT4 "$tmp/clone/tools/so101" --dry-run up) || fail "up without a docker/.env: exit $?"
+grep -qF "the pick & place (CONNECT4=false)" <<< "$out" || fail "up without a docker/.env: $out"
+printf 'ROS_DOMAIN_ID=69\nCONNECT4=true\n' > "$tmp/clone/docker/.env"
+out=$(env -u CONNECT4 "$tmp/clone/tools/so101" --dry-run up) || fail "up with CONNECT4=true in docker/.env: exit $?"
+grep -qF "the Connect Four game (CONNECT4=true)" <<< "$out" || fail "up does not read the mode of docker/.env: $out"
 out=$("$so101" --dry-run wait) || fail "wait: exit $?"
 grep -qF "tools/ci/wait_for_stack.sh" <<< "$out" || fail "wait: $out"
 out=$("$so101" --dry-run demo < /dev/null) || fail "demo: exit $?"
