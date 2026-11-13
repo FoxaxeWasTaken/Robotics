@@ -2,7 +2,7 @@
 
 | Status | Date | Experts (author → reviewers) | Related requirements |
 | --- | --- | --- | --- |
-| DECIDED (riser clearance measured) + RECOMMENDED (exact layout, from the purchased grid's measurements) | 2026-10-09 | KIN → CTRL, SAFE, VIS | C-41, C-51, C-54 |
+| DECIDED (riser clearance measured) + RECOMMENDED (exact layout, from the purchased grid's measurements); the token supply **superseded for the sim by ADR-041** | 2026-10-09 | KIN → CTRL, SAFE, VIS | C-41, C-51, C-54 |
 
 ## Context
 
@@ -51,3 +51,7 @@ Wrist camera: probably the WowRobo 2 MP USB module for SO-ARM100/101 (30 fps, 3 
 ## Update (2026-11-07, `v2.0.0` is the sim)
 
 This hardware is `v2.1.0`. In `v2.0.0` the sim models it: the same grid model, the depth guide (30 mm) because it widens the capture from 3 mm to −10/+6 mm across [MES-63], [MES-64], a riser of 10 cm as a lowered floor. The handover becomes `/sim/connect4/give_token`; the slow close, the squeeze, `/brain/set_gripper` and `/connect4/token_given` wait for a person next to the arm (#90). The wrist camera leaves the scene: the 2026-11-07 review proposes to cut it, to decide at the start of `v2.1.0` (`phase2/P2-02` §8).
+
+## Update (2026-11-13, ADR-041): the token supply in the sim
+
+"Token supply, first version: handover" is superseded for the sim by ADR-041: the robot takes its tokens at a dispenser, three stacked rails with open pick stations, placed by the camera. The handover stays behind a setting (`token_source: hand`), and for the real arm until the dispenser is printed (`v2.1.0`). The rest of this ADR stands.

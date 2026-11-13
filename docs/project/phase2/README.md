@@ -19,7 +19,7 @@
 | --- | --- |
 | 1 arm, 5 DoF + gripper | Every drop pose is reachable with a jaw-axis error of 1 to 3° if the grid is **edge-on** to the robot; a grid facing the robot is out of reach of a 5-DoF arm above 10 cm [MES-27] |
 | Low payload | Game tokens, a few grams |
-| Small workspace, a tabletop | A store-bought grid, the arm on an 8 cm riser: 7 columns between 14 and 36 cm from the pan axis, 6.3 cm of clearance or more [MES-32] |
+| Small workspace, a tabletop | A store-bought grid, the arm on a riser (10 cm in sim, `P2-02` §7): 7 columns between 14 and 36 cm from the pan axis, 6.3 cm of clearance or more [MES-32] |
 | 1 camera + whatever you add | The phase-1 camera, unmoved, in sim [MES-65]; a webcam facing the grid on the real setup (`v2.1.0`) |
 | Your code: ROS 2, sim first | Same ROS 2 stack, a `CONNECT4` mode next to phase 1; the sim in `v2.0.0`, the real arm in `v2.1.0` |
 | Safety: near humans, slow | The arm only moves on the robot's turn, after an explicit "done" from the human. A person next to the arm is `v2.1.0`, with its findings (`P2-02` §8) |
@@ -32,9 +32,10 @@
 ```mermaid
 flowchart LR
   CAM["Camera<br/>(driver, phase 1)"] --> BR["board_reader<br/>ArUco pose + cell colors"]
-  BR -- "/connect4/board<br/>/connect4/grid_pose" --> G["game_node<br/>turns, engine, task layer"]
+  BR -- "/connect4/board, grid_pose<br/>dispenser_pose, stations" --> G["game_node<br/>turns, engine, task layer"]
+  BR -- "grid_pose<br/>dispenser_pose" --> B
   H["Player or bench<br/>new_game, human_done"] --> G
-  G -- "/brain/drop<br/>(service, ADR-037)" --> B["brain (phase 1)<br/>IK, trajectories, grasp check"]
+  G -- "/brain/pick, /brain/drop<br/>(services, ADR-037)" --> B["brain (phase 1)<br/>IK, trajectories, grasp check"]
   B -- "/joint_command" --> D["driver (phase 1)<br/>sim or real arm"]
   D -- "/joint_states" --> B
 ```
@@ -74,7 +75,9 @@ flowchart LR
 | Does the brain play a move on the sim? | Yes: 50 tokens of 50 in their column through `/brain/drop`, held 50 of 50, empty jaws refused 10 of 10; a move lasts 11.5 to 17 s, 13 to 19 s before the legs back went faster | [MES-69], [MES-73] |
 | Does a deeper search play better? | Only loosely: three depths are in order, easy 1, medium 4, hard 10 (hard beats medium 26 – 7, medium beats easy 28 – 2) | [MES-70] |
 | Does a whole game run on the stack? | Yes: 10 games of 10 against a random person, 2 of 2 against the engine; no token lost in 80 drops, the arm still during each person's turn | [MES-71] |
-| Where does a game's time go? | The arm: a robot's turn is 12 to 17 s of move, 0.2 s of search and 0.4 s of reading | [MES-72], [MES-73] |
+| Where does a game's time go? | The arm: a robot's turn is 21 s of move (a pick 8 to 12 s, a drop 11.5 to 17 s), 0.2 s of search and 0.4 s of reading | [MES-72], [MES-73], [MES-77] |
+| Can the arm take its tokens by itself? | Yes: 50 of 50 taken at the dispenser and dropped, 20 games of 20 with the poses the camera measures | [MES-75] to [MES-77] |
+| What if the grid is set down elsewhere? | The brain judges each move where the camera sees it: played 1 cm nearer or carried around the arm, refused 2 cm nearer (the shoulder 2 mm from a post) or turned 1.5° out of the arm's plane | [MES-78], [MES-79] |
 | Do tokens behave in sim? | With a measured contact set: 378 drops of 378, full stacks, held up to 1.5 rad/s, the tick unchanged. With the provided defaults: lost | [MES-63] |
 | Does the running driver hold the scene? | Yes: tick p99 21.5 ms and the image at 10 Hz in 640×480 while 42 tokens fall, 42 of 42 in their cell | [MES-67] |
 | Is the engine strong enough? | Depth 10 to 12 in 1 s in pure Python, 100/100 against random | [MES-66] |

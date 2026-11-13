@@ -537,3 +537,30 @@ def test_the_brain_is_not_asked_while_it_moves_the_arm(stack):
     assert len(stack.checked) == COLUMNS
     stack.held[-1].set_result((True, "done in 14.0 s"))
     stack.spin_until(lambda: len(stack.checked) == 2 * COLUMNS)
+
+
+# Found by the review of 2026-11-13 (#264): two requests of the console's services within one tick.
+def test_a_second_human_done_within_one_tick_does_not_cancel_the_first(stack):
+    """Two consoles say human_done on the same state: the second, refused, cleared the first one's flag and
+    the game stayed in WAIT_HUMAN for ever."""
+    stack.start()
+    stack.cells = with_tokens(stack.cells, (3, HUMAN))
+    first = stack.game._srv_human_done(Trigger.Request(), Trigger.Response())
+    second = stack.game._srv_human_done(Trigger.Request(), Trigger.Response())
+    assert (first.success, second.success) == (True, False)
+    stack.wait_for("WAIT_HUMAN", moves=2)
+
+
+def test_a_new_game_accepted_in_the_same_tick_as_a_stop_starts(stack):
+    """`s` then `n` typed ahead: the service said yes, the console cleared the grid, and the tick took the
+    stop alone: ERROR:stopped, no game, nothing said."""
+    stack.start()
+    stack.human_plays(3)
+    stack.wait_for("WAIT_HUMAN", moves=2)
+    handovers = stack.calls.count(("handover",))
+    assert stack.game._srv_stop(Trigger.Request(), Trigger.Response()).success
+    assert stack.game._srv_new_game(SetBool.Request(), SetBool.Response()).success
+    stack.cells = EMPTY_BOARD
+    stack.wait_for("WAIT_HUMAN", moves=0)
+    assert stack.calls.count(("handover",)) == handovers + 1
+    assert ("stop",) in stack.calls

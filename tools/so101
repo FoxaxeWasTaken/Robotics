@@ -18,14 +18,15 @@ Usage: tools/so101 [--dry-run] <command> [options]
   build [service]       build the images (both, or control or perception); ~10 min the first time
   up                    start the stack (control, perception, viz); CONNECT4=true tools/so101 up starts the
                         Connect Four game instead (simulation only), down then up to come back
-  down                  stop it (each node gets SIGINT: clean stop)
+  down                  stop it (the control container's nodes get SIGINT: the arm parks first on the real robot)
   restart [service]     restart control (default), perception or viz: reloads changed Python code
   logs [service]        follow the logs of control (default), perception or viz
   shell                 a shell in the control container, the workspace sourced
   rviz                  RViz with the project's configuration
   cycle                 /sim/randomize (sim only), /brain/start, then /brain_state until DONE, ERROR or STOPPED
   play                  play Connect Four against the robot from this terminal, the stack started with
-                        CONNECT4=true tools/so101 up: 1 to 7 a column, ? a hint, n a new game, e m h the level, q quit
+                        CONNECT4=true tools/so101 up: 1 to 7 a column, ? a hint, n a new game,
+                        r the robot first, e m h the level, s stop, q quit
   bench --stub|--perception|--game [-n N] [--bags DIR]
                         the evaluation bench on ROS domain $BENCH_DOMAIN, N episodes (10), in the control
                         container: --perception the real pipeline, --stub the ground truth in its place.
@@ -71,9 +72,18 @@ run() {
   "$dry" || "$@"
 }
 
+# The workspace sourced in a control container, or why not: the first `up` builds it, minutes on a fresh clone.
+# Without it, play said "the stack does not run the game" and rviz a bare "No such file" (#264).
+SOURCED="[ -f /ros2_ws/install/setup.bash ] || { echo 'so101: the workspace is not built in this container yet: \
+the first tools/so101 up builds it, follow it with tools/so101 logs' >&2; exit 1; }; source /ros2_ws/install/setup.bash"
+
 ros() {  # ros [docker compose exec options] <command>: a command in the control container, workspace sourced
   local cmd=${*: -1}
-  run "${compose[@]}" exec "${@:1:$#-1}" control bash -lc "source /ros2_ws/install/setup.bash && $cmd"
+  run "${compose[@]}" exec "${@:1:$#-1}" control bash -lc "$SOURCED && $cmd"
+}
+
+none() {  # none "$@": this command takes no argument; a flag goes before the command (down --dry-run stopped the stack)
+  [ $# -eq 0 ] || die "$command: no argument expected, got '$*' (--dry-run and --help go before the command)"
 }
 
 fresh() {  # fresh <command>: a command in a new control container, ROS sourced; the stack need not run
@@ -98,8 +108,14 @@ case $command in
     [[ ${1:-} =~ ^(control|perception)?$ ]] || die "build: control or perception (viz uses the control image)"
     run "${compose[@]}" build ${1:+"$1"}
     ;;
-  up) run "${compose[@]}" up -d control perception viz ;;
-  down) run "${compose[@]}" down ;;
+  up)
+    none "$@"
+    run "${compose[@]}" up -d control perception viz
+    ;;
+  down)
+    none "$@"
+    run "${compose[@]}" down
+    ;;
   restart)
     [[ ${1:-control} =~ ^(control|perception|viz)$ ]] || die "restart: control, perception or viz"
     run "${compose[@]}" restart "${1:-control}"
@@ -108,9 +124,16 @@ case $command in
     [[ ${1:-control} =~ ^(control|perception|viz)$ ]] || die "logs: control, perception or viz"
     run "${compose[@]}" logs -f "${1:-control}"
     ;;
-  shell) ros "exec bash" ;;
-  rviz) ros "rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz" ;;
+  shell)
+    none "$@"
+    ros "exec bash"
+    ;;
+  rviz)
+    none "$@"
+    ros "rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz"
+    ;;
   cycle)
+    none "$@"
     # After an ERROR, /brain/start only re-arms (06 §3.1): one call to come back to IDLE first. A service call
     # whose answer is lost would wait forever (#141): 30 s each. The filter reads line by line in bash: the image's
     # awk (mawk) reads a pipe in blocks, so it saw DONE only when the echo ended, at its timeout (#164, #169).
@@ -124,6 +147,7 @@ timeout 120 ros2 topic echo --field data /brain_state std_msgs/msg/String 2> /de
 case \$s in DONE*|ERROR*|STOPPED*) break ;; esac; done"
     ;;
   play)
+    none "$@"
     # A TTY in the container from a terminal, for the keys; a pipe keeps -T and its input is read as keys.
     tty=-T
     [ -t 0 ] && tty=""
@@ -131,19 +155,20 @@ case \$s in DONE*|ERROR*|STOPPED*) break ;; esac; done"
 ros2 run so101_bringup connect4_play"
     ;;
   bench)
-    mode="" episodes=10 bags=""
+    mode="" episodes=10 bags=-
     while [ $# -gt 0 ]; do
       case $1 in
         --stub | --perception | --game) mode=$1 ;;
-        -n) episodes=${2:-}; shift ;;
-        --bags) bags=${2:-}; shift ;;
+        -n) episodes=${2:-}; [ $# -lt 2 ] || shift ;;  # without its value: said below, not a silent exit 1
+        --bags) bags=${2:-}; [ $# -lt 2 ] || shift ;;
         *) die "bench: unknown option $1" ;;
       esac
       shift
     done
     [ -n "$mode" ] || die "bench: --stub, --perception or --game"
     [[ $episodes =~ ^[1-9][0-9]*$ ]] || die "bench: -n takes a number of episodes"
-    [[ $bags =~ ^[A-Za-z0-9_./-]*$ ]] || die "bench: --bags takes a plain path"
+    [ -n "$bags" ] && [[ $bags =~ ^[A-Za-z0-9_./-]*$ ]] || die "bench: --bags takes a plain path"
+    [ "$bags" != - ] || bags=""
     what="--episodes $episodes --out /ros2_ws/eval_bench.csv"
     if [ "$mode" = --stub ]; then
       stack="ros2 launch /ros2_ws/src/so101_bringup/test/gt_stub.launch.py"  # development only (step 4.2c)
@@ -166,7 +191,8 @@ busy=\$(for p in \$(pgrep -f \"[/]lib/so101_\"); do grep -qxz ROS_DOMAIN_ID=$BEN
 if [ -n \"\$busy\" ] || [ -n \"\$(ros2 node list --no-daemon --spin-time 3)\" ]; then \
 echo \"so101 bench: a stack already runs on ROS domain $BENCH_DOMAIN\" >&2; exit 1; fi; \
 $stack > /tmp/bench_stack.log 2>&1 & stack=\$!; trap \"kill -INT \$stack; wait \$stack\" EXIT; \
-ros2 run so101_bringup evaluate $what${bags:+ --bags $bags}"
+ros2 run so101_bringup evaluate $what${bags:+ --bags $bags} || { status=\$?; echo 'so101 bench: the end of its stack log:' >&2; \
+tail -n 30 /tmp/bench_stack.log >&2; exit \$status; }"
     ;;
   robustness)
     case=${1:-} lighting="" episodes=""
@@ -174,8 +200,8 @@ ros2 run so101_bringup evaluate $what${bags:+ --bags $bags}"
     shift
     while [ $# -gt 0 ]; do
       case $1 in
-        --lighting) lighting=${2:-}; shift ;;
-        -n) episodes=${2:-}; shift ;;
+        --lighting) lighting=${2:-x x}; [ $# -lt 2 ] || shift ;;  # without its value: refused below
+        -n) episodes=${2:-x}; [ $# -lt 2 ] || shift ;;
         *) die "robustness: unknown option $1" ;;
       esac
       shift
@@ -185,7 +211,7 @@ ros2 run so101_bringup evaluate $what${bags:+ --bags $bags}"
     # Next to the everyday stack, /joint_states once stalled for 0.5 s and the demo saw 2 drivers (13 §2)
     "$dry" || [ -z "$("${compose[@]}" ps -q control)" ] || die "robustness: the everyday stack runs, tools/so101 down first"
     run "${compose[@]}" run --rm --no-deps -e ROS_DOMAIN_ID=$ROBUSTNESS_DOMAIN control bash -lc \
-      "source /ros2_ws/install/setup.bash && ros2 launch so101_bringup robustness_demo.launch.py case:=$case\
+      "$SOURCED && ros2 launch so101_bringup robustness_demo.launch.py case:=$case\
 ${lighting:+ lighting:=$lighting}${episodes:+ episodes:=$episodes}"
     ;;
   run)
@@ -199,7 +225,7 @@ timeout 120 ros2 topic echo --once /end_effector_pose geometry_msgs/msg/PoseStam
           [ -z "$game" ] || stack+="timeout 120 ros2 topic echo --once /connect4/grid_pose geometry_msgs/msg/PoseStamped > /dev/null \
 || { tail -n 30 /tmp/stack.log; exit 1; }; "
           ;;
-        --out) out=${2:-}; shift ;;
+        --out) out=${2:-}; [ $# -lt 2 ] || shift ;;
         -*) die "run: unknown option $1" ;;
         *) break ;;
       esac

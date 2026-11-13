@@ -49,3 +49,10 @@ ADR-034 to ADR-038 decide the application, the grid, the scene, the task layer a
 
 - The real grid's reading falls under 95 % of the boards (P2-01): a webcam facing the grid (ADR-038).
 - A person beats the hard level too easily at the defense: a better leaf evaluation, not a deeper search [MES-70].
+
+## Update (2026-11-13 and 2026-11-14, ADR-041, ADR-042)
+
+Two rows of the decision table moved on, each in its own ADR:
+
+- **The robot's token**: taken by the arm at a dispenser the camera places (ADR-041, `/brain/pick`), no longer given between its jaws; the handover stays as `token_source: hand`.
+- **Where the arm rests**: beside the dispenser where the camera sees it, `HANDOVER` being that place where the layout puts the dispenser; and each move is judged where the camera sees the grid before the arm moves (ADR-042).

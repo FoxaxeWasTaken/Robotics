@@ -1,0 +1,11 @@
+game,seed,human,first,final_state,result,plies,history,missed,lost,think_s,move_s,read_s,duration_s,success,cause
+1,0,random,human,GAME_OVER,robot,8,13436363,0,0,0.3,21.3,0.4,90.1,True,
+2,0,random,robot,GAME_OVER,robot,7,3636303,0,0,0.2,20.6,0.4,86.5,True,
+3,0,random,human,GAME_OVER,robot,8,13434313,0,0,0.2,20.5,0.4,86.7,True,
+4,0,random,robot,GAME_OVER,robot,7,3132303,0,0,0.3,20.6,0.4,86.7,True,
+5,0,random,human,GAME_OVER,robot,8,43235323,0,0,0.3,20.6,0.4,87.6,True,
+6,0,random,robot,GAME_OVER,robot,7,3634363,0,0,0.5,20.7,0.4,88.1,True,
+7,0,random,human,GAME_OVER,robot,16,2313335205066444,0,0,0.3,22.0,0.5,186.7,True,
+8,0,random,robot,GAME_OVER,robot,13,3132332121154,0,0,0.5,21.9,0.5,163.8,True,
+9,0,random,human,GAME_OVER,robot,10,3342232313,0,0,0.6,21.8,0.5,118.0,True,
+10,0,random,robot,GAME_OVER,robot,15,343033332520411,0,0,0.5,21.2,0.4,180.3,True,

@@ -34,7 +34,8 @@ FIELDS = [
 ]  # fmt: skip
 BAG_TOPICS = [
     "/joint_states", "/joint_command", "/brain_state", "/connect4/state", "/connect4/board",
-    "/connect4/grid_pose", "/sim/ground_truth/connect4_board",
+    "/connect4/grid_pose", "/connect4/dispenser_pose", "/connect4/stations",
+    "/sim/ground_truth/connect4_board",
 ]  # fmt: skip
 END = ("GAME_OVER", "FIX_BOARD", "ERROR")
 STILL_RAD = (

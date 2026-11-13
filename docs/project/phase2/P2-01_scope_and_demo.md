@@ -23,8 +23,8 @@ The plan is built so that a lower level is always demonstrable if a higher one s
 ## 3. Demo scenario (what the video shows)
 
 1. The empty grid in the sim, the robot waiting with its gripper open, the terminal of `tools/so101 play` next to it. The team is on camera, around the screen.
-2. A player presses a column: a red token falls in the grid, a yellow token appears between the robot's jaws.
-3. The robot looks (perception view in RViz: grid outline, 42 cells classified), thinks (chosen column shown), closes its jaws on the token, drops it into the column and comes back with its gripper open.
+2. A player presses a column: a red token falls in the grid.
+3. The robot looks (perception view in RViz: grid outline, 42 cells classified), thinks (chosen column shown), takes a yellow token at its dispenser, drops it into the column and comes back with its gripper open.
 4. The game goes on until a win or a draw; the console announces the result.
 5. Cut to the numbers: games completed, drop success rate, board reading accuracy, and the CI that plays a game on each PR.
 

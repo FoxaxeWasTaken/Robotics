@@ -1,6 +1,12 @@
 """play.py (#232), the console of `tools/so101 play`: the drawing and the keys, on a fake game. It holds no
 rule: whose turn it is and the legal columns are read in /connect4/state. No ROS."""
 
+import os
+import pty
+import select
+import sys
+import tty
+
 import pytest
 from test_turns import EMPTY_BOARD, with_tokens
 
@@ -157,12 +163,44 @@ def test_the_game_keys_call_the_game_and_show_a_refusal(console, key, call):
     assert console.lines[-1] == "refused in MOVE"
 
 
-def test_q_quits_and_nothing_is_drawn_before_the_first_state(console):
+def test_q_quits_and_before_the_first_state_a_key_says_what_the_console_waits_for(console):
     console.game.state = None
+    assert console.step()
+    assert console.lines == []  # nothing to draw yet, and nothing said until a key comes
     assert console.step("4")
-    assert console.lines == []
+    assert console.lines == [play.NO_STATE]
     assert console.game.calls == []
     assert not console.step("q")
+
+
+def test_a_turn_that_failed_can_be_played_again_with_the_same_key(console):
+    """The state does not change when the hand or a service refuses: the key stayed dead, "not your turn"
+    under a status that said "your turn"."""
+    console.game.reply = (False, "no spare red token")
+    console.step("4")
+    console.step("4")
+    assert console.game.calls == [("play", 3), ("play", 3)]
+    assert console.lines[-1] == "no spare red token"
+    console.game.reply = (True, "")
+    console.step("4")
+    console.step("4")  # played now: the state has not changed yet
+    assert console.game.calls == [("play", 3)] * 3
+
+
+def test_the_robots_turn_that_failed_is_tried_again_at_the_next_key_not_at_each_step(console):
+    console.game.state = a_state(turn="robot")
+    console.game.reply = (False, "/connect4/human_done: no answer in 10 s")
+    console.step()
+    console.step()
+    assert console.game.calls == [("play", None)]  # no retry by itself: a service that is gone takes 10 s
+    assert console.lines[-1] == "/connect4/human_done: no answer in 10 s; any key to try again"
+    console.game.reply = (True, "")
+    console.step("n")  # the game's own keys keep their meaning
+    assert console.game.calls == [("play", None), ("new_game", False)]
+    console.step(" ")
+    assert console.game.calls == [("play", None), ("new_game", False), ("play", None)]
+    console.step(" ")
+    assert len(console.game.calls) == 3
 
 
 def test_a_service_that_does_not_answer_is_said_and_the_console_goes_on(console):
@@ -273,3 +311,52 @@ def test_the_console_draws_with_the_color_it_was_given():
 def test_the_robots_turn_says_where_its_token_comes_from(source, reason, said):
     state = a_state(turn="robot", reason=reason, token_source=source)
     assert play.status(state) == said
+
+
+@pytest.fixture
+def terminal(monkeypatch):
+    """A terminal in cbreak mode as the console's standard input: returns what types on it."""
+    master, slave = pty.openpty()
+    tty.setcbreak(slave)
+    stdin = os.fdopen(slave, "r")
+    monkeypatch.setattr(sys, "stdin", stdin)
+
+    def type_keys(keys):
+        os.write(master, keys)
+        assert select.select([stdin], [], [], 2.0)[0], "the keys did not arrive"
+
+    yield type_keys
+    stdin.close()
+    os.close(master)
+
+
+def test_keys_typed_ahead_are_read_one_at_a_time_and_none_stays_hidden(terminal):
+    """Two keys within one pass of the loop: read through Python's buffered input, the second one stayed
+    there, unseen by select, and came out at the next key press, as a move in another column."""
+    assert play.read_key() is None
+    terminal(b"45")
+    assert [play.read_key(), play.read_key(), play.read_key()] == ["4", "5", None]
+    terminal(b"2")
+    assert [play.read_key(), play.read_key()] == ["2", None]
+
+
+def test_a_special_key_plays_no_column(terminal):
+    """Delete is ESC [ 3 ~, Page Up ESC [ 5 ~, F5 ESC [ 1 5 ~: read key by key, their digits were columns."""
+    for sequence in (b"\x1b[3~", b"\x1b[5~", b"\x1b[15~", b"\x1b[A"):
+        terminal(sequence)
+        assert [play.read_key(), play.read_key()] == [None, None]
+    terminal(b"3")
+    assert play.read_key() == "3"
+
+
+def test_a_byte_that_is_no_key_is_not_the_end_of_the_input(terminal):
+    terminal("é".encode())  # two bytes, neither a key
+    assert [play.read_key(), play.read_key(), play.read_key()] == [None, None, None]
+
+
+def test_the_end_of_the_input_quits(monkeypatch):
+    read, write = os.pipe()
+    os.close(write)
+    with os.fdopen(read, "r") as stdin:
+        monkeypatch.setattr(sys, "stdin", stdin)
+        assert play.read_key() == "q"

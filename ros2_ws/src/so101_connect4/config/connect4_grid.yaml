@@ -1,4 +1,4 @@
-# The Connect Four layout (phase2/P2-02 §7): the model grid of §1 until #75 measures the purchased one. SI units,
+# The Connect Four layout (phase2/P2-02 §7): the model grid of §1; the purchased one's numbers are #75. SI units,
 # angles in rad. One file for the sim scene, the board reader and the drop targets: it lives in so101_connect4
 # because the perception container does not build so101_bringup.
 grid:

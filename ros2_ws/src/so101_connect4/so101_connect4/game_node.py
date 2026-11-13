@@ -175,7 +175,8 @@ class GameNode(rclpy.node.Node):
 
     def _srv_human_done(self, request, response):
         response.success = not self._human_done and self._turns.accepts_human_done
-        self._human_done = response.success
+        if response.success:  # a second call in the same tick is refused: it must not clear the first
+            self._human_done = True
         response.message = "" if response.success else self._refused()
         return response
 
@@ -204,7 +205,9 @@ class GameNode(rclpy.node.Node):
             brain_states=tuple(self._brain_states),
             stations=self._stations,
         )
-        self._new_game = self._human_done = self._stop = False
+        # A new game accepted in the same tick as a stop: the stop is taken first, the game starts at the next
+        self._new_game = self._new_game and self._stop
+        self._human_done = self._stop = False
         self._brain_states = []
         out = self._turns.step(now, inputs)
         if out.transition:

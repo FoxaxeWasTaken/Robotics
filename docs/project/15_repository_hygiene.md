@@ -194,7 +194,7 @@ flowchart TD
 ```
 
 - **Git LFS: not used**: limited free quota (1 GB storage and bandwidth) and complexity for every clone; nothing in the project justifies it if the rules above are followed. Provided STL meshes are already in Git, which is fine.
-- The `check-added-large-files` hook (1 MB) blocks accidental additions (provided `docs/` content is excluded so upstream syncs are not blocked).
+- The `check-added-large-files` hook (1 MB) blocks accidental additions (provided `docs/` content is excluded so upstream syncs are not blocked). The course's slides in `docs/` are the one exception to the 1 MB rule, whoever adds them: `J4_veille_et_projets.pdf` (5.2 MB), the day-4 deck our phase-2 decisions cite as [J4], came in with a team PR (#256) and stays (decided 2026-11-14).
 
 ## 8. Secrets and privacy
 

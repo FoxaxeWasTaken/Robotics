@@ -16,7 +16,7 @@
 | **P2.3** Scene and loading ✅ | A | #79, #80, #231 | Game scene, sim services, `CONNECT4` mode | — |
 | **P2.4** Board reader ✅ | C | #81, #82 | Grid read from the camera | — |
 | **P2.5** Token in the gripper and `/brain/drop` ✅ | B | #83, #84, #85 | One move through the brain, `fsm.py` untouched | — |
-| **P2.6** Sim integration | Shared | #86, #87, #232, #233, #234, #243 to #247 | Full games in sim, a console, the CI, the robustness demo; the engine's levels and reasons, the games' records | **1** |
+| **P2.6** Sim integration | Shared | #86, #87, #232, #233, #234, #243 to #247, #255, #257 to #260, #264, #265 | Full games in sim, a console, the CI, the robustness demo; the engine's levels and reasons, the games' records; the token dispenser and the positions from perception | **1** |
 | **P2.7** Real arm (`v2.1.0`) | Shared, A leads | #88 to #91, #248 | Full games on the real arm, filmed; the grid printed from the sim's model | **2** |
 | **P2.8** Wrist camera (`v2.1.0`) | A, C, B | #92 to #95 | Look and correct, if kept (`P2-02` §8) | 2, more reliable |
 | **P2.9** Stretch | Anyone | none | One or two bonus features, only if ahead | **3** |

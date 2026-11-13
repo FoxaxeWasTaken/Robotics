@@ -10,12 +10,14 @@ The engine is used twice, in this process and never through the game node: the h
 of HINT_DEPTH (34 ms [MES-66]), and the cells of the winning four.
 """
 
+import os
 import select
 import sys
 import termios
 import tty
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 
 from so101_connect4 import game as engine
 from so101_connect4 import layout
@@ -25,6 +27,7 @@ KEYS = (
     "keys: 1 to 7 play a column, ? a hint, n new game, r new game with the robot first, "
     "e, m, h the level (easy, medium, hard), s stop, q quit"
 )
+NO_STATE = "no /connect4/state yet: is the game's stack up, and built? (CONNECT4=true tools/so101 up)"
 LEVEL_KEYS = {name[0]: depth for name, depth in engine.LEVELS.items()}  # e, m, h
 HINT_DEPTH = 8
 LETTERS = {"red": "R", "yellow": "Y"}  # a token on the screen, by its color
@@ -79,9 +82,9 @@ class Console:
     def __init__(self, game, write=show, color=False, colors=None):
         self.game, self.write, self.color = game, write, color
         self.colors = colors or layout.colors(layout.load())  # each side's token color (token.robot_color)
-        self._drawn = self._played = (
-            None  # the states drawn and played: the client's state is a new dict each time
-        )
+        # The states drawn and played, and the one whose robot's turn failed: the client's state is a new
+        # dict each time
+        self._drawn = self._played = self._failed = None
 
     def step(self, key=None) -> bool:
         """False to quit."""
@@ -89,6 +92,8 @@ class Console:
         if key == "q":
             return False
         if state is None:
+            if key and not key.isspace():
+                self.write(NO_STATE)
             return True
         if state is not self._drawn:
             self._drawn = state
@@ -102,8 +107,17 @@ class Console:
     def _act(self, state, key):
         mine = state["state"] == "WAIT_HUMAN" and state is not self._played
         if mine and state["turn"] == "robot":  # it starts, or its token was lost: no key for that
-            self._played, mine = state, False
-            self._say(self.game.play())
+            mine = False
+            # A try that failed waits for a key, any but the game's own: a service that is gone takes 10 s
+            if state is not self._failed or (key and key not in ("n", "r", "s", *LEVEL_KEYS)):
+                try:
+                    done, message = self.game.play()
+                except RuntimeError as error:
+                    done, message = False, str(error)
+                self._played, self._failed = (state, None) if done else (None, state)
+                if not done:
+                    self.write(f"{message}; any key to try again")
+                return
         if key in ("n", "r"):
             self._say(self.game.new_game(robot_first=key == "r"))
         elif key == "s":
@@ -126,8 +140,10 @@ class Console:
         elif int(key) - 1 not in state["legal"]:
             self.write(f"column {key} is full")
         else:
-            self._played = state
-            self._say(self.game.play(int(key) - 1))
+            reply = self.game.play(int(key) - 1)
+            if reply[0]:  # refused, the state stays as it is: the key must work again
+                self._played = state
+            self._say(reply)
 
     def _say(self, reply):
         if not reply[0]:
@@ -135,10 +151,21 @@ class Console:
 
 
 def read_key():
-    """A key typed since the last call, else None; "q" at the end of the input."""
-    if not select.select([sys.stdin], [], [], 0)[0]:
+    """A key typed since the last call, else None; "q" at the end of the input. Read from the descriptor, a
+    byte at a time: Python's buffered input took every pending byte and gave one, so a key typed ahead
+    stayed there, unseen by select, and came out at the next key press. A special key is nothing: its
+    sequence holds digits (Delete is ESC [ 3 ~), which are columns."""
+    stdin = sys.stdin.fileno()
+    if not select.select([stdin], [], [], 0)[0]:
         return None
-    return sys.stdin.read(1) or "q"
+    byte = os.read(stdin, 1)
+    if not byte:
+        return "q"
+    if byte == b"\x1b":
+        while select.select([stdin], [], [], 0)[0] and os.read(stdin, 32):
+            pass
+        return None
+    return byte.decode(errors="ignore") or None
 
 
 def main(make_hand, args=None):
@@ -153,7 +180,7 @@ def main(make_hand, args=None):
             tty.setcbreak(sys.stdin)  # a key at a time, no Enter
         while console.step(read_key()):
             rclpy.spin_once(node, timeout_sec=0.05)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):  # Ctrl-C: rclpy's own handler may shut down first
         pass
     finally:
         if saved:
