@@ -118,7 +118,12 @@ grep -qF "ros2 launch so101_bringup sim.launch.py > /tmp/stack.log 2>&1 &" <<< "
 grep -qF "/end_effector_pose" <<< "$out" || fail "run --stack does not wait for the brain: $out"
 grep -qF "chown -R $(id -u):$(id -g) /out" <<< "$out" || fail "run --out: the files stay root's: $out"
 [[ ! -e "$tmp/media" ]] || fail "a dry run made the --out folder"
-echo "ok: run builds our packages in a throwaway container (no network, domain 79, the repository read-only), --stack, --out"
+out=$("$so101" --dry-run run --game 'ros2 topic echo --once /connect4/state') || fail "run --game: exit $?"
+grep -qF "ros2 launch so101_bringup sim.launch.py connect4:=true perception:=true > /tmp/stack.log 2>&1 &" <<< "$out" \
+  || fail "run --game does not start the game's stack: $out"
+grep -qF "/end_effector_pose" <<< "$out" && grep -qF "/connect4/grid_pose" <<< "$out" \
+  || fail "run --game does not wait for the brain and the board reader: $out"
+echo "ok: run builds our packages in a throwaway container (no network, domain 79, the repository read-only), --stack, --game, --out"
 
 for case in 1 2 3a 3b 4 5 g1 g2 g3 g4 g5 g6; do
   dry "run --rm --no-deps -e ROS_DOMAIN_ID=78 control bash -lc 'source /ros2_ws/install/setup.bash && ros2 launch so101_bringup robustness_demo.launch.py case:=$case'" \

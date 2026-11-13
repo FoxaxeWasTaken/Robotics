@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 import rclpy
 from cv_bridge import CvBridge
+from rclpy.qos import DurabilityPolicy, ReliabilityPolicy
 from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo
 from std_msgs.msg import String
@@ -161,3 +162,49 @@ def test_nothing_is_read_before_the_cameras_intrinsics_and_the_game_state_shows_
     (debug,) = reader.debug
     assert (debug.width, debug.height, debug.encoding) == (640, 480, "rgb8")
     assert stamp_ms(debug) == 1100
+
+
+def test_the_debug_image_says_the_robots_reason_and_circles_the_winning_four(reader, monkeypatch):
+    def shown(state):
+        reader._cb_state(String(data=json.dumps(state)))
+        show(reader, picture("midgame"), 1000 + 100 * len(reader.debug))
+        return BRIDGE.imgmsg_to_cv2(reader.debug[-1], desired_encoding="rgb8")
+
+    quiet = shown({"state": "WAIT_HUMAN", "last": None})
+    last = {"who": "robot", "column": 3, "planned": 3, "score": 2, "depth": 10}
+    told = shown({"state": "WAIT_HUMAN", "last": last})
+    changed = np.flatnonzero((told != quiet).any(axis=(1, 2)))
+    assert changed.min() > 22 and changed.max() < 44, "the reason is a second line, nothing else changes"
+
+    won = (1, 1, 1, 1, 2, 2, 2) + (0,) * 35
+    monkeypatch.setattr(board, "read", lambda *args, **kwargs: won)
+    circled = shown({"state": "GAME_OVER", "last": None})
+    centres, radius = board.cell_pixels(LAYOUT, reader_pose(reader), K)
+    u, v = centres[0]
+    r, g, b = (int(c) for c in circled[round(v) - round(radius) - 3, round(u)])
+    assert g > 200 and r < 80 and b < 80
+
+
+def reader_pose(reader):
+    """The grid in the camera, as the reader finds it in the reference image."""
+    found = detect_markers(picture("midgame"), LAYOUT["markers"]["dictionary"])
+    return board.grid_in_camera(found, LAYOUT, K)[0]
+
+
+def test_the_readers_qos_is_the_contracts(reader):
+    """01 §3.1: Reliable, the images' subscription too (a best-effort one gets 1 image of the 10 Hz, MES-67);
+    the grid's pose latched, for a game node started after it."""
+
+    def qos(endpoints):
+        (endpoint,) = endpoints
+        return endpoint.qos_profile.reliability, endpoint.qos_profile.durability
+
+    reliable, volatile, latched = (
+        ReliabilityPolicy.RELIABLE,
+        DurabilityPolicy.VOLATILE,
+        DurabilityPolicy.TRANSIENT_LOCAL,
+    )
+    assert qos(reader.get_subscriptions_info_by_topic("/external_cam/image_raw")) == (reliable, volatile)
+    assert qos(reader.get_publishers_info_by_topic("/connect4/board")) == (reliable, volatile)
+    assert qos(reader.get_publishers_info_by_topic("/connect4/grid_pose")) == (reliable, latched)
+    assert qos(reader.get_publishers_info_by_topic("/connect4/debug_image")) == (reliable, volatile)

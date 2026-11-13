@@ -38,3 +38,7 @@ The course now provides `_connect_arm` (upstream PR #1) without `max_relative_ta
 ## Update (2026-11-06)
 
 The team runs the real arm at the sim's speeds: 1.0 rad/s in the brain, 1.5 rad/s at the driver's limiter, instead of 0.5 and 0.8. The first real cycles at the reduced speeds were jerky (stick-slip, MES-62) and the 10 trials and the video come at the end of phase 1. The other layers stay: clamp, `max_relative_target`, slow shutdown (0.5 rad/s), `/brain/stop`, the power switch, hands off. Faster means less time to react, so the checklist of `07` §7 says it. Reconsider for phase 2, with humans near the arm.
+
+## Update (2026-11-13, phase 2)
+
+In game mode the driver's `shutdown_pose` is `HANDOVER`, not `PARK`: the joint line from `HANDOVER` to `PARK` takes the gripper 30 mm into the grid's near post [MES-69]. The two legs back of a move, jaws empty, go 1.4 times the brain's speed, 1.4 rad/s on the sim, under the limiter's 1.5 [MES-73]: a ratio, so an overlay that slows the real arm slows them too (ADR-040). Sim only: the real arm's speeds near a person are `v2.1.0`'s (`phase2/P2-02` §8).

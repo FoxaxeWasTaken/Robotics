@@ -51,7 +51,7 @@ services:
     # viz waits for install/ to be ready.
     command: ["/opt/so101/entrypoint.sh"]
 
-  # Second container of the brief (C-02). Builds only up to so101_perception, into its own
+  # Second container of the brief (C-02). Builds only up to so101_perception and so101_connect4, into its own
   # folders: two colcon builds on the same folders conflict (docs/project/02 §3.1).
   perception:
     build:

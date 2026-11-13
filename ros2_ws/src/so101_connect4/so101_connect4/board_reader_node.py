@@ -9,7 +9,8 @@ markers, its pose (board.grid_in_camera), the 42 cells (board.read), the board's
   the streak (the game judges a read by when it receives it). An unreadable or impossible grid is
   published too, `valid` false with its reason (markers:<n>, out_of_view, gravity:<column>, counts:<h>-<r>).
 - /connect4/grid_pose and the TF base_link -> connect4_grid: at each image whose markers give a pose.
-- /connect4/debug_image: at each image.
+- /connect4/debug_image: at each image; with the game's state, the last move and the robot's reason
+  (client.last_move) and the winning four circled (game.four). Display only: nothing of it reaches the game.
 """
 
 import json
@@ -23,7 +24,7 @@ import rclpy.node
 from ament_index_python.packages import get_package_share_directory
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PoseStamped, TransformStamped
-from rcl_interfaces.msg import ParameterDescriptor
+from rcl_interfaces.msg import FloatingPointRange, IntegerRange, ParameterDescriptor
 from rclpy.clock import Clock, ClockType
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.qos import DurabilityPolicy, QoSProfile
@@ -34,7 +35,8 @@ from std_msgs.msg import String
 from tf2_ros import TransformBroadcaster
 
 from so101_common.robot import BASE_FRAME
-from so101_connect4 import board, layout
+from so101_connect4 import board, game, layout
+from so101_connect4.client import last_move
 from so101_interfaces.msg import Connect4Board
 from so101_perception.calibration import detect_markers
 from so101_perception.geometry import load_extrinsics, quaternion
@@ -49,20 +51,26 @@ class BoardReaderNode(rclpy.node.Node):
     def __init__(self):
         super().__init__("board_reader")
 
-        def declare(name, default, description):
-            descriptor = ParameterDescriptor(description=description, read_only=True)
+        def declare(name, default, description, low=None, high=None):
+            """Read-only, a number with its range, as the phase-1 nodes': a value out of it stops the node."""
+            bounds = {}
+            if isinstance(default, int):
+                bounds = {"integer_range": [IntegerRange(from_value=low, to_value=high, step=1)]}
+            elif isinstance(default, float):
+                bounds = {"floating_point_range": [FloatingPointRange(from_value=low, to_value=high)]}
+            descriptor = ParameterDescriptor(description=description, read_only=True, **bounds)
             return self.declare_parameter(name, default, descriptor).value
 
-        rate = declare("process_rate_hz", 10.0, "How often a new image is looked for, Hz")
-        reads = declare("stable_reads", 5, "Identical reads in a row before /connect4/board")
-        self._threshold = declare("token_threshold", board.THRESHOLD, "Share of a cell's disc in a color")
+        rate = declare("process_rate_hz", 10.0, "How often a new image is looked for, Hz", 1.0, 30.0)
+        reads = declare("stable_reads", 5, "Identical reads in a row before /connect4/board", 1, 50)
+        share = "Share of a cell's disc in a color's range: a token"
+        self._threshold = declare("token_threshold", board.THRESHOLD, share, 0.05, 1.0)
         extrinsics = declare("extrinsics_file", "", "Camera pose; empty: so101_perception's")
-        layout_file = declare("layout_file", "", "Grid layout; empty: the installed connect4_grid.yaml")
         if unknown := sorted(set(self._parameter_overrides) - set(self._parameters)):  # rclpy: no public API
             raise ValueError(f"Unknown parameters {unknown}: a typo in a config file?")
         perception = Path(get_package_share_directory("so101_perception")) / "config"
         self._T_base_cam = load_extrinsics(extrinsics or perception / "camera_extrinsics.yaml").T_base_cam
-        self._layout = layout.load(layout_file or None)
+        self._layout = layout.load()  # the installed file, as the game node: one source for the grid
         self._stable = board.Stable(reads)
         self._bridge = CvBridge()
         self._image = None  # latest image not processed yet
@@ -137,8 +145,13 @@ class BoardReaderNode(rclpy.node.Node):
         text = f"board {'VALID' if valid else reason}{'' if stable else ' (not stable yet)'}"
         if state := self._game.get("state"):
             text += f"  game {state}"
-        out = rgb if T_cam_grid is None else board.draw(rgb, self._layout, T_cam_grid, K, cells, "")
+        out = rgb
+        if T_cam_grid is not None:
+            four = game.four(cells) if cells else ()
+            out = board.draw(rgb, self._layout, T_cam_grid, K, cells, four=four)
         out = board.label(out, text)
+        if told := last_move(self._game.get("last")):
+            out = board.label(out, told, row=1)
         debug = self._bridge.cv2_to_imgmsg(out, encoding="rgb8")
         debug.header = image.header
         self._pub_debug.publish(debug)

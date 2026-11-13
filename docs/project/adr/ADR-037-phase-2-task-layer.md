@@ -46,3 +46,7 @@ The "reconsider if" is met: two weeks are left, and moving `/brain/start` onto a
 - `turns.py`, pure, joins the package; `board_reader_node` replaces `perception_node` in game mode.
 
 The task layer stays as decided: a game node that never publishes `/joint_command`, guards extended. A generic action can come later if a rack or a dispenser needs one.
+
+## Update (2026-11-13, built and measured)
+
+The decision as updated on 2026-11-07 is built: `/brain/drop` and `/brain/handover` in game mode, 50 tokens of 50 in their column [MES-69], [MES-73]; `game_node` never publishes `/joint_command`, and a guard checks it. Status: **DECIDED**. The game's software around it is ADR-040.

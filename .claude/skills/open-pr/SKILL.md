@@ -11,7 +11,7 @@ The rules are in `CONTRIBUTING.md` (§2 workflow, §2.1 naming, §5 tests, §6 d
 
 1. **One commit per ticket**, conventional (`<type>(<scope>): …`, CONTRIBUTING §2.1). A group of tickets goes in one PR only when they touch the same files or the same roadmap step.
 2. **Checks**, from the repository root: `pre-commit run --all-files`, `bash tools/ci/guards.sh`. Run the tests of each package you touched: `tools/so101 test <package>`, or the isolated run of the `isolated-stack` skill when a developer's stack is up.
-3. **Docs the change makes wrong** (CONTRIBUTING §6): `git grep` each parameter, topic, file and ticket number you touched in `README.md`, `docs/project/` and `results/`. Fix the status tables, the counts and the "not handled" lines, in the present tense. Add a `CHANGELOG.md` entry under `[Unreleased]`.
+3. **Docs the change makes wrong** (CONTRIBUTING §6): `git grep` each parameter, topic, file and ticket number you touched in `README.md`, `docs/project/` and `results/`. Fix the status tables, the counts and the "not handled" lines, in the present tense. `CHANGELOG.md` is updated in the milestone's last PR only (`docs/project/15` §6, the `release` skill).
 4. **Branch up to date**: merge `origin/main` into it. Never rebase, never force-push.
 
 ## Opening

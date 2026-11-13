@@ -2,7 +2,7 @@
 
 This folder gathers **every choice** of the project, its rationale (imposed by the brief or decided by the team, with evidence), and **the step-by-step path** to complete the project cleanly.
 
-> Written by a virtual team of experts who **checked each other's work** (`11_cross_review_and_measurements.md`). Disagreements were settled by **reproducible measurements** (`experiences/`, tools actually run; 32 for the cross-review, 57 in all, `11` §4): out of 44 objections, **36 initial proposals were changed**. The folder contains **40 diagrams** (plus one in the root README), all rendered and checked by mermaid-cli.
+> Written by a virtual team of experts who **checked each other's work** (`11_cross_review_and_measurements.md`). Disagreements were settled by **reproducible measurements** (`experiences/`, tools actually run; 73 measurements, `11` §4): out of 51 objections, **43 initial proposals were changed**. The folder contains **40 diagrams** (plus one in the root README), all rendered and checked by mermaid-cli.
 
 ## Where to start?
 
@@ -15,13 +15,13 @@ This folder gathers **every choice** of the project, its rationale (imposed by t
 | Quality, tooling or repository owner | `14` → `15` → `16` → ADR-024 to 033 |
 | Preparing the defense | `README` (this file) → `presentations/` (the previous decks) → `11` → `08` §2 → `09` step 8.1 → `phase2/README` |
 | Something is broken | `13_runbook_troubleshooting.md` |
-| Working on phase 2 (Connect Four) | `phase2/README` → `P2-01` → `P2-02` → `P2-04` (roadmap) → `P2-03` → ADR-034 to 038 |
+| Working on phase 2 (Connect Four) | `phase2/README` → `P2-01` → `P2-02` → `P2-04` (roadmap) → `P2-03` → ADR-034 to 038, ADR-040 |
 
 ## Index
 
 ```mermaid
 flowchart LR
-  C["00 Constraints<br/>(imposed)"] --> A["adr/<br/>39 decisions"]
+  C["00 Constraints<br/>(imposed)"] --> A["adr/<br/>40 decisions"]
   X["experiences/<br/>measurement scripts"] --> MS["11 Cross-review<br/>MES-xx measurements"]
   MS --> A
   A --> D["01 to 07<br/>design per domain"]
@@ -49,14 +49,14 @@ flowchart LR
 | [08_quality_tests.md](08_quality_tests.md) | Test pyramid, target metrics, evaluation bench, conventions, Git workflow (summary) |
 | [09_roadmap_step_by_step.md](09_roadmap_step_by_step.md) | **The step-by-step roadmap**: 9 stages (phase 2 of the brief = stage 7), 35 steps, each with "Done when…" |
 | [10_risks.md](10_risks.md) | Risk register (P × I) and mitigations |
-| [11_cross_review_and_measurements.md](11_cross_review_and_measurements.md) | **Cross-review log** (44 objections) and register of the 72 measurements |
+| [11_cross_review_and_measurements.md](11_cross_review_and_measurements.md) | **Cross-review log** (51 objections) and register of the 73 measurements |
 | [12_glossary_references.md](12_glossary_references.md) | Glossary and references |
 | [13_runbook_troubleshooting.md](13_runbook_troubleshooting.md) | Everyday commands, decision tree and troubleshooting table |
 | [14_quality_pipeline_ci.md](14_quality_pipeline_ci.md) | **Quality pipeline**: feedback loops, check matrix, tool choices, PR CI and nightly, test conventions, lint adoption |
 | [15_repository_hygiene.md](15_repository_hygiene.md) | **Repository hygiene**: remotes (upstream / origin / school), target layout, governance files, branches, commits, versions, heavy data, license, **planning with the GitHub Project** |
 | [16_mirroring_school_repo.md](16_mirroring_school_repo.md) | **Mirror** private repository (CI) → school repository: options, rules, workflow, setup, diagnosis |
-| [adr/](adr/README.md) | **39 decision records** and their map (context, options, decision, evidence) |
-| [phase2/](phase2/README.md) | **Phase 2 — Connect Four against the robot** (validated by the teaching staff): pitch, scope and demo, design, plan, risks and tests |
+| [adr/](adr/README.md) | **40 decision records** and their map (context, options, decision, evidence) |
+| [phase2/](phase2/README.md) | **Phase 2 — Connect Four against the robot** (validated by the teaching staff): pitch, scope and demo, design, plan, risks and tests, its own roadmap (`P2-04`) |
 | [experiences/](experiences/README.md) | Reproducible measurement scripts |
 | [presentations/](presentations/README.md) | The review decks as presented (PDF) and their videos |
 
@@ -119,6 +119,7 @@ Phase-2 questions and answers (riser, cameras, real-arm sessions, taught poses, 
 
 What the repository does today: the Status section of the [repository README](../../README.md); the work in progress: the GitHub Project (`15` §12). Below, the dated events these documents rest on, newest first.
 
+- **Phase 2 built in sim (2026-11-13)**: a full game runs on the stack, 10 games of 10 against a random person [MES-71]; the console `tools/so101 play`, the game bench, one game on each PR and ten each night; a review of 2026-11-12 added the levels, the games' records, the robot's reason and faster moves (#244 to #247) [MES-70 to MES-73]. The game's software decisions are ADR-040, their objections RC-45 to RC-51.
 - **Phase-2 scope (2026-11-07)**: the hand-in is 2026-11-20 23:42. `v2.0.0` is Connect Four in sim, `v2.1.0` the real arm (ADR-034 Update), after an expert review that measured the sim on prototypes [MES-63 to MES-66]. Dates: `phase2/P2-04` §3.
 
 - **Upstream pull on 2026-10-23** (#136): the day-3 visio slides on perception, `docs/J3_visio_perception.pdf` [J3]. No code or kit change. Impact absorbed in `00` (sources, the review calendar).

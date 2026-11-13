@@ -45,3 +45,7 @@ The bench now runs on the real pipeline, so the switch reaches the launch, still
 - The compose stack takes `EXPOSE_GROUND_TRUTH`, and only the E2E jobs set it.
 
 The decision is unchanged: only the bench reads the ground truth, and the C-06 guards still check that no launch file outside `test/` enables it and that no node of the pipeline reads it.
+
+## Update (2026-11-13, phase 2)
+
+The bench also plays Connect Four games: `evaluate --games`, a scripted person (random, or the engine), the robot first in the even games, a seed per game, scored on the true board; a game fails on `FIX_BOARD`, `ERROR`, a lost token, a token in another column, an arm that moved during a person's turn, or the timeout (`08` §3.1, ADR-040). Target P2-06: 8 games of 10; measured 10 of 10 [MES-71].

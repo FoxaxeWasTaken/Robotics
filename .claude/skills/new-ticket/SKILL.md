@@ -9,7 +9,7 @@ The anatomy, the fields and the Definition of Ready are in `CONTRIBUTING.md` §8
 
 ## Steps
 
-1. **Check it does not exist**: `gh issue list -R FoxaxeWasTaken/Robotics --search "<words>" --state all`. Find the roadmap step in `docs/project/09` and the parent epic (`gh issue list --label epic`).
+1. **Check it does not exist**: `gh issue list -R FoxaxeWasTaken/Robotics --search "<words>" --state all`. Find the roadmap step in `docs/project/09` (phase 2: `docs/project/phase2/P2-04`) and the parent epic (`gh issue list --label epic`).
 2. **Pick the milestone**: the version the ticket ships in, among the open ones (`gh api repos/FoxaxeWasTaken/Robotics/milestones --jq '.[].title'`; ADR-028 Update). Every task ticket has one.
 3. **Write the body** from the template, every section filled for a teammate or an agent who will not ask: exact paths, a checkable *Done when* (a command, a test, a threshold), a binding *Out of scope* that names the ticket doing it instead. First line: `**Lane** … · **Priority** … · **Size** … · **Roles** [..] → [..]`; last lines: the common-rules footer of the other tickets. Title `[<step><letter>] <imperative summary>`.
 4. **Show the draft to the user** before creating anything (title, milestone, labels, fields, blockers).

@@ -127,7 +127,7 @@ flowchart LR
 
 | Job | Fails when… | Artifacts |
 | --- | --- | --- |
-| `lint` | Also decides whether `control`, `perception` and `e2e-smoke` run (§5.4). Fails when a ruff, markdownlint, actionlint, zizmor, shellcheck or hadolint rule is violated, a file is not formatted, a YAML is invalid, a file exceeds 1 MB, gitleaks finds a secret in the history | Diff shown (`--show-diff-on-failure`) |
+| `lint` | Also decides whether `control`, `perception`, `e2e-smoke` and `e2e-game` run (§5.4). Fails when a ruff, markdownlint, actionlint, zizmor, shellcheck or hadolint rule is violated, a file is not formatted, a YAML is invalid, a file exceeds 1 MB, gitleaks finds a secret in the history | Diff shown (`--show-diff-on-failure`) |
 | `PR title` (`pr-title.yml`) | The PR title is not `type(scope): description` | — |
 | `guards` | brain or perception imports the backend; ground truth or provided extrinsics appear in the pipeline | Offending lines |
 | `control` | `colcon build` fails or a test fails (`colcon test-result --verbose`); only packages with a `test/` folder are tested, one at a time (`--executor sequential`): in parallel, the brain's IK property tests starved the driver's camera test (2.7 Hz on the 4-vCPU runner) | Each package's `pytest.xml` |
@@ -167,7 +167,7 @@ The table below is the plan from 2026-10-15:
 
 ### 5.4 What runs when (#146)
 
-| Event | lint, guards, PR title | `control`, `perception`, coverage comment | `e2e-smoke` |
+| Event | lint, guards, PR title | `control`, `perception`, coverage comment | `e2e-smoke`, `e2e-game` |
 | --- | --- | --- | --- |
 | PR push that changes code | Run | Run | Run |
 | PR push that only touches documentation | Run | Skipped | Skipped |
@@ -182,7 +182,7 @@ The table below is the plan from 2026-10-15:
 - The `lint` job decides, not a separate job: `lint` is a required check, so a failed decision blocks the PR instead of letting it merge without its tests, and no extra job is billed.
 - **`E2E sim (1 game)` runs with `e2e-smoke`** (#233): same events, same skips, its own job so that a failed game does not fail the pick & place check. Not required yet (§5.1).
 - **`E2E sim (3 episodes)` is a required check** since #156: a failed pick & place blocks the merge. A failed run gets one rerun of the failed job at most; a second failure is a `bug` issue (CONTRIBUTING §5).
-- **A skipped required check counts as passed**: a docs-only PR merges with `control`, `perception` and `e2e-smoke` skipped. A draft cannot be merged, and marking it ready reruns everything: since #209, also when the ready run is cancelled by a push of the same second, or an old draft run is rerun.
+- **A skipped required check counts as passed**: a docs-only PR merges with `control`, `perception`, `e2e-smoke` and `e2e-game` skipped. A draft cannot be merged, and marking it ready reruns everything: since #209, also when the ready run is cancelled by a push of the same second, or an old draft run is rerun.
 - Tested without GitHub (the decision, from a given draft state) by `tools/ci/test_ci_skips.sh` (pre-commit, when one of the scripts changes).
 
 ## 6. Nightly
@@ -206,7 +206,8 @@ flowchart LR
 - The bench writes one CSV row per episode: poses, final state, duration, failure cause (`08` §3).
 - **The report** (#151, `tools/ci/bench_report.sh`, tested by `test_bench_report.sh`): each night the bench runs, its summary line (success rate, p50/p95 duration, failure causes), the commit of `main`, the target (≥ 90 %, informative: the nightly does not fail under it) and the run link go to the run summary and to one comment on the issue "Nightly bench results". A bench that stopped, or never started, comments that too. Skipped nights add nothing. The first report created it (#155), labeled `report` so the project views leave it out (it is not a work item), then pinned by hand; only this job can write issues. Its last line is the release reminder (#211, `tools/ci/milestone.sh`): the latest Release, the number of `[Unreleased]` entries, the oldest open version milestone, and either "**releasable**" (the bench met its target and the milestone has no open ticket but its release ticket and the epics) or "not yet" with the reason. The `nightly-triage` skill reads it.
 - The bench runs only when `main` changed (#146): `main-changed` (`tools/ci/evaluation_due.sh`) finds the newest nightly run whose bench gave a verdict, success or failure, and skips the bench when that run was on the same commit. Skipped nights are passed over, and so are cancelled or timed-out benches. Any doubt runs it: no verdict among the last 30 runs, or the API failing; the bench is then skipped only on an explicit `false`. A failed bench is not rerun on the same commit: it was reported that night, and `workflow_dispatch` always runs it.
-- On failure, the evaluation job prints the stack state, the logs and the links still alive, and runs on the `DEFAULT` transports, as `e2e-smoke` (#141).
+- On failure, the evaluation job prints the stack state, the logs and the links still alive, and runs on the `DEFAULT` transports, as `e2e-smoke` (#141). A failed pick & place bench prints its stack's logs before the game bench takes that stack down; the last step then shows the game's stack, with `/connect4/state`, the board read and the true one.
+- The trends also hold the game engine's time for a move at its hard level (`so101_connect4/test/test_engine_benchmark.py`), next to the IK benchmarks.
 - **The game bench** (#233), in the same job after the pick & place bench, even when that one stopped: `docker compose down`, then `up` with `CONNECT4=true` (never `restart`: a restarted container keeps its environment, and `wait_for_stack.sh` reads the logs), `wait_for_stack.sh`, which with `CONNECT4=true` waits for the game node and the board reader, then `evaluate --games 10` against a random player (`08` §3.1; input `games` of a manual run). Its CSV and the failed games' rosbags join the artifact. **One verdict line for both benches**, `Target ≥ 90 % and ≥ 8/10 games: met.`: `tools/release.sh` takes any `Target …: met.` for a releasable night, so two lines would release a version on one bench. Games that did not finish are never "met".
 - The `upstream` job (#137) compares the course's `main` with `.github/upstream-sha`. When they differ, it opens one issue listing the new commits and their files, or updates the one already open. It runs without `E2E_ENABLED`, and its token can only write issues.
 - Reports of important milestones are **versioned by hand** in `results/` (small CSV/MD), never the rosbags (ADR-029).
@@ -295,7 +296,7 @@ Files are **in place at the repository root** (workflows, hooks, configurations)
 1. Replace `@member1/2/3` in `.github/CODEOWNERS` with the lane owners of `09` §1.2 (done, ticket 0.1d). CODEOWNERS is indicative: GitHub requests the owners' review, but the ruleset does not require it, so any member may approve any PR (team decision, 2026-10-23).
 2. Every member: `pipx install pre-commit && pre-commit install --install-hooks -t pre-commit -t commit-msg` (plain `pip install` is refused on Ubuntu 24.04, PEP 668).
 3. Private repo → Settings → Variables: `CI_ENABLED=true` (done) (CI and nightly are opt-in so they do not run on the school mirror, `16`).
-4. Settings → Rules (or Branches): protect `main` (PR required, 1 approval, required checks **by their displayed job names**: `Lint (pre-commit)`, `Project rules (C-05, C-06, C-23)`, `Build + tests (control image)`, `Build + tests (perception image)`, `PR title (conventional commit)`, and `E2E sim (3 episodes)` since #156). A private repository needs GitHub Pro for this (`15` §12.5). Done on 2026-10-15 (ruleset "main protection", no bypass).
+4. Settings → Rules (or Branches): protect `main` (PR required, 1 approval, required checks **by their displayed job names**: `Lint (pre-commit)`, `Project rules (C-05, C-06, C-23)`, `Build + tests (control image)`, `Build + tests (perception image)`, `PR title (conventional commit)`, `E2E sim (3 episodes)` since #156, and `Linked tickets have a milestone`: 7 checks. `E2E sim (1 game)` joins them once its runs are all green (#233). A private repository needs GitHub Pro for this (`15` §12.5). Done on 2026-10-15 (ruleset "main protection", no bypass).
 5. School mirror: `16` §5 (done; first run at the merge of PR #1).
 6. The `perception` job runs since step 3.1 removed the package's `COLCON_IGNORE`.
 7. Variable `E2E_ENABLED=true` once the vertical slice works (4.3a): done on 2026-10-23, after #139. The E2E jobs set `EXPOSE_GROUND_TRUTH=true` for the bench, then wait for the stack.

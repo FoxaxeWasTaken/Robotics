@@ -66,7 +66,7 @@ Any member may review and approve any PR. The author requests the reviews (step 
 - **Comment on the lines**, and ask rather than guess. The author answers each thread, then resolves it or lets the reviewer do it.
 - **The ruleset of `main`** (`docs/project/14` §10):
   - 1 approval, and every conversation resolved, before the merge;
-  - the required checks: lint, the project-rule guards, the build and tests of both images, the E2E job (3 pick & place out of 3), the PR title;
+  - the required checks: lint, the project-rule guards, the build and tests of both images, the E2E job (3 pick & place out of 3), the PR title, the linked tickets' milestone;
   - the branch up to date with `main`, and squash merge only;
   - new commits dismiss the approvals: after a push (an *Update branch* included), check that the approval is still there, else ask again.
 
@@ -87,7 +87,7 @@ The first three rules are checked in CI by `tools/ci/guards.sh`; the others rely
 
 - Python: **ruff** (lint + format, config in `pyproject.toml`). Run `pre-commit run --all-files` before a large PR.
 - Non-trivial logic lives **outside ROS callbacks**, in pure modules covered by unit tests.
-- No magic numbers: constants in `so101_common`, tunables as ROS parameters declared with a description and a range. Every tunable is in its base YAML (`so101_bringup/config/`, `so101_perception/config/`); the real arm overrides only the keys of `docs/project/01` §3.3 (`*_real.yaml`).
+- No magic numbers: constants in `so101_common`, tunables as ROS parameters declared with a description and a range. Every tunable is in its base YAML (`so101_bringup/config/`, `so101_perception/config/`, `so101_connect4/config/`); the real arm overrides only the keys of `docs/project/01` §3.3 (`*_real.yaml`).
 - **Do not modify** `core/`, `sim/`, `ros2_ws/src/so101_description/` (course kit). Provided files you have not rewritten yet are excluded from lint so they stay identical to upstream; remove a file from the exclusion list in `pyproject.toml` when you rewrite it.
 
 ## 5. Tests

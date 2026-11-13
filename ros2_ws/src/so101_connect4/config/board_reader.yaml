@@ -6,4 +6,3 @@ board_reader:
     stable_reads: 5         # identical reads in a row, each on a new image, before /connect4/board
     token_threshold: 0.35   # share of a cell's disc in a color's range: a token [MES-65]
     extrinsics_file: ""     # the camera's pose; empty: so101_perception's camera_extrinsics.yaml
-    layout_file: ""         # empty: the installed connect4_grid.yaml

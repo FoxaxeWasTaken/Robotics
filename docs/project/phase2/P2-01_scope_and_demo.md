@@ -18,7 +18,7 @@ The plan is built so that a lower level is always demonstrable if a higher one s
 | **0 — Fallback** | Tic-tac-toe with the phase-1 cubes on a 3×3 grid drawn on the table: no vertical grid, no slot, same software (board reader, engine, task layer) | Only if the drop spike (`P2-04` step P2.1) stays a no-go after changing the sim geometry |
 | **1 — Target of `v2.0.0`** | Connect Four **in sim**: a person plays from a terminal (`tools/so101 play`), the robot reads the grid with its camera and plays; full games measured on the bench and in the CI | Video of the sim + RViz, the team playing on camera, bench numbers |
 | **2 — Target of `v2.1.0`** | Connect Four **on the real arm** against a person: store-bought grid with its depth guide, the arm on a riser, tokens handed to the robot, webcam facing the grid, wrist camera if the drop bench needs it; the human presses "token given" and "done" | Live demo or video with the team, real numbers |
-| **3 — Stretch** | Pick one or two: difficulty levels; automatic detection of the human's move (no key); the robot comments the game (LLM + text-to-speech, **never** in the motor loop); a token rack or dispenser instead of the handover; continuous visual servoing (Pinocchio, ADR-008 "reconsider if") | Bonus clip |
+| **3 — Stretch** | Done: the difficulty levels (#244, #246). Others, pick one or two: automatic detection of the human's move (no key); the robot comments the game (LLM + text-to-speech, **never** in the motor loop); a token rack or dispenser instead of the handover; continuous visual servoing (Pinocchio, ADR-008 "reconsider if") | Bonus clip |
 
 ## 3. Demo scenario (what the video shows)
 
