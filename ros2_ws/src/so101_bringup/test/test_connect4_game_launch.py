@@ -59,8 +59,19 @@ class TestConnect4Game(unittest.TestCase):
         rclpy.init()
         node = rclpy.create_node("test_connect4_game")
         try:
+
+            def readers():  # the board reader's subscription to the camera, once discovered
+                return [
+                    s.qos_profile.reliability
+                    for s in node.get_subscriptions_info_by_topic("/external_cam/image_raw")
+                    if s.node_name == "board_reader"
+                ]
+
+            def discovered():  # a subscription may come after the publishers: both are waited for
+                return all(node.get_publishers_info_by_topic(t) for t in PUBLISHED) and readers()
+
             end = time.monotonic() + STARTUP_TIMEOUT
-            while time.monotonic() < end and not all(node.get_publishers_info_by_topic(t) for t in PUBLISHED):
+            while time.monotonic() < end and not discovered():
                 rclpy.spin_once(node, timeout_sec=0.2)
             for topic, (reliability, durability) in PUBLISHED.items():
                 (publisher,) = node.get_publishers_info_by_topic(topic)
@@ -68,12 +79,7 @@ class TestConnect4Game(unittest.TestCase):
                 self.assertEqual(qos.reliability, reliability, topic)
                 self.assertEqual(qos.durability, durability, topic)
             # the reader takes every image: a best-effort subscriber gets 1 of the 10 Hz at 640x480 [MES-67]
-            readers = [
-                s.qos_profile.reliability
-                for s in node.get_subscriptions_info_by_topic("/external_cam/image_raw")
-                if s.node_name == "board_reader"
-            ]
-            self.assertEqual(readers, [RELIABLE])
+            self.assertEqual(readers(), [RELIABLE])
         finally:
             node.destroy_node()
             rclpy.shutdown()
