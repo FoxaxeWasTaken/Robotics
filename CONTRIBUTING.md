@@ -108,7 +108,7 @@ The PR shows both runs (RED → GREEN). A bug gets its regression test before it
 | E2E | `tools/so101 bench` (`ros2 run so101_bringup evaluate`) | Full pick & place, N episodes. CI runs 3 on every PR (`e2e-smoke`, a required check: 3 successes out of 3) and 50 in the nightly each night `main` changes. Phase 2: `tools/so101 bench --game` (`evaluate --games`), full Connect Four games; CI plays 1 on every PR (`e2e-game`) and 10 each night |
 | Scripts | `tools/ci/test_*.sh`, run by pre-commit | A CI or tooling script: its behavior without network or Docker (fake `gh`, `--dry-run`) |
 
-The safety modules also have mutation testing (mutmut, run by hand, `docs/project/08` §1).
+The modules that decide when and how the arm moves also have mutation testing (mutmut, run by hand, `docs/project/08` §1): the command merge, the state machine, the game's turns and its move.
 
 **A flaky test never stays in `main`.** Open a `bug` issue with the failing run, then fix the cause, or the test, in its own PR, as #141 and #142 did. Never rerun until it passes. The E2E job is the one exception, since it runs the whole stack: one rerun of the failed job at most, and a second failure is a `bug` issue.
 

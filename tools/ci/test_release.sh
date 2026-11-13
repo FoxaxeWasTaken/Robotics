@@ -73,10 +73,11 @@ mkdir -p tools/ci && cp "$src/tools/release.sh" tools/ && cp "$ms" tools/ci/
 printf '# Changelog\n\n## [Unreleased]\n\n## [1.1.0] - 2026-11-03\n\nThe tooling.\n\n### Added\n\n- tools\n\n## [1.0.0] - 2026-10-31\n\nOld.\n' > CHANGELOG.md
 git add -A && git commit -qm init && git push -q origin HEAD:main 2> /dev/null
 sha=$(git rev-parse HEAD)
-report() {  # report <sha> <verdict>: the bench comment on the report issue, and that issue
+report() {  # report <sha> <verdict>: the bench comment on the report issue, and that issue; the one verdict
+  # line for the pick & place and the games, as bench_report.sh writes it since the game bench (#233)
   local commit=$1 verdict=$2
   echo '[{"number": 155}]' | fake "repos/$R/issues?labels=report&state=all"
-  python3 -c 'import json,sys; print(json.dumps([{"body": "### Nightly bench, 2026-11-03\n\n`main` at `%s`, 50 episodes\n\n**success 50/50**\n\nTarget ≥ 90 %%: %s.\n\nRun: https://github.com/team/robotics/actions/runs/77 (CSV)" % (sys.argv[1][:7], sys.argv[2])}]))' "$commit" "$verdict" \
+  python3 -c 'import json,sys; print(json.dumps([{"body": "### Nightly bench, 2026-11-03\n\n`main` at `%s`, 50 episodes\n\n**success 50/50**\n\n**games 10/10**\n\nTarget ≥ 90 %% and ≥ 8/10 games: %s.\n\nRun: https://github.com/team/robotics/actions/runs/77 (CSV)" % (sys.argv[1][:7], sys.argv[2])}]))' "$commit" "$verdict" \
     > "$tmp/comments.json"
 }
 rel() { SONAR_TOKEN=${SONAR_TOKEN-x} REPO=$R bash tools/release.sh "$@" > "$tmp/rel.log" 2>&1; }

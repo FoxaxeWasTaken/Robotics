@@ -149,13 +149,14 @@ class Arm:
     """An arm that follows every command at once, the jaws too; its closing effort is `effort` while the
     jaws are commanded closed."""
 
-    def __init__(self, q, effort=0.5, follows=True, stops_at_pct=0.0):
+    def __init__(self, q, effort=0.5, follows=True, stops_at_pct=0.0, roll_off=0.0):
         self.q, self.effort, self.follows, self.stops_at = (
             np.array(q, dtype=float),
             effort,
             follows,
             stops_at_pct,
         )
+        self.roll_off = roll_off  # rad: the wrist roll stops this far from its command
         self.gripper, self.t, self.log = 100.0, 0.0, []
 
     def run(self, move, limit=60.0):
@@ -166,6 +167,7 @@ class Arm:
             self.log.append((self.t, name, out))
             if out.command is not None and self.follows:
                 self.q = np.array(out.command)
+                self.q[4] += self.roll_off
             if out.gripper is not None:
                 self.gripper = max(out.gripper, self.stops_at)
             if out.result is not None:
@@ -300,3 +302,67 @@ def test_a_handover_opens_the_jaws_and_reaches_the_pose():
     assert result == ""
     np.testing.assert_allclose(arm.q, HANDOVER)
     assert arm.log[0][2].gripper == P.open_pct and arm.gripper == P.open_pct
+
+
+# Found by mutation testing (mutmut on drop.py, 08 §1) [MES-74]
+
+
+def test_a_target_whose_pre_drop_alone_is_out_of_reach_has_no_steps(kin):
+    """Every pose is solved before anything moves: the release in reach is not enough."""
+    radius = next(
+        r
+        for r in np.arange(0.30, 0.50, 0.002)
+        if release_pose(kin, [r, 0.0, 0.25]) is not None and release_pose(kin, [r, 0.0, 0.25 + 0.025]) is None
+    )
+    assert drop.PRE_DROP == 0.025
+    assert drop.drop_steps(kin, np.array([radius, 0.0, 0.25]), HANDOVER, P) is None
+
+
+def test_the_steps_are_named_as_the_logs_and_the_timeouts_say_them(kin):
+    assert names(drop.handover_steps(HANDOVER, P)) == ["handover"]
+    arm, move = Arm(HANDOVER, effort=0.0), drop.Move(drop.drop_steps(kin, COLUMNS[3], HANDOVER, P), P)
+    arm.run(move)
+    assert list(move.seconds) == ["close", "reopen"]  # empty jaws: they open again
+
+
+def test_a_step_that_ends_at_once_still_sends_its_gripper_command():
+    """A gripper command of a step with no wait is not lost when the next step starts on the same tick, nor
+    at the move's last tick."""
+    move = drop.Move([drop.Step("open", gripper=60.0), drop.Step("nothing")], P)
+    out = move.step(0.0, HANDOVER, 0.0, 100.0)
+    assert (out.gripper, out.result) == (60.0, "")
+
+
+def test_the_last_tick_of_a_move_commands_its_goal():
+    arm = Arm([0.0, 0.0, 0.0, 0.0, 0.0])
+    arm.run(drop.Move(drop.handover_steps(HANDOVER, P), P))
+    _, _, last = arm.log[-1]
+    assert last.result == ""
+    np.testing.assert_allclose(last.command, HANDOVER)
+
+
+def test_a_timeout_still_commands_the_arm_on_its_last_tick(kin):
+    arm = Arm(HANDOVER, follows=False)
+    arm.run(drop.Move(drop.drop_steps(kin, COLUMNS[3], HANDOVER, P), P))
+    _, _, last = arm.log[-1]
+    assert last.result == "timeout:rise" and last.command is not None
+
+
+def test_the_wrist_roll_has_its_own_tolerance(kin):
+    """The real arm's roll stops further from its goal than the other joints (brain_real.yaml)."""
+    loose = replace(P, reach_tol_roll=0.1)
+    arm = Arm(HANDOVER, roll_off=0.05)
+    result, _ = arm.run(drop.Move(drop.drop_steps(kin, COLUMNS[3], HANDOVER, loose), loose))
+    assert result == ""
+    arm = Arm(HANDOVER, roll_off=0.05)
+    result, _ = arm.run(drop.Move(drop.drop_steps(kin, COLUMNS[3], HANDOVER, P), P))
+    assert result == "timeout:rise"
+
+
+def test_the_jaws_gap_is_counted_from_their_closing_command(kin):
+    """Jaws commanded to 20 % that stop at 22 % hold nothing: the gap is 2 %, under hold_gap_pct."""
+    tight = replace(P, close_pct=20.0)
+    assert tight.hold_gap_pct > 2.0
+    arm = Arm(HANDOVER, effort=0.0, stops_at_pct=22.0)
+    result, _ = arm.run(drop.Move(drop.drop_steps(kin, COLUMNS[3], HANDOVER, tight), tight))
+    assert result == "no_token"

@@ -39,7 +39,7 @@ ADR-034 to ADR-038 decide the application, the grid, the scene, the task layer a
 
 - The engine, the turns and the reading are pure modules with unit tests; the nodes only store messages and call them.
 - A person can play from a terminal (`tools/so101 play`), and the bench plays through the same client: the two cannot drift.
-- Mutation testing (mutmut) is not run on `turns.py` and `drop.py` for `v2.0.0`: each PR ran its own deliberate breaks against the new tests (their lists are in the PR bodies). Due before the real arm (`08` §1).
+- `turns.py` and `drop.py` join phase 1's mutation testing (mutmut, by hand, `08` §1): 95.9 % and 88.6 % of their mutants killed, the survivors equivalent or exact-threshold ties [MES-74].
 
 ## Evidence / validation
 

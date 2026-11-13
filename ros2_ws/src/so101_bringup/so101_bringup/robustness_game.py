@@ -30,6 +30,7 @@ COLUMN, FULL = 3, 0  # the person's column; the column filled for g4
 STARTUP_S = 60.0
 STEP_TIMEOUT_S = 120.0  # a move lasts 19 s at most [MES-69]
 GAME_TIMEOUT_S = 600.0
+STILL_WATCH_S = 1.0  # after a reply that must leave the arm still
 
 
 def label(state) -> str:
@@ -46,6 +47,8 @@ def run(case, demo) -> list:
         reply = demo.act(step.action)
         if step.state is None:
             reached, got = matches(step.reply, reply), str(reply)
+            if step.still:  # a refusal replies at once: the arm is watched a moment after it
+                demo.wait(lambda state: False, STILL_WATCH_S)
         else:  # a state published after the action: the one before it may already look the same
 
             def follows(state, before=before, expected=step.state):
@@ -67,7 +70,7 @@ class Demo:
         self.client = GameClient(node, SimHand(node))
         self.hand, self.wait = self.client.hand, self.client.wait
         self.still, self.boards, self.reader, self.rng = games.Still(), 0, None, random.Random(0)
-        self._said, self._spin_once = None, self.client.spin_once
+        self._said, self._spin_once, self._arm = None, self.client.spin_once, None
         self.client.spin_once = self._spin_and_say
         node.create_subscription(JointState, "/joint_states", self._on_joints, 10)
         node.create_subscription(Connect4Board, "/connect4/board", self._on_board, QoSProfile(depth=1))
@@ -98,9 +101,8 @@ class Demo:
         print(f"{time.monotonic() - self.t0:7.2f} s  {text}", flush=True)
 
     def _on_joints(self, msg):
-        self.still.update(
-            True, [q for name, q in zip(msg.name, msg.position, strict=True) if name != "gripper"]
-        )
+        self._arm = [q for name, q in zip(msg.name, msg.position, strict=True) if name != "gripper"]
+        self.still.update(True, self._arm)
 
     def _on_board(self, msg):
         self.boards += 1
@@ -113,7 +115,11 @@ class Demo:
             self.say(f"game: {self._said}")
 
     def rest(self):
-        self.still = games.Still()  # the arm's place now: what moved() is measured from
+        """The arm's place now is what moved() is measured from: the last joints seen, not the next ones,
+        which may come after the step's action has already moved it."""
+        self.still = games.Still()
+        if self._arm is not None:
+            self.still.update(True, self._arm)
 
     def moved(self) -> float:
         return self.still.moved

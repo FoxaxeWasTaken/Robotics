@@ -28,7 +28,8 @@ tools/so101 robustness g2                 # the same questions asked of a Connec
 tools/so101 test                          # all our packages, in a new control container (no stack needed)
 tools/so101 test so101_brain -k fsm       # one package; the options go to pytest: the fast loop on one test
 tools/so101 run 'colcon test --packages-select so101_brain'   # next to someone's stack: a throwaway container,
-# no network, the sources copied and built there; --stack starts the sim first, --out DIR is mounted at /out
+# no network, the sources copied and built there; --stack starts the sim first (--game: in game mode),
+# --out DIR is mounted at /out
 # A full run: stop the stack first (tools/so101 down). The planner's timing tests (p95 under 1 s) fail when the
 # simulation shares the CPU; colcon test gives each package its own free ROS domain anyway.
 

@@ -50,6 +50,7 @@ flowchart LR
     A34 --> A36["036 Sim scene"]
     A34 --> A37["037 Task layer"]
     A35 --> A38["038 Hardware v2"]
+    A37 --> A40["040 Game software"]
   end
   A5 --> A8
   A5 --> A12

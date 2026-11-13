@@ -1,7 +1,7 @@
 # P2-02 — Design: setup, kinematics, perception, game, software
 
 > Authors: [KIN] Kinematics, [VIS] Vision, [DEC] Decision, [CTRL] Control · Reviewers: [ARC], [SAFE], [QA]
-> Requirements: C-05, C-06, C-51, C-54 · Decisions: ADR-035 to ADR-038, ADR-040 · Measurements: MES-27 to MES-32, MES-63 to MES-73
+> Requirements: C-05, C-06, C-51, C-54 · Decisions: ADR-035 to ADR-038, ADR-040 · Measurements: MES-27 to MES-32, MES-63 to MES-74
 
 **`v2.0.0` is the sim, `v2.1.0` the real arm** (ADR-034 Update). The numbers of §2, §3, §5 and §7 were measured on 2026-11-07 on prototypes kept in `experiences/connect4/`, the assumed grid model and no real grid; #76 puts them on one layout. §8 keeps what the real arm will need.
 

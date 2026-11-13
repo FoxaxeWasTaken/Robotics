@@ -54,7 +54,7 @@ WAIT_TARGET → PLAN → APPROACH → DESCEND → GRASP → LIFT → TRANSPORT �
 - **One stack, two worlds.** `USE_SIM` in `docker/.env` moves the driver between MuJoCo and the real SO-101. The same nodes run on both; only a few measured values change ([`01` §3.3](docs/project/01_architecture.md)).
 - **It sees for itself.** Perception locates the cube and the target with HSV detection, pixel → 3D and a median filter, on our own camera calibration. No ground truth reaches the pipeline, and a CI guard checks it.
 - **It checks its work.** The brain verifies each grasp and each drop, and takes up to 3 attempts: an empty gripper, a cube moved mid-action, a drop outside the target.
-- **It is built like a product.** On every PR, a 3-episode end-to-end bench and one full Connect Four game; each night `main` changes, 50 episodes and 10 games; mutation testing on the modules that protect the arm, 40 architecture decisions and 73 recorded measurements.
+- **It is built like a product.** On every PR, a 3-episode end-to-end bench and one full Connect Four game; each night `main` changes, 50 episodes and 10 games; mutation testing on the modules that protect the arm, 40 architecture decisions and 74 recorded measurements.
 
 ## Quickstart (simulation)
 
@@ -201,7 +201,7 @@ tools/so101 bench --perception -n 10         # the real pipeline
 ```
 
 - The packages: `so101_common`, `so101_interfaces`, `so101_driver`, `so101_brain`, `so101_perception`, `so101_connect4` (the game), `so101_bringup` (the sim-backed tests: closed loop, IK accuracy, launch files, the game's scene, drops and reading).
-- `tools/so101 run '<command>'` runs a command in a throwaway control container: no network, ROS domain 79, the repository read-only, our packages built inside it. It leaves a teammate's running stack and the shared `ros2_ws/build/` alone. `--stack` starts the simulation first, `--out DIR` gets back what the command writes.
+- `tools/so101 run '<command>'` runs a command in a throwaway control container: no network, ROS domain 79, the repository read-only, our packages built inside it. It leaves a teammate's running stack and the shared `ros2_ws/build/` alone. `--stack` starts the simulation first, `--game` starts it in game mode (the game node, the board reader), `--out DIR` gets back what the command writes.
 - `tools/so101 test` runs in a new control container: the stack need not run. For a full run, stop it first (`tools/so101 down`): the grasp planner's timing tests (p95 under 1 s) fail when the simulation shares the CPU.
 - **Every PR** runs lint, the guards, the build and tests of both images, a 3-episode E2E bench and one full Connect Four game (a draft or a docs-only change: lint and guards only). The nightly runs 50 episodes and 10 games each night `main` changes.
 - Code quality: [SonarQube Cloud](https://sonarcloud.io/project/overview?id=FoxaxeWasTaken_Robotics), `main` analyzed each night it changes (`14` §4; members of the SonarCloud organization only).

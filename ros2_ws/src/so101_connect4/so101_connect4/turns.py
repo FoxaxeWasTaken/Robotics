@@ -128,7 +128,7 @@ class Turns:
     def label(self) -> str:
         return f"{self.state}:{self.reason}" if self.reason else str(self.state)
 
-    def accepts_new_game(self, ready: bool = True) -> bool:
+    def accepts_new_game(self, ready: bool) -> bool:
         return ready and self.state in NEW_GAME_FROM
 
     @property
@@ -188,8 +188,7 @@ class Turns:
         self.result, self.last = "", None
         self.lost = self.missed = self.moves = 0
         self._robot_first = robot_first
-        self._expect = Expect.EMPTY
-        self._column = None
+        self._column = None  # the move is the way to HANDOVER: its reply makes the empty board expected
         self.history = []
         self._go(State.MOVE)
         self.seconds = dict.fromkeys(TIMED.values(), 0.0)  # after _go: the last game's wait is not this one's
