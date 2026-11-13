@@ -7,7 +7,18 @@ import pytest
 import yaml
 from ament_index_python.packages import get_package_share_directory
 
-from so101_bringup.robustness import CASES, MAX_RETRIES, Injector, end_state, lighting_verdict, verdict
+from so101_bringup.robustness import (
+    CASES,
+    GAME_CASES,
+    MAX_RETRIES,
+    NOT_HANDLED,
+    Injector,
+    end_state,
+    game_verdict,
+    lighting_verdict,
+    matches,
+    verdict,
+)
 
 CONFIG = Path(get_package_share_directory("so101_bringup")) / "config"
 
@@ -116,3 +127,60 @@ def test_case_2_needs_every_attempt_to_fail():
 )
 def test_lighting_is_judged_on_the_cycles(successes, expected):
     assert lighting_verdict(successes, 5)[0] == expected
+
+
+# The game's cases (#243): steps on /connect4/state, the arm still where no motion is allowed
+
+
+def reached(*moved):
+    """The runner's result of each step: reached, with how far the arm went meanwhile."""
+    return [{"reached": True, "got": "", "moved": rad} for rad in moved]
+
+
+def test_the_five_slide_questions_and_a_stop_are_asked_of_the_game():
+    assert sorted(GAME_CASES) == ["g1", "g2", "g3", "g4", "g5", "g6"]
+    assert all(case.question and case.steps for case in GAME_CASES.values())
+
+
+def test_an_expectation_is_the_fields_of_a_state_or_of_a_reply():
+    state = {"state": "WAIT_HUMAN", "reason": "no_token", "turn": "robot", "lost": 1}
+    assert matches({"state": "WAIT_HUMAN", "reason": "no_token", "lost": 1}, state)
+    assert not matches({"state": "WAIT_HUMAN", "turn": "human"}, state)
+    assert matches({"success": False}, {"success": False, "message": "column 0 is full"})
+    assert not matches({"success": False, "message": "unreachable"}, {"success": False, "message": "busy"})
+
+
+@pytest.mark.parametrize("name", sorted(GAME_CASES))
+def test_every_step_reached_with_a_still_arm_is_handled(name):
+    case = GAME_CASES[name]
+    assert game_verdict(case, reached(*[0.0] * len(case.steps))) == ("handled", "")
+
+
+def test_a_step_that_is_not_reached_is_not_handled_and_says_which():
+    case = GAME_CASES["g2"]
+    results = [{"reached": False, "got": "ERROR:timeout:MOVE", "moved": 0.0}]
+    result, why = game_verdict(case, results)
+    assert result == NOT_HANDLED
+    assert "step 1" in why and "ERROR:timeout:MOVE" in why and case.steps[0].action in why
+
+
+def test_a_run_cut_short_is_not_handled():
+    case = GAME_CASES["g6"]
+    result, why = game_verdict(case, reached(*[0.0] * (len(case.steps) - 1)))
+    assert result == NOT_HANDLED
+    assert f"step {len(case.steps)}" in why
+
+
+def test_an_arm_that_moved_where_no_motion_is_allowed_is_not_handled():
+    """Target P2-05, on the whole stack: G1, G2 and G3 must not move the arm while the fault is handled."""
+    for name in ("g1", "g2", "g3"):
+        case = GAME_CASES[name]
+        still = next(i for i, step in enumerate(case.steps) if step.still)
+        moved = [0.0] * len(case.steps)
+        moved[still] = 0.3
+        result, why = game_verdict(case, reached(*moved))
+        assert result == NOT_HANDLED, name
+        assert "the arm moved" in why
+    moving = GAME_CASES["g6"]  # a step where the arm may move: its move is not a fault
+    free = [0.3 if not step.still else 0.0 for step in moving.steps]
+    assert game_verdict(moving, reached(*free)) == ("handled", "")

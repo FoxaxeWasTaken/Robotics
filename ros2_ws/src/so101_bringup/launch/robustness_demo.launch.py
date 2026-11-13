@@ -1,6 +1,7 @@
 """robustness_demo.launch.py - one case of the robustness demo (step 5.4a, #103) on its own stack.
 
     ros2 launch so101_bringup robustness_demo.launch.py case:=<1|2|3a|3b|4|5> [lighting:=dim] [episodes:=5]
+    ros2 launch so101_bringup robustness_demo.launch.py case:=<g1..g6> [lighting:=dim]     the game's (#243)
 
 Starts sim.launch.py with perception in this container (the demo stops that node for cases 3 and 4),
 robot_state_publisher (for RViz on this domain), then so101_bringup's robustness_demo for the case; the whole
@@ -18,7 +19,7 @@ from launch.actions import DeclareLaunchArgument, EmitEvent, IncludeLaunchDescri
 from launch.event_handlers import OnProcessExit
 from launch.events import Shutdown
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
@@ -35,7 +36,9 @@ def generate_launch_description():
     )
     return LaunchDescription(
         [
-            DeclareLaunchArgument("case", description="1, 2, 3a, 3b, 4 or 5 (so101_bringup.robustness)"),
+            DeclareLaunchArgument(
+                "case", description="1, 2, 3a, 3b, 4 or 5; g1 to g6: the game's (so101_bringup.robustness)"
+            ),
             DeclareLaunchArgument(
                 "lighting", default_value="", description="A lighting entry of config/sim_scene.yaml (dim)"
             ),
@@ -44,7 +47,12 @@ def generate_launch_description():
                 PythonLaunchDescriptionSource(
                     PathJoinSubstitution([FindPackageShare("so101_bringup"), "launch", "sim.launch.py"])
                 ),
-                launch_arguments={"perception": "true", "lighting": LaunchConfiguration("lighting")}.items(),
+                launch_arguments={
+                    "perception": "true",  # with the game: its board reader
+                    "lighting": LaunchConfiguration("lighting"),
+                    # the cases g1 to g6 are asked of a Connect Four game (#243)
+                    "connect4": PythonExpression(["'", LaunchConfiguration("case"), "'.startswith('g')"]),
+                }.items(),
             ),
             # What the viz service runs for RViz, on this domain: the arm's TFs, world -> base_link. Not its
             # drop_box_marker_pub (course kit): it raises at every stop (rclpy shut down twice); RViz shows

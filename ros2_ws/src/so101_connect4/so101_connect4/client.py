@@ -60,11 +60,14 @@ class GameClient:
         steps = [self.hand.give_token]
         if column is not None:
             steps.append(lambda: self.hand.drop_token(column))
-        for step in [*steps, lambda: call(self.spin_once, self._human_done)]:
+        for step in [*steps, self.human_done]:
             reply = step()
             if not reply[0]:
                 break
         return reply
+
+    def human_done(self) -> tuple:
+        return call(self.spin_once, self._human_done)
 
     def stop(self) -> tuple:
         return call(self.spin_once, self._stop)

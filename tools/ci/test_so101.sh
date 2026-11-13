@@ -120,12 +120,13 @@ grep -qF "chown -R $(id -u):$(id -g) /out" <<< "$out" || fail "run --out: the fi
 [[ ! -e "$tmp/media" ]] || fail "a dry run made the --out folder"
 echo "ok: run builds our packages in a throwaway container (no network, domain 79, the repository read-only), --stack, --out"
 
-for case in 1 2 3a 3b 4 5; do
+for case in 1 2 3a 3b 4 5 g1 g2 g3 g4 g5 g6; do
   dry "run --rm --no-deps -e ROS_DOMAIN_ID=78 control bash -lc 'source /ros2_ws/install/setup.bash && ros2 launch so101_bringup robustness_demo.launch.py case:=$case'" \
     -- robustness $case
 done
 dry "robustness_demo.launch.py case:=5 lighting:=dim episodes:=1'" -- robustness 5 --lighting dim -n 1
-echo "ok: robustness runs each case of the demo in a new control container on ROS domain 78, lighting and episodes"
+dry "robustness_demo.launch.py case:=g5 lighting:=dim'" -- robustness g5 --lighting dim
+echo "ok: robustness runs each case of the demo, the game's too, in a new control container on ROS domain 78, lighting and episodes"
 
 # Next to the everyday stack the demo saw "2 drivers on this ROS domain" (13 §2, #191): refused, nothing started.
 mkdir "$tmp/up"

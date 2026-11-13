@@ -29,7 +29,16 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
 
-from so101_bringup.robustness import CASES, END_STATES, Injector, end_state, lighting_verdict, verdict
+from so101_bringup import robustness_game
+from so101_bringup.robustness import (
+    CASES,
+    END_STATES,
+    GAME_CASES,
+    Injector,
+    end_state,
+    lighting_verdict,
+    verdict,
+)
 
 UNREACHABLE_CUBE = (0.5, 0.0, 0.025)  # m, base_link: out of reach, as test_9 of so101_brain
 FAKE_BOX = (0.05, -0.25, 0.0)
@@ -161,13 +170,14 @@ class Demo:
         return self.states[first:]
 
 
-def stop_perception() -> list[int]:
-    """SIGINT to the perception nodes started on this ROS domain (the demo's), never another stack's."""
+def stop_perception(marker=b"lib/so101_perception/") -> list[int]:
+    """SIGINT to the perception nodes started on this ROS domain (the demo's), never another stack's; with
+    `marker`, to the nodes whose command line holds it (the game's board reader)."""
     domain = f"ROS_DOMAIN_ID={os.environ.get('ROS_DOMAIN_ID', '0')}".encode()
     stopped = []
     for proc in Path("/proc").iterdir():
         try:
-            if not proc.name.isdigit() or b"lib/so101_perception/" not in (proc / "cmdline").read_bytes():
+            if not proc.name.isdigit() or marker not in (proc / "cmdline").read_bytes():
                 continue
             if domain in (proc / "environ").read_bytes().split(b"\0"):
                 os.kill(int(proc.name), signal.SIGINT)
@@ -179,16 +189,19 @@ def stop_perception() -> list[int]:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--case", required=True, choices=sorted(CASES))
+    parser.add_argument("--case", required=True, choices=sorted(CASES | GAME_CASES))
     parser.add_argument("--episodes", type=int, default=5, help="case 5: cycles under the changed light")
     argv = sys.argv if argv is None else ["robustness_demo", *argv]
     args = parser.parse_args(remove_ros_args(argv)[1:])  # a launch Node adds --ros-args -r __node:=...
-    case = CASES[args.case]
+    game = args.case in GAME_CASES  # a case of the Connect Four game (#243)
+    case = (GAME_CASES if game else CASES)[args.case]
     rclpy.init(args=argv)
     node = rclpy.create_node("robustness_demo")
     demo = Demo(node)
     try:
-        print(f"case {args.case}: {case.question}\nexpected: {case.expected}", flush=True)
+        print(f"case {args.case}: {case.question}", flush=True)
+        if not game:
+            print(f"expected: {case.expected}", flush=True)
         if not demo.spin_until(lambda: demo.pose, STARTUP_S):
             print(f"no /end_effector_pose in {STARTUP_S:g} s: is the stack up?", file=sys.stderr)
             return 1
@@ -201,7 +214,9 @@ def main(argv=None) -> int:
         if len(drivers()) != 1:
             print(f"{len(drivers())} drivers on this ROS domain: run the demo on its own", file=sys.stderr)
             return 1
-        if args.case == "5":
+        if game:
+            result, why = robustness_game.main(node, args.case, stop_perception, demo.t0)
+        elif args.case == "5":
             successes = 0
             for episode in range(1, args.episodes + 1):
                 demo.images = demo.cubes = demo.boxes = 0

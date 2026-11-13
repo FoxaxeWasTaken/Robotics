@@ -123,3 +123,97 @@ def lighting_verdict(successes: int, episodes: int) -> tuple[str, str]:
     if successes == episodes:
         return "handled", why
     return ("partly" if successes else NOT_HANDLED), why
+
+
+# The game of phase 2 (#243): the same questions asked of a Connect Four game. A case is a list of steps on a
+# game that waits for the person's first move; robustness_game.py runs them.
+
+STILL_RAD = 0.05  # an arm joint further than this from its place at a step's start: the arm moved (P2-05)
+WAITS_PERSON = {"state": "WAIT_HUMAN", "turn": "human"}
+NO_TOKEN = {"state": "WAIT_HUMAN", "reason": "no_token", "lost": 1}
+
+
+@dataclass(frozen=True)
+class Step:
+    """One action, then what must follow: fields of a new /connect4/state, or of the action's reply."""
+
+    action: str  # one of robustness_game.Demo's
+    state: dict | None = None  # of a /connect4/state published after the action
+    reply: dict | None = None  # of the action's own reply: success, message
+    still: bool = False  # no arm joint may move from the action to what must follow
+
+
+@dataclass(frozen=True)
+class GameCase:
+    question: str
+    steps: tuple
+
+
+GAME_CASES = {
+    "g1": GameCase(
+        question="The scene changes mid-action: the person drops two tokens in one turn.",
+        steps=(
+            Step("cheat", state={"state": "FIX_BOARD"}, still=True),
+            Step("new_game", state=WAITS_PERSON | {"moves": 0}),
+        ),
+    ),
+    "g2": GameCase(
+        question="The grasp fails: no token is given before the robot's move.",
+        steps=(
+            Step("turn_without_token", state=NO_TOKEN, still=True),
+            Step("give_token", state=WAITS_PERSON | {"moves": 2}),
+        ),
+    ),
+    "g3": GameCase(
+        question="The object leaves the view: the board reader stops.",
+        steps=(
+            Step("stop_reader", reply={"success": True}),
+            Step("turn", state={"state": "FIX_BOARD", "reason": "not_seen:human"}, still=True),
+            Step("start_reader", reply={"success": True}),
+            Step("human_done", state=WAITS_PERSON | {"moves": 2}),
+        ),
+    ),
+    "g4": GameCase(
+        question="Target out of reach: a drop too far, a token for a full column.",
+        steps=(
+            Step("drop_out_of_reach", reply={"success": False, "message": "unreachable"}, still=True),
+            Step("fill_column", reply={"success": True}),
+            Step("drop_token", reply={"success": False}, still=True),
+        ),
+    ),
+    "g5": GameCase(
+        question="Lighting changes: is the grid still read?",
+        steps=(Step("game", state={"state": "GAME_OVER", "lost": 0, "missed": 0}),),  # with lighting:=dim
+    ),
+    "g6": GameCase(
+        question="A stop in the middle of a move (ours).",
+        steps=(
+            Step("turn", state={"state": "MOVE"}),
+            Step("wait_5_s", reply={"success": True}),
+            Step("stop", state={"state": "ERROR", "reason": "stopped"}),
+            Step("wait_2_s", reply={"success": True}, still=True),  # the arm frozen above the column
+            Step("new_game", state=WAITS_PERSON | {"moves": 0}),
+        ),
+    ),
+}
+
+
+def matches(expected: dict, got: dict) -> bool:
+    return all(got.get(key) == value for key, value in expected.items())
+
+
+def game_verdict(case: GameCase, results: list) -> tuple[str, str]:
+    """("handled" | "not handled", why) from the result of each step run, in order: `reached`, `got` (what
+    came instead) and `moved`, the furthest an arm joint went meanwhile, rad. The runner stops at the first
+    step not reached."""
+    for number, step in enumerate(case.steps, start=1):
+        if number > len(results) or not results[number - 1]["reached"]:
+            got = results[number - 1]["got"] if number <= len(results) else "not run"
+            return (
+                NOT_HANDLED,
+                f"step {number}, {step.action}: expected {step.state or step.reply}, got {got}",
+            )
+        if step.still and results[number - 1]["moved"] > STILL_RAD:
+            moved = results[number - 1]["moved"]
+            return NOT_HANDLED, f"step {number}, {step.action}: the arm moved, {moved:.2f} rad"
+    return "handled", ""
