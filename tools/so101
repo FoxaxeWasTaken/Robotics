@@ -25,21 +25,22 @@ Usage: tools/so101 [--dry-run] <command> [options]
   rviz                  RViz with the project's configuration
   cycle                 /sim/randomize (sim only), /brain/start, then /brain_state until DONE, ERROR or STOPPED
   play                  play Connect Four against the robot from this terminal, the stack started with
-                        CONNECT4=true tools/so101 up: 1 to 7 a column, n a new game, q quit
+                        CONNECT4=true tools/so101 up: 1 to 7 a column, ? a hint, n a new game, e m h the level, q quit
   bench --stub|--perception|--game [-n N] [--bags DIR]
                         the evaluation bench on ROS domain $BENCH_DOMAIN, N episodes (10), in the control
                         container: --perception the real pipeline, --stub the ground truth in its place.
                         CSV in ros2_ws/eval_bench.csv; DIR is a container path (/ros2_ws/bags: ros2_ws/bags).
-                        --game: N Connect Four games against a random player, 2 to 5 min each, CSV in
+                        --game: N Connect Four games against a random player, 1 to 2 min each, CSV in
                         ros2_ws/eval_games.csv
   robustness <case> [--lighting NAME] [-n N]
                         a case of the robustness demo (1, 2, 3a, 3b, 4 or 5) in a new control container on
                         ROS domain $ROBUSTNESS_DOMAIN, the stack stopped; case 5: --lighting dim, N cycles (5).
                         g1 to g6: the same questions asked of a Connect Four game; g5: --lighting dim
-  run [--stack] [--out DIR] '<command>'
+  run [--stack|--game] [--out DIR] '<command>'
                         <command> in a throwaway control container, next to a running stack without touching
                         it: no network, ROS domain $RUN_DOMAIN, the repository read-only at /repo, our packages
-                        copied and built there; --stack starts sim.launch.py first and waits for the brain;
+                        copied and built there; --stack starts sim.launch.py first and waits for the brain,
+                        --game starts it in game mode and waits for the board reader too;
                         DIR (made if missing) is mounted at /out for what the command writes
   test [package [pytest options]]
                         build and test one package, or all of ours, in a new control container (colcon
@@ -190,9 +191,12 @@ ${lighting:+ lighting:=$lighting}${episodes:+ episodes:=$episodes}"
     stack="" out="" chown=""
     while [ $# -gt 0 ]; do
       case $1 in
-        --stack)  # nodes started with & in a non-interactive shell ignore SIGINT: the container's end stops them
-          stack="(ros2 launch so101_bringup sim.launch.py > /tmp/stack.log 2>&1 &) && \
+        --stack|--game)  # nodes started with & in a non-interactive shell ignore SIGINT: the container's end stops them
+          game=""; [ "$1" = --stack ] || game=" connect4:=true perception:=true"  # the game: its node, the board reader
+          stack="(ros2 launch so101_bringup sim.launch.py$game > /tmp/stack.log 2>&1 &) && \
 timeout 120 ros2 topic echo --once /end_effector_pose geometry_msgs/msg/PoseStamped > /dev/null || { tail -n 30 /tmp/stack.log; exit 1; }; "
+          [ -z "$game" ] || stack+="timeout 120 ros2 topic echo --once /connect4/grid_pose geometry_msgs/msg/PoseStamped > /dev/null \
+|| { tail -n 30 /tmp/stack.log; exit 1; }; "
           ;;
         --out) out=${2:-}; shift ;;
         -*) die "run: unknown option $1" ;;

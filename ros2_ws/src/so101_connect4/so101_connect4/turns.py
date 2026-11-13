@@ -66,10 +66,10 @@ STOPPED = "stopped"  # the reply of a move cut by /brain/stop
 
 @dataclass(frozen=True)
 class Params:
-    read_timeout_s: float = 5.0  # the reader publishes only 5 identical reads: 1 s, a token falls in 0.3 s
+    read_timeout_s: float = 5.0  # the reader publishes only 5 identical reads: 0.5 s, a token falls in 0.3 s
     board_fresh_s: float = 1.0  # a read this recent proves the token did not land
     think_timeout_s: float = 5.0  # budget 1 s, plus one queued search after a stop
-    move_timeout_s: float = 90.0  # a move lasts 13 to 19 s on the sim [MES-69]
+    move_timeout_s: float = 90.0  # a move lasts 12 to 17 s on the sim [MES-73]
 
 
 @dataclass(frozen=True)
@@ -128,7 +128,7 @@ class Turns:
     def label(self) -> str:
         return f"{self.state}:{self.reason}" if self.reason else str(self.state)
 
-    def accepts_new_game(self, ready: bool = True) -> bool:
+    def accepts_new_game(self, ready: bool) -> bool:
         return ready and self.state in NEW_GAME_FROM
 
     @property
@@ -188,8 +188,7 @@ class Turns:
         self.result, self.last = "", None
         self.lost = self.missed = self.moves = 0
         self._robot_first = robot_first
-        self._expect = Expect.EMPTY
-        self._column = None
+        self._column = None  # the move is the way to HANDOVER: its reply makes the empty board expected
         self.history = []
         self._go(State.MOVE)
         self.seconds = dict.fromkeys(TIMED.values(), 0.0)  # after _go: the last game's wait is not this one's

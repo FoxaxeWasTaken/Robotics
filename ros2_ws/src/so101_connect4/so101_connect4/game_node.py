@@ -23,7 +23,7 @@ from dataclasses import fields
 import rclpy
 import rclpy.node
 from geometry_msgs.msg import PoseStamped
-from rcl_interfaces.msg import IntegerRange, ParameterDescriptor
+from rcl_interfaces.msg import FloatingPointRange, IntegerRange, ParameterDescriptor
 from rclpy.clock import Clock, ClockType
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.qos import DurabilityPolicy, QoSProfile
@@ -43,22 +43,25 @@ def ignore_sigint():
     signal.signal(signal.SIGINT, signal.SIG_IGN)  # Ctrl-C stops the node, and the node the worker
 
 
+DELAYS = {  # turns.Params, each a read-only parameter in seconds
+    "read_timeout_s": "READ_BOARD: no stable board with the move this long, then FIX_BOARD, s",
+    "board_fresh_s": "A read this recent, unchanged at the read timeout: the robot's token is lost, s",
+    "think_timeout_s": "THINK: no answer of the engine this long, then ERROR, s",
+    "move_timeout_s": "MOVE: no reply of the brain this long, then /brain/stop and ERROR, s",
+}
+
+
 class GameNode(rclpy.node.Node):
     def __init__(self):
         super().__init__("game_node")
-        read_only = ParameterDescriptor(description="A delay of turns.Params, s", read_only=True)
         delays = {
-            f.name: self.declare_parameter(f.name, f.default, read_only).value for f in fields(turns.Params)
+            f.name: self._declare(f.name, f.default, DELAYS[f.name], 0.1, 600.0) for f in fields(turns.Params)
         }
         # The level: set while the node runs (ros2 param set, the console), the next THINK uses it.
-        depth = ParameterDescriptor(
-            description="The engine's search depth, game.LEVELS",
-            integer_range=[IntegerRange(from_value=1, to_value=game.CELLS, step=1)],
-        )
-        self.declare_parameter("engine.max_depth", game.LEVELS["hard"], depth)
-        read_only.description = "The engine's time budget for a move, s; its seed between equal moves"
-        self._budget = self.declare_parameter("engine.budget_s", 1.0, read_only).value
-        self._seed = self.declare_parameter("engine.seed", 0, read_only).value
+        level = "The engine's search depth, game.LEVELS"
+        self._declare("engine.max_depth", game.LEVELS["hard"], level, 1, game.CELLS, read_only=False)
+        self._budget = self._declare("engine.budget_s", 1.0, "The engine's time for a move, s", 0.01, 60.0)
+        self._seed = self._declare("engine.seed", 0, "Between two equal moves as central", 0, 2**31 - 1)
         if unknown := sorted(set(self._parameter_overrides) - set(self._parameters)):  # rclpy: no public API
             raise ValueError(f"Unknown parameters {unknown}: a typo in a config file?")
         self._turns = turns.Turns(turns.Params(**delays))
@@ -176,6 +179,17 @@ class GameNode(rclpy.node.Node):
             request.target.x, request.target.y, request.target.z = (float(v) for v in target)
             self._move = self._drop.call_async(request)
         self._publish()
+
+    def _declare(self, name, default, description, low, high, read_only=True):
+        """A parameter with its range, as the phase-1 nodes': an int range for an int default, else a float
+        one. A value out of it stops the node at startup."""
+        bounds = (
+            {"integer_range": [IntegerRange(from_value=low, to_value=high, step=1)]}
+            if isinstance(default, int)
+            else {"floating_point_range": [FloatingPointRange(from_value=low, to_value=high)]}
+        )
+        descriptor = ParameterDescriptor(description=description, read_only=read_only, **bounds)
+        return self.declare_parameter(name, default, descriptor).value
 
     def _max_depth(self):
         return self.get_parameter("engine.max_depth").value

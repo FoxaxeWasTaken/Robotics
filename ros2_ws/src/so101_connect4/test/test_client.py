@@ -94,3 +94,37 @@ def test_a_service_that_is_not_there_raises(game, stack):  # noqa: F811
     nowhere = stack.create_client(Trigger, "/nowhere")
     with pytest.raises(RuntimeError, match="/nowhere"):
         client.call(lambda: stack.executor_.spin_once(timeout_sec=0.01), nowhere, timeout_s=0.3)
+
+
+ROBOT_MOVE = {"who": "robot", "column": 3, "planned": 3, "score": 2, "depth": 10}
+
+
+@pytest.mark.parametrize(
+    ("last", "said"),
+    [
+        (None, ""),
+        ({"who": "human", "column": 0, "planned": 0}, "human: column 1"),
+        (ROBOT_MOVE, "robot: column 4 (depth 10)"),
+        (ROBOT_MOVE | {"wins_in": 1}, "robot: column 4 (depth 10, it wins)"),
+        (ROBOT_MOVE | {"wins_in": 3}, "robot: column 4 (depth 10, it wins in 1 move)"),
+        (ROBOT_MOVE | {"wins_in": 7}, "robot: column 4 (depth 10, it wins in 3 moves)"),
+        (ROBOT_MOVE | {"loses_in": 2}, "robot: column 4 (depth 10, it loses in 1 move)"),
+        (ROBOT_MOVE | {"loses_in": 6}, "robot: column 4 (depth 10, it loses in 3 moves)"),
+        # its token fell in another column: the engine's proof was for the one it meant
+        (ROBOT_MOVE | {"planned": 4, "wins_in": 3}, "robot: column 4 (it meant column 5)"),
+    ],
+)
+def test_the_last_move_is_said_with_the_robots_reason(last, said):
+    """wins_in and loses_in are plies, the robot's own included (turns.py): said as the moves the winner
+    still has to play once this one is on the grid."""
+    assert client.last_move(last) == said
+
+
+def test_the_level_is_the_game_nodes_depth_set_from_outside(game, stack):  # noqa: F811
+    assert game.wait(lambda state: state["max_depth"] == 10, 5.0)
+    assert game.set_depth(4) == (True, "")
+    assert game.wait(lambda state: state["max_depth"] == 4, 5.0)
+    refused = game.set_depth(0)
+    assert not refused[0] and "engine.max_depth" in refused[1]
+    stack.spin_for(0.3)
+    assert game.state["max_depth"] == 4

@@ -51,3 +51,7 @@ Since this decision (`14` §5):
 - `E2E sim (3 episodes)` is a **required check**, 3 successes out of 3 (#156);
 - the nightly runs its bench and its `quality` job only when `main` changed (#146), and reports both on "Nightly bench results" (#151, #179);
 - the quota is GitHub Pro's 3,000 min/month, not 2,000.
+
+## Update (2026-11-13, phase 2, #233)
+
+One more job on each PR, `E2E sim (1 game)`: a full Connect Four game on the compose stack in game mode, 44 billed minutes a push with it. Not a required check until its runs are all green (decided on 2026-11-19). The nightly plays 10 games after its 50 episodes and gives one verdict for both, which `tools/release.sh` reads (`14` §5, §6).

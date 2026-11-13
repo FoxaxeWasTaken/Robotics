@@ -14,8 +14,8 @@ import cv2
 import numpy as np
 
 from so101_connect4 import layout as geometry
+from so101_connect4.game import EMPTY, HUMAN, ROBOT  # the cells' values, one definition
 
-EMPTY, HUMAN, ROBOT = 0, 1, 2
 # OpenCV HSV ranges, hue 0 to 180. Red is the cube's of so101_perception's perception.yaml, unchanged; with
 # this yellow, 2100 cells of 2100 [MES-65].
 RED = (((160, 150, 30), (180, 255, 255)), ((0, 150, 30), (8, 255, 255)))
@@ -135,8 +135,9 @@ class Stable:
         return (self._first, read) if self._count >= self._reads else None
 
 
-def draw(rgb, layout, T_cam_grid, K, cells, text=""):
-    """The debug image: each cell's disc, filled in its color when read as a token, and a status line."""
+def draw(rgb, layout, T_cam_grid, K, cells, text="", four=()):
+    """The debug image: each cell's disc, filled in its color when read as a token, the cells of `four`
+    (game.four) circled, and a status line."""
     out = rgb.copy()
     centres, radius = cell_pixels(layout, T_cam_grid, K)
     fill = {HUMAN: (255, 0, 0), ROBOT: (255, 255, 0)}
@@ -145,12 +146,15 @@ def draw(rgb, layout, T_cam_grid, K, cells, text=""):
         if cell:
             cv2.circle(out, centre, round(radius), fill[cell], -1, cv2.LINE_AA)
         cv2.circle(out, centre, round(radius), (255, 255, 255), 1, cv2.LINE_AA)
+    for u, v in (centres[i] for i in four):
+        cv2.circle(out, (round(u), round(v)), round(radius) + 3, (0, 255, 0), 3, cv2.LINE_AA)
     return label(out, text) if text else out
 
 
-def label(rgb, text):
-    """A copy of the image with a status line at its top."""
+def label(rgb, text, row=0):
+    """A copy of the image with a status line at its top, or under it (`row` 1)."""
     out = rgb.copy()
     for color, thickness in (((0, 0, 0), 3), ((0, 255, 0), 1)):
-        cv2.putText(out, text, (6, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, thickness, cv2.LINE_AA)
+        at = (6, 18 + 20 * row)
+        cv2.putText(out, text, at, cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, thickness, cv2.LINE_AA)
     return out

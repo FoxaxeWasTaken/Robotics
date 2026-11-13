@@ -12,8 +12,8 @@ The rule is in `AGENTS.md`: never stop or restart someone's containers, and neve
 | Need | Command | Isolation |
 | --- | --- | --- |
 | Tests of one package or all of ours | `tools/so101 test [package [pytest options]]` | a new control container; `colcon test` gives each package a free domain. It builds in the shared `ros2_ws/build/`: when a developer's stack is up, prefer the next row |
-| Tests, a scenario, a capture, a recording | `tools/so101 run [--stack] [--out DIR] '<command>'` | a throwaway container: no network, domain 79, the repository read-only, our packages copied and built there; `--stack` starts `sim.launch.py` first and waits for the brain; `DIR` is mounted at `/out` |
-| The evaluation bench | `tools/so101 bench --stub\|--perception [-n N]` | domain 77; it refuses to start when a stack already answers there |
+| Tests, a scenario, a capture, a recording | `tools/so101 run [--stack\|--game] [--out DIR] '<command>'` | a throwaway container: no network, domain 79, the repository read-only, our packages copied and built there; `--stack` starts `sim.launch.py` first and waits for the brain, `--game` starts it in game mode (the game node, the board reader) and waits for the grid's pose too; `DIR` is mounted at `/out` |
+| The evaluation bench | `tools/so101 bench --stub\|--perception\|--game [-n N]` (`--game`: Connect Four games, the stack in game mode) | domain 77; it refuses to start when a stack already answers there |
 
 `--dry-run` prints the `docker` line without running it.
 

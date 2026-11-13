@@ -1,5 +1,5 @@
 <!--
-One PR-sized ticket of a roadmap step (docs/project/09), written so that a teammate or an AI agent can do it
+One PR-sized ticket of a roadmap step (docs/project/09; phase 2: docs/project/phase2/P2-04), written so that a teammate or an AI agent can do it
 without asking you: exact files, checkable criteria, what not to touch. Anatomy and Definition of Ready: CONTRIBUTING §8.
 Bug? Same sections: Goal = observed vs expected (sim or real arm, commit `git rev-parse --short HEAD`, commands),
 Scope = the fix, Done when = the reproduction passes; logs, rosbag or screenshots under References.

@@ -1,7 +1,7 @@
 # P2-02 — Design: setup, kinematics, perception, game, software
 
 > Authors: [KIN] Kinematics, [VIS] Vision, [DEC] Decision, [CTRL] Control · Reviewers: [ARC], [SAFE], [QA]
-> Requirements: C-05, C-06, C-51, C-54 · Decisions: ADR-035 to ADR-038 · Measurements: MES-27 to MES-32, MES-63 to MES-69
+> Requirements: C-05, C-06, C-51, C-54 · Decisions: ADR-035 to ADR-038, ADR-040 · Measurements: MES-27 to MES-32, MES-63 to MES-74
 
 **`v2.0.0` is the sim, `v2.1.0` the real arm** (ADR-034 Update). The numbers of §2, §3, §5 and §7 were measured on 2026-11-07 on prototypes kept in `experiences/connect4/`, the assumed grid model and no real grid; #76 puts them on one layout. §8 keeps what the real arm will need.
 
@@ -56,9 +56,9 @@ release_pose(kin, target, q_seed):      # target = token centre, base_link
 2. → pre-drop: **height first**, then the column, min-jerk (`04` §6).
 3. Descent to `release_pose` at 0.3 rad/s, token bottom about 8 mm above the guide. Joint interpolation from the pre-drop: no Cartesian line needed.
 4. Open: the token falls through the guide.
-5. Lift **straight up through IK waypoints** every 5 mm to the pre-drop, 25 mm above the release, then back to `HANDOVER`, gripper open. The service replies. Every pose, the lift's waypoints included, is solved in the service call, before the jaws close: an unreachable target is refused with the arm still, and no IK runs during the move. One joint move from the release to the pre-drop swept the fixed jaw into the guide at column 6, and at 30 mm column 6 is at its reach [MES-63].
+5. Lift **straight up through IK waypoints** every 5 mm to the pre-drop, 25 mm above the release, then back to `HANDOVER`, gripper open, in two legs at 1.4 times the motion's speed: the jaws are empty [MES-73]. The service replies. Every pose, the lift's waypoints included, is solved in the service call, before the jaws close: an unreachable target is refused with the arm still, and no IK runs during the move. One joint move from the release to the pre-drop swept the fixed jaw into the guide at column 6, and at 30 mm column 6 is at its reach [MES-63].
 
-A move lasts **13 to 15 s** on columns 0 to 5 and 19 s on column 6, at its reach, where the descent turns the joints most; 50 tokens of 50 in their column [MES-69]. The first estimate was 5 to 8 s, from 4.7–5.2 s without the pre-drop [MES-64]: the lift's 5 motions take 0.5 s each, and each leg ends on the measured joints.
+A move lasts **11.5 to 13.5 s** on columns 0 to 5 and 17 s on column 6, at its reach, where the descent turns the joints most; 50 tokens of 50 in their column [MES-73]. It was 13 to 15 s and 19 s [MES-69] before the legs back went faster and `HANDOVER`'s pan came from −1.0 to −0.8: the two turns of the pan are still 4.8 s of a move, the lift 2.6 s. The first estimate was 5 to 8 s, from 4.7–5.2 s without the pre-drop [MES-64]: the lift's 5 motions take 0.5 s each, and each leg ends on the measured joints.
 
 | Tolerance of a drop | Along the grid | Across the grid |
 | --- | --- | --- |
@@ -143,8 +143,8 @@ stateDiagram-v2
 
 | # | Who | What |
 | --- | --- | --- |
-| 1 | Console or bench | `/sim/connect4/drop_token`: a red token falls |
-| 2 | Console or bench | `/sim/connect4/give_token`: a yellow token between the open jaws |
+| 1 | Console or bench | `/sim/connect4/give_token`: a yellow token between the open jaws |
+| 2 | Console or bench | `/sim/connect4/drop_token`: a red token falls |
 | 3 | Console or bench | `/connect4/human_done` |
 | 4 | `game_node`, `READ_BOARD` | Waits for a stable board with one more red token. A board unchanged is "not yet", not an error: no settle delay |
 | 5 | `game_node`, `THINK` | The engine, outside the tick |
@@ -181,8 +181,8 @@ New package `so101_connect4` (ament_python):
 | `game.py` | pure, unit-tested | Engine (§4) |
 | `turns.py` | pure, unit-tested | Turns (§5) |
 | `board.py` | pure, unit-tested | The grid's pose from its markers, cell geometry, classification, validation, `column_target` (the drop's clearance and aim are in `connect4_grid.yaml`, `drop`), the stable-read filter, the debug drawing; no ROS |
-| `client.py` | console, bench | `/connect4/state` and the services, no rule. A turn is one call: the robot's token given, the person's dropped, `human_done`. A new game is asked first and the grid cleared after: the node takes a board not empty yet as "not yet" (§5) |
-| `play.py` | control container | The console, `tools/so101 play`: draws the state at each change, keys 1 to 7, `n`, `r`, `s`, `q`. A column key outside the person's turn or on a full column changes nothing; on the robot's turn (it starts, `no_token`, `token_lost`) it gives the token by itself |
+| `client.py` | console, bench, board reader | `/connect4/state` and the services, no rule. A turn is one call: the robot's token given, the person's dropped, `human_done`. A new game is asked first and the grid cleared after: the node takes a board not empty yet as "not yet" (§5). `set_depth` is the level: it sets the game node's `engine.max_depth`. `last_move` says a state's `last` in words, "robot: column 4 (depth 10, it wins in 2 moves)": `wins_in` and `loses_in` are plies, said as moves of the winner. The console and the debug image share it |
+| `play.py` | control container | The console, `tools/so101 play`: draws the state at each change, with the level, the last move and the robot's reason, the winning four as `*` (`game.four`). Keys 1 to 7, `n`, `r`, `s`, `q`; `e`, `m`, `h` the level; `?` a hint, the engine at depth 8 for the person, run in the console's process and never in the node (34 ms [MES-66]). A column key or a hint outside the person's turn, or a full column, changes nothing; on the robot's turn (it starts, `no_token`, `token_lost`) it gives the token by itself |
 | `so101_bringup/sim_hand.py`, `connect4_play` | control container | The simulated person's hand over `/sim/connect4/*`, given to the client; the console's entry point. Outside `so101_connect4`, which names no sim service (guard) |
 | `board_reader_node` | perception container | Camera → `/connect4/board`, `/connect4/grid_pose` and the TF `base_link` → `connect4_grid`, debug image; `board_reader.launch.py`, `config/board_reader.yaml` |
 | `game_node` | control container | Around `turns.py`; calls `/brain/drop` and `/brain/handover`; `game.launch.py`, `config/game.yaml` (the delays of §5, the engine's `max_depth`, `budget_s` and `seed`) |
@@ -190,13 +190,13 @@ New package `so101_connect4` (ament_python):
 
 Next to it: `so101_brain/drop.py`, pure (§2), and `so101_driver/connect4_sim.py` (§7). The brain keeps every motion, with **`fsm.py` and `grasp_planner.py` unchanged** (ADR-037 Update). The game node never publishes `/joint_command`, and a guard checks it.
 
-**Interfaces.** They become contract in `01` §3, with the approval of the owners on both sides, in the PR that implements each one.
+**Interfaces.** They are the contract of `01` §3, which is the reference: a change is made there first, with the approval of the owners on both sides.
 
 | Name | Type | Server or producer → consumers | Content |
 | --- | --- | --- | --- |
 | `/connect4/board` (topic) | `so101_interfaces/msg/Connect4Board` (new) | board_reader → game_node | `header`, stamp = first image of the stable streak; `int8[42] cells` (row-major from the bottom row, 0 empty, 1 human, 2 robot), `bool valid`, `string reason` (`markers:<n>`, `out_of_view`, `gravity:<column>`, `counts:<human>-<robot>`); stable reads only; Reliable, depth 1 |
 | `/connect4/grid_pose` (topic) | `geometry_msgs/PoseStamped` | board_reader → game_node, RViz | Grid frame in `base_link`: origin at the center of cell (column 0, row 0) in the mid-plane, x outward along the columns (column 0 nearest the arm), z up, y = z × x; at each image whose markers give a pose, with the TF `base_link` → `connect4_grid`; Reliable, transient_local, depth 1 |
-| `/connect4/debug_image` (topic) | `sensor_msgs/Image` | board_reader → RViz | Each cell's disc, filled in its color when read as a token; a status line: the read's validity or its reason, the game's state from `/connect4/state`. Reliable, depth 1: best effort loses 9 images in 10 at 640×480 [MES-67] |
+| `/connect4/debug_image` (topic) | `sensor_msgs/Image` | board_reader → RViz | Each cell's disc, filled in its color when read as a token; the cells of the winning four circled (`game.four` on the cells read); a status line: the read's validity or its reason, the game's state from `/connect4/state`; a second line: the last move and the robot's reason (`client.last_move`). Display only: nothing of it reaches `turns.py`. Reliable, depth 1: best effort loses 9 images in 10 at 640×480 [MES-67] |
 | `/connect4/state` (topic) | `std_msgs/String`, JSON | game_node → console, bench, debug image | `ready`, `max_depth` (the level), `state`, `reason`, `turn`, `board`, `legal`, `last` (`who`, `column`, `planned`; the robot's: `score`, `depth`, and `wins_in` or `loses_in` when proven), `result`, `moves`, `lost`, `missed`, `first`, `history` (the columns in the order the tokens were seen; with `first`, the board can be rebuilt and a game replayed), `seconds` (of this game, by state: `move`, `read`, `wait`, `think`, each added when the state is left); at each change; Reliable, transient_local, depth 1 |
 | `/connect4/new_game` (service) | `std_srvs/SetBool` | game_node | `data: true`, the robot plays first. Refused in `MOVE`, `THINK` and `READ_BOARD`, and while `ready` is false |
 | `/connect4/human_done`, `/connect4/stop` (services) | `std_srvs/Trigger` | game_node | End of the human's turn; abort |
@@ -224,7 +224,7 @@ Both phases live on `main`, with no long-lived branch: phase 1 stays what the st
 - The switch goes `docker/.env` → compose → `control_entrypoint.sh` → `connect4:=` on `sim.launch.py`, as `USE_SIM` does. `CONNECT4=true tools/so101 up` needs no `.env` edit. `up` applies it, `restart` keeps the old environment [MES-66].
 - A leftover `CONNECT4=true` cannot break phase 1: `tools/so101 test` runs with `CONNECT4=false`, `bench` starts its own stack with the default arguments, and `cycle` refuses a stack in game mode and says to `down` then `up`. With the default arguments, tests check the nodes started and that the scene has no grid; the generated scene is byte-identical to the one before the game [MES-67].
 - The perception container builds `so101_connect4` too, with `so101_interfaces` (5 packages, about 9 s), and starts the board reader, `board_reader.launch.py`, in game mode. The control container starts the game node, `game.launch.py`, included by `sim.launch.py connect4:=true`, which also sets the brain's `connect4.enabled`.
-- The game's images are 0.9 MB each: a **Reliable** subscriber gets the 10 Hz, a best-effort one about 1 Hz (`ros2 topic hz` is one) [MES-67]. The board reader subscribes as the contract says, Reliable, depth 2.
+- The game's images are 0.9 MB each: a **Reliable** subscriber gets the 10 Hz, a best-effort one about 1 Hz (`ros2 topic hz` is one) [MES-67]. The board reader subscribes as the contract says, Reliable, depth 1.
 - `CONNECT4=true` with `USE_SIM=false` is refused in `v2.0.0`.
 - The tag `v1.3.0` is phase 1 as released: a checkout of it is the fallback.
 
@@ -236,6 +236,10 @@ Both phases live on `main`, with no long-lived branch: phase 1 stays what the st
 
 The game's scene as the phase-1 camera sees it at 640×480, a game under way, the arm at `HANDOVER`.
 
+<img src="../media/connect4_four.png" width="480" alt="The debug image at the end of a game: each cell of the grid as a disc, red and yellow where a token is read, four yellow tokens in the bottom row circled in green; at the top, the lines board VALID, game GAME_OVER and robot: column 6 (depth 1, it wins)">
+
+`/connect4/debug_image` at the end of a game: the cells as read, the last move with the robot's reason, the winning four circled (`experiences/connect4/game/record_debug.py`).
+
 | Item | Value | Source |
 | --- | --- | --- |
 | Base | **Stays at the origin**: floor and table lowered, so MuJoCo world = `base_link` holds (`driver_node.py:425`), for the ground truth, the FK tests and the extrinsics | [MES-63], [MES-65] |
@@ -246,7 +250,7 @@ The game's scene as the phase-1 camera sees it at 640×480, a game under way, th
 | Depth guide | 30 mm high | [MES-63] |
 | Frame | Both faces are plates with a Ø 29 mm window per cell; a 45 mm post on each side, from the table to the slot entries. Contacts are hidden boxes (plates, walls, slot floor, guide); the posts are drawn only, the arm stays 17 mm or more from them at the 7 releases | [MES-67] |
 | Markers | 4, `DICT_4X4_50`, ids 10 to 13, 30 mm on a 39 mm white plate, at the top and the bottom of each post, on the front face; `so101_connect4/layout.py` gives their corners in the grid frame | [MES-65] |
-| `HANDOVER` | Candidate `[-1.0, -0.6, 0.6, 1.1, 1.57]`: pan ≤ −0.7 hides nothing from the camera | [MES-65] |
+| `HANDOVER` | `[-0.8, -0.6, 0.6, 1.1, 1.57]` (`connect4.handover_pose`): pan ≤ −0.7 hides nothing from the camera, and −0.8 shortens the two turns of the pan; 2100 cells of 2100 read with the arm there | [MES-65], [MES-73] |
 
 **Contact working set** [MES-63], [MES-64]. The provided defaults fail: tokens creep at 70 mm/s, jaws squeeze through a token, and it is lost. `solref` 20 ms: 84 tokens of 84 through the slot bottom. Margin 0.5 mm: NaN.
 
@@ -288,7 +292,8 @@ The set is the one the drop spike ran (#76); the stiffer `solimp` and the priori
 | **Blocking: pinch** | No slow close, 50 % torque, 15–20 N on a finger (estimated), and a finger is judged "held" | Brain ramp ≤ 25 %/s, an upper bound that reopens; tested on a dummy with a dynamometer, **never a finger** |
 | **Blocking: paths** | `HANDOVER` opposite `PARK`: 82 paths of 96 cross the grid, same side 0 of 104 (URDF model); `HANDOVER` → pre-drop touches in 33 of 168 | Phase-2 `shutdown_pose` on the `HANDOVER` side, a via-pose, clearance ≥ 3 cm with the sag, a sim test at 0 contacts |
 | **Blocking: stop** | `/brain/stop` is not latched; a stop or a bus loss then `down` drops the arm; no cut-off but the plug | A latched stop, gripper open while waiting, `tools/so101 stop`, a DC switch in reach, a rule for guests |
-| **Blocking: speed** | The `v2.0.0` sim moves at 1.0 rad/s, limiter 1.5 | `connect4_real.yaml` loaded last: brain 0.7, limiter 1.0, after measuring; TCP 0.22 m/s at 0.7 |
+| **Blocking: speed** | The `v2.0.0` sim moves at 1.0 rad/s, 1.4 on the legs back with empty jaws, limiter 1.5 | `connect4_real.yaml` loaded last: brain 0.7, limiter 1.0, after measuring; TCP 0.22 m/s at 0.7 |
+| **Blocking: tolerances** | `/brain/drop` starts within 0.05 rad of `HANDOVER` (`AT_HANDOVER_RAD`), and the real arm stops up to 0.08 to 0.17 rad off its goal (`brain_real.yaml`); the board reader does not undistort the image, exact in sim only | The brain's reach tolerances for that check; `undistorted` with the webcam's `d`, as perception does; `HANDOVER`'s pan is 0.1 rad from the −0.7 that hides a cell [MES-65]: to check with the real arm's stop |
 | **Blocking: riser** | 0.7 N·m at reach (URDF) | Riser bolted, 2 clamps, a 20 N test |
 | **Grid camera** | No tool calibrates facing the grid (table in view 14 cm, board 19 cm); stickers do not fit a store-bought grid (free corner 16–20 mm, 16 mm found ≤ 5 %) | Grid pose by 3 touches, `calibrate_grid`, refused above 4 mm; holes with `findCirclesGrid`, 240/240 on synthetic images, on a **neutral background**, so the human stays on the camera side |
 | **Webcam link** | 26 to 49 % of drops per game over usbip (estimated); the driver does not reopen it | `camera_stale`, arm still, stack restarted, `new_game` resumes from the grid |
@@ -299,7 +304,7 @@ The set is the one the drop spike ran (#76); the stiffer `solimp` and the priori
 
 | Feature | What it adds | Note |
 | --- | --- | --- |
-| Difficulty levels | Engine depth as a parameter | Done: `engine.max_depth`, easy 1, medium 4, hard 10 (§4, #244); the keys #246 |
+| Difficulty levels | Engine depth as a parameter | Done: `engine.max_depth`, easy 1, medium 4, hard 10 (§4, #244); the console's keys `e`, `m`, `h` set it (#246) |
 | Automatic human-move detection | Board stable with exactly one new token | Replaces `/connect4/human_done`. In sim, a few lines of `turns.py`; on the real arm, safety re-review [SAFE]. Cut for `v2.0.0` (2026-11-12) |
 | Robot commentary | LLM prompt with the board, text-to-speech | Text only, never in the motor loop. Cut for `v2.0.0` (2026-11-12): the robot's reason for a move, from the engine, is shown instead (#244, #246) |
 | Token supply without the human | A rack (tokens on edge in the arm plane, like Scrabble tiles on their stand: same jaw orientation as the drop), or a vertical dispenser (tokens stacked flat, the bottom one taken from the side with the wrist roll at 0, then turned into the grid plane by rolling to ±90°) | A pick service next to `/brain/drop`; reach of a horizontal side grasp to check with the kinematics script |

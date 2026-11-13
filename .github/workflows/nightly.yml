@@ -103,6 +103,11 @@ jobs:
             source /ros2_ws/install/setup.bash &&
             ros2 run so101_bringup evaluate --episodes "$EPISODES" --out /ros2_ws/eval.csv --bags /ros2_ws/bags' |
             tee "$RUNNER_TEMP/bench.log"
+      - name: Stack state and logs of the pick & place bench (on failure)
+        if: failure()  # here: the game bench takes this stack down, the last step would show the game's
+        run: |
+          docker compose -f docker/docker-compose.yml ps -a
+          docker compose -f docker/docker-compose.yml logs --tail 150 control perception
       - name: Game bench (Connect Four, phase 2)
         if: ${{ !cancelled() }}  # the games are played even when the pick & place bench stopped
         env:
@@ -140,11 +145,15 @@ jobs:
         run: |
           docker compose -f docker/docker-compose.yml ps -a
           docker compose -f docker/docker-compose.yml logs --tail 150 control perception
-          # which link is dead: the nodes a fresh process finds, then the driver's and the brain's topic
+          # which link is dead: the nodes a fresh process finds, then the driver's and the brain's topic; the
+          # stack is the game's by now: its state, the board read and the true one, as the PR's game job
           docker compose -f docker/docker-compose.yml exec -T control bash -lc '
             source /ros2_ws/install/setup.bash && ros2 node list --no-daemon --spin-time 3
             for t in "/joint_states sensor_msgs/msg/JointState" "/end_effector_pose geometry_msgs/msg/PoseStamped"; do
               timeout 10 ros2 topic echo --once $t >/dev/null && echo "${t%% *}: received" || echo "${t%% *}: nothing in 10 s"
+            done
+            for t in "/connect4/state std_msgs/msg/String" "/connect4/board so101_interfaces/msg/Connect4Board" "/sim/ground_truth/connect4_board so101_interfaces/msg/Connect4Board"; do
+              timeout 10 ros2 topic echo --once $t || echo "${t%% *}: nothing in 10 s"
             done'
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
@@ -193,7 +202,8 @@ jobs:
             colcon test --executor sequential --packages-select $(ls -d src/*/test | cut -d/ -f2) \
               --pytest-with-coverage --event-handlers console_cohesion+ ; colcon test-result --verbose
             source install/setup.bash && mkdir -p trends &&
-            python3 -m pytest -q -p no:cacheprovider src/so101_brain/test/test_benchmark.py --benchmark-json=trends/ik.json &&
+            python3 -m pytest -q -p no:cacheprovider src/so101_brain/test/test_benchmark.py \
+              src/so101_connect4/test/test_engine_benchmark.py --benchmark-json=trends/ik.json &&
             python3 -m pytest -q -s -p no:cacheprovider src/so101_driver/test/test_driver_launch.py |
               tee trends/control.log'
       - name: Coverage XML and trends.csv

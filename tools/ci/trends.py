@@ -1,5 +1,5 @@
-"""Nightly trends (#60, 08 §2): the IK benchmarks (pytest-benchmark JSON) and the control period (the TREND
-line of the driver's launch test) as one CSV row per metric.
+"""Nightly trends (#60, 08 §2): the IK benchmarks and the game engine's (pytest-benchmark JSON), and the
+control period (the TREND line of the driver's launch test), as one CSV row per metric.
 Usage: python3 tools/ci/trends.py <ik.json> <control.log> <sha> <out.csv>"""
 
 import datetime

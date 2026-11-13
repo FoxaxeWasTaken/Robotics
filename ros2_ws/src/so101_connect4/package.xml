@@ -10,6 +10,8 @@
   <depend>geometry_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>rcl_interfaces</depend>
   <depend>cv_bridge</depend>
   <depend>tf2_ros</depend>
   <depend>so101_common</depend>

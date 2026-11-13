@@ -93,6 +93,105 @@ def robot_plays(c, column, lands=None):
     return cells
 
 
+# Found by mutation testing (mutmut on turns.py, 08 §1) [MES-74]
+
+
+def test_before_any_game_the_state_says_idle_an_empty_board_and_nothing_played():
+    assert Turns().snapshot() == {
+        "state": "IDLE",
+        "reason": "",
+        "turn": "human",
+        "board": [EMPTY] * CELLS,
+        "legal": list(range(COLUMNS)),
+        "last": None,
+        "result": "",
+        "moves": 0,
+        "first": "human",
+        "history": [],
+        "seconds": {"move": 0.0, "read": 0.0, "wait": 0.0, "think": 0.0},
+        "lost": 0,
+        "missed": 0,
+    }
+    assert Turns().accepts_new_game(ready=True)
+
+
+def test_each_transition_is_said_once_with_the_seconds_spent_in_the_state_left():
+    """The node logs it: the game's timeline in the stack's log."""
+    c = Clock()
+    assert c.step(new_game=True).transition == "IDLE → MOVE (0.00 s in IDLE)"
+    assert c.label == "MOVE"  # no reason on a plain transition
+    c.wait(0.3)
+    assert c.out.transition is None
+    assert c.step(move_reply=(True, "at HANDOVER")).transition == "MOVE → READ_BOARD (0.40 s in MOVE)"
+
+
+def test_the_engine_is_asked_for_the_robots_side_once_it_has_tokens():
+    c = new_game()
+    human_plays(c, 3)
+    robot_plays(c, 2)
+    cells = human_plays(c, 4)
+    me, mask = c.out.think
+    assert me != 0 and (me, mask) == game.from_cells(cells, ROBOT)
+
+
+def test_a_win_with_the_move_itself_is_a_win_in_one_ply():
+    c = new_game()
+    cells = human_plays(c, 3)
+    c.step(engine=choice(2, score=1000 - 1 - 1))  # 1 stone on the board, the win is this move
+    c.step(move_reply=(True, "dropped"))
+    c.read(with_tokens(cells, (2, ROBOT)))
+    assert c.turns.last["wins_in"] == 1 and "loses_in" not in c.turns.last
+
+
+def test_the_seconds_are_published_to_the_hundredth():
+    c = new_game()
+    c.step(dt=0.123456, human_done=True)
+    assert c.turns.snapshot()["seconds"]["wait"] == 0.12
+
+
+def test_a_new_game_forgets_the_last_games_result():
+    c = new_game()
+    c.turns.state, c.turns.result = State.GAME_OVER, "robot"
+    c.step(new_game=True)
+    assert (c.turns.result, c.turns.last) == ("", None)
+
+
+def test_two_tokens_lost_in_a_game_are_counted_each_time():
+    c = new_game()
+    cells = human_plays(c, 3)
+    for lost in (1, 2):
+        c.step(engine=choice(4))
+        c.step(move_reply=(True, ""))
+        for _ in range(52):  # fresh reads without the robot's token, to the read timeout
+            c.read(cells)
+        assert (c.label, c.turns.lost) == ("WAIT_HUMAN:token_lost", lost)
+        c.step(human_done=True)  # a token given again
+        c.read(cells)
+        assert c.state is State.THINK
+    c.step(engine=choice(4))
+    c.step(move_reply=(False, NO_TOKEN))
+    assert c.turns.lost == 3
+
+
+def test_the_turn_is_the_robots_from_the_persons_token_to_its_own():
+    c = new_game()
+    human_plays(c, 3)
+    assert (c.state, c.turns.turn) == (State.THINK, "robot")
+    c.step(engine=choice(4))
+    assert (c.state, c.turns.turn) == (State.MOVE, "robot")
+
+
+def test_tokens_in_another_column_are_counted_each_time_the_others_never():
+    c = new_game()
+    human_plays(c, 3)
+    robot_plays(c, 4)
+    assert c.turns.missed == 0
+    for missed in (1, 2):
+        human_plays(c, 3)
+        robot_plays(c, 4, lands=5)
+        assert c.turns.missed == missed
+
+
 # A turn, call by call (P2-02 §5)
 
 
@@ -239,7 +338,7 @@ def test_a_new_game_needs_the_stack_ready_and_is_refused_in_a_move():
     c.step(new_game=True)
     for state in (State.MOVE,):
         assert c.state is state
-        assert not c.turns.accepts_new_game()
+        assert not c.turns.accepts_new_game(ready=True)
         assert c.step(new_game=True).transition is None
 
 
@@ -248,7 +347,7 @@ def test_a_new_game_is_refused_while_thinking_or_reading(state):
     c = new_game()
     human_plays(c, 0) if state is State.THINK else c.step(human_done=True)
     assert c.state is state
-    assert not c.turns.accepts_new_game()
+    assert not c.turns.accepts_new_game(ready=True)
     c.step(new_game=True)
     assert c.state is state
 

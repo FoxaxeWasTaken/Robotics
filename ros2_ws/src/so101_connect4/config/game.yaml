@@ -4,7 +4,7 @@ game_node:
     read_timeout_s: 5.0    # READ_BOARD: a stable board needs 5 new images, 0.5 s at 10 Hz; then FIX_BOARD
     board_fresh_s: 1.0     # a read this recent, unchanged at that timeout, proves the robot's token is lost
     think_timeout_s: 5.0   # THINK: the engine's budget is 1 s; then ERROR
-    move_timeout_s: 90.0   # MOVE: a move lasts 13 to 19 s on the sim [MES-69]; then /brain/stop and ERROR
+    move_timeout_s: 90.0   # MOVE: a move lasts 12 to 17 s on the sim [MES-73]; then /brain/stop and ERROR
     engine:
       max_depth: 10        # the level: easy 1, medium 4, hard 10 [MES-70]; `ros2 param set` changes it in a game
       budget_s: 1.0        # a search stops there, at the last depth it completed

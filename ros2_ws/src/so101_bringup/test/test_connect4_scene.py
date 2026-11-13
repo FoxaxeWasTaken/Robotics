@@ -14,7 +14,7 @@ import yaml
 from ament_index_python.packages import get_package_share_directory
 from so101_sim import ARM_JOINTS, SO101Sim
 
-from so101_brain import drop
+from so101_brain import brain_node, drop
 from so101_brain.drop import release_pose
 from so101_brain.fsm import Params
 from so101_brain.kinematics import PAN_AXIS_X, Kinematics
@@ -24,9 +24,10 @@ from so101_connect4 import board, layout
 from so101_driver.camera import opencv_intrinsics
 from so101_perception import calibration
 
-CAMERA = yaml.safe_load(
+SCENE = yaml.safe_load(
     (Path(get_package_share_directory("so101_bringup")) / "config" / "sim_scene.yaml").read_text()
-)["camera"]
+)
+CAMERA = SCENE["camera"]
 URDF = Path(get_package_share_directory("so101_description")) / "urdf" / "so101.urdf"
 LAYOUT = layout.load()
 GRID, TOKEN = LAYOUT["grid"], LAYOUT["token"]
@@ -232,6 +233,45 @@ def test_a_handover_from_above_a_column_keeps_the_arm_clear_of_the_grid(sim):
             np.testing.assert_allclose(q, HANDOVER, atol=1e-6)
     print("handover from above a column, arm to grid, mm:", closest)
     assert min(gap for gap, *_ in closest.values()) > 5.0, closest
+
+
+def test_a_whole_drop_keeps_the_arm_clear_of_the_grid_on_every_leg(sim):
+    """From HANDOVER to the column and back (drop.drop_steps), the arm following its commands: the rise and
+    the two legs back are the nearest to the grid's post when HANDOVER's pan comes closer to it (#247)."""
+    kin, p = Kinematics(str(URDF)), Params()
+    gripper = sim.model.joint("gripper").qposadr[0]
+    closest = {}
+    for column in range(GRID["columns"]):
+        steps = drop.drop_steps(kin, board.column_target(LAYOUT, T_GRID, column), np.array(HANDOVER), p)
+        move, q, tick = drop.Move(steps, p), np.array(HANDOVER), 0
+        while True:
+            leg = move.name.partition("_")[0]
+            out = move.step(tick * 0.02, q, 0.5, 0.0)  # a token held: the closing effort
+            q = q if out.command is None else out.command
+            if out.gripper is not None:
+                sim.data.qpos[gripper] = pct_to_rad(out.gripper)
+            if tick % 2 == 0 or out.result is not None:
+                set_arm(sim, q)
+                closest[column, leg] = min(closest.get((column, leg), (np.inf,)), clearance(sim))
+            if out.result is not None:
+                break
+            tick += 1
+        assert out.result == "", (column, out.result)
+    worst = {leg: min(gap for (_, name), gap in closest.items() if name == leg) for _, leg in closest}
+    print("a whole drop, arm to grid by leg, mm:", worst)
+    assert min(gap for gap, *_ in closest.values()) > 5.0, closest
+
+
+def test_the_brains_handover_and_its_fastest_leg_fit_the_config_files():
+    """One HANDOVER: brain.yaml's is the brain's default. The legs back with empty jaws go EMPTY_SPEEDUP times
+    the brain's speed: under the driver's limiter, or the arm would lag its trajectory."""
+    config = Path(get_package_share_directory("so101_bringup")) / "config"
+    brain, driver = (
+        yaml.safe_load((config / f"{name}.yaml").read_text())[f"so101_{name}"]["ros__parameters"]
+        for name in ("brain", "driver")
+    )
+    assert list(brain_node.HANDOVER) == HANDOVER
+    assert drop.EMPTY_SPEEDUP * brain["motion"]["v_max_rad_s"] < driver["max_joint_velocity"]
 
 
 def test_the_driver_ends_at_handover_in_game_mode_the_way_to_park_crosses_the_grid(sim):

@@ -7,7 +7,7 @@ What the expert review of phase 2 ran to measure the sim, kept as it ran. **Thro
 | `scene/` | Riser, contacts, tick with 42 tokens, drops, grip, repark | MES-63 | #76, #79, #80 |
 | `drop/` | Pose of a drop, paths, clearance, grip, duration, async service | MES-64 | #83, #84, #85 |
 | `reading/` | Camera, pixels per cell, classification, grid pose accuracy | MES-65 | #81, #82 |
-| `game/` | Engine, turns, console client, fake stack; `levels.py`: the package's engine, depth against depth | MES-66, MES-70 | #78, #230, #86, #232, #244 |
+| `game/` | Engine, turns, console client, fake stack; `levels.py`: the package's engine, depth against depth; `play_keys.py` and `record_debug.py`: a game through the console on a pipe, the README's game GIF and the image of a circled four from `/connect4/debug_image` | MES-66, MES-70 | #78, #230, #86, #232, #244, #246 |
 
 ## Running
 
@@ -34,6 +34,10 @@ tools/so101 run --out ros2_ws/src/so101_connect4/test/data \
 cd docs/project/experiences/connect4/game && python3 test_game.py && python3 test_turns.py && python3 bench_engine.py depth
 # #244: the levels, the package's engine against itself (~4 min)
 tools/so101 run 'python3 /repo/docs/project/experiences/connect4/game/levels.py 40 1,4 4,10 1,10 2,6 6,10 2,10'
+# #246: one game through the console on a pipe, its debug images recorded; then the GIF, on the host (Pillow)
+tools/so101 run --game --out /tmp/frames 'cd /repo/docs/project/experiences/connect4/game &&
+  (python3 record_debug.py record /out > /dev/null &) ; python3 play_keys.py "e 1,m 7,h ? 1,7,1,7,1"'
+python3 docs/project/experiences/connect4/game/record_debug.py gif /tmp/frames docs/project/media/demo_connect4.gif
 ```
 
 `reach.npy` (3.7 MB) is generated, never committed. `drop/e5_async.py` is the test of a service that replies at the end of a move while the 50 Hz timer runs.

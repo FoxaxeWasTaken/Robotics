@@ -133,7 +133,7 @@ PARAMETERS = {
         0.2,
     ),
 }
-HANDOVER = (-1.0, -0.6, 0.6, 1.1, 1.57)  # default of connect4.handover_pose [MES-65]
+HANDOVER = (-0.8, -0.6, 0.6, 1.1, 1.57)  # default of connect4.handover_pose [MES-65]
 AT_HANDOVER_RAD = 0.05  # /brain/drop starts with every arm joint this close to it: its path starts there
 MARKERS = (("pre_grasp", (1.0, 1.0, 0.0)), ("grasp", (0.0, 1.0, 0.0)), ("drop", (0.0, 0.0, 1.0)))  # 06 §7
 
@@ -413,7 +413,8 @@ class BrainNode(rclpy.node.Node):
             return f"not_idle:{self._fsm.label}"
         if self._move is not None or self._motion is not None:
             return "busy"
-        if self._joints is None:  # stale ones: the move's first tick ends it, nothing commanded (_step_move)
+        # Checked here, before any pose is solved: a dead driver is refused at once, nothing commanded.
+        if self._joints is None or self._now() - self._joints[2] > self._p.max_joint_state_age_s:
             return "no_joint_states"
         return None
 
@@ -434,7 +435,9 @@ class BrainNode(rclpy.node.Node):
         q, _, received, effort, gripper = self._joints
         if self._fsm.state is not State.IDLE:  # /brain/stop: the FSM froze the arm
             return self._end_move("stopped")
-        if now - received > self._p.max_joint_state_age_s:  # the FSM ignores stale joints in IDLE
+        # The joints' age counts from the move's start: solving its poses held the executor, and the joints
+        # that came meanwhile are still queued at the first tick (over 0.5 s on a slow machine, #252).
+        if now - max(received, m["start"]) > self._p.max_joint_state_age_s:  # the FSM ignores them in IDLE
             return self._end_move("no_joint_states")  # no command: the driver is gone
         m["ticks"].append(period)
         out = m["move"].step(now, q, effort, gripper)
@@ -444,12 +447,14 @@ class BrainNode(rclpy.node.Node):
             self._end_move(out.result)
 
     def _end_move(self, result):
-        """The move's reply and its log line: the tick periods meanwhile (the first one holds the IK)."""
+        """The move's reply and its log line: the seconds of each step ended, the tick periods meanwhile (the
+        first one holds the IK)."""
         m, self._move = self._move, None
         ticks = np.array(m["ticks"][1:] or [0.0]) * 1000
         text = f"done in {self._now() - m['start']:.1f} s" if result == "" else result
+        steps = ", ".join(f"{name} {seconds:.1f}" for name, seconds in m["move"].seconds.items())
         line = (
-            f"/brain/{m['name']}: {text}; tick period p99 {np.percentile(ticks, 99):.1f} ms, "
+            f"/brain/{m['name']}: {text} ({steps}); tick period p99 {np.percentile(ticks, 99):.1f} ms, "
             f"max {ticks.max():.1f} ms over {len(ticks)} ticks"
         )
         if result == "":

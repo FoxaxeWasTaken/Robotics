@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 from ament_index_python.packages import get_package_share_directory
 from so101_sim import SO101Sim
-from test_connect4_scene import CAMERA, HANDOVER, LAYOUT, T_GRID, set_arm
+from test_connect4_scene import CAMERA, HANDOVER, LAYOUT, SCENE, T_GRID, set_arm
 
 from so101_bringup import sim_scene
 from so101_common.robot import pct_to_rad
@@ -28,9 +28,12 @@ EXTRINSICS = Path(get_package_share_directory("so101_perception")) / "config" / 
 DISC_IN_SLOT = np.array([[1.0, 0, 0], [0, 0, 1], [0, -1, 0]])
 
 
-@pytest.fixture(scope="module")
-def game(tmp_path_factory):
-    scene = sim_scene.generate(tmp_path_factory.mktemp("scene"), camera=CAMERA, connect4=LAYOUT)
+@pytest.fixture(scope="module", params=["default", "dim"])
+def game(tmp_path_factory, request):
+    """The game's scene under the default light, then under the robustness demo's dim, warm one (g5)."""
+    lighting = None if request.param == "default" else SCENE["lighting"]["dim"]
+    folder = tmp_path_factory.mktemp("scene")
+    scene = sim_scene.generate(folder, camera=CAMERA, connect4=LAYOUT, lighting=lighting)
     sim = SO101Sim(scene_path=scene, camera_width=640, camera_height=480)
     sim.connect()
     renderer = mujoco.Renderer(sim.model, height=480, width=640)
@@ -74,8 +77,9 @@ def set_state(sim, person, rng, moves):
     step(sim, 1.0, person)
 
 
-def test_every_cell_of_random_game_states_is_read_and_the_grid_is_where_the_scene_has_it(game):
+def test_every_cell_of_random_game_states_is_read_and_the_grid_is_where_the_scene_has_it(game, request):
     sim, person, renderer = game
+    light = request.node.callspec.params["game"]
     rng = np.random.default_rng(82)
     K = opencv_intrinsics(sim.get_camera_intrinsics())
     T_base_cam = load_extrinsics(EXTRINSICS).T_base_cam  # our calibration of the phase-1 camera (05 §5)
@@ -99,7 +103,7 @@ def test_every_cell_of_random_game_states_is_read_and_the_grid_is_where_the_scen
         reprojections.append(pose[1])
     along, across, up = np.max(pose_errors, axis=0)
     print(
-        f"connect4 reading: {42 * STATES - wrong}/{42 * STATES} cells on {STATES} states "
+        f"connect4 reading, {light} light: {42 * STATES - wrong}/{42 * STATES} cells on {STATES} states "
         f"({min(states)} to {max(states)} tokens); grid pose error max {along:.1f} mm along, {across:.1f} mm "
         f"across, {up:.1f} mm up; reprojection max {max(reprojections):.2f} px"
     )

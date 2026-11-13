@@ -21,6 +21,7 @@ from std_msgs.msg import String
 from std_srvs.srv import Trigger
 from test_drop import COLUMNS, token_centre
 
+from so101_brain import brain_node, drop
 from so101_brain.brain_node import BrainNode
 from so101_brain.fsm import State
 from so101_brain.kinematics import Kinematics
@@ -30,7 +31,7 @@ from so101_interfaces.srv import Drop, GoToTarget
 STARTUP_TIMEOUT = 20.0  # s
 MOVE_TIMEOUT = 30.0  # s: a move lasts about 15
 JOINTS = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"]
-HANDOVER = [-1.0, -0.6, 0.6, 1.1, 1.57]  # default of connect4.handover_pose
+HANDOVER = [-0.8, -0.6, 0.6, 1.1, 1.57]  # default of connect4.handover_pose
 URDF = Path(get_package_share_directory("so101_description")) / "urdf" / "so101.urdf"
 LATCHED = QoSProfile(
     depth=10, reliability=ReliabilityPolicy.RELIABLE, durability=DurabilityPolicy.TRANSIENT_LOCAL
@@ -187,6 +188,10 @@ def test_a_drop_releases_the_token_above_the_column_and_replies_at_handover(arm)
     assert ticks, "no tick line for the drop"
     print(f"tick period during a move: p99 {ticks[-1][0]} ms, max {ticks[-1][1]} ms")
     assert float(ticks[-1][0]) <= 25.0
+    # ... and says where the move's time went, step by step (#247)
+    steps = r"done in \d+\.\d s \(close \d+\.\d, rise \d+\.\d, column \d+\.\d, descent \d+\.\d, "
+    steps += r"release \d+\.\d, lift \d+\.\d, clear \d+\.\d, handover \d+\.\d\);"
+    assert any(re.search(steps, line) for line in arm.logs), arm.logs[-3:]
 
 
 def test_a_move_refuses_every_other_request_and_a_stop_cuts_it(arm):
@@ -233,6 +238,26 @@ def test_an_unreachable_target_is_refused_without_any_command(arm):
     reply = arm.call(arm.drop, drop_request((0.7, 0.0, 0.2)), timeout=3.0)
     assert (reply.success, reply.message) == (False, "unreachable")
     assert len(arm.commands) == before
+
+
+def test_a_drop_whose_poses_take_long_to_solve_still_starts(arm, monkeypatch):
+    """The poses are solved in the service call, which holds the executor: the /joint_states that came
+    meanwhile are still queued at the move's first tick. On a slow machine the solve took over
+    fsm.max_joint_state_age_s, and the move ended there with `no_joint_states` (a CI runner, #252)."""
+    solve = drop.drop_steps
+
+    def slow(*args):
+        time.sleep(0.8)  # longer than the age that makes joints stale, 0.5 s
+        return solve(*args)
+
+    monkeypatch.setattr(brain_node.drop, "drop_steps", slow)
+    arm.to_handover()
+    arm.token = True
+    try:
+        reply = arm.call(arm.drop, drop_request())
+    finally:
+        arm.token = False
+    assert reply.success, reply.message
 
 
 def test_a_dead_driver_refuses_a_move_and_ends_a_running_one(arm):

@@ -21,22 +21,25 @@ flowchart TB
 | --- | --- | --- | --- | --- |
 | **Unit** (fast, ROS-free) | Gripper conversion, clamping, partial-command merge, FK/IK, pixel ↔ 3D projection, HSV detection on reference images, FSM transitions with a fake clock | `pytest` | `<pkg>/test/` | Every commit (pre-commit + CI) |
 | **Component** (one node) | `/joint_states` rate, partial command, clamping, `camera_info`, service answers | `launch_testing` + `pytest` | `<pkg>/test/test_*_launch.py` | Every PR (CI) |
-| **Sim-backed** (needs `so101_sim`) | Closed-loop grasp, IK accuracy against MuJoCo, the launch files, a full cycle with the ground-truth stub | `pytest`, `launch_testing` | `so101_bringup/test/` only: never under `so101_brain` or `so101_perception` (CI guard) | Every PR (CI) |
+| **Sim-backed** (needs `so101_sim`) | Closed-loop grasp, IK accuracy against MuJoCo, the launch files, a full cycle with the ground-truth stub | `pytest`, `launch_testing` | `so101_bringup/test/` only: never under `so101_brain`, `so101_perception` or `so101_connect4` (CI guard) | Every PR (CI) |
 | **Scripts** (CI and tooling) | `tools/so101`, the nightly report, the CI skip rules, the course watch: their behavior without network or Docker (fake `gh`, `--dry-run`) | `bash` | `tools/ci/test_*.sh` | Every commit that changes them (pre-commit) |
-| **System** (full stack in sim) | Evaluation bench: N randomized pick & place episodes | `ros2 run so101_bringup evaluate` + test-only ground truth | `so101_bringup/so101_bringup/evaluate.py` | Every PR (N = 3, `e2e-smoke`; not a draft or a docs-only PR), nightly (N = 50) |
+| **System** (full stack in sim) | Evaluation bench: N randomized pick & place episodes, or N Connect Four games (§3.1) | `ros2 run so101_bringup evaluate` + test-only ground truth | `so101_bringup/so101_bringup/evaluate.py` | Every PR (N = 3, `e2e-smoke`; not a draft or a docs-only PR), nightly (N = 50) |
 | **System, phase 2** (the stack in game mode) | Game bench: N Connect Four games against a scripted person (§3.1) | `ros2 run so101_bringup evaluate --games N` + test-only ground truth | `so101_bringup/so101_bringup/games.py` | Every PR (N = 1, `e2e-game`, not a required check yet), nightly (N = 10) |
 | **Real-arm acceptance** | Manual protocol (`07` §3.2) + accuracy measurement | Checklist | — | Every session on the arm |
 
-**Mutation testing** of the modules that protect the arm (step 5.1c, [MES-42]): mutmut injects small bugs into `so101_driver/command.py` (merge, clamp, NaN) and `so101_brain/fsm.py`, and counts those no test catches. Its configuration is the `[mutmut]` section of each package's `setup.cfg`: mutmut runs from the package folder, where the module names resolve. By hand, from the repository root, about 1 min:
+**Mutation testing** of the modules that protect the arm (step 5.1c, [MES-42]; the game's, [MES-74]): mutmut injects small bugs into `so101_driver/command.py` (merge, clamp, NaN), `so101_brain/fsm.py`, the game's move `so101_brain/drop.py` and its turns `so101_connect4/turns.py` (only `MOVE` commands the arm), and counts those no test catches. Its configuration is the `[mutmut]` section of each package's `setup.cfg`: mutmut runs from the package folder, where the module names resolve. By hand, from the repository root, about 4 min:
 
 ```bash
 docker run --rm -v "$PWD/ros2_ws/src:/src:ro" tek5/control bash -lc '
   pip install -q --break-system-packages --ignore-installed mutmut==3.8.0 pytest==7.4.4 &&
-  source /opt/ros/jazzy/setup.bash && cp -r /src /tmp/src && export PYTHONPATH=/tmp/src/so101_common:$PYTHONPATH &&
-  for pkg in so101_driver so101_brain; do (cd /tmp/src/$pkg && PYTHONPATH=.:$PYTHONPATH mutmut run && mutmut results); done'
+  source /opt/ros/jazzy/setup.bash && mkdir -p /tmp/ws && cp -r /src /tmp/ws/src && cd /tmp/ws &&
+  colcon build --packages-select so101_description > /dev/null && source install/setup.bash &&
+  export PYTHONPATH=/tmp/ws/src/so101_common:$PYTHONPATH &&
+  for pkg in so101_driver so101_brain so101_connect4; do
+    (cd src/$pkg && PYTHONPATH=.:$PYTHONPATH mutmut run && mutmut results); done'
 ```
 
-`pytest==7.4.4` is the image's own: a newer pytest breaks the `launch_testing` plugin. A surviving mutant gets a test, unless it is equivalent; the equivalent ones and the exact-threshold ties are listed in MES-42.
+`pytest==7.4.4` is the image's own: a newer pytest breaks the `launch_testing` plugin. `so101_description` is built first: `test_drop.py` needs its URDF. A surviving mutant gets a test, unless it is equivalent; the equivalent ones and the exact-threshold ties are listed in MES-42 and MES-74. A mutant that makes a move loop for ever shows as `timeout`: caught.
 
 ## 2. Metrics and success thresholds
 
@@ -53,7 +56,7 @@ docker run --rm -v "$PWD/ros2_ws/src:/src:ro" tek5/control bash -lc '
 | Cycle duration | < 30 s | Ground-truth stub: median 14.6 s, max 17.7 [MES-40]; real perception: p50 14.5 s, p95 17.5 s over 50 episodes [MES-46]; p50 17.4 s, p95 18.0 s in CI (`e2e-smoke`, 2026-10-24) |
 | Ground truth used in the pipeline | **0** | CI grep |
 
-Phase-2 targets: `phase2/P2-01` §4. Full games on the sim: 10 of 10 against a random person, p50 59.7 s [MES-71].
+Phase-2 targets: `phase2/P2-01` §4. Full games on the sim: 10 of 10 against a random person, p50 59.7 s [MES-71]; a robot's move 11.5 to 17.0 s [MES-73]; the nightly trends hold the engine's time for a move at its hard level.
 
 **Timing trends** (#60): recorded each night by the `quality` job (`trends.csv`, `14` §6), never a gate. First values, in a container on the development machine (2026-10-27): `ik_pos` median 10.1 ms, `ik_pose` 4.3 ms; the period of the driver's `/joint_states` timer, camera on, p50 39.9 ms and p99 40.9 ms for a 33.3 ms setting (30 Hz): the executor, which also runs the 50 Hz control step, slips under the camera's rendering (MES-34). The control step has no topic of its own: that timer is its proxy.
 

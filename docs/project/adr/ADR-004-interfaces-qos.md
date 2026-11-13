@@ -34,3 +34,7 @@ QoS compatibility rule [KO1 p29]; provided marker (`drop_box_marker_pub.py`).
 ## Reconsider if
 
 Rich detection messages are adopted (confidence, truncation): create a `.msg` in `so101_interfaces`.
+
+## Update (2026-11-13, phase 2)
+
+One subscriber of images is Reliable, not Best effort: the board reader of the game (ADR-040). At 640×480 an image is 0.9 MB, and a best-effort subscriber gets 1 of the 10 Hz [MES-67]. The rule for publishers does not change.

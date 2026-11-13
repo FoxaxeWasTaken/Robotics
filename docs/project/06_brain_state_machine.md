@@ -140,17 +140,17 @@ sequenceDiagram
 
 `/brain/drop` and `/brain/handover` (`01` §3.2) each run one `drop.Move`: a list of steps the tick runs in `IDLE`, in the slot of `/go_to_target`'s motion, with the cycle's rules (min-jerk from the measured joints, the reach tolerances, a timeout at T + the margin, the grip judged as `GRASP` does).
 
-- **`/brain/drop`** (`drop.drop_steps`, `phase2/P2-02` §2.3): close and check the grip, rise to the pre-drop's height, turn to the column, descend at 0.3 rad/s, open, lift straight up through waypoints 5 mm apart, come back to `HANDOVER`. Every pose is solved in the service call, before anything moves: an unreachable target is refused with the arm still, and no IK runs during the move.
+- **`/brain/drop`** (`drop.drop_steps`, `phase2/P2-02` §2.3): close and check the grip, rise to the pre-drop's height, turn to the column, descend at 0.3 rad/s, open, lift straight up through waypoints 5 mm apart, come back to `HANDOVER` in two legs at 1.4 times the motion's speed, the jaws empty (`drop.EMPTY_SPEEDUP`: 1.4 rad/s, under the driver's limiter [MES-73]). Every pose is solved in the service call, before anything moves: an unreachable target is refused with the arm still, and no IK runs during the move.
 - **`/brain/handover`** (`drop.handover_steps`): the jaws open, one motion to `connect4.handover_pose`.
 - **The reply comes at the end of the move**: the service callbacks are coroutines in their own callback group, which wait for the tick to finish the move. In the default group, a pending callback froze the tick [MES-64]. `/brain_state` stays `IDLE`.
 - **One commander at a time**: a move is refused during a cycle (`not_idle:<state>`), during another move or a `/go_to_target` motion (`busy`), and away from `HANDOVER` (`not_at_handover`: the path starts there, under the grid's top). During a move, `/go_to_target` is refused. **`/brain/start` is refused in game mode**: the game's scene has no cube, and the joint line from `HANDOVER` to `PARK` takes the gripper 30 mm into the grid's near post [MES-69]. `/go_to_target` stays served, an operator's tool: its path is a joint line too, to use away from the grid.
-- **`/brain/stop` cuts a move**: the FSM freezes the arm (`STOPPED`, then `IDLE`), the reply is `stopped`. The arm may then be above a column: a `/brain/handover` from the release, the pre-drop or half-way of the turn to any column stays 11 mm or more from the grid [MES-69]. `/joint_states` older than `fsm.max_joint_state_age_s` end it with `no_joint_states`, and the commands stop.
+- **`/brain/stop` cuts a move**: the FSM freezes the arm (`STOPPED`, then `IDLE`), the reply is `stopped`. The arm may then be above a column: a `/brain/handover` from the release, the pre-drop or half-way of the turn to any column stays 10 mm or more from the grid, and a whole drop 11 mm or more on every leg [MES-73]. `/joint_states` older than `fsm.max_joint_state_age_s` refuse a move before any pose is solved, or end a running one with `no_joint_states`, and the commands stop. During a move their age counts from its start: solving the poses holds the executor, and the joints that came meanwhile are still queued at the first tick. On a CI runner the solve took over 0.5 s and the move ended there (#252).
 - **Empty jaws**: `no_token` once the jaws are open again, the arm never commanded.
-- Each move logs its duration and the tick periods meanwhile.
+- Each move logs its duration, the seconds of each step (`close`, `rise`, `column`, `descent`, `release`, `lift`, `clear`, `handover`) and the tick periods meanwhile. A move lasts 11.5 to 17.0 s [MES-73].
 
 ## 6. Parameters (YAML `so101_bringup/config/brain.yaml`)
 
-Declared by `brain_node` (read-only, with ranges): every value of `motion.*`, `grasp.*` and `fsm.Params`, the timeouts of §3.1, the ages, the box footprint, the shortest motion and its margin included (`test_parameters.py`); `fsm.park_pose` and `connect4.handover_pose` are checked against the URDF limits at startup. A key the node does not declare stops it at startup. On the real arm, `brain_real.yaml` sets `motion.v_max_rad_s` to 0.5 (`01` §3.3).
+Declared by `brain_node` (read-only, with ranges): every value of `motion.*`, `grasp.*` and `fsm.Params`, the timeouts of §3.1, the ages, the box footprint, the shortest motion and its margin included (`test_parameters.py`); `fsm.park_pose` and `connect4.handover_pose` are checked against the URDF limits at startup. A key the node does not declare stops it at startup.
 
 | Parameter | Default | Origin |
 | --- | --- | --- |
@@ -179,7 +179,7 @@ Declared by `brain_node` (read-only, with ranges): every value of `motion.*`, `g
 | `fsm.box_half_size_m` | 0.05 m | The box footprint (`08` §3), for `VERIFY` and the lock (#143) |
 | `fsm.park_pose` | [1.9, -1.7, 1.5, 0.7, 0.0] | Off the workspace view: the cube never hidden, the box at worst 9 % hidden with the provided camera, 1 % with the moved one [MES-45]; elbow 1.6 pressed the lower arm on the shoulder, 0.01 rad short [MES-39]; **to validate mechanically on the real arm** |
 | `connect4.enabled` | false | Game mode (§5.1); set by `sim.launch.py connect4:=true`, not in `brain.yaml` |
-| `connect4.handover_pose` | [-1.0, -0.6, 0.6, 1.1, 1.57] | `HANDOVER`: pan ≤ −0.7 hides no cell of the grid from the camera, a token in the jaws [MES-65], [MES-68]; checked against the URDF limits at startup |
+| `connect4.handover_pose` | [-0.8, -0.6, 0.6, 1.1, 1.57] | `HANDOVER`: pan ≤ −0.7 hides no cell of the grid from the camera, a token in the jaws [MES-65]; at −0.8, 2100 cells of 2100 read and the pan's two turns shorter [MES-73]; checked against the URDF limits at startup |
 
 ## 7. Observability
 

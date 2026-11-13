@@ -47,7 +47,7 @@ flowchart LR
 | `so101_interfaces` | ament_cmake | both | `.srv` (existing); phase 2 adds `Connect4Board.msg`, `DropToken.srv` and `Drop.srv` (ADR-037) | Existing; `Connect4Board.msg` and `DropToken.srv` (#80), `Drop.srv` (#84) |
 | `so101_description` | ament_python | viz | URDF, meshes, `viz.launch.py`. **Do not modify** (C-08) | Provided |
 | **`so101_common`** | ament_python (pure Python, no dependency) | both | **Single source of truth**: joint names, limits, gripper %↔rad conversion, frame names | **Exists** (ADR-003, step 0.3) |
-| **`so101_bringup`** | ament_python | control | Top-level launch files (`sim.launch.py`, `real.launch.py`), `config/*.yaml`, RViz config, the sim scene, the evaluation bench | **Exists**: `sim.launch.py`, `real.launch.py`, the robustness demo's launch file, `config/*.yaml` (driver, brain, the sim scene and its markers), the Connect Four scene with `connect4:=true` (#79), `rviz/so101.rviz`, the sim scene generator, the evaluation bench (`evaluate`), the sim-backed tests |
+| **`so101_bringup`** | ament_python | control | Top-level launch files (`sim.launch.py`, `real.launch.py`), `config/*.yaml`, RViz config, the sim scene, the evaluation bench | **Exists**: `sim.launch.py`, `real.launch.py`, the robustness demo's launch file, `config/*.yaml` (driver, brain, the sim scene and its markers), the Connect Four scene with `connect4:=true` (#79), `rviz/so101.rviz`, the sim scene generator, the evaluation bench (`evaluate`, and `games.py` for `evaluate --games`), the game's simulated person (`sim_hand.py`), console entry (`connect4_play`) and robustness cases (`robustness_game.py`), the sim-backed tests |
 | **`so101_connect4`** | ament_python | perception + control | Phase 2: pure `game.py`, `turns.py` and `board.py`, `board_reader_node`, `game_node`, the console | **Exists** (ADR-037): the package, built and tested, its grid layout `config/connect4_grid.yaml` (`phase2/P2-02` §7) and `layout.py`, the grid frame and the markers' corners the scene and the reader share, under the guards (no backend, ground truth, provided extrinsics, `/joint_command` or `/sim/` outside tests); the engine `game.py` and the turns `turns.py` (only `MOVE` commands the arm), ported from the prototypes [MES-66]; `board.py` and `board_reader_node`, the grid read from the camera (#81, #82) [MES-68]; `game_node`, a game from the board reader to the brain, with `game.launch.py` and `config/game.yaml` (#86); `client.py`, the state and the services for the console and the bench, and the console `play.py`, `tools/so101 play` (#232) |
 
 > **Why `so101_common`?** Without it, the gripper 0–100 % ↔ rad mapping, the limits and the joint names would be duplicated in the driver, the brain and the tests — the number-one source of silent bugs in robotics (a joint clamped differently on each side).
@@ -70,13 +70,13 @@ This table is **the contract** between team members. Any change goes through a P
 | `/perception/debug_image` | `sensor_msgs/Image` | perception → RViz | 5–10 Hz | Annotated image: masks, centroids, status | `external_cam_optical_frame` | Best effort, depth 1 |
 | `/connect4/board` | `so101_interfaces/Connect4Board` | board_reader (game mode) → game_node | 10 Hz **once 5 reads in a row agree**, each on a new image | `cells`: 42, row-major from the bottom row, 0 empty, 1 human, 2 robot; `valid`, `reason`; the stamp is the first image's of the streak (`phase2/P2-02` §6) | `connect4_grid` | Reliable, depth 1 |
 | `/connect4/grid_pose` | `geometry_msgs/PoseStamped` | board_reader → game_node, RViz | 10 Hz when the grid's markers are seen | The grid frame, also sent as the TF `base_link` → `connect4_grid` | `base_link` | Reliable, **transient_local**, depth 1 |
-| `/connect4/debug_image` | `sensor_msgs/Image` | board_reader → RViz | 10 Hz | The cells as read, a status line | `external_cam_optical_frame` | Reliable, depth 1 |
+| `/connect4/debug_image` | `sensor_msgs/Image` | board_reader → RViz | 10 Hz | The cells as read, the winning four circled, two status lines: the read and the game's state, the last move with the robot's reason | `external_cam_optical_frame` | Reliable, depth 1 |
 | `/connect4/state` | `std_msgs/String`, JSON | game_node (game mode) → console, bench, board_reader's debug image | At each change | `ready` (the brain's first pose, the grid's pose and the brain's two services are there), `max_depth` (the level), `state`, `reason`, `turn`, `board` (42 cells), `legal` (columns), `last` (`who`, `column`, `planned`; the robot's: the engine's `score` and `depth`, `wins_in` or `loses_in` in plies when proven), `result`, `moves`, `lost`, `missed`, `first` and `history` (who started and the columns in the order the tokens were seen: they rebuild the board), `seconds` (of this game, spent in `move`, `read`, `wait` and `think`) (`phase2/P2-02` §5, §6) | — | Reliable, **transient_local**, depth 1 |
-| `/end_effector_pose` | `geometry_msgs/PoseStamped` | brain → RViz | 30 Hz | TCP pose (`gripper_frame_link`) from forward kinematics | `base_link` | Reliable, depth 10 |
-| `/brain_state` | `std_msgs/String` | brain → human, tests | On each transition + 1 Hz | FSM state name (`IDLE`, `APPROACH`…) | — | Reliable, **transient_local**, depth 1 |
+| `/end_effector_pose` | `geometry_msgs/PoseStamped` | brain → RViz, game_node (game mode: the brain is ready) | 30 Hz | TCP pose (`gripper_frame_link`) from forward kinematics | `base_link` | Reliable, depth 10 |
+| `/brain_state` | `std_msgs/String` | brain → human, tests, game_node (game mode: a stop cuts a move) | On each transition + 1 Hz | FSM state name (`IDLE`, `APPROACH`…) | — | Reliable, **transient_local**, depth 1 |
 | `/brain/markers` | `visualization_msgs/MarkerArray` | brain → RViz | On each plan | Grasp/pre-grasp targets, waypoints, the locked cube until `LIFT` (`06` §7) | `base_link` | Reliable, depth 1 |
 
-**QoS rule (ADR-004)**: a **Reliable publisher** is compatible with Reliable **and** Best-effort subscribers; the reverse is false, and fails silently [KO1 p29]. All our publishers are therefore Reliable (except debug streams). Subscribers that only want "the latest image" (perception) subscribe Best effort, depth 1.
+**QoS rule (ADR-004)**: a **Reliable publisher** is compatible with Reliable **and** Best-effort subscribers; the reverse is false, and fails silently [KO1 p29]. All our publishers are therefore Reliable (except debug streams). Subscribers that only want "the latest image" (perception) subscribe Best effort, depth 1. The board reader is the exception: Reliable, depth 1, since a best-effort subscriber gets 1 of the 10 Hz at 640×480 [MES-67].
 
 ### 3.2 Services
 
@@ -95,9 +95,10 @@ This table is **the contract** between team members. Any change goes through a P
 
 ### 3.3 Main parameters
 
-Declared with descriptors (description, range, read-only: read at startup) in each node, loaded from `so101_bringup/config/*.yaml`. The driver declares `use_sim`, `port`, the rates, speed limits and image size, `seed`, `expose_ground_truth`, `shutdown_pose`, `shutdown_velocity`, `shutdown_tolerance`, `bus_retries`, the per-motor `max_relative_target_*`, `camera_device` and `camera_info_file`.
+Declared with descriptors (description, range, read-only: read at startup) in each node, loaded from `so101_bringup/config/*.yaml`; perception's and the game's two nodes' from their own package (`so101_perception/config/perception.yaml`, `so101_connect4/config/game.yaml` and `board_reader.yaml`), the grid's geometry from `so101_connect4/config/connect4_grid.yaml`. The driver declares `use_sim`, `port`, the rates, speed limits and image size, `seed`, `expose_ground_truth`, `shutdown_pose`, `shutdown_velocity`, `shutdown_tolerance`, `bus_retries`, the per-motor `max_relative_target_*`, `camera_device` and `camera_info_file`.
 
-- **Every tunable is in the base files** (`driver.yaml`, `brain.yaml`, `perception.yaml`), with its sim value.
+- **Every tunable is in the base files** (`driver.yaml`, `brain.yaml`, `perception.yaml`; the game: `game.yaml`, `board_reader.yaml`), with its sim value.
+- **Not parameters, the game's measured constants**, each with its measurement in the code: the drop's geometry and speeds in `drop.py` (`ROLL`, `TILT_DEG`, `TOKEN_IN_TCP`, `PRE_DROP`, `LIFT_STEP`, `DESCENT_V`, `EMPTY_SPEEDUP`: the clearance to the guide was measured with them [MES-63], [MES-73]), the tokens' HSV ranges in `board.py` [MES-65], the console's `HINT_DEPTH`. The real arm's values come with `connect4_real.yaml` in `v2.1.0` (`phase2/P2-02` §8).
 - **A node stops at startup on a key it does not declare.** ROS would ignore it, so a typo in a real file would keep the sim's value.
 - **Not parameters**:
   - the calibration file: the provided `_connect_arm` reads `/calibration/arm.json` (ADR-032); the host file is `CALIBRATION_FILE` in `docker/.env`;
@@ -132,9 +133,10 @@ Declared with descriptors (description, range, read-only: read at startup) in ea
 | perception | `process_rate_hz`, `filter_size`, `filter_jump_m`, `min_cube_area_ratio` | 20 Hz, 5, 0.02 m, 0.85 | Read at startup; the median filter (`05` §7), the partly hidden cube (`05` §2.3) |
 | brain | `grasp.*`, `motion.*`, `fsm.*` | see `06` §6 | Heights, speeds, thresholds, timeouts; `motion.v_max_rad_s` 1.0 rad/s, sim and real arm |
 | brain | `connect4.enabled` | **`false`** | Set by `sim.launch.py connect4:=true` (not in `brain.yaml`): the brain serves `/brain/drop` and `/brain/handover` |
-| brain | `connect4.handover_pose` | [−1.0, −0.6, 0.6, 1.1, 1.57] rad | `HANDOVER`: pan ≤ −0.7 hides no cell from the camera [MES-65] |
+| brain | `connect4.handover_pose` | [−0.8, −0.6, 0.6, 1.1, 1.57] rad | `HANDOVER`: pan ≤ −0.7 hides no cell from the camera [MES-65] |
+| board_reader | `process_rate_hz`, `stable_reads`, `token_threshold`, `extrinsics_file` | 10 Hz, 5, 0.35, empty | `config/board_reader.yaml`. How often a new image is looked for; identical reads in a row before `/connect4/board`; the share of a cell's disc in a color's range that makes a token [MES-65]; the camera's pose, empty: perception's `camera_extrinsics.yaml` |
 | game_node | `read_timeout_s`, `board_fresh_s` | 5.0 s, 1.0 s | `config/game.yaml`. `READ_BOARD` waits this long for the board it expects, then `FIX_BOARD`; a read this recent and unchanged at that timeout proves the robot's token is lost (`phase2/P2-02` §5) |
-| game_node | `think_timeout_s`, `move_timeout_s` | 5.0 s, 90.0 s | `THINK` (the engine's budget is 1 s) then `ERROR`; `MOVE` (a move lasts 13 to 19 s [MES-69]) then `/brain/stop` and `ERROR` |
+| game_node | `think_timeout_s`, `move_timeout_s` | 5.0 s, 90.0 s | `THINK` (the engine's budget is 1 s) then `ERROR`; `MOVE` (a move lasts 12 to 17 s [MES-73]) then `/brain/stop` and `ERROR` |
 | game_node | `engine.max_depth` | 10 | The level: easy 1, medium 4, hard 10 [MES-70]. **Set while the node runs** (1 to 42), the next `THINK` uses it; shown in `/connect4/state` |
 | game_node | `engine.budget_s`, `engine.seed` | 1.0 s, 0 | A search stops at its budget, at the last depth it completed (0.64 s at most at depth 10 [MES-70]); the seed decides between two equal moves as central, and replays a game |
 
@@ -161,6 +163,7 @@ flowchart TD
   B -->|"robot_state_publisher ← /joint_states"| S["shoulder_link → … → gripper_link"]
   S --> T["gripper_frame_link = TCP"]
   B -->|"static, from calibration (perception)"| C["external_cam_optical_frame"]
+  B -->|"board_reader, at each image whose markers give a pose (game mode)"| G["connect4_grid"]
 ```
 
 | Convention | Value | Why |
@@ -204,7 +207,7 @@ sequenceDiagram
 | `USE_SIM=false` in `docker/.env` | The entrypoint starts `real.launch.py`: `sim.launch.py` with `use_sim:=false`, which adds `driver_real.yaml` and `brain_real.yaml` (§3.3); nothing else changes (C-10) |
 | `CONNECT4=true` in `docker/.env`, or `CONNECT4=true tools/so101 up` | The game of phase 2 in place of the pick & place, sim only (#231, `phase2/P2-02` §6.1): the entrypoint passes `connect4:=true` to `sim.launch.py` (the game's scene at 640×480, the driver's `/sim/connect4/*`, the brain's `/brain/drop` and `/brain/handover`, `so101_connect4`'s `game.launch.py`); the perception container starts `so101_connect4`'s `board_reader.launch.py`, the board reader, instead of `perception_node`. `game.launch.py` starts the game node. Refused with `USE_SIM=false`. `down` then `up` to change mode: `restart` keeps the environment |
 | `ros2 service call /brain/start std_srvs/srv/Trigger` | Starts a full pick & place cycle (`06` §3); `tools/so101 cycle` does it after `/sim/randomize` |
-| `tools/so101 play` (`ros2 run so101_bringup connect4_play`) | Game mode: the console, a game against the robot from a terminal. Keys 1 to 7 drop a token in a column, `n` a new game, `r` a new game with the robot first, `s` stop, `q` quit (`phase2/P2-02` §6) |
+| `tools/so101 play` (`ros2 run so101_bringup connect4_play`) | Game mode: the console, a game against the robot from a terminal. Keys 1 to 7 drop a token in a column, `?` a hint, `n` a new game, `r` a new game with the robot first, `e`, `m`, `h` the level (it sets the game node's `engine.max_depth`), `s` stop, `q` quit (`phase2/P2-02` §6) |
 
 The entrypoint (`docker/control_entrypoint.sh`) starts `so101_bringup sim.launch.py`, or `real.launch.py` with `REAL_ROBOT_PORT` as `port:=` when `USE_SIM=false` (`docker/.env`). The course's `driver.launch.py` and `brain.launch.py` stay, to start one node alone.
 

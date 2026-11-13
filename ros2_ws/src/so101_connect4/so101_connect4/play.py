@@ -4,6 +4,9 @@ robot from a terminal.
 It draws /connect4/state and turns keys into calls of client.GameClient. No rule here: whose turn it is and
 the legal columns are read in the state. The person's hand comes from the caller (client.py): this package
 names no sim service, so101_bringup's connect4_play gives the simulated one.
+
+The engine is used twice, in this process and never through the game node: the hint for the person, a search
+of HINT_DEPTH (34 ms [MES-66]), and the cells of the winning four.
 """
 
 import select
@@ -13,9 +16,15 @@ import tty
 
 import rclpy
 
-from so101_connect4.client import GameClient
+from so101_connect4 import game as engine
+from so101_connect4.client import GameClient, last_move
 
-KEYS = "keys: 1 to 7 play a column, n new game, r new game with the robot first, s stop, q quit"
+KEYS = (
+    "keys: 1 to 7 play a column, ? a hint, n new game, r new game with the robot first, "
+    "e, m, h the level (easy, medium, hard), s stop, q quit"
+)
+LEVEL_KEYS = {name[0]: depth for name, depth in engine.LEVELS.items()}  # e, m, h
+HINT_DEPTH = 8
 TOKENS = {0: ".", 1: "R", 2: "Y"}  # the person's red, the robot's yellow
 COLORS = {1: "\x1b[31mR\x1b[0m", 2: "\x1b[33mY\x1b[0m"}
 RESULTS = {"robot": "the robot wins", "human": "you win", "draw": "a draw"}
@@ -38,13 +47,14 @@ def status(state) -> str:
 def render(state, color=False) -> str:
     """The grid as text, top row first, its columns numbered as their keys; the last move, what to do."""
     tokens = TOKENS | COLORS if color else TOKENS
-    rows = [
-        "| " + " ".join(tokens[state["board"][row * 7 + column]] for column in range(7)) + " |"
-        for row in range(5, -1, -1)
-    ]
-    last = state["last"]
-    moved = f"{last['who']}: column {last['column'] + 1} | " if last else ""
-    return "\n".join(["  1 2 3 4 5 6 7", *rows, "+---------------+", moved + status(state)])
+    cells = [tokens[cell] for cell in state["board"]]
+    for i in engine.four(state["board"]):
+        cells[i] = cells[i].replace(TOKENS[state["board"][i]], "*")  # the winning four, in its color
+    rows = ["| " + " ".join(cells[row * 7 : row * 7 + 7]) + " |" for row in range(5, -1, -1)]
+    depth = state["max_depth"]
+    level = next((name for name, d in engine.LEVELS.items() if d == depth), f"depth {depth}")
+    told = " | ".join(filter(None, [f"level: {level}", last_move(state["last"])]))
+    return "\n".join(["  1 2 3 4 5 6 7", *rows, "+---------------+", told, status(state)])
 
 
 def show(text):
@@ -86,6 +96,14 @@ class Console:
             self._say(self.game.new_game(robot_first=key == "r"))
         elif key == "s":
             self._say(self.game.stop())
+        elif key in LEVEL_KEYS:
+            self._say(self.game.set_depth(LEVEL_KEYS[key]))
+        elif key == "?":
+            if not (mine and state["turn"] == "human"):
+                self.write(f"not your turn: {state['state']}")
+            else:
+                position = engine.from_cells(state["board"], engine.HUMAN)
+                self.write(f"hint: column {engine.best_move(*position, max_depth=HINT_DEPTH).column + 1}")
         elif key in tuple("1234567"):
             if not (mine and state["turn"] == "human"):  # a token dropped now would end in FIX_BOARD
                 self.write(f"not your turn: {state['state']}")

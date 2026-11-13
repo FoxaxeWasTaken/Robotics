@@ -17,10 +17,10 @@ Same scale as `10` (P = probability, I = impact, 1 to 3; Crit. = P × I).
 | P2-R-13 | The review delay: 8 PRs, each up to 15 h, one approval, a push dismisses it; the team works Thursday, Friday and the weekend only | 3 | 2 | **6** | A PR open for more than a day | Grouped PRs, the branch pushed early so the next ticket starts from it, reviewers warned; last feature PR by 2026-11-15 | CP |
 | P2-R-14 | The numbers come from separate prototypes: scene, pose, reading were measured on slightly different layouts, without ROS for the moves | **closed** | | | | #76 merged them on one layout, 100/100; through the brain and ROS on the game's scene, 50/50 [MES-69] | KIN |
 | P2-R-15 | Hold through ROS unproven: `give_token` and the jaws only tested in-process | **closed** | | | | Through the driver's tick and its `give_token`: held, 1.4 mm of slip after two moves at 1.5 rad/s; the closing effort tells a token from none, the jaws' position does not [MES-67] | CTRL |
-| P2-R-16 | Perception across error above the slot's margin | 1 | 3 | 3 | Drops below 95 % with the pose, not with the config | The guide (capture −10/+6 mm [MES-63]); cut-off 2026-11-14: targets from `connect4_grid.yaml`, markers as a check | VIS |
+| P2-R-16 | Perception across error above the slot's margin | 1 | 3 | 3 | Drops below 95 % with the pose, not with the config | The guide (capture −10/+6 mm [MES-63]); cut-off 2026-11-14: targets from `connect4_grid.yaml`, markers as a check. **Closed for the sim**: 80 drops of 80 in the asked column, aimed with the pose the camera gives [MES-71] | VIS |
 | P2-R-17 | GitHub Actions minutes: about 2,500 of 3,000 this month (estimated, the billing API is out of reach). Out of minutes, no required check runs, and nothing merges | 2 | 3 | 6 | Settings → Billing | Check it now; the game job is separate; dispatch fewer nightlies | OPS |
 | P2-R-18 | 8/10 is a noisy gate: at p = 0.90 it passes 93 % of the time (binomial) | 1 | 2 | 2 | A red night on a good commit | `release.sh` reads the newest report on the SHA: a second dispatch needs no new commit | QA |
-| P2-R-05 | Tokens jam or jitter in the sim slots | 1 | 2 | 2 | Jammed tokens in the spike | 378/378 drops on the working set [MES-63] | CTRL |
+| P2-R-05 | Tokens jam or jitter in the sim slots | 1 | 2 | 2 | Jammed tokens in the spike | 378/378 drops on the working set [MES-63]. **Closed**: no token jammed in 80 drops of 12 games [MES-71], 150 more in [MES-73] | CTRL |
 | P2-R-09 | Python engine too slow for a useful depth | **closed** | | | | Depth 10 to 12 in 1 s [MES-66] | DEC |
 | P2-R-04 | Phase 2 eats phase-1 time | **closed** | | | | Phase 1 is released (`v1.3.0`) | CP |
 
@@ -46,8 +46,11 @@ Same scale as `10` (P = probability, I = impact, 1 to 3; Crit. = P × I).
 | Unit | `board.py`: synthetic boards, reference PNGs rendered from the scene | pytest | P2-01 |
 | Unit | `release_pose`: the 7 columns, token centre within 1 mm, jaw error < 0.2°, tilt 70°; unreachable → `None` | pytest | ADR-035 |
 | Package | Each package with its own fakes: `so101_driver` (services), `so101_brain` (`/brain/drop`, fake driver), `so101_connect4` (fake camera, fake brain). colcon's coverage counts per package, and only the test's process: a bringup test covers no driver code, a launched node no line, so `test_drop_services.py` runs the brain in its own process | pytest, `colcon test` | Quality gate, 80 % on new code |
+| Package | `so101_connect4` on its fake stack: `game_node` (`test_game_node.py`), the client and the console (`test_client.py`, `test_play.py`), the parameters of the two nodes, each with its range (`test_parameters.py`) | pytest, in-process nodes | P2-05, P2-08 |
+| Package | `so101_bringup`: the game bench's score and CSV (`test_games.py`), the simulated person (`test_sim_hand.py`), the robustness cases' verdicts (`test_robustness.py`, `test_robustness_game.py`) | pytest | P2-06 |
+| Integration (sim) | The game's whole stack as processes (`test_connect4_game_launch.py`): the QoS of the game's topics against `01` §3.1; a game cut by the bench's timeout fails as `bench_timeout`, keeps its rosbag, and the game node is told to stop. The robustness demo of the game on a fake stack (`test_robustness_game_stack.py`) | `so101_bringup/test`, launch_testing | P2-06, P2-08 |
 | Integration (sim) | Scene: tick and image rate with 42 tokens; a render finds the 4 markers | `so101_bringup/test` | #79 |
-| Integration (sim) | Board reader against the scene's truth (tests only, C-06): 10 states in `colcon test`, 50 once as a MES | `so101_bringup/test` | P2-01 |
+| Integration (sim) | Board reader against the scene's truth (tests only, C-06), under the default light and the dim one: 10 states each in `colcon test`, 50 once as a MES [MES-68], [MES-73] | `so101_bringup/test` | P2-01 |
 | Integration (sim) | One drop in `colcon test`; 50 drops once as a MES, random columns; 10 tries without a token | `so101_bringup/test` (`CONNECT4_DROPS=50`) [MES-69] | P2-02, P2-03 |
 | End-to-end (sim) | Game bench: N games against a scripted human, random or engine | `evaluate --games` (`08`) | P2-06 |
 | End-to-end (sim) | Robustness demo of the game: the course's five fault questions asked of a game, and a stop mid-move, one command each | `tools/so101 robustness g1` to `g6` (#243), `results/robustness_demo.md` | `06` §10, P2-03, P2-05 |
@@ -62,7 +65,7 @@ Same scale as `10` (P = probability, I = impact, 1 to 3; Crit. = P × I).
 | Each night `main` changed | The phase-1 bench, then 10 games against a random player on the stack started again in game mode (`down`, then `up`); one verdict line, `Target ≥ 90 % and ≥ 8/10 games: met.`, read by the report and by `release.sh`; SonarQube Cloud, coverage per package, trends |
 | Release | `release.sh` needs the bench on the exact commit, the gate and the CHANGELOG (`15` §6). The gate is read **before** the last PR (#227) |
 
-Ten games against a random person last about 12 min: 58 to 126 s a game, 7 to 16 tokens [MES-71]. Against the engine as the person a game goes up to 40 tokens and 5 min, so the night plays the random one. The job has 120 min and uses 19 without the games. Not worth doing here: CI or Sonar badges, a Sonar scan on PRs, path filters, mypy, mutation tests on the game, a matrix.
+Ten games against a random person last about 12 min: 58 to 126 s a game, 7 to 16 tokens [MES-71]. Against the engine as the person a game goes up to 40 tokens and 5 min, so the night plays the random one. The job has 120 min and uses 19 without the games. Not worth doing here: CI or Sonar badges, a Sonar scan on PRs, path filters, mypy, a matrix. Mutation tests (mutmut) run by hand, as phase 1's: `turns.py` 95.9 % and `drop.py` 88.6 % of the mutants killed [MES-74] (`08` §1).
 
 Who sees it: the repository is private and the school copy has no Actions, Issues or Releases, so the visible proof is in the tree: `.github/workflows/`, `results/phase2_<date>.md`, the README (#234).
 

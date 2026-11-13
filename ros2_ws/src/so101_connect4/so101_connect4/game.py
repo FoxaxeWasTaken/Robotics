@@ -99,6 +99,20 @@ def winner(cells) -> int:
     return EMPTY
 
 
+def four(cells) -> tuple:
+    """The cells of the lines of four or more, as indices of `cells`; () while nobody has won."""
+    for player in (HUMAN, ROBOT):
+        stones, _ = from_cells(cells, player)
+        won = 0
+        for shift in (1, _H, _H - 1, _H + 1):
+            pairs = stones & (stones >> shift)
+            first = pairs & (pairs >> 2 * shift)  # the lowest stone of each four
+            won |= first | first << shift | first << 2 * shift | first << 3 * shift
+        if won:
+            return tuple(i for i in range(CELLS) if won & _bit(i % COLUMNS, i // COLUMNS))
+    return ()
+
+
 def ends_in(score: int, stones: int) -> int:
     """Plies to the end of a proven game, from a Choice's score found with `stones` tokens on the board:
     > 0 the side to move wins in that many plies, its own included; < 0 it loses; 0 not proven."""

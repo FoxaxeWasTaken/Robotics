@@ -1,9 +1,9 @@
 <div align="center">
 
-# SO-ARM101 · Autonomous pick & place with ROS 2
+# SO-ARM101 · Connect Four and pick & place with ROS 2
 
-**A camera spots a cube, the arm picks it up and drops it on target.**<br>
-**The same ROS 2 stack runs in simulation and on the real robot.**
+**The arm plays Connect Four against you: its camera reads the grid, an engine picks the move, the arm drops its token.**<br>
+**It also picks a cube and drops it on target. One ROS 2 stack, in simulation and on the real robot.**
 
 [![Nightly](https://github.com/FoxaxeWasTaken/Robotics/actions/workflows/nightly.yml/badge.svg)](https://github.com/FoxaxeWasTaken/Robotics/actions/workflows/nightly.yml)
 ![ROS 2 Jazzy](https://img.shields.io/badge/ROS_2-Jazzy-22314E?logo=ros&logoColor=white)
@@ -12,12 +12,20 @@
 ![OpenCV](https://img.shields.io/badge/OpenCV-4.10-5C3EE8?logo=opencv&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 
+<img src="docs/project/media/demo_connect4.gif" height="240" alt="A Connect Four game against the simulated arm, seen by the scene camera: the arm drops yellow tokens into the grid, each cell read is drawn as a disc, the robot's last move and its reason are written at the top, and the winning four is circled in green">
+
+*A game against the simulated arm at 4× speed, as the board reader draws it: the cells it reads, the robot's reason, the winning four.*
+
+| **50/50** | **2100/2100** | **10/10** | **6/6** |
+| --- | --- | --- | --- |
+| tokens dropped in their column | cells of the grid read by the camera | full games finished, the robot wins each | fault cases of a game handled |
+
 | Simulation | Real arm |
 | --- | --- |
 | <img src="docs/project/media/demo_sim_cycle.gif" height="240" alt="One pick and place in simulation; the inset shows the scene camera with the cube in green and the box in blue as perception detects them, the brain's state at the bottom left"> | <img src="docs/project/media/demo_real_cycle.gif" height="240" alt="One pick and place on the real SO-101: the arm takes the red cube from the table and drops it into a green bowl"> |
 | <img src="docs/project/media/sim_aruco_check.jpg" height="240" alt="The simulated scene seen by its camera, 8 ArUco markers detected around the arm"> | <img src="docs/project/media/real_aruco_check.jpg" height="240" alt="The real bench seen by the webcam, 8 printed ArUco markers detected on the table"> |
 
-*One cycle at 4× speed, then the 8 ArUco markers seen by each camera.*<br>
+*One pick & place at 4× speed, then the 8 ArUco markers seen by each camera.*<br>
 *The inset of the simulation is the scene camera with perception's detections.*
 
 **Real videos:** [one cycle](https://github.com/FoxaxeWasTaken/Robotics/releases/download/v1.3.0/real_pick_and_place.mp4) · [the cube moved by hand, then the retry](https://github.com/FoxaxeWasTaken/Robotics/releases/download/v1.3.0/real_cube_moved_retry.mp4)
@@ -30,7 +38,14 @@
 
 ## What it does
 
-Each cycle runs on its own, from one command:
+**Connect Four against the arm** (phase 2, in simulation). You drop a red token, the robot answers with a yellow one:
+
+- **It reads the grid** with the scene camera: four ArUco markers give the grid's pose, each of the 42 cells is classified by its color, and a move counts once 5 images in a row agree.
+- **It thinks**: a negamax engine with three levels, which answers in 0.2 s and says why it played (its search depth, and "it wins in 2 moves" once the game is decided).
+- **It plays**: the arm takes the token given between its jaws, checks it holds it, and releases it above the column.
+- **It notices what goes wrong**: a token in the wrong place, a move not seen, an empty gripper, a column out of reach. The game stops with its reason and waits for you; the arm never moves during your turn.
+
+**Pick & place** (phase 1, in simulation and on the real arm). Each cycle runs on its own, from one command:
 
 ```text
 WAIT_TARGET → PLAN → APPROACH → DESCEND → GRASP → LIFT → TRANSPORT → RELEASE → HOME → VERIFY → DONE
@@ -39,7 +54,7 @@ WAIT_TARGET → PLAN → APPROACH → DESCEND → GRASP → LIFT → TRANSPORT �
 - **One stack, two worlds.** `USE_SIM` in `docker/.env` moves the driver between MuJoCo and the real SO-101. The same nodes run on both; only a few measured values change ([`01` §3.3](docs/project/01_architecture.md)).
 - **It sees for itself.** Perception locates the cube and the target with HSV detection, pixel → 3D and a median filter, on our own camera calibration. No ground truth reaches the pipeline, and a CI guard checks it.
 - **It checks its work.** The brain verifies each grasp and each drop, and takes up to 3 attempts: an empty gripper, a cube moved mid-action, a drop outside the target.
-- **It is built like a product.** A 3-episode end-to-end bench on every PR, 50 episodes each night `main` changes, mutation testing on the modules that protect the arm, 39 architecture decisions and 68 recorded measurements.
+- **It is built like a product.** On every PR, a 3-episode end-to-end bench and one full Connect Four game; each night `main` changes, 50 episodes and 10 games; mutation testing on the modules that protect the arm, 40 architecture decisions and 74 recorded measurements.
 
 ## Quickstart (simulation)
 
@@ -60,6 +75,36 @@ tools/so101 down
 
 Linux (x86_64) with Docker and Compose v2, an X server for RViz, and about 8 GB of disk for the images, plus Docker's build cache. On Windows: WSL2 with Docker Desktop and WSLg. **Tested on** Windows with WSL2 (Ubuntu 24.04), and in CI on GitHub's Ubuntu 24.04 runners; the team has not run the stack on a native Linux desktop yet. Full setup: [`02`](docs/project/02_environment_infrastructure.md); to contribute, `pre-commit` too ([CONTRIBUTING §1](CONTRIBUTING.md#1-setup-once)).
 
+## Play against the sim robot
+
+After the quickstart's `build` (stop the pick & place stack first: `tools/so101 down`):
+
+```bash
+CONNECT4=true tools/so101 up                 # the game's simulation: the grid, its 42 tokens, the board reader, the game node
+tools/so101 rviz                             # optional: the arm, and the grid as the board reader draws it
+tools/so101 play                             # the game, in a second terminal; it waits for the stack to be ready
+tools/so101 down                             # before coming back to the pick & place
+```
+
+<img src="docs/project/media/connect4_scene.png" width="420" alt="The simulated Connect Four grid with red and yellow tokens, a marker at each corner, and the arm on its riser beside it">
+
+| Key | What it does |
+| --- | --- |
+| `n`, `r` | A new game: you start (`n`), or the robot starts (`r`) |
+| `1` to `7` | Your red token in that column, numbered as on the screen. The simulated hand drops it and gives the robot its yellow token |
+| `?` | A hint: the column the engine would play in your place |
+| `e`, `m`, `h` | The robot's level: easy, medium, hard (the default). It applies from its next move |
+| `s` | Stops the arm and the game |
+| `q` | Quits the console; the stack keeps running |
+
+- **The screen** shows the grid, the level, the robot's last move with its reason, and what to do. The winning four is drawn as `*`.
+- **A robot's move takes about 12 s** (17 on the far column), a game against a careless player about a minute, a close one up to 5 minutes.
+- **`FIX_BOARD`** means the grid the camera sees is not the one the game expects: `not_seen:human` when your move did not show, `board_not_empty` when tokens are left at a new game, a token played out of turn. Nothing moves. In simulation, press `n` for a new game.
+- **`ERROR`** follows a stop (`s`) or a move the arm could not finish; `n` starts again.
+- `tools/so101 bench --game -n 3` plays measured games against a scripted player: it runs in the control container (after `tools/so101 up`) and starts its own stack on ROS domain 77. `tools/so101 robustness g1` (to `g6`) shows one fault case, in its own container: after `tools/so101 down`.
+
+How the game is built: [`phase2/P2-02`](docs/project/phase2/P2-02_design.md).
+
 ## Architecture
 
 ```mermaid
@@ -70,12 +115,17 @@ flowchart LR
   B -- "/joint_command" --> D
 ```
 
-Details: [`01`](docs/project/01_architecture.md). All the design docs: [docs/project/README.md](docs/project/README.md).
+In game mode, a board reader takes perception's place and a game node sits above the brain: it asks for one move at a time (`/brain/drop`). Details: [`01`](docs/project/01_architecture.md), the game in [`phase2/P2-02`](docs/project/phase2/P2-02_design.md). All the design docs: [docs/project/README.md](docs/project/README.md).
 
 ## Measured results
 
 | Metric | Result | Source |
 | --- | --- | --- |
+| **Connect Four**, simulation: full games without intervention, the robot at its hard level | **10/10** against a random player, 2/2 against the engine; target ≥ 8/10. One game on each PR, 10 each night `main` changes | MES-71 |
+| Connect Four: a token dropped in the requested column | **50/50**, held 50/50, empty jaws refused 10/10; a move 11.5 to 17.0 s | MES-69, MES-73 |
+| Connect Four: the grid read by the camera, 50 random game states | **2100/2100** cells; the grid's pose within 0.7 mm | MES-68 |
+| Connect Four: the engine | 100/100 against a random player; hard beats medium 26 – 7, medium beats easy 28 – 2 (40 games each); a move in 0.2 s | MES-66, MES-70, MES-72 |
+| Connect Four: fault cases of a game (a token out of turn, no token given, the reader stopped, a column out of reach, a dim light, a stop) | All six handled | [`results/robustness_demo.md`](results/robustness_demo.md) |
 | Pick & place, simulation, real perception, randomized cube and box | 50/50, and 50 more each night `main` changes: [latest results](https://github.com/FoxaxeWasTaken/Robotics/issues?q=is%3Aissue+in%3Atitle+%22Nightly+bench+results%22) | [`results/bench_sim_2026-10-27.md`](results/bench_sim_2026-10-27.md), MES-45, MES-46 |
 | Pick & place, **real arm**, USB webcam, the sim's speeds, retries included | **14/17**, target ≥ 7/10 | [`results/bench_real_2026-11-06.md`](results/bench_real_2026-11-06.md) |
 | Real camera, intrinsics | RMS 0.36 px, 25 views | MES-58 |
@@ -103,14 +153,6 @@ tools/so101-arm calibrate                    # back up CALIBRATION_FILE, then Le
 tools/so101-arm zero-offsets -n 3            # the arm held at the URDF zero: the joint_zero_offsets line (driver_real.yaml)
 ```
 
-## Next: Connect Four
-
-Phase 2 plays Connect Four against the arm: it reads the grid with its camera and drops its own tokens. In simulation first, on the real arm after that ([design](docs/project/phase2/README.md), [plan](docs/project/phase2/P2-04_roadmap.md)).
-
-<img src="docs/project/media/connect4_scene.png" width="420" alt="The simulated Connect Four grid with red and yellow tokens, a marker at each corner, and the arm on its riser beside it">
-
-`CONNECT4=true tools/so101 up` starts the game's simulation: the grid, its 42 tokens and its markers in front of the arm, the simulated player's services (`/sim/connect4/drop_token`, `give_token`, `reset_board`), the board reader, which publishes the grid it sees on `/connect4/board`, and the game node. Then `tools/so101 play`, in a second terminal, is the game: keys 1 to 7 drop your red token in a column, the robot answers with a yellow one, `n` starts a new game, `r` lets the robot start, `q` quits. `tools/so101 bench --game -n 3` plays measured games against a random player (after `tools/so101 down`: it starts its own stack).
-
 ## Going further
 
 <details>
@@ -131,11 +173,11 @@ The bench starts its own driver, brain and perception on ROS domain 77 (below), 
 <details>
 <summary><b>Status: what is done, what is next</b></summary>
 
-As of 2026-11-12.
+As of 2026-11-13.
 
 | Done | Next (see [roadmap](docs/project/09_roadmap_step_by_step.md)) |
 | --- | --- |
-| Environment (Docker images, X11, DDS, usbipd), CI, hooks, design docs with measured spikes; the phase-1 sim criterion met on our calibration, 50/50 (4.5b, C-42) | Phase 2 in sim, for the hand-in of 2026-11-20. Done: the drop spike, a go (#76), the engine and the turns (`so101_connect4`), the drop pose, the game's sim scene with the simulated player's services, the board reader that reads the grid from the camera (`CONNECT4=true tools/so101 up`), one move of the game through the brain (`/brain/drop` and `/brain/handover`: 50 tokens of 50 in their column), the game node with three levels, the console `tools/so101 play`, the game bench (`evaluate --games`), one game on each PR and ten each night, the robustness demo of the game (`tools/so101 robustness g1` to `g6`). Next: the player guide and the results (#234), the videos (#97) |
+| Environment (Docker images, X11, DDS, usbipd), CI, hooks, design docs with measured spikes; the phase-1 sim criterion met on our calibration, 50/50 (4.5b, C-42) | Phase 2 in sim, for the hand-in of 2026-11-20. Done: the drop spike, a go (#76), the engine and the turns (`so101_connect4`), the drop pose, the game's sim scene with the simulated player's services, the board reader that reads the grid from the camera (`CONNECT4=true tools/so101 up`), one move of the game through the brain (`/brain/drop` and `/brain/handover`: 50 tokens of 50 in their column), the game node with three levels, the console `tools/so101 play`, the game bench (`evaluate --games`), one game on each PR and ten each night, the robustness demo of the game (`tools/so101 robustness g1` to `g6`), the robot's reason, the level keys and the hint in the console, faster moves. Next: the results file and a game replayed from this README by a member who did not write it (#234), the videos (#97) |
 | Driver: `/joint_states` at 30 Hz, `/joint_command`, speed limiter, joint-limit clamp, camera at 10 Hz with `camera_info`, `/sim/randomize`, ground truth for the bench only; real-arm safety and webcam; a warning for each late tick, a clean stop on SIGINT (#158, #176) | Later, on the real arm: a startup check that the camera has not moved (#222), the colors measured by a tool (#223), replay tests on real images (#48), a guided setup script (#224) |
 | Perception: HSV detection that holds under a dim, warm light, pixel → 3D, median filter, cube yaw, `/object_position` and `/drop_box_position`, debug image, our ArUco extrinsic calibration and the camera TF; a cube cut by the image edge or partly hidden is not published (3.4b–c, 3.5c, MES-47, MES-52, MES-53); on the real bench, the intrinsics from a ChArUco board and the camera's pose from that board touched by the arm (6.2b, 6.3a) | |
 | Brain: FK/IK (no self-collision), `/go_to_target`, grasp planner in a worker process, the full state machine, markers in RViz; grasp verification and retries checked on fault scenarios, effort threshold measured (4.4a, MES-48) | |
@@ -158,10 +200,10 @@ tools/so101 bench --stub -n 10               # driver and brain alone: the groun
 tools/so101 bench --perception -n 10         # the real pipeline
 ```
 
-- The packages: `so101_common`, `so101_driver`, `so101_brain`, `so101_perception`, `so101_bringup` (the sim-backed tests: closed loop, IK accuracy, launch files).
-- `tools/so101 run '<command>'` runs a command in a throwaway control container: no network, ROS domain 79, the repository read-only, our packages built inside it. It leaves a teammate's running stack and the shared `ros2_ws/build/` alone. `--stack` starts the simulation first, `--out DIR` gets back what the command writes.
+- The packages: `so101_common`, `so101_interfaces`, `so101_driver`, `so101_brain`, `so101_perception`, `so101_connect4` (the game), `so101_bringup` (the sim-backed tests: closed loop, IK accuracy, launch files, the game's scene, drops and reading).
+- `tools/so101 run '<command>'` runs a command in a throwaway control container: no network, ROS domain 79, the repository read-only, our packages built inside it. It leaves a teammate's running stack and the shared `ros2_ws/build/` alone. `--stack` starts the simulation first, `--game` starts it in game mode (the game node, the board reader), `--out DIR` gets back what the command writes.
 - `tools/so101 test` runs in a new control container: the stack need not run. For a full run, stop it first (`tools/so101 down`): the grasp planner's timing tests (p95 under 1 s) fail when the simulation shares the CPU.
-- **Every PR** runs lint, the guards, the build and tests of both images, and a 3-episode E2E bench (a draft or a docs-only change: lint and guards only). The nightly runs 50 episodes each night `main` changes.
+- **Every PR** runs lint, the guards, the build and tests of both images, a 3-episode E2E bench and one full Connect Four game (a draft or a docs-only change: lint and guards only). The nightly runs 50 episodes and 10 games each night `main` changes.
 - Code quality: [SonarQube Cloud](https://sonarcloud.io/project/overview?id=FoxaxeWasTaken_Robotics), `main` analyzed each night it changes (`14` §4; members of the SonarCloud organization only).
 - Test strategy, thresholds and the bench: [`08`](docs/project/08_quality_tests.md); CI: [`14`](docs/project/14_quality_pipeline_ci.md); how to write tests: [CONTRIBUTING §5](CONTRIBUTING.md#5-tests).
 
@@ -181,6 +223,7 @@ tools/so101 bench --perception -n 10         # the real pipeline
   - the locked cube, a red 5 cm cube from `APPROACH` until it is lifted, in its own display "Cube (locked)": untick it to hide the cube;
   - the ghost arm, display "Commanded arm (ghost)", unchecked by default: the setpoint the driver sends to the motors (`/joint_setpoint`), translucent over the measured arm; the gap is the tracking error, useful on the real arm.
 - **The large red translucent block is the drop box** (the course's marker), not the cube.
+- **In game mode**, the display "Connect Four board (game mode)", to tick, shows `/connect4/debug_image`: a disc on each cell, filled in red or yellow when a token is read there; at the top, the read's validity (`board VALID`, or why not) and the game's state, then the last move with the robot's reason; the winning four circled in green.
 
 </details>
 
@@ -214,7 +257,7 @@ The ground truth (`/sim/ground_truth/*`) is published only by a driver started w
 
 | Folder | Content |
 | --- | --- |
-| `ros2_ws/src/` | ROS 2 packages: `so101_driver`, `so101_perception`, `so101_brain`, `so101_common`, `so101_bringup` (launch files, parameters, RViz file, the bench) |
+| `ros2_ws/src/` | ROS 2 packages: `so101_driver`, `so101_perception`, `so101_brain`, `so101_connect4` (the game: board reader, engine, turns, console), `so101_common`, `so101_interfaces`, `so101_bringup` (launch files, parameters, RViz file, the benches) |
 | `docker/` | Images and compose (`control`, `perception`, `viz`) |
 | `tools/` | `so101` (everyday commands), `so101-arm` (the real arm's calibration and joint zeros), `calibration_sheets.py` (the printed board and markers), `ci/` (the CI scripts and their tests) |
 | `docs/project/` | Design, decisions (ADRs), roadmap, measurements |

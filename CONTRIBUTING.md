@@ -66,7 +66,7 @@ Any member may review and approve any PR. The author requests the reviews (step 
 - **Comment on the lines**, and ask rather than guess. The author answers each thread, then resolves it or lets the reviewer do it.
 - **The ruleset of `main`** (`docs/project/14` §10):
   - 1 approval, and every conversation resolved, before the merge;
-  - the required checks: lint, the project-rule guards, the build and tests of both images, the E2E job (3 pick & place out of 3), the PR title;
+  - the required checks: lint, the project-rule guards, the build and tests of both images, the E2E job (3 pick & place out of 3), the PR title, the linked tickets' milestone;
   - the branch up to date with `main`, and squash merge only;
   - new commits dismiss the approvals: after a push (an *Update branch* included), check that the approval is still there, else ask again.
 
@@ -87,7 +87,7 @@ The first three rules are checked in CI by `tools/ci/guards.sh`; the others rely
 
 - Python: **ruff** (lint + format, config in `pyproject.toml`). Run `pre-commit run --all-files` before a large PR.
 - Non-trivial logic lives **outside ROS callbacks**, in pure modules covered by unit tests.
-- No magic numbers: constants in `so101_common`, tunables as ROS parameters declared with a description and a range. Every tunable is in its base YAML (`so101_bringup/config/`, `so101_perception/config/`); the real arm overrides only the keys of `docs/project/01` §3.3 (`*_real.yaml`).
+- No magic numbers: constants in `so101_common`, tunables as ROS parameters declared with a description and a range. Every tunable is in its base YAML (`so101_bringup/config/`, `so101_perception/config/`, `so101_connect4/config/`); the real arm overrides only the keys of `docs/project/01` §3.3 (`*_real.yaml`).
 - **Do not modify** `core/`, `sim/`, `ros2_ws/src/so101_description/` (course kit). Provided files you have not rewritten yet are excluded from lint so they stay identical to upstream; remove a file from the exclusion list in `pyproject.toml` when you rewrite it.
 
 ## 5. Tests
@@ -108,7 +108,7 @@ The PR shows both runs (RED → GREEN). A bug gets its regression test before it
 | E2E | `tools/so101 bench` (`ros2 run so101_bringup evaluate`) | Full pick & place, N episodes. CI runs 3 on every PR (`e2e-smoke`, a required check: 3 successes out of 3) and 50 in the nightly each night `main` changes. Phase 2: `tools/so101 bench --game` (`evaluate --games`), full Connect Four games; CI plays 1 on every PR (`e2e-game`) and 10 each night |
 | Scripts | `tools/ci/test_*.sh`, run by pre-commit | A CI or tooling script: its behavior without network or Docker (fake `gh`, `--dry-run`) |
 
-The safety modules also have mutation testing (mutmut, run by hand, `docs/project/08` §1).
+The modules that decide when and how the arm moves also have mutation testing (mutmut, run by hand, `docs/project/08` §1): the command merge, the state machine, the game's turns and its move.
 
 **A flaky test never stays in `main`.** Open a `bug` issue with the failing run, then fix the cause, or the test, in its own PR, as #141 and #142 did. Never rerun until it passes. The E2E job is the one exception, since it runs the whole stack: one rerun of the failed job at most, and a second failure is a `bug` issue.
 
