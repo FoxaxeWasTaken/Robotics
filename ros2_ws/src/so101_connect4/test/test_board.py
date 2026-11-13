@@ -231,3 +231,20 @@ def test_a_second_status_line_goes_under_the_first():
     first, second = board.label(image, "board VALID"), board.label(image, "robot: column 4", row=1)
     rows = [np.flatnonzero((out != image).any(axis=(1, 2))) for out in (first, second)]
     assert rows[0].max() < rows[1].min()
+
+
+RED_ROBOT = {**LAYOUT, "token": {**LAYOUT["token"], "robot_color": "red"}}  # #255: the robot plays red
+
+
+def test_with_the_robot_on_red_a_red_disc_is_read_as_the_robots():
+    cells = random_board(np.random.default_rng(3), 20)
+    other = {EMPTY: EMPTY, HUMAN: ROBOT, ROBOT: HUMAN}
+    assert board.read(synthetic(cells), RED_ROBOT, T_CAM_GRID, K) == tuple(other[cell] for cell in cells)
+
+
+def test_with_the_robot_on_red_the_debug_image_fills_its_cells_in_red():
+    cells = [ROBOT, HUMAN] + [EMPTY] * 40
+    out = board.draw(synthetic([EMPTY] * 42), RED_ROBOT, T_CAM_GRID, K, cells)
+    centres, _ = board.cell_pixels(LAYOUT, T_CAM_GRID, K)
+    pixels = [tuple(int(c) for c in out[round(v), round(u)]) for u, v in centres[:2]]
+    assert pixels == [(255, 0, 0), (255, 255, 0)]

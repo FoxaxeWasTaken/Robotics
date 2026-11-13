@@ -188,3 +188,27 @@ def test_reset_board_parks_every_token_and_drops_the_one_given(sim, person):
     assert person.floating is None
     assert not np.any(sim.data.qfrc_applied)
     assert not any(person.board())
+
+
+@pytest.fixture
+def red_robot(sim):
+    """#255: the person's hand when the layout gives the robot the red tokens."""
+    layout_red = {**LAYOUT, "token": {**TOKEN, "robot_color": "red"}}
+    return Connect4Sim(sim, layout_red, np.random.default_rng(0))
+
+
+def test_with_the_robot_on_red_the_hand_gives_a_red_token_and_drops_a_yellow_one(sim, red_robot):
+    set_arm(sim, HANDOVER, 50.0)
+    assert red_robot.give_token(50.0)[0]
+    assert red_robot.floating == "token_red_0"
+    assert red_robot.drop_token(3, HUMAN)[0]
+    assert np.isclose(in_grid(sim, "token_yellow_0")[0], 3 * GRID["column_pitch"], atol=1e-6)
+    assert parked(sim, "token_red_1")
+
+
+def test_with_the_robot_on_red_the_true_board_counts_red_as_the_robots(sim, red_robot):
+    put(sim, "token_red_0", 0, 0)
+    put(sim, "token_yellow_0", 0, 1)
+    cells = red_robot.board()
+    assert cells[0] == ROBOT
+    assert cells[7] == HUMAN

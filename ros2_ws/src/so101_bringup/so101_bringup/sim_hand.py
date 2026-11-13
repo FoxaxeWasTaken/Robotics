@@ -1,5 +1,6 @@
-"""sim_hand.py - the simulated person's hand (docs/project/phase2/P2-02 §7): a red token into a column, a
-yellow one between the robot's jaws, the grid cleared, over the driver's /sim/connect4/* services.
+"""sim_hand.py - the simulated person's hand (docs/project/phase2/P2-02 §7): a token of the
+person's color into a column, one of the robot's between its jaws (the layout's token.robot_color), the grid
+cleared, over the driver's /sim/connect4/* services.
 
 Sim only, as those services: so101_connect4 names none of them (CI guard), its client takes the hand as an
 object. The console (connect4_play) and the game bench (evaluate --games) share this one.

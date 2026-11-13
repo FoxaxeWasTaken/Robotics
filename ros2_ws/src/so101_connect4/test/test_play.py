@@ -231,3 +231,23 @@ def test_the_winning_four_is_marked_the_other_tokens_stay():
 def test_the_keys_line_names_every_key():
     for key in ("1 to 7", "n ", "r ", "s ", "q ", "e, m, h", "?"):
         assert key in play.KEYS
+
+
+RED_ROBOT = {HUMAN: "yellow", ROBOT: "red"}  # layout.colors of a file whose token.robot_color is red
+
+
+def test_with_the_robot_on_red_its_cells_are_r_and_the_person_plays_y():
+    """#255: the console shows each side in the color of its tokens (token.robot_color)."""
+    cells = with_tokens(EMPTY_BOARD, (0, HUMAN), (1, ROBOT))
+    lines = play.render(a_state(cells=cells), colors=RED_ROBOT).splitlines()
+    assert lines[6] == "| Y R . . . . . |"
+    assert lines[-1] == "your turn (Y): 1 to 7"
+    assert "\x1b[33mY\x1b[0m \x1b[31mR\x1b[0m" in play.render(
+        a_state(cells=cells), color=True, colors=RED_ROBOT
+    )
+
+
+def test_the_console_draws_with_the_color_it_was_given():
+    game, lines = FakeGame(a_state(cells=with_tokens(EMPTY_BOARD, (1, ROBOT)))), []
+    play.Console(game, lines.append, colors=RED_ROBOT).step()
+    assert "| . R . . . . . |" in lines[0]

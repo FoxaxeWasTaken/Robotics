@@ -2,8 +2,8 @@
 a token into a column, puts one between the open jaws, clears the board, reads the true board. No ROS.
 
 The scene is so101_bringup.sim_scene's: a `grid` body whose frame is the grid frame (so101_connect4.layout),
-tokens named token_red_<i> (the human's) and token_yellow_<i> (the robot's), each on a free joint, parked
-where the model starts them.
+tokens named token_red_<i> and token_yellow_<i>, each on a free joint, parked where the model starts them.
+The layout's token.robot_color says which color the robot plays; the person plays the other (#255).
 
 The caller holds the driver's lock. Only MjData is written, never the model (the camera reads it unlocked),
 and nothing steps the simulation: mj_forward only refreshes the poses.
@@ -13,7 +13,6 @@ import mujoco
 import numpy as np
 
 HUMAN, ROBOT = 1, 2  # so101_interfaces: DropToken's color, Connect4Board's cells
-COLOR = {HUMAN: "red", ROBOT: "yellow"}
 DROP_HEIGHT = 0.02  # m: a dropped token starts that far above a full column, inside the depth guide
 MIN_OPEN_PCT = 30.0  # give_token needs the jaws that open
 OFF_FIXED_JAW = 0.0005  # m between the given token's face and the fixed jaw
@@ -36,7 +35,9 @@ class Connect4Sim:
         self._on_jaw = layout["token"]["thickness"] / 2 + OFF_FIXED_JAW
         model = sim.model
         self._grid = model.body("grid").id
-        self._tokens = {color: [] for color in COLOR.values()}
+        robot = layout["token"]["robot_color"]  # red or yellow, the person plays the other (#255)
+        self._color = {HUMAN: "yellow" if robot == "red" else "red", ROBOT: robot}
+        self._tokens = {color: [] for color in self._color.values()}
         for body in range(model.nbody):
             name = model.body(body).name
             if name.startswith("token_"):
@@ -82,7 +83,7 @@ class Connect4Sim:
         data = self._sim.data
         R, origin = data.xmat[self._grid].reshape(3, 3), data.xpos[self._grid]
         cells = [0] * (self._columns * self._rows)
-        for value, color in COLOR.items():
+        for value, color in self._color.items():
             for name in self._tokens[color]:
                 _, v = self._addresses(name)
                 x, y, z = (data.body(name).xpos - origin) @ R
@@ -106,13 +107,13 @@ class Connect4Sim:
         color, a full column, no spare token."""
         if not 0 <= column < self._columns:
             return False, f"column {column}: not 0 to {self._columns - 1}"
-        if color not in COLOR:
+        if color not in self._color:
             return False, f"color {color}: not {HUMAN} (human) or {ROBOT} (robot)"
         if self.board()[(self._rows - 1) * self._columns + column]:
             return False, f"column {column} is full"
-        name = self._spare(COLOR[color])
+        name = self._spare(self._color[color])
         if name is None:
-            return False, f"no spare {COLOR[color]} token"
+            return False, f"no spare {self._color[color]} token"
         data = self._sim.data
         R, origin = data.xmat[self._grid].reshape(3, 3), data.xpos[self._grid]
         above = [column * self._pitch, 0.0, self._rows * self._row_pitch + DROP_HEIGHT]
@@ -126,9 +127,9 @@ class Connect4Sim:
         free token falls 30 mm in 0.1 s, the jaws need 0.46 s. (False, why) if the jaws are not open."""
         if gripper_pct < MIN_OPEN_PCT:
             return False, f"jaws not open: {gripper_pct:.0f} %, {MIN_OPEN_PCT:.0f} % needed"
-        name = self.floating or self._spare(COLOR[ROBOT])
+        name = self.floating or self._spare(self._color[ROBOT])
         if name is None:
-            return False, f"no spare {COLOR[ROBOT]} token"
+            return False, f"no spare {self._color[ROBOT]} token"
         model, data = self._sim.model, self._sim.data
         R = data.body("gripper").xmat.reshape(3, 3)
         offset = [

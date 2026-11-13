@@ -38,7 +38,7 @@
 
 ## What it does
 
-**Connect Four against the arm** (phase 2, in simulation). You drop a red token, the robot answers with a yellow one:
+**Connect Four against the arm** (phase 2, in simulation). You drop a red token, the robot answers with a yellow one (or the other way round: `token.robot_color` in [`connect4_grid.yaml`](ros2_ws/src/so101_connect4/config/connect4_grid.yaml)):
 
 - **It reads the grid** with the scene camera: four ArUco markers give the grid's pose, each of the 42 cells is classified by its color, and a move counts once 5 images in a row agree.
 - **It thinks**: a negamax engine with three levels, which answers in 0.2 s and says why it played (its search depth, and "it wins in 2 moves" once the game is decided).
@@ -98,6 +98,7 @@ tools/so101 down                             # before coming back to the pick & 
 | `q` | Quits the console; the stack keeps running |
 
 - **The screen** shows the grid, the level, the robot's last move with its reason, and what to do. The winning four is drawn as `*`.
+- **The colors**: the robot plays yellow (`Y`) and you red (`R`). To swap them, set `token.robot_color: red` in [`connect4_grid.yaml`](ros2_ws/src/so101_connect4/config/connect4_grid.yaml) and start the stack again (`tools/so101 restart`): the simulated hand, the camera's reading and the screen follow.
 - **A robot's move takes about 12 s** (17 on the far column), a game against a careless player about a minute, a close one up to 5 minutes.
 - **`FIX_BOARD`** means the grid the camera sees is not the one the game expects: `not_seen:human` when your move did not show, `board_not_empty` when tokens are left at a new game, a token played out of turn. Nothing moves. In simulation, press `n` for a new game.
 - **`ERROR`** follows a stop (`s`) or a move the arm could not finish; `n` starts again.
