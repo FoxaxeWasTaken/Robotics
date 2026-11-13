@@ -41,7 +41,7 @@ flowchart LR
 | Editor (ruff, markdownlint) | While typing | Instant | Style, imports, trivial errors |
 | `pre-commit` | Every `git commit` | < 10 s | Lint, format, invalid YAML/XML/TOML, large files, private keys, commit message |
 | Local tests (`colcon test --packages-select …`) | Before pushing | < 1 min per package | Unit and component regressions |
-| PR CI | Every push to a PR ready for review (a draft or a docs-only change: lint, guards and PR title only, §5.4) | ≈ 17 min (cached) | All of the above + project-rule guards + clean build + short E2E |
+| PR CI | Every push to a PR ready for review (a draft or a docs-only change: lint, guards and PR title only, §5.4) | ≈ 28 min (cached; 2026-11-13) | All of the above + project-rule guards + clean build + short E2E |
 | Nightly | Every night or on demand | 30–60 min | 50-episode success rate, 10 Connect Four games, diagrams, external links, new course commits |
 | Release | Every tag | — | Frozen evaluation report, release notes |
 
@@ -117,8 +117,8 @@ flowchart LR
   B["guards<br/>C-05 · C-06 · C-23<br/>≈ 10 s"] --> C
   A --> P
   B --> P
-  C["control<br/>image build (cache) + colcon build/test<br/>≈ 5–10 min"] --> E
-  P["perception<br/>image build + perception and connect4 tests<br/>≈ 3–5 min"] --> E
+  C["control<br/>image build (cache) + colcon build/test<br/>≈ 22 min"] --> E
+  P["perception<br/>image build + perception and connect4 tests<br/>≈ 6 min"] --> E
   E["e2e-smoke<br/>3 sim episodes<br/>(PRs, if E2E_ENABLED)"]
   C --> G
   P --> G
@@ -148,11 +148,11 @@ flowchart LR
 
 ### 5.3 Minute budget
 
-GitHub bills each job rounded up to the minute. Measured on 2026-10-23 (#146), from the jobs' durations:
+GitHub bills each job rounded up to the minute. Measured from the jobs' durations, on 2026-10-23 (#146) and, for a PR push that changes code, on 2026-11-13 (#250, phase 2's tests and its game job):
 
 | Run | Billed |
 | --- | --- |
-| PR push that changes code | 22 min: `control` 12, E2E 4, `perception` 2, lint, guards, coverage comment and PR title 1 each |
+| PR push that changes code | 44 min: `control` 22, `perception` 6, `e2e-smoke` 5, `e2e-game` 5, lint 2, guards, coverage comment, PR title and linked milestones 1 each (22 min on 2026-10-23: `control` 12, E2E 4, `perception` 2) |
 | Draft or docs-only PR push (§5.4) | 3 min: lint, guards, PR title |
 | Push to `main` (a merge) | 1 min since #153, the mirror only (16 before: a PR push without the E2E job, the coverage comment and the PR title) |
 | Nightly, `main` unchanged | 5 to 6 min: docs 3–4, course watch 1, `main-changed` 1 |
