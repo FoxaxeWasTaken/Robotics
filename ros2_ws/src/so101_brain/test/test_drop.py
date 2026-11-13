@@ -3,6 +3,7 @@ token's centre on the target, the jaws normal to the grid, the approach tilted 7
 /brain/drop and of /brain/handover, step by step, on an arm that follows its commands. No ROS, no sim."""
 
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -69,7 +70,7 @@ def test_each_column_gets_the_token_on_target_jaws_normal_to_the_grid_tilted_70(
 
 def test_the_seed_does_not_change_the_pose(kin):
     """From HANDOVER's candidate (P2-02 §7) as from the default bent seed: the same joints."""
-    handover = np.array([-1.0, -0.6, 0.6, 1.1, 1.57])
+    handover = np.array([-0.8, -0.6, 0.6, 1.1, 1.57])
     for target in (COLUMNS[0], COLUMNS[6]):
         np.testing.assert_allclose(release_pose(kin, target, handover), release_pose(kin, target), atol=0.02)
 
@@ -81,7 +82,7 @@ def test_an_unreachable_target_gives_none(kin, target):
     assert release_pose(kin, np.array(target)) is None
 
 
-HANDOVER = np.array([-1.0, -0.6, 0.6, 1.1, 1.57])  # brain.yaml's connect4.handover_pose
+HANDOVER = np.array([-0.8, -0.6, 0.6, 1.1, 1.57])  # brain.yaml's connect4.handover_pose
 P = Params()
 DT = 0.02
 
@@ -187,6 +188,50 @@ def test_a_drop_runs_its_steps_in_order_and_ends_at_handover(kin):
     assert visited == names(steps)
     print(f"one move on a perfect arm: {seconds:.1f} s")
     assert seconds < 15.0
+
+
+def test_a_move_counts_the_seconds_of_each_step_the_lift_as_one(kin):
+    """The move's log line needs no model of the motion to say where its time went (#247)."""
+    arm, move = Arm(HANDOVER), drop.Move(drop.drop_steps(kin, COLUMNS[3], HANDOVER, P), P)
+    _, seconds = arm.run(move)
+    steps = ["close", "rise", "column", "descent", "release", "lift", "clear", "handover"]
+    assert list(move.seconds) == steps
+    assert sum(move.seconds.values()) == pytest.approx(seconds, abs=DT)
+    assert move.seconds["close"] == pytest.approx(P.grasp_wait_s, abs=DT)
+    assert move.seconds["lift"] == pytest.approx(5 * P.min_motion_s, abs=5 * DT)
+
+
+def test_a_move_cut_short_counts_the_step_it_ended_in(kin):
+    arm, move = Arm(HANDOVER, follows=False), drop.Move(drop.drop_steps(kin, COLUMNS[3], HANDOVER, P), P)
+    _, seconds = arm.run(move)
+    assert list(move.seconds) == ["close", "rise"]
+    assert sum(move.seconds.values()) == pytest.approx(seconds, abs=DT)
+
+
+def test_the_legs_back_go_faster_once_the_jaws_are_empty_the_ones_with_the_token_do_not(kin):
+    steps = drop.drop_steps(kin, COLUMNS[6], HANDOVER, P)
+    by_name = {step.name: step for step in steps}
+    assert by_name["rise"].v is None and by_name["column"].v is None  # the token held: the motion's v_max
+    assert all(step.v is None for step in steps if step.name.startswith("lift"))  # next to the guide
+    arm = Arm(HANDOVER)
+    arm.run(drop.Move(steps, P))
+    for name in ("clear", "handover"):
+        speed = np.max(np.abs(np.diff(np.array(arm.commands(name)), axis=0))) / DT
+        assert P.v_max < speed <= drop.EMPTY_SPEEDUP * P.v_max * 1.01, name
+
+
+def test_a_slower_arm_slows_every_leg_of_the_move(kin):
+    """The real arm's overlay lowers motion.v_max_rad_s: the legs back and the descent follow it."""
+    slow = replace(P, v_max=0.2)
+    arm = Arm(HANDOVER)
+    arm.run(drop.Move(drop.drop_steps(kin, COLUMNS[6], HANDOVER, slow), slow), limit=120.0)
+    for name, limit in (
+        ("clear", drop.EMPTY_SPEEDUP * 0.2),
+        ("handover", drop.EMPTY_SPEEDUP * 0.2),
+        ("descent", 0.2),
+    ):
+        speed = np.max(np.abs(np.diff(np.array(arm.commands(name)), axis=0))) / DT
+        assert speed <= limit * 1.01, name
 
 
 def test_the_arm_waits_for_the_closing_time_before_the_grip_is_judged(kin):

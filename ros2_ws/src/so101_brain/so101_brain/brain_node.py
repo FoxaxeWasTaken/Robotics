@@ -133,7 +133,7 @@ PARAMETERS = {
         0.2,
     ),
 }
-HANDOVER = (-1.0, -0.6, 0.6, 1.1, 1.57)  # default of connect4.handover_pose [MES-65]
+HANDOVER = (-0.8, -0.6, 0.6, 1.1, 1.57)  # default of connect4.handover_pose [MES-65]
 AT_HANDOVER_RAD = 0.05  # /brain/drop starts with every arm joint this close to it: its path starts there
 MARKERS = (("pre_grasp", (1.0, 1.0, 0.0)), ("grasp", (0.0, 1.0, 0.0)), ("drop", (0.0, 0.0, 1.0)))  # 06 §7
 
@@ -444,12 +444,14 @@ class BrainNode(rclpy.node.Node):
             self._end_move(out.result)
 
     def _end_move(self, result):
-        """The move's reply and its log line: the tick periods meanwhile (the first one holds the IK)."""
+        """The move's reply and its log line: the seconds of each step ended, the tick periods meanwhile (the
+        first one holds the IK)."""
         m, self._move = self._move, None
         ticks = np.array(m["ticks"][1:] or [0.0]) * 1000
         text = f"done in {self._now() - m['start']:.1f} s" if result == "" else result
+        steps = ", ".join(f"{name} {seconds:.1f}" for name, seconds in m["move"].seconds.items())
         line = (
-            f"/brain/{m['name']}: {text}; tick period p99 {np.percentile(ticks, 99):.1f} ms, "
+            f"/brain/{m['name']}: {text} ({steps}); tick period p99 {np.percentile(ticks, 99):.1f} ms, "
             f"max {ticks.max():.1f} ms over {len(ticks)} ticks"
         )
         if result == "":

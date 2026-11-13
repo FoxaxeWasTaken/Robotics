@@ -30,7 +30,7 @@ from so101_interfaces.srv import Drop, GoToTarget
 STARTUP_TIMEOUT = 20.0  # s
 MOVE_TIMEOUT = 30.0  # s: a move lasts about 15
 JOINTS = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"]
-HANDOVER = [-1.0, -0.6, 0.6, 1.1, 1.57]  # default of connect4.handover_pose
+HANDOVER = [-0.8, -0.6, 0.6, 1.1, 1.57]  # default of connect4.handover_pose
 URDF = Path(get_package_share_directory("so101_description")) / "urdf" / "so101.urdf"
 LATCHED = QoSProfile(
     depth=10, reliability=ReliabilityPolicy.RELIABLE, durability=DurabilityPolicy.TRANSIENT_LOCAL
@@ -187,6 +187,10 @@ def test_a_drop_releases_the_token_above_the_column_and_replies_at_handover(arm)
     assert ticks, "no tick line for the drop"
     print(f"tick period during a move: p99 {ticks[-1][0]} ms, max {ticks[-1][1]} ms")
     assert float(ticks[-1][0]) <= 25.0
+    # ... and says where the move's time went, step by step (#247)
+    steps = r"done in \d+\.\d s \(close \d+\.\d, rise \d+\.\d, column \d+\.\d, descent \d+\.\d, "
+    steps += r"release \d+\.\d, lift \d+\.\d, clear \d+\.\d, handover \d+\.\d\);"
+    assert any(re.search(steps, line) for line in arm.logs), arm.logs[-3:]
 
 
 def test_a_move_refuses_every_other_request_and_a_stop_cuts_it(arm):

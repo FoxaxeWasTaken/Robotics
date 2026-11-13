@@ -15,7 +15,7 @@ from so101_driver.connect4_sim import HUMAN, MIN_OPEN_PCT, ROBOT, Connect4Sim
 
 GRID, TOKEN = LAYOUT["grid"], LAYOUT["token"]
 T_GRID = layout.grid_pose(LAYOUT)
-HANDOVER = [-1.0, -0.6, 0.6, 1.1, 1.57]  # the candidate of P2-02 §7: the jaws' axis horizontal
+HANDOVER = [-0.8, -0.6, 0.6, 1.1, 1.57]  # the candidate of P2-02 §7: the jaws' axis horizontal
 
 
 @pytest.fixture

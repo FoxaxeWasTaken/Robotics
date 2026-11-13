@@ -5,5 +5,5 @@ so101_driver:
     camera_width: 640
     camera_height: 480
     # The brain's HANDOVER (brain.yaml), not PARK: from HANDOVER the joint line to PARK takes the gripper
-    # 30 mm into the grid's near post; from above any column, the way to HANDOVER stays 11 mm clear [MES-69].
-    shutdown_pose: [-1.0, -0.6, 0.6, 1.1, 1.57]
+    # 30 mm into the grid's near post; from above any column, the way to HANDOVER stays 10 mm clear [MES-73].
+    shutdown_pose: [-0.8, -0.6, 0.6, 1.1, 1.57]

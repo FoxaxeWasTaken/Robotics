@@ -121,6 +121,7 @@ class TestConnect4Drop(unittest.TestCase):
 
         rng = np.random.default_rng(84)
         heights, landed, held, seconds, played = [0] * 7, 0, 0, [], 0
+        by_column = {}
         for k in range(DROPS):
             if played == ROBOT_TOKENS:
                 self.assertTrue(self.call(self.reset).success)
@@ -144,6 +145,7 @@ class TestConnect4Drop(unittest.TestCase):
             landed += 1
             heights[column] += 1
             seconds.append(duration)
+            by_column.setdefault(column, []).append(duration)
             np.testing.assert_allclose(self.arm(), HANDOVER, atol=0.02)  # replied at HANDOVER
         self.node.get_clock().sleep_for(rclpy.duration.Duration(seconds=0.5))
         rclpy.spin_once(self.node, timeout_sec=0.1)
@@ -158,5 +160,16 @@ class TestConnect4Drop(unittest.TestCase):
             f"{min(seconds, default=0):.1f} to {max(seconds, default=0):.1f} s; brain tick during the moves: "
             f"p99 {p99:.1f} ms, max {longest:.1f} ms"
         )
+        steps = {}  # the seconds of each step, from the brain's log line of each move done
+        for line in self.logs:
+            for found in re.findall(r"/brain/drop: done in \S+ s \((.*?)\)", line):
+                for name, value in (part.split() for part in found.split(", ")):
+                    steps.setdefault(name, []).append(float(value))
+
+        def medians(values):
+            return ", ".join(f"{key} {np.median(values[key]):.1f}" for key in values)
+
+        print(f"connect4 drops, median s by column: {medians(dict(sorted(by_column.items())))}")
+        print(f"connect4 drops, median s by step: {medians(steps)}")
         self.assertGreaterEqual(landed, np.ceil(0.95 * DROPS))  # target P2-02
         self.assertGreaterEqual(held, np.ceil(0.98 * DROPS))  # target P2-03, the sim's part

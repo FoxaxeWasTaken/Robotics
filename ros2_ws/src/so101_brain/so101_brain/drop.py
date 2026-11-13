@@ -24,7 +24,10 @@ TOKEN_IN_TCP = np.array([-0.00315, 0.0, -0.001])  # m: the held token's centre i
 SEED_TAIL = (-0.4, 0.0, 1.0)  # lift, elbow, wrist_flex of the default seed: bent (q = 0 is singular)
 PRE_DROP = 0.025  # m above the release: height first, then the column; 30 mm: column 6 at its reach [MES-63]
 LIFT_STEP = 0.005  # m between the lift's waypoints: one joint move swept a jaw into the guide [MES-63]
-DESCENT_V = 0.3  # rad/s, from the pre-drop to the release
+DESCENT_V = 0.3  # rad/s, from the pre-drop to the release; the motion's v_max if that is lower
+# The legs back once the jaws are empty: this many times the motion's v_max, so 1.4 rad/s on the sim, under
+# the driver's limiter (1.5) [MES-73]. A ratio: an overlay that slows the arm slows these legs too.
+EMPTY_SPEEDUP = 1.4
 NO_TOKEN = "no_token"  # Move's result when the jaws closed on nothing
 
 
@@ -98,12 +101,12 @@ def drop_steps(kin, target, handover, p) -> list | None:
         Step("close", gripper=p.close_pct, wait=p.grasp_wait_s, held_by=p.grasp_timeout_s),
         Step("rise", q=high),
         Step("column", q=pre),
-        Step("descent", q=release, v=DESCENT_V),
+        Step("descent", q=release, v=min(DESCENT_V, p.v_max)),
         Step("release", gripper=p.open_pct, wait=p.release_wait_s),
         *lifts,
         Step(f"lift_{last}", q=pre),
-        Step("clear", q=high),
-        Step("handover", q=handover),
+        Step("clear", q=high, v=EMPTY_SPEEDUP * p.v_max),
+        Step("handover", q=handover, v=EMPTY_SPEEDUP * p.v_max),
     ]
 
 
@@ -122,10 +125,16 @@ class Move:
         self._started = None  # when the running step started, s
         self._trajectory = None  # its motion
         self._result = ""  # what the move ends with once its steps are done
+        self.seconds = {}  # of each step ended, by name; lift_1 to lift_5 as one "lift"
 
     @property
     def name(self) -> str:
         return self._steps[0].name if self._steps else ""
+
+    def _end(self, now):
+        name = self._steps[0].name.partition("_")[0]
+        self.seconds[name] = self.seconds.get(name, 0.0) + now - self._started
+        self._started = None
 
     def step(self, now, q, effort, gripper) -> Out:
         """One tick: `q` the measured arm joints, `effort` the gripper's closing effort, `gripper` its
@@ -148,23 +157,24 @@ class Move:
                     and errors[4] < p.reach_tol_roll
                 )
                 if not reached and t > self._trajectory.duration + p.motion_margin_s:
+                    self._end(now)
                     return Out(command, sent, f"timeout:{step.name}")
             held = step.held_by is None or (
                 effort > p.effort_threshold
                 or (gripper is not None and gripper - p.close_pct >= p.hold_gap_pct)
             )
             if reached and held and t >= step.wait:
+                self._end(now)
                 self._steps.pop(0)
-                self._started = None
                 continue  # the next step starts on this tick
             if not held and t >= step.held_by:
                 # Nothing held: the jaws open again, and the result waits for them. A token given right after
                 # the reply needs them open.
+                self._end(now)
                 self._steps, self._result = (
                     [Step("reopen", gripper=p.open_pct, wait=p.release_wait_s)],
                     NO_TOKEN,
                 )
-                self._started = None
                 continue
             return Out(command, sent)
         return Out(command, sent, self._result)
