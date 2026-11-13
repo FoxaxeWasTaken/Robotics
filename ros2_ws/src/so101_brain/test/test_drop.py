@@ -369,3 +369,165 @@ def test_the_jaws_gap_is_counted_from_their_closing_command(kin):
     arm = Arm(HANDOVER, effort=0.0, stops_at_pct=22.0)
     result, _ = arm.run(drop.Move(drop.drop_steps(kin, COLUMNS[3], HANDOVER, tight), tight))
     assert result == "no_token"
+
+
+# The pick at the token dispenser (#259, ADR-041): the three stations of connect4_grid.yaml, in the arm's
+# vertical plane at azimuth 60°: the lowest 0.27 m from the pan axis and 2 cm above base_link, each next one
+# 40 mm further out and 62.8 mm higher; the tokens' plane 3.85 mm off the pan axis.
+OUT = np.array([np.cos(np.radians(60.0)), np.sin(np.radians(60.0)), 0.0])
+ASIDE = np.array([-OUT[1], OUT[0], 0.0])
+STATIONS = [
+    np.array([PAN_AXIS_X, 0.0, 0.02 + 0.0628 * k]) + (0.27 + 0.04 * k) * OUT - 0.00385 * ASIDE
+    for k in range(3)
+]
+
+
+@pytest.mark.parametrize("station", range(3))
+def test_a_pick_goes_down_beside_the_token_seats_the_fixed_jaw_on_it_closes_and_lifts_up(kin, station):
+    target = STATIONS[station]
+    steps = drop.pick_steps(kin, target, HANDOVER, P)
+    downs = [step for step in steps if step.name.startswith("down")]
+    lifts = [step for step in steps if step.name.startswith("lift")]
+    assert names(steps) == ["above", *names(downs), "seat", "close", *names(lifts), "handover"]
+    # as the logs and the timeouts say them: down_1 leaves the pose above, lift_1 the station
+    assert names(downs) == ["down_1", "down_2", "down_3", "down_4"]
+    assert names(lifts) == ["lift_1", "lift_2", "lift_3", "lift_4"]
+    by_name = {step.name: step for step in steps}
+    # The jaws' axis, from the token to the fixed jaw: the TCP is on the fixed jaw's side of a held token
+    assert TOKEN_IN_TCP[0] < 0
+    jaws = kin.fk(by_name["seat"].q)[:3, 0]
+    assert abs(jaws[2]) < 0.01
+
+    def off(step, height, aside):
+        """m between the pose's token centre and the point `height` above the station's token, `aside`
+        along the jaws' axis."""
+        return np.linalg.norm(token_centre(kin, step.q) - target - [0, 0, height] - aside * jaws)
+
+    # The way down: straight, every 10 mm, the fixed jaw 2.5 mm further from the token than where it holds
+    # one: the token has 1.5 mm of play in its slot, the camera places the station within 1.5 mm [MES-77]
+    assert (drop.PICK_ASIDE, drop.PICK_SEAT) == (0.0025, 0.0008)
+    assert off(by_name["above"], drop.PICK_ABOVE, drop.PICK_ASIDE) < 2e-4
+    count = round(drop.PICK_ABOVE / drop.PICK_STEP)
+    assert count == 4
+    assert len(downs) == count
+    assert len(lifts) == count
+    for k, step in enumerate(downs, start=1):
+        assert off(step, drop.PICK_ABOVE - k * drop.PICK_STEP, drop.PICK_ASIDE) < 2e-4, step.name
+    # Seated: sideways at the station's level, the fixed jaw against the face of a token in the slot's middle
+    assert off(by_name["seat"], 0.0, -drop.PICK_SEAT) < 2e-4
+    # The way up: straight above where the jaws closed, every 10 mm
+    for k, step in enumerate(lifts, start=1):
+        assert off(step, k * drop.PICK_STEP, -drop.PICK_SEAT) < 2e-4, step.name
+    np.testing.assert_allclose(by_name["handover"].q, HANDOVER)
+    # the jaws: part open on the way, closed on the token, never opened again: it leaves with the arm
+    assert [(step.name, step.gripper) for step in steps if step.gripper is not None] == [
+        ("above", drop.PICK_OPEN_PCT),
+        ("close", P.close_pct),
+    ]
+    assert by_name["close"].held_by == P.grasp_timeout_s
+    assert by_name["close"].wait == P.grasp_wait_s
+    # the token is carried at the motion's speed, never faster
+    assert {step.v for step in steps} == {None}
+
+
+def test_a_pick_runs_its_steps_in_order_and_ends_at_handover_the_jaws_closed_on_the_token(kin):
+    steps = drop.pick_steps(kin, STATIONS[0], HANDOVER, P)
+    arm, move = Arm(HANDOVER), drop.Move(steps, P)
+    result, seconds = arm.run(move)
+    assert result == ""
+    np.testing.assert_allclose(arm.q, HANDOVER)
+    assert arm.gripper == P.close_pct
+    assert list(dict.fromkeys(step for _, step, _ in arm.log)) == names(steps)
+    assert list(move.seconds) == ["above", "down", "seat", "close", "lift", "handover"]
+    print(f"one pick on a perfect arm: {seconds:.1f} s")
+    assert seconds < 13.0  # 8.2 s at the highest station, 12.3 s at the lowest: the wrist turns 1.8 rad
+
+
+def test_a_pick_that_closes_on_nothing_opens_the_jaws_and_comes_back_before_it_says_no_token(kin):
+    """The arm is down in the station: it does not stay there, and the next pick starts from HANDOVER."""
+    arm, move = Arm(HANDOVER, effort=0.0), drop.Move(drop.pick_steps(kin, STATIONS[1], HANDOVER, P), P)
+    result, _ = arm.run(move)
+    assert result == "no_token"
+    np.testing.assert_allclose(arm.q, HANDOVER)
+    assert arm.gripper == P.open_pct
+    assert list(move.seconds) == ["above", "down", "seat", "close", "reopen", "lift", "handover"]
+    opened = next(t for t, _, out in arm.log if out.gripper == P.open_pct)
+    lifted = next(t for t, step, _ in arm.log if step == "lift_1")
+    # the jaws are open before the arm lifts; the log names a step one tick after it starts
+    assert lifted - opened == pytest.approx(P.release_wait_s + DT, abs=DT)
+
+
+def test_a_pick_out_of_reach_has_no_steps(kin):
+    """The station in reach is not enough: the pose above it is solved before anything moves, too."""
+    assert drop.pick_steps(kin, np.array([0.7, 0.0, 0.2]), HANDOVER, P) is None
+    radius = next(
+        r
+        for r in np.arange(0.30, 0.50, 0.002)
+        if release_pose(kin, [r, 0.0, 0.25]) is not None
+        and release_pose(kin, [r, 0.0, 0.25 + drop.PICK_ABOVE]) is None
+    )
+    assert drop.pick_steps(kin, np.array([radius, 0.0, 0.25]), HANDOVER, P) is None
+
+
+def test_a_waypoint_of_a_pick_without_a_pose_refuses_the_pick(kin, monkeypatch):
+    """A lift may skip a waypoint, the pre-drop is its last; the way down into a station may not: a jaw
+    passes 3 mm from the dispenser [MES-75]."""
+    solve = drop.release_pose
+
+    def no_pose_at_20_mm(kin, target, q_seed=None):
+        if abs(target[2] - STATIONS[0][2] - 0.020) < 1e-6:
+            return None
+        return solve(kin, target, q_seed)
+
+    monkeypatch.setattr(drop, "release_pose", no_pose_at_20_mm)
+    assert drop.pick_steps(kin, STATIONS[0], HANDOVER, P) is None
+
+
+# A handover from where a stop left the arm (#259): down in a station, one joint motion to HANDOVER swept the
+# stop of the dispenser by 9 mm.
+
+
+def test_a_handover_from_elsewhere_rises_straight_up_before_it_turns_to_handover(kin):
+    start = release_pose(kin, STATIONS[2])
+    steps = drop.handover_steps(HANDOVER, P, kin, start)
+    assert names(steps) == ["rise_1", "rise_2", "rise_3", "rise_4", "handover"]
+    assert drop.HANDOVER_RISE == 0.040
+    pose = kin.fk(start)
+    for k, step in enumerate(steps[:-1], start=1):
+        risen = kin.fk(step.q)
+        np.testing.assert_allclose(risen[:3, 3] - pose[:3, 3], [0, 0, k * 0.010], atol=1e-3)
+        np.testing.assert_allclose(risen[:3, :3], pose[:3, :3], atol=0.02)  # the tool keeps its orientation
+    np.testing.assert_allclose(steps[-1].q, HANDOVER)
+    # the jaws open as the arm starts to rise, once
+    assert [(step.name, step.gripper) for step in steps if step.gripper is not None] == [
+        ("rise_1", P.open_pct)
+    ]
+    arm = Arm(start)
+    arm.gripper = 0.0
+    result, _ = arm.run(move := drop.Move(steps, P))
+    assert result == ""
+    assert list(move.seconds) == ["rise", "handover"]
+    np.testing.assert_allclose(arm.q, HANDOVER)
+
+
+def test_a_handover_at_handover_or_with_no_pose_above_is_one_motion(kin, monkeypatch):
+    nearby = HANDOVER + 0.04  # every joint within the 0.05 rad a drop accepts as HANDOVER
+    assert names(drop.handover_steps(HANDOVER, P, kin, nearby)) == ["handover"]
+    away = HANDOVER + np.array([0.0, 0.0, 0.0, 0.0, 0.06])
+    assert names(drop.handover_steps(HANDOVER, P, kin, away))[0] == "rise_1"
+    assert names(drop.handover_steps(HANDOVER, P)) == ["handover"]  # no joints known: as before
+    monkeypatch.setattr(kin, "ik_pose", lambda *args, **kwargs: None)
+    steps = drop.handover_steps(HANDOVER, P, kin, release_pose(kin, STATIONS[2]))
+    assert [(step.name, step.gripper) for step in steps] == [("handover", P.open_pct)]
+
+
+def test_a_rise_that_stops_having_a_pose_keeps_the_waypoints_it_has(kin, monkeypatch):
+    solve, calls = kin.ik_pose, []
+
+    def two_poses(*args, **kwargs):
+        calls.append(1)
+        return solve(*args, **kwargs) if len(calls) <= 2 else None
+
+    monkeypatch.setattr(kin, "ik_pose", two_poses)
+    steps = drop.handover_steps(HANDOVER, P, kin, release_pose(kin, STATIONS[2]))
+    assert names(steps) == ["rise_1", "rise_2", "handover"]

@@ -168,6 +168,12 @@ def column_target(layout, T_base_grid, column) -> np.ndarray:
     return (T_base_grid @ [column * grid["column_pitch"], drop["aim"], height, 1.0])[:3]
 
 
+def station_target(layout, T_base_dispenser, rail) -> np.ndarray:
+    """Where /brain/pick takes a token on `rail` of the dispenser, in base_link: the centre of the token
+    that waits at its station (ADR-041), on the dispenser's pose as the camera sees it."""
+    return (T_base_dispenser @ [*geometry.station(layout, rail), 1.0])[:3]
+
+
 def transform(position, quaternion) -> np.ndarray:
     """The 4x4 transform of a pose message: its position, its quaternion x, y, z, w (/connect4/grid_pose)."""
     x, y, z, w = quaternion

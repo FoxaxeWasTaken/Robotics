@@ -7,7 +7,7 @@
 
 - **Inputs**: `/joint_states`, `/object_position`, `/drop_box_position`, services `/brain/start`, `/brain/stop`, `/go_to_target`.
 - **Outputs**: `/joint_command` (only channel to the motors, C-05), `/brain_state`, `/end_effector_pose`, `/brain/markers`.
-- **Phase 2**, in game mode only (`connect4.enabled`): the services `/brain/drop` and `/brain/handover`, one move of the Connect Four game each (§5.1). `fsm.py` and `grasp_planner.py` do not change (ADR-037 Update, `phase2/P2-02` §6).
+- **Phase 2**, in game mode only (`connect4.enabled`): the services `/brain/drop`, `/brain/pick` and `/brain/handover`, one move of the Connect Four game each (§5.1). `fsm.py` and `grasp_planner.py` do not change (ADR-037 Update, `phase2/P2-02` §6).
 - **Starting point**: the course stub (ADR-039).
 - **Today**: the full cycle runs with the real perception, in sim (4.3a, #139) and on the real arm (6.5a, #72). `fsm.py` (§3) is driven by the node's 50 Hz tick, with `/brain/start`, `/brain/stop` and `/brain_state`; `PLAN` runs the planner in a worker process (§4); the plan and the locked cube show on `/brain/markers` (§7). The ground-truth stub (`so101_bringup/test/gt_stub.launch.py`, 4.2c, C-06) stays for development and for the tests that isolate the brain. The success rate: the nightly bench (`08` §2).
 
@@ -19,7 +19,7 @@ so101_brain/
 ├── fsm.py              # PURE state machine (no ROS import) → testable with a fake clock
 ├── kinematics.py       # FK/IK façade (ikpy) — see 04
 ├── grasp_planner.py    # grasp / pre-grasp / lift / drop (strategy ADR-009)
-├── drop.py             # phase 2, PURE: the drop pose and one move of the game, step by step (§5.1)
+├── drop.py             # phase 2, PURE: the drop pose and one move of the game (drop, pick, handover), step by step (§5.1)
 └── trajectory.py       # min-jerk, duration, 50 Hz sampling
 ```
 
@@ -138,15 +138,16 @@ sequenceDiagram
 
 ### 5.1 The moves of the game (phase 2, game mode)
 
-`/brain/drop` and `/brain/handover` (`01` §3.2) each run one `drop.Move`: a list of steps the tick runs in `IDLE`, in the slot of `/go_to_target`'s motion, with the cycle's rules (min-jerk from the measured joints, the reach tolerances, a timeout at T + the margin, the grip judged as `GRASP` does).
+`/brain/drop`, `/brain/pick` and `/brain/handover` (`01` §3.2) each run one `drop.Move`: a list of steps the tick runs in `IDLE`, in the slot of `/go_to_target`'s motion, with the cycle's rules (min-jerk from the measured joints, the reach tolerances, a timeout at T + the margin, the grip judged as `GRASP` does).
 
 - **`/brain/drop`** (`drop.drop_steps`, `phase2/P2-02` §2.3): close and check the grip, rise to the pre-drop's height, turn to the column, descend at 0.3 rad/s, open, lift straight up through waypoints 5 mm apart, come back to `HANDOVER` in two legs at 1.4 times the motion's speed, the jaws empty (`drop.EMPTY_SPEEDUP`: 1.4 rad/s, under the driver's limiter [MES-73]). Every pose is solved in the service call, before anything moves: an unreachable target is refused with the arm still, and no IK runs during the move.
-- **`/brain/handover`** (`drop.handover_steps`): the jaws open, one motion to `connect4.handover_pose`.
+- **`/brain/pick`** (`drop.pick_steps`, `phase2/P2-02` §2.3, ADR-041): from `HANDOVER` with empty jaws to 40 mm above a station of the dispenser, the jaws at 40 %, the fixed jaw 2.5 mm aside of where it holds a token (`PICK_ASIDE`); straight down through waypoints 10 mm apart; sideways until the fixed jaw is seated (`PICK_SEAT`); close and check the grip; straight up; back to `HANDOVER`, the token held. Aside then seated, because the token has 1.5 mm of play in its slot and the camera places the station within 1.5 mm: aimed at the slot's middle the fixed jaw landed on a token [MES-77]. A waypoint without a pose refuses the pick (`unreachable`): the arm passes 2.7 mm from the stop. Closed on nothing, the jaws open and the arm comes back the same way before `no_token` (a step's `otherwise`): it never stays down in a station.
+- **`/brain/handover`** (`drop.handover_steps`): the jaws open, one motion to `connect4.handover_pose`. After a pick that did not end well (a stop, a timeout), the arm may be down in a station: it first rises 40 mm straight up, the tool's orientation kept, through waypoints 10 mm apart. In one joint motion from the bottom of a station the moving jaw swept 9 mm into the dispenser's stop; with the rise the arm stays 2.7 mm or more from the dispenser from any pose of a pick [MES-77]. After a drop cut short the way stays direct: it is the one measured above the grid, and a rise at column 6, at its reach, came 4 mm from the guide.
 - **The reply comes at the end of the move**: the service callbacks are coroutines in their own callback group, which wait for the tick to finish the move. In the default group, a pending callback froze the tick [MES-64]. `/brain_state` stays `IDLE`.
 - **One commander at a time**: a move is refused during a cycle (`not_idle:<state>`), during another move or a `/go_to_target` motion (`busy`), and away from `HANDOVER` (`not_at_handover`: the path starts there, under the grid's top). During a move, `/go_to_target` is refused. **`/brain/start` is refused in game mode**: the game's scene has no cube, and the joint line from `HANDOVER` to `PARK` takes the gripper 30 mm into the grid's near post [MES-69]. `/go_to_target` stays served, an operator's tool: its path is a joint line too, to use away from the grid.
 - **`/brain/stop` cuts a move**: the FSM freezes the arm (`STOPPED`, then `IDLE`), the reply is `stopped`. The arm may then be above a column: a `/brain/handover` from the release, the pre-drop or half-way of the turn to any column stays 10 mm or more from the grid, and a whole drop 11 mm or more on every leg [MES-73]. `/joint_states` older than `fsm.max_joint_state_age_s` refuse a move before any pose is solved, or end a running one with `no_joint_states`, and the commands stop. During a move their age counts from its start: solving the poses holds the executor, and the joints that came meanwhile are still queued at the first tick. On a CI runner the solve took over 0.5 s and the move ended there (#252).
 - **Empty jaws**: `no_token` once the jaws are open again, the arm never commanded.
-- Each move logs its duration, the seconds of each step (`close`, `rise`, `column`, `descent`, `release`, `lift`, `clear`, `handover`) and the tick periods meanwhile. A move lasts 11.5 to 17.0 s [MES-73].
+- Each move logs its duration, the seconds of each step (`close`, `rise`, `column`, `descent`, `release`, `lift`, `clear`, `handover`) and the tick periods meanwhile; a pick's steps are `above`, `down`, `seat`, `close`, `lift`, `handover`. A drop lasts 11.5 to 17.0 s [MES-73], a pick 8.2 to 12.3 s [MES-77].
 
 ## 6. Parameters (YAML `so101_bringup/config/brain.yaml`)
 
@@ -204,8 +205,8 @@ Declared by `brain_node` (read-only, with ranges): every value of `motion.*`, `g
 | Perception container stopped during `TRANSPORT` → the cycle still completes (`VERIFY` → `DONE` with a warning) | Robustness demo, case 3a (#103; first scripted in `experiences/exp_fault_scenarios.py watch`, #54) |
 | Unreachable target (r = 0.5 m) → `ERROR:unreachable`, **no** command sent | Integration (`test_brain_launch.py`, test_9) |
 | A full cycle with the ground-truth stub: `DONE`, the cube in the box | System, sim (`so101_bringup/test/test_pick_place_gt_launch.py`) |
-| A move of the game, step by step: the order, the lift's waypoints, the descent's speed, empty jaws, a timeout | Unit `drop.py` (`test_drop.py`) |
-| `/brain/drop` and `/brain/handover` on a fake arm: the reply at `HANDOVER`, every refusal with the arm still, a stop, a dead driver, the tick's period during a move; no such service outside game mode | Integration (`test_drop_services.py`, `test_parameters.py`) |
+| A move of the game, step by step: the order, the lift's waypoints, the descent's speed, empty jaws, a timeout; a pick's way down and up, its way back when it closed on nothing | Unit `drop.py` (`test_drop.py`) |
+| `/brain/drop`, `/brain/pick` and `/brain/handover` on a fake arm: the reply at `HANDOVER`, every refusal with the arm still, a stop, a dead driver, the tick's period during a move; no such service outside game mode | Integration (`test_drop_services.py`, `test_parameters.py`) |
 | Tokens dropped into random columns of the sim's grid, 10 tries with empty jaws first | System, sim (`so101_bringup/test/test_connect4_drop_launch.py`) [MES-69] |
 | 50-episode evaluation bench (randomized cube and box) | System (`08`) |
 

@@ -251,3 +251,18 @@ def test_the_console_draws_with_the_color_it_was_given():
     game, lines = FakeGame(a_state(cells=with_tokens(EMPTY_BOARD, (1, ROBOT)))), []
     play.Console(game, lines.append, colors=RED_ROBOT).step()
     assert "| . R . . . . . |" in lines[0]
+
+
+@pytest.mark.parametrize(
+    ("source", "reason", "said"),
+    [
+        ("hand", "", "the robot's turn: a token is given to it"),
+        ("hand", "no_token", "the robot's turn (no_token): a token is given to it"),
+        ("dispenser", "dispenser_empty", "the robot's turn (dispenser_empty): the dispenser is filled"),
+        ("dispenser", "no_token", "the robot's turn (no_token): it takes a token again"),
+        ("dispenser", "", "the robot's turn: it takes a token"),
+    ],
+)
+def test_the_robots_turn_says_where_its_token_comes_from(source, reason, said):
+    state = a_state(turn="robot", reason=reason, token_source=source)
+    assert play.status(state) == said

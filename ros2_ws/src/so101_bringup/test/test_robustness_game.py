@@ -47,13 +47,13 @@ def state(name, **fields):
 
 def test_g2_is_run_step_by_step_and_handled():
     after = {
-        "turn_without_token": (state("WAIT_HUMAN", reason="no_token", turn="robot", lost=1, moves=1), 0.0),
-        "give_token": (state("WAIT_HUMAN", moves=2), 0.9),  # the robot's move: the arm may move
+        "turn": (state("WAIT_HUMAN", reason="dispenser_empty", turn="robot", lost=0, moves=1), 0.0),
+        "refill": (state("WAIT_HUMAN", moves=2), 0.9),  # the robot's move: the arm may move
     }
     demo = ScriptedDemo(after)
     results = robustness_game.run(GAME_CASES["g2"], demo)
-    assert demo.actions == ["turn_without_token", "give_token"]
-    assert [r["reached"] for r in results] == [True, True]
+    assert demo.actions == ["empty_dispenser", "turn", "refill"]
+    assert [r["reached"] for r in results] == [True, True, True]
     assert game_verdict(GAME_CASES["g2"], results) == ("handled", "")
 
 

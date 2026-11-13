@@ -1,6 +1,6 @@
 """sim_hand.py - the simulated person's hand (docs/project/phase2/P2-02 §7): a token of the
 person's color into a column, one of the robot's between its jaws (the layout's token.robot_color), the grid
-cleared, over the driver's /sim/connect4/* services.
+cleared, the token dispenser emptied or filled, over the driver's /sim/connect4/* services.
 
 Sim only, as those services: so101_connect4 names none of them (CI guard), its client takes the hand as an
 object. The console (connect4_play) and the game bench (evaluate --games) share this one.
@@ -21,6 +21,8 @@ class SimHand:
         self._drop = node.create_client(DropToken, "/sim/connect4/drop_token")
         self._give = node.create_client(Trigger, "/sim/connect4/give_token")
         self._reset = node.create_client(Trigger, "/sim/connect4/reset_board")
+        self._empty = node.create_client(Trigger, "/sim/connect4/empty_dispenser")
+        self._fill = node.create_client(Trigger, "/sim/connect4/fill_dispenser")
 
     def drop_token(self, column) -> tuple:
         request = DropToken.Request(column=column, color=DropToken.Request.HUMAN)
@@ -31,3 +33,9 @@ class SimHand:
 
     def reset_board(self) -> tuple:
         return call(self._spin_once, self._reset)
+
+    def empty_dispenser(self) -> tuple:
+        return call(self._spin_once, self._empty)
+
+    def fill_dispenser(self) -> tuple:
+        return call(self._spin_once, self._fill)

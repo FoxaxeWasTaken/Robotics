@@ -85,7 +85,7 @@ def waiting(layout, rail, place) -> np.ndarray:
 
 def dispenser_marker_centers(layout) -> dict:
     """{id: centre in the dispenser frame} of its 4 markers: flat and facing up at the corners of the
-    dispenser's foot, before the lowest station, on the -y side of the rails."""
+    dispenser's marker plate, before the lowest station, on the -y side of the rails."""
     markers = layout["dispenser"]["markers"]
     x0, y0, (span_x, span_y) = -markers["plate"] - 0.006, -markers["aside"], markers["span"]
     places = [(x0 - x, y0 - y) for x in (0.0, span_x) for y in (0.0, span_y)]

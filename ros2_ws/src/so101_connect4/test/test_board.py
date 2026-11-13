@@ -344,3 +344,14 @@ def test_the_reference_images_give_the_dispensers_pose_and_its_stations(name):
         there = [*layout.station(LAYOUT, rail), 1.0]
         assert np.linalg.norm((T @ there - layout.dispenser_pose(LAYOUT) @ there)[:3]) < 0.002, rail
     assert board.stations(rgb, LAYOUT, T_cam_dispenser, camera) == tuple(REFERENCE["stations"][name])
+
+
+def test_the_picks_target_is_the_stations_token_on_the_dispensers_pose_as_it_is_seen():
+    """As a column's (#259): the measured pose and the part's own dimensions, nothing of where it stands."""
+    T = np.eye(4)
+    T[:2, :2] = [[np.cos(0.9), -np.sin(0.9)], [np.sin(0.9), np.cos(0.9)]]
+    T[:3, 3] = (0.12, 0.2, 0.03)
+    for rail in range(LAYOUT["dispenser"]["rails"]):
+        expected = T[:3, 3] + T[:3, :3] @ layout.station(LAYOUT, rail)
+        np.testing.assert_allclose(board.station_target(LAYOUT, T, rail), expected, atol=1e-12)
+    assert np.linalg.norm(board.station_target(LAYOUT, T, 1) - board.station_target(LAYOUT, T, 0)) > 0.05

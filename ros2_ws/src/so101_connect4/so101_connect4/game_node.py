@@ -10,6 +10,9 @@ services are called asynchronously and their reply is read by a later tick.
 - /connect4/state: JSON, latched, at each change: turns.snapshot(), `ready` and the level, `max_depth`.
 - /brain/handover at a new game, /brain/drop for a move, aimed at board.column_target on the grid's pose as
   the camera sees it; /brain/stop on a stop or a move's timeout. Every motion is the brain's (ADR-037).
+- token_source: dispenser (ADR-041): /connect4/dispenser_pose and /connect4/stations (board_reader) are inputs
+  too, and a robot's move starts with /brain/pick at board.station_target on the dispenser's pose as the
+  camera sees it. token_source: hand: a person gives each token at HANDOVER.
 """
 
 import json
@@ -28,7 +31,7 @@ from rclpy.clock import Clock, ClockType
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.qos import DurabilityPolicy, QoSProfile
 from rclpy.signals import SignalHandlerOptions
-from std_msgs.msg import String
+from std_msgs.msg import String, UInt8MultiArray
 from std_srvs.srv import SetBool, Trigger
 
 from so101_connect4 import board, game, layout, turns
@@ -36,6 +39,7 @@ from so101_interfaces.msg import Connect4Board
 from so101_interfaces.srv import Drop
 
 TICK_HZ = 10.0
+TOKEN_SOURCES = ("hand", "dispenser")
 LATCHED = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
 
 
@@ -62,11 +66,20 @@ class GameNode(rclpy.node.Node):
         self._declare("engine.max_depth", game.LEVELS["hard"], level, 1, game.CELLS, read_only=False)
         self._budget = self._declare("engine.budget_s", 1.0, "The engine's time for a move, s", 0.01, 60.0)
         self._seed = self._declare("engine.seed", 0, "Between two equal moves as central", 0, 2**31 - 1)
+        source = ParameterDescriptor(
+            description=f"Where the robot's tokens come from: one of {', '.join(TOKEN_SOURCES)}",
+            read_only=True,
+        )
+        source = self.declare_parameter("token_source", "hand", source).value
+        if source not in TOKEN_SOURCES:
+            raise ValueError(f"token_source: {source!r} is none of {', '.join(TOKEN_SOURCES)}")
+        self._dispenser_used = source == "dispenser"
         if unknown := sorted(set(self._parameter_overrides) - set(self._parameters)):  # rclpy: no public API
             raise ValueError(f"Unknown parameters {unknown}: a typo in a config file?")
-        self._turns = turns.Turns(turns.Params(**delays))
+        self._turns = turns.Turns(turns.Params(**delays), dispenser=self._dispenser_used)
         self._layout = layout.load()
         self._board = self._grid = None  # the last /connect4/board; the grid's frame in base_link
+        self._dispenser = self._stations = None  # the dispenser's frame in base_link; the last stations
         self._brain_seen = False  # a first /end_effector_pose: the brain has /joint_states
         self._brain_states = []
         self._new_game = self._robot_first = self._human_done = self._stop = False
@@ -78,6 +91,10 @@ class GameNode(rclpy.node.Node):
 
         self.create_subscription(Connect4Board, "/connect4/board", self._cb_board, QoSProfile(depth=1))
         self.create_subscription(PoseStamped, "/connect4/grid_pose", self._cb_grid, LATCHED)
+        self.create_subscription(PoseStamped, "/connect4/dispenser_pose", self._cb_dispenser, LATCHED)
+        self.create_subscription(
+            UInt8MultiArray, "/connect4/stations", self._cb_stations, QoSProfile(depth=1)
+        )
         self.create_subscription(PoseStamped, "/end_effector_pose", self._cb_pose, 1)
         self.create_subscription(String, "/brain_state", self._cb_brain_state, LATCHED)
         self._pub_state = self.create_publisher(String, "/connect4/state", LATCHED)
@@ -86,6 +103,7 @@ class GameNode(rclpy.node.Node):
         self.create_service(Trigger, "/connect4/stop", self._srv_stop)
         self._drop = self.create_client(Drop, "/brain/drop")
         self._handover = self.create_client(Trigger, "/brain/handover")
+        self._pick = self.create_client(Drop, "/brain/pick")
         self._brain_stop = self.create_client(Trigger, "/brain/stop")
         # Steady clock: a step back of the system clock (WSL2, MES-37) would pause a ROS-clock timer.
         self._steady = Clock(clock_type=ClockType.STEADY_TIME)
@@ -101,8 +119,18 @@ class GameNode(rclpy.node.Node):
         self._board = turns.Board(tuple(int(v) for v in msg.cells), msg.valid, msg.reason, self._now())
 
     def _cb_grid(self, msg: PoseStamped):
+        self._grid = self._transform(msg)
+
+    def _cb_dispenser(self, msg: PoseStamped):
+        self._dispenser = self._transform(msg)
+
+    @staticmethod
+    def _transform(msg: PoseStamped):
         p, o = msg.pose.position, msg.pose.orientation
-        self._grid = board.transform((p.x, p.y, p.z), (o.x, o.y, o.z, o.w))
+        return board.transform((p.x, p.y, p.z), (o.x, o.y, o.z, o.w))
+
+    def _cb_stations(self, msg: UInt8MultiArray):
+        self._stations = turns.Stations(tuple(bool(there) for there in msg.data), self._now())
 
     def _cb_pose(self, msg: PoseStamped):
         self._brain_seen = True
@@ -118,6 +146,12 @@ class GameNode(rclpy.node.Node):
             "/brain/drop": self._drop.service_is_ready(),
             "/brain/handover": self._handover.service_is_ready(),
         }
+        if self._dispenser_used:
+            waited |= {
+                "/connect4/dispenser_pose": self._dispenser is not None,
+                "/connect4/stations": self._stations is not None,
+                "/brain/pick": self._pick.service_is_ready(),
+            }
         return [name for name, there in waited.items() if not there]
 
     def _srv_new_game(self, request, response):
@@ -157,6 +191,7 @@ class GameNode(rclpy.node.Node):
             engine=self._engine(),
             move_reply=self._move_reply(),
             brain_states=tuple(self._brain_states),
+            stations=self._stations,
         )
         self._new_game = self._human_done = self._stop = False
         self._brain_states = []
@@ -174,11 +209,18 @@ class GameNode(rclpy.node.Node):
         if out.handover:
             self._move = self._handover.call_async(Trigger.Request())
         if out.drop is not None:
-            request = Drop.Request()
-            target = board.column_target(self._layout, self._grid, out.drop)
-            request.target.x, request.target.y, request.target.z = (float(v) for v in target)
-            self._move = self._drop.call_async(request)
+            self._move = self._to(self._drop, board.column_target(self._layout, self._grid, out.drop))
+        if out.pick is not None:
+            target = board.station_target(self._layout, self._dispenser, out.pick)
+            self._move = self._to(self._pick, target)
         self._publish()
+
+    @staticmethod
+    def _to(client, target):
+        """The pending call of a move of the brain to `target`, base_link."""
+        request = Drop.Request()
+        request.target.x, request.target.y, request.target.z = (float(v) for v in target)
+        return client.call_async(request)
 
     def _declare(self, name, default, description, low, high, read_only=True):
         """A parameter with its range, as the phase-1 nodes': an int range for an int default, else a float

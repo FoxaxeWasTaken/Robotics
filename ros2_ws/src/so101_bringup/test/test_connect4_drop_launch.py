@@ -1,9 +1,11 @@
 """Component test (launch_testing): one move of the game on the sim (#84, #85, targets P2-02 and P2-03 of
 phase2/P2-01 §4). The stack of sim.launch.py connect4:=true: the driver on the game's scene, the brain in game
-mode. The test is the game node and the person: /brain/handover, /sim/connect4/give_token, then /brain/drop on
-board.column_target of a random column, with the grid where the layout puts it.
+mode. The test is the game node and the person: /brain/handover, the robot's token, then /brain/drop on
+board.column_target of a random column, with the grid where the layout puts it. The token is taken by
+/brain/pick at the dispenser's highest station that holds one (#259), the dispenser where the layout puts it;
+CONNECT4_TOKEN_SOURCE=hand gives it with /sim/connect4/give_token instead, as before the dispenser.
 Empty jaws first: no_token, the arm still. The ground truth (the true board) only scores (C-06).
-CONNECT4_DROPS=50 runs the measurement of MES-69; colcon test drops one token."""
+CONNECT4_DROPS=50 runs the measurement of MES-69 (hand) or MES-77 (dispenser); colcon test drops one token."""
 
 import os
 import re
@@ -28,8 +30,10 @@ from so101_interfaces.msg import Connect4Board
 from so101_interfaces.srv import Drop
 
 DROPS = int(os.environ.get("CONNECT4_DROPS", "1"))
+SOURCE = os.environ.get("CONNECT4_TOKEN_SOURCE", "dispenser")
+RAILS, PER_RAIL = LAYOUT["dispenser"]["rails"], LAYOUT["dispenser"]["tokens_per_rail"]
 STARTUP_TIMEOUT = 60.0  # s
-MOVE_TIMEOUT = 40.0  # s: a move lasts about 15
+MOVE_TIMEOUT = 40.0  # s: a move lasts about 15, a pick about 10
 LAND_TIMEOUT = 5.0  # s, from the reply: the token fell while the arm came back
 ARM = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")
 ROBOT = 2
@@ -59,6 +63,7 @@ class TestConnect4Drop(unittest.TestCase):
         cls.node.create_subscription(Log, "/rosout", lambda m: cls.logs.append(m.msg), 100)
         cls.handover = cls.node.create_client(Trigger, "/brain/handover")
         cls.drop = cls.node.create_client(Drop, "/brain/drop")
+        cls.pick = cls.node.create_client(Drop, "/brain/pick")
         cls.give = cls.node.create_client(Trigger, "/sim/connect4/give_token")
         cls.reset = cls.node.create_client(Trigger, "/sim/connect4/reset_board")
 
@@ -85,15 +90,28 @@ class TestConnect4Drop(unittest.TestCase):
             rclpy.spin_once(self.node, timeout_sec=0.05)
         return list(self.truth[-1].cells)
 
-    def play(self, column):
-        """One move into `column`: the reply of /brain/drop and its duration in s."""
-        given = self.call(self.give)
-        self.assertTrue(given.success, given.message)
+    @staticmethod
+    def to(target):
         request = Drop.Request()
-        target = board.column_target(LAYOUT, layout.grid_pose(LAYOUT), column)
         request.target.x, request.target.y, request.target.z = (float(v) for v in target)
+        return request
+
+    def play(self, column, played):
+        """One move into `column`, the `played`-th token since the dispenser was full: the reply of
+        /brain/drop, or of a /brain/pick that failed, and the duration in s of the drop alone."""
+        if SOURCE == "hand":
+            given = self.call(self.give)
+            self.assertTrue(given.success, given.message)
+        else:  # the highest station that holds a token, as the game node chooses it
+            rail = RAILS - 1 - played // PER_RAIL
+            reply = self.call(
+                self.pick, self.to(board.station_target(LAYOUT, layout.dispenser_pose(LAYOUT), rail))
+            )
+            if not reply.success:
+                return reply, 0.0
         start = time.monotonic()
-        return self.call(self.drop, request), time.monotonic() - start
+        target = board.column_target(LAYOUT, layout.grid_pose(LAYOUT), column)
+        return self.call(self.drop, self.to(target)), time.monotonic() - start
 
     def test_empty_jaws_are_refused_then_tokens_go_into_random_columns(self):
         end = time.monotonic() + STARTUP_TIMEOUT
@@ -127,7 +145,7 @@ class TestConnect4Drop(unittest.TestCase):
                 self.assertTrue(self.call(self.reset).success)
                 heights, played = [0] * 7, 0
             column = int(rng.choice([c for c in range(7) if heights[c] < 6]))
-            reply, duration = self.play(column)
+            reply, duration = self.play(column, played)
             played += 1
             held += reply.message != "no_token"
             cell = heights[column] * 7 + column
@@ -160,16 +178,22 @@ class TestConnect4Drop(unittest.TestCase):
             f"{min(seconds, default=0):.1f} to {max(seconds, default=0):.1f} s; brain tick during the moves: "
             f"p99 {p99:.1f} ms, max {longest:.1f} ms"
         )
-        steps = {}  # the seconds of each step, from the brain's log line of each move done
-        for line in self.logs:
-            for found in re.findall(r"/brain/drop: done in \S+ s \((.*?)\)", line):
-                for name, value in (part.split() for part in found.split(", ")):
-                    steps.setdefault(name, []).append(float(value))
 
         def medians(values):
             return ", ".join(f"{key} {np.median(values[key]):.1f}" for key in values)
 
         print(f"connect4 drops, median s by column: {medians(dict(sorted(by_column.items())))}")
-        print(f"connect4 drops, median s by step: {medians(steps)}")
+        for move in ("drop", "pick"):  # the seconds of each step, from the brain's log line of each move done
+            steps, whole = {}, []
+            for line in self.logs:
+                for total, found in re.findall(rf"/brain/{move}: done in (\S+) s \((.*?)\)", line):
+                    whole.append(float(total))
+                    for name, value in (part.split() for part in found.split(", ")):
+                        steps.setdefault(name, []).append(float(value))
+            if whole:
+                print(
+                    f"connect4 {move}s: {len(whole)} done, {min(whole):.1f} to {max(whole):.1f} s; "
+                    f"median s by step: {medians(steps)}"
+                )
         self.assertGreaterEqual(landed, np.ceil(0.95 * DROPS))  # target P2-02
         self.assertGreaterEqual(held, np.ceil(0.98 * DROPS))  # target P2-03, the sim's part

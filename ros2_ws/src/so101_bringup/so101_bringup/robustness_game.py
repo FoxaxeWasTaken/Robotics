@@ -78,8 +78,8 @@ class Demo:
         self._actions = {
             "cheat": lambda: self._turn(COLUMN, COLUMN + 1),
             "turn": lambda: self.client.play(COLUMN),
-            "turn_without_token": lambda: self._turn(COLUMN, give=False),
-            "give_token": self.client.play,
+            "empty_dispenser": self.hand.empty_dispenser,
+            "refill": self.client.play,  # the robot's turn: the dispenser filled, then human_done
             "human_done": self.client.human_done,
             "new_game": self.client.new_game,
             "stop": self.client.stop,
@@ -134,10 +134,8 @@ class Demo:
         self.wait(lambda state: False, seconds)
         return True, ""
 
-    def _turn(self, *columns, give=True):
-        """The person's tokens, the robot's or not, then human_done."""
-        if give:
-            self.hand.give_token()
+    def _turn(self, *columns):
+        """The person's tokens, then human_done."""
         for column in columns:
             self.hand.drop_token(column)
         return self.client.human_done()

@@ -38,7 +38,12 @@ def status(state, mine="R") -> str:
     if kind == "WAIT_HUMAN" and state["turn"] == "human":
         return f"your turn ({mine}): 1 to 7"
     if kind == "WAIT_HUMAN":
-        return f"the robot's turn{f' ({reason})' if reason else ''}: a token is given to it"
+        does = "a token is given to it"
+        if state.get("token_source") == "dispenser":
+            does = {"dispenser_empty": "the dispenser is filled", "": "it takes a token"}.get(
+                reason, "it takes a token again"
+            )
+        return f"the robot's turn{f' ({reason})' if reason else ''}: {does}"
     if kind == "GAME_OVER":
         return f"{RESULTS[state['result']]}; n: new game, r: the robot first"
     if kind == "IDLE":

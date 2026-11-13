@@ -19,7 +19,7 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
-from test_drop import COLUMNS, token_centre
+from test_drop import COLUMNS, STATIONS, token_centre
 
 from so101_brain import brain_node, drop
 from so101_brain.brain_node import BrainNode
@@ -49,6 +49,7 @@ class FakeArm(rclpy.node.Node):
         self.closed = True
         self.commands, self.poses, self.sent, self.states, self.logs = [], [], [], [], []
         self.released_at = None  # the arm joints when the jaws were last commanded open
+        self.closed_at = None  # and when they were last commanded closed
         self.executor_ = None
         self.pub_states = self.create_publisher(JointState, "/joint_states", 10)
         self.create_subscription(JointState, "/joint_command", self.on_command, 100)
@@ -59,6 +60,7 @@ class FakeArm(rclpy.node.Node):
         self.create_timer(1.0 / 30.0, self.publish_states, clock=Clock(clock_type=ClockType.STEADY_TIME))
         self.drop = self.create_client(Drop, "/brain/drop")
         self.handover = self.create_client(Trigger, "/brain/handover")
+        self.pick = self.create_client(Drop, "/brain/pick")
         self.start = self.create_client(Trigger, "/brain/start")
         self.stop = self.create_client(Trigger, "/brain/stop")
         self.go_to_target = self.create_client(GoToTarget, "/go_to_target")
@@ -70,6 +72,8 @@ class FakeArm(rclpy.node.Node):
             closed = positions["gripper"] < 1.0
             if self.closed and not closed:
                 self.released_at = self.arm()
+            if closed and not self.closed:
+                self.closed_at = self.arm()
             self.closed = closed
             self.q["gripper"] = pct_to_rad(positions.pop("gripper"))
         if self.follows:
@@ -316,3 +320,85 @@ def test_a_brain_that_is_not_idle_refuses_a_move(arm):
         assert arm.brain._refusal() == "not_idle:STOPPED"
     finally:
         arm.brain._fsm.state = State.IDLE
+
+
+# /brain/pick (#259): a token taken at a station of the dispenser, the same request as a drop's.
+
+
+def test_a_pick_closes_the_jaws_on_the_stations_token_and_replies_at_handover_holding_it(arm):
+    arm.to_handover()
+    arm.token = True
+    kin, since = Kinematics(str(URDF)), time.monotonic()
+    reply = arm.call(arm.pick, drop_request(STATIONS[1]))
+    assert reply.success, reply.message
+    assert re.fullmatch(r"done in \d+\.\d s", reply.message)
+    np.testing.assert_allclose(token_centre(kin, arm.closed_at), STATIONS[1], atol=2e-3)
+    np.testing.assert_allclose(arm.arm(), HANDOVER, atol=0.01)
+    assert arm.closed  # the token leaves with the arm
+    grippers = [c["gripper"] for arrival, c in arm.commands if arrival > since and "gripper" in c]
+    assert list(dict.fromkeys(grippers)) == [drop.PICK_OPEN_PCT, arm.brain._p.close_pct]
+    line = next(text for text in reversed(arm.logs) if text.startswith("/brain/pick"))
+    assert re.match(r"/brain/pick: done in \d+\.\d s \(above \d", line), line
+    # the drop starts from there, the token in the jaws
+    reply = arm.call(arm.drop, drop_request())
+    assert reply.success, reply.message
+    arm.token = False
+
+
+def test_a_pick_on_an_empty_station_is_no_token_the_arm_back_at_handover_with_open_jaws(arm):
+    arm.to_handover()
+    reply = arm.call(arm.pick, drop_request(STATIONS[0]))
+    assert (reply.success, reply.message) == (False, "no_token")
+    np.testing.assert_allclose(arm.arm(), HANDOVER, atol=0.01)
+    assert not arm.closed
+
+
+def test_a_pick_away_from_handover_or_out_of_reach_is_refused_without_any_command(arm):
+    arm.to_handover()
+    before = len(arm.commands)
+    reply = arm.call(arm.pick, drop_request((0.7, 0.0, 0.2)), timeout=3.0)
+    assert (reply.success, reply.message) == (False, "unreachable")
+    arm.q["shoulder_pan"] = 0.0  # the arm elsewhere: the way to a station starts at HANDOVER
+    arm.wait_for_fresh_joint_states()
+    reply = arm.call(arm.pick, drop_request(STATIONS[0]), timeout=3.0)
+    assert (reply.success, reply.message) == (False, "not_at_handover")
+    assert len(arm.commands) == before
+
+
+def handover_line(arm):
+    return next(text for text in reversed(arm.logs) if text.startswith("/brain/handover"))
+
+
+def test_a_handover_after_a_pick_cut_short_rises_straight_up_first_and_not_after_a_drop(arm):
+    """A stop may leave the arm down in a station: from there one joint motion sweeps the dispenser's stop
+    [MES-77]. Above the grid the direct way is the measured one [MES-73]."""
+    arm.to_handover()
+    move = arm.request(arm.pick, drop_request(STATIONS[2]))
+    arm.spin_for(3.0)  # on its way down into the station
+    assert not move.done()
+    assert arm.call(arm.stop, timeout=3.0).success
+    assert arm.reply(move, timeout=3.0).message == "stopped"
+    arm.spin_for(0.5)
+    stopped = Kinematics(str(URDF)).fk(arm.arm())[:3, 3]
+    since = time.monotonic()
+    assert arm.call(arm.handover).success
+    assert re.match(r"/brain/handover: done in \S+ s \(rise \d", handover_line(arm)), handover_line(arm)
+    kin = Kinematics(str(URDF))
+    first = [kin.fk([c[n] for n in JOINTS[:5]])[:3, 3] - stopped for c in arm.arm_commands(since)[:60]]
+    assert max(np.hypot(d[0], d[1]) for d in first) < 0.002  # straight up
+    assert max(d[2] for d in first) > 0.02
+    np.testing.assert_allclose(arm.arm(), HANDOVER, atol=0.01)
+    # the next handover, and one after a drop cut short, are one motion
+    assert arm.call(arm.handover).success
+    assert re.match(r"/brain/handover: done in \S+ s \(handover \d", handover_line(arm)), handover_line(arm)
+    arm.token = True
+    try:
+        move = arm.request(arm.drop, drop_request())
+        arm.spin_for(2.5)
+        assert arm.call(arm.stop, timeout=3.0).success
+        assert arm.reply(move, timeout=3.0).message == "stopped"
+    finally:
+        arm.token = False
+    arm.spin_for(0.5)
+    assert arm.call(arm.handover).success
+    assert re.match(r"/brain/handover: done in \S+ s \(handover \d", handover_line(arm)), handover_line(arm)

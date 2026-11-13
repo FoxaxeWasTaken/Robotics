@@ -48,5 +48,6 @@ def test_the_game_launch_starts_the_game_node_with_its_installed_parameters():
     assert (node.node_package, node.node_executable) == ("so101_connect4", "game_node")
     parameters = yaml.safe_load((share / "config" / "game.yaml").read_text())["game_node"]["ros__parameters"]
     engine = parameters.pop("engine")
+    assert parameters.pop("token_source") == "dispenser"  # #259: as installed, no hand gives the token
     assert parameters == {name: getattr(turns.Params(), name) for name in turns.Params.__dataclass_fields__}
     assert engine == {"max_depth": game.LEVELS["hard"], "budget_s": 1.0, "seed": 0}  # #244

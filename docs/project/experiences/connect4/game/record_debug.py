@@ -4,8 +4,9 @@
     python3 record_debug.py gif <dir> <out.gif> [step]   # anywhere with Pillow (the images have none): the host
 
 `record` keeps one image in `every` (5) as <dir>/0001.png, ...: the reader publishes at 10 Hz. `gif` writes one
-of them in `step` (2) at half size in 64 colors, 8 images/s: the game at 8x, under 1 MB for a game of 9 tokens
-(docs/project/15 §7); the last image stays 3 s. It is the board at the end, the winning four circled.
+of them in `step` (2) at half size in 64 colors, 8 images/s: the game at 8x; the last image stays 3 s. It is
+the board at the end, the winning four circled. The README's GIF is a game of 9 tokens with the robot taking
+its tokens at the dispenser, two minutes: `step` 4, the game at 16x, to stay under 1 MB (docs/project/15 §7).
 """
 
 import signal

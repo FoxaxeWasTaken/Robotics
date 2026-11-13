@@ -20,7 +20,7 @@ from rclpy.executors import SingleThreadedExecutor
 from rclpy.parameter import Parameter
 from rclpy.qos import DurabilityPolicy, QoSProfile
 from rclpy.task import Future
-from std_msgs.msg import String
+from std_msgs.msg import String, UInt8MultiArray
 from std_srvs.srv import SetBool, Trigger
 from test_turns import EMPTY_BOARD, with_tokens
 
@@ -40,12 +40,20 @@ T_BASE_GRID[:3, 3] = AWAY
 TARGETS = [board.column_target(LAYOUT, T_BASE_GRID, column) for column in range(COLUMNS)]
 
 
-def grid_pose():
+T_BASE_DISPENSER = np.eye(4)  # a dispenser turned the other way, somewhere else
+T_BASE_DISPENSER[:2, :2] = [[np.cos(0.9), -np.sin(0.9)], [np.sin(0.9), np.cos(0.9)]]
+T_BASE_DISPENSER[:3, 3] = (0.12, 0.2, 0.03)
+STATIONS = [
+    board.station_target(LAYOUT, T_BASE_DISPENSER, rail) for rail in range(LAYOUT["dispenser"]["rails"])
+]
+
+
+def pose(T):
     msg = PoseStamped()
     msg.header.frame_id = "base_link"
     p, o = msg.pose.position, msg.pose.orientation
-    p.x, p.y, p.z = AWAY
-    o.x, o.y, o.z, o.w = (float(v) for v in quaternion(T_BASE_GRID[:3, :3]))
+    p.x, p.y, p.z = (float(v) for v in T[:3, 3])
+    o.x, o.y, o.z, o.w = (float(v) for v in quaternion(T[:3, :3]))
     return msg
 
 
@@ -56,7 +64,12 @@ class FakeStack(rclpy.node.Node):
         super().__init__("fake_stack")
         self.cells, self.valid, self.reason = EMPTY_BOARD, True, ""  # what the reader publishes
         self.calls = []  # the brain's services called, in order: ("handover",), ("drop", column), ("stop",)
-        self.replies = {"drop": (True, "done in 14.0 s"), "handover": (True, "done in 0.1 s")}
+        self.replies = {
+            "drop": (True, "done in 14.0 s"),
+            "handover": (True, "done in 0.1 s"),
+            "pick": (True, "done in 9.0 s"),
+        }
+        self.waiting = (1, 1, 1)  # what the reader publishes on /connect4/stations; None: nothing
         self.hold = False  # a move replies only once released: release(), or /brain/stop
         self.stop_cuts = True  # /brain/stop makes the held moves reply `stopped`
         self.held = []  # the futures of the held moves, in order
@@ -66,6 +79,9 @@ class FakeStack(rclpy.node.Node):
         moves = ReentrantCallbackGroup()  # as the brain: a held move does not block the next request
         self.srv_drop = self.create_service(Drop, "/brain/drop", self.on_drop, callback_group=moves)
         self.create_service(Trigger, "/brain/handover", self.on_handover, callback_group=moves)
+        self.create_service(Drop, "/brain/pick", self.on_pick, callback_group=moves)
+        self.pub_dispenser = self.create_publisher(PoseStamped, "/connect4/dispenser_pose", LATCHED)
+        self.pub_stations = self.create_publisher(UInt8MultiArray, "/connect4/stations", QoSProfile(depth=1))
         self.create_service(Trigger, "/brain/stop", self.on_stop)
         self.pub_board = self.create_publisher(Connect4Board, "/connect4/board", QoSProfile(depth=1))
         self.pub_grid = self.create_publisher(PoseStamped, "/connect4/grid_pose", LATCHED)
@@ -84,6 +100,14 @@ class FakeStack(rclpy.node.Node):
 
     def publish_board(self):
         self.pub_board.publish(Connect4Board(cells=self.cells, valid=self.valid, reason=self.reason))
+        if self.waiting is not None:
+            self.pub_stations.publish(UInt8MultiArray(data=list(self.waiting)))
+
+    async def on_pick(self, request, response):
+        target = np.array([request.target.x, request.target.y, request.target.z])
+        rail = int(np.argmin([np.linalg.norm(target - t) for t in STATIONS]))
+        np.testing.assert_allclose(target, STATIONS[rail], atol=1e-9)  # board.station_target, on its pose
+        return await self.move(("pick", rail), response)
 
     async def on_drop(self, request, response):
         target = np.array([request.target.x, request.target.y, request.target.z])
@@ -152,7 +176,8 @@ class FakeStack(rclpy.node.Node):
     def up(self):
         """The brain's first pose and the grid's: the game node is ready."""
         self.pub_pose.publish(PoseStamped())
-        self.pub_grid.publish(grid_pose())
+        self.pub_grid.publish(pose(T_BASE_GRID))
+        self.pub_dispenser.publish(pose(T_BASE_DISPENSER))
         self.spin_until(lambda: self.states and self.states[-1]["ready"])
 
     def start(self, robot_first=False):
@@ -373,6 +398,65 @@ def test_a_parameter_the_node_does_not_know_stops_it():
     rclpy.init(args=["--ros-args", "-p", "read_timeout:=5.0"])
     try:
         with pytest.raises(ValueError, match="read_timeout"):
+            GameNode()
+    finally:
+        rclpy.shutdown()
+
+
+# The robot takes its tokens at the dispenser (#259): token_source, /connect4/stations, /brain/pick.
+DISPENSER = {"token_source": "dispenser"}
+
+
+@pytest.mark.parametrize("stack", [DISPENSER], indirect=True)
+def test_with_a_dispenser_a_game_waits_for_its_pose_and_its_stations_too(stack):
+    stack.waiting = None
+    stack.pub_pose.publish(PoseStamped())
+    stack.pub_grid.publish(pose(T_BASE_GRID))
+    stack.spin_for(0.5)
+    reply = stack.call(stack.new_game, SetBool.Request())
+    assert not reply.success
+    assert reply.message == "not ready: no /connect4/dispenser_pose, /connect4/stations"
+    stack.waiting = (1, 1, 1)
+    stack.up()
+    assert stack.states[-1]["token_source"] == "dispenser"
+
+
+def test_without_a_dispenser_a_game_does_not_wait_for_one(stack):
+    stack.pub_pose.publish(PoseStamped())
+    stack.pub_grid.publish(pose(T_BASE_GRID))
+    stack.spin_until(lambda: stack.states and stack.states[-1]["ready"])
+    assert stack.states[-1]["token_source"] == "hand"
+
+
+@pytest.mark.parametrize("stack", [DISPENSER], indirect=True)
+def test_with_a_dispenser_a_robots_turn_is_a_pick_at_the_station_as_it_is_seen_then_the_drop(stack):
+    stack.waiting = (1, 1, 0)
+    stack.start()
+    stack.human_plays(3)
+    state = stack.wait_for("WAIT_HUMAN", moves=2)
+    (pick, rail), (drop, column) = stack.calls[1:]  # on_pick checked its target on the dispenser's pose
+    assert (pick, rail, drop) == ("pick", 1, "drop")
+    assert state["last"] == state["last"] | {"who": "robot", "column": column}
+
+
+@pytest.mark.parametrize("stack", [DISPENSER], indirect=True)
+def test_an_empty_dispenser_waits_for_the_person_and_the_game_goes_on_once_it_is_filled(stack):
+    stack.waiting = (0, 0, 0)
+    stack.start()
+    stack.human_plays(3)
+    state = stack.wait_for("WAIT_HUMAN:dispenser_empty")
+    assert (state["turn"], state["lost"]) == ("robot", 0)
+    assert stack.calls == [("handover",)]
+    stack.waiting = (1, 0, 0)
+    assert stack.call(stack.human_done).success
+    stack.wait_for("WAIT_HUMAN", moves=2)
+    assert [call[:2] for call in stack.calls[1:2]] == [("pick", 0)]
+
+
+def test_a_token_source_the_node_does_not_know_stops_it():
+    rclpy.init(args=["--ros-args", "-p", "token_source:=box"])
+    try:
+        with pytest.raises(ValueError, match="token_source"):
             GameNode()
     finally:
         rclpy.shutdown()
