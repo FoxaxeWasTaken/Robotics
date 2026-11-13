@@ -113,6 +113,27 @@ def test_four_in_a_row_wins_in_the_four_directions(moves):
     assert game.winner(cells_of(moves, first=ROBOT)) == ROBOT
 
 
+@pytest.mark.parametrize(
+    ("moves", "cells"),
+    [
+        pytest.param([0, 1, 0, 1, 0, 1, 0], (0, 7, 14, 21), id="vertical"),
+        pytest.param([0, 0, 1, 1, 2, 2, 3], (0, 1, 2, 3), id="horizontal"),
+        pytest.param([0, 1, 1, 2, 2, 3, 2, 3, 3, 6, 3], (0, 8, 16, 24), id="diagonal-up"),
+        pytest.param([6, 5, 5, 4, 4, 3, 4, 3, 3, 0, 3], (6, 12, 18, 24), id="diagonal-down"),
+    ],
+)
+def test_the_winning_cells_are_given_in_the_four_directions(moves, cells):
+    assert game.four(cells_of(moves[:-1])) == ()
+    assert game.four(cells_of(moves)) == cells
+    assert game.four(cells_of(moves, first=ROBOT)) == cells
+
+
+def test_five_in_a_row_and_two_lines_at_once_are_all_winning_cells():
+    assert game.four(board({(c, 0): HUMAN for c in range(1, 6)})) == (1, 2, 3, 4, 5)
+    cross = {(c, 0): ROBOT for c in range(4)} | {(3, r): ROBOT for r in range(4)}
+    assert game.four(board(cross)) == (0, 1, 2, 3, 10, 17, 24)
+
+
 DRAW = [int(c) for row in ("2121212", "2121212", "1212121", "1212121", "2121212", "2121212") for c in row]
 
 

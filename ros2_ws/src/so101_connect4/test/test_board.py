@@ -205,3 +205,24 @@ def test_the_debug_image_fills_the_cells_read_and_keeps_the_size():
     for (u, v), cell in zip(centres, cells, strict=True):
         pixel = tuple(int(c) for c in out[round(v), round(u)])
         assert pixel == {EMPTY: BACKGROUND, HUMAN: (255, 0, 0), ROBOT: (255, 255, 0)}[cell]
+
+
+def test_the_debug_image_circles_the_winning_four_only():
+    cells = [HUMAN, HUMAN, HUMAN, HUMAN, ROBOT, ROBOT, ROBOT] + [EMPTY] * 35
+    image = synthetic(cells)
+    plain = board.draw(image, LAYOUT, T_CAM_GRID, K, cells)
+    out = board.draw(image, LAYOUT, T_CAM_GRID, K, cells, four=(0, 1, 2, 3))
+    centres, radius = board.cell_pixels(LAYOUT, T_CAM_GRID, K)
+    ring = round(radius) + 3  # px from the centre: outside the cell's own outline
+    for i, (u, v) in enumerate(centres):
+        r, g, b = (int(c) for c in out[round(v) - ring, round(u)])
+        circled = g > 200 and r < 80 and b < 80
+        assert circled == (i < 4), i
+    assert np.array_equal(plain, board.draw(image, LAYOUT, T_CAM_GRID, K, cells, four=()))
+
+
+def test_a_second_status_line_goes_under_the_first():
+    image = synthetic([EMPTY] * 42)
+    first, second = board.label(image, "board VALID"), board.label(image, "robot: column 4", row=1)
+    rows = [np.flatnonzero((out != image).any(axis=(1, 2))) for out in (first, second)]
+    assert rows[0].max() < rows[1].min()

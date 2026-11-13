@@ -10,6 +10,8 @@ import json
 import time
 
 import rclpy
+from rcl_interfaces.srv import SetParameters
+from rclpy.parameter import Parameter
 from rclpy.qos import DurabilityPolicy, QoSProfile
 from std_msgs.msg import String
 from std_srvs.srv import SetBool, Trigger
@@ -17,8 +19,26 @@ from std_srvs.srv import SetBool, Trigger
 LATCHED = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
 
 
-def call(spin_once, client, request=None, timeout_s=10.0) -> tuple:
-    """(success, message) of a service's reply; RuntimeError when it is not served or does not reply."""
+def last_move(last) -> str:
+    """A state's `last` in words, shared by the console and the debug image: who played which column, as
+    its key numbers it; the robot's: the depth its engine reached and, once the game is proven, how many
+    moves the winner still has to play (wins_in and loses_in are plies, the robot's own move included). A
+    token that fell in another column than the one meant says so: the engine's reason was for the other."""
+    if not last:
+        return ""
+    text = f"{last['who']}: column {last['column'] + 1}"
+    if last["planned"] != last["column"]:
+        return f"{text} (it meant column {last['planned'] + 1})"
+    if "depth" not in last:
+        return text
+    end = "loses" if "loses_in" in last else "wins" if "wins_in" in last else ""
+    moves = last.get(f"{end}_in", 0) // 2  # the winner's moves after this one
+    left = f" in {moves} move{'s' if moves > 1 else ''}" if moves else ""
+    return f"{text} (depth {last['depth']}{f', it {end}{left}' if end else ''})"
+
+
+def answer(spin_once, client, request=None, timeout_s=10.0):
+    """A service's reply; RuntimeError when it is not served or does not reply."""
     if not client.wait_for_service(timeout_sec=timeout_s):
         raise RuntimeError(f"{client.srv_name}: no such service")
     future, end = client.call_async(request or client.srv_type.Request()), time.monotonic() + timeout_s
@@ -26,7 +46,13 @@ def call(spin_once, client, request=None, timeout_s=10.0) -> tuple:
         if time.monotonic() > end:
             raise RuntimeError(f"{client.srv_name}: no answer in {timeout_s:g} s")
         spin_once()
-    return future.result().success, future.result().message
+    return future.result()
+
+
+def call(spin_once, client, request=None, timeout_s=10.0) -> tuple:
+    """(success, message) of a service's reply; RuntimeError as answer()."""
+    reply = answer(spin_once, client, request, timeout_s)
+    return reply.success, reply.message
 
 
 class GameClient:
@@ -37,6 +63,7 @@ class GameClient:
         self._new_game = node.create_client(SetBool, "/connect4/new_game")
         self._human_done = node.create_client(Trigger, "/connect4/human_done")
         self._stop = node.create_client(Trigger, "/connect4/stop")
+        self._set = node.create_client(SetParameters, "/game_node/set_parameters")
 
     def _on_state(self, msg):
         self.state = json.loads(msg.data)
@@ -71,3 +98,9 @@ class GameClient:
 
     def stop(self) -> tuple:
         return call(self.spin_once, self._stop)
+
+    def set_depth(self, depth) -> tuple:
+        """The level: the game node's engine.max_depth (game.LEVELS), read by the engine at its next move."""
+        depth = Parameter("engine.max_depth", value=depth).to_parameter_msg()
+        (result,) = answer(self.spin_once, self._set, SetParameters.Request(parameters=[depth])).results
+        return result.successful, result.reason

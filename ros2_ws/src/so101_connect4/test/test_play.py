@@ -33,6 +33,10 @@ class FakeGame:
         self.calls.append(("stop",))
         return self.reply
 
+    def set_depth(self, depth):
+        self.calls.append(("set_depth", depth))
+        return self.reply
+
 
 @pytest.fixture
 def console():
@@ -179,3 +183,50 @@ def test_each_drawing_shows_at_once_through_a_pipe(monkeypatch):
     monkeypatch.setattr("sys.stdout", pipe)
     play.Console(FakeGame(a_state())).step()
     assert "your turn" in pipe.shown
+
+
+@pytest.mark.parametrize(("depth", "level"), [(1, "easy"), (4, "medium"), (10, "hard"), (7, "depth 7")])
+def test_the_level_and_the_robots_reason_are_shown_above_the_status(depth, level):
+    last = {"who": "robot", "column": 2, "planned": 2, "score": 990, "depth": 6, "wins_in": 3}
+    lines = play.render(a_state(max_depth=depth, last=last)).splitlines()
+    assert lines[-2] == f"level: {level} | robot: column 3 (depth 6, it wins in 1 move)"
+    assert play.render(a_state(max_depth=depth)).splitlines()[-2] == f"level: {level}"
+
+
+@pytest.mark.parametrize(("key", "depth"), [("e", 1), ("m", 4), ("h", 10)])
+def test_a_level_key_sets_the_engines_depth_and_shows_a_refusal(console, key, depth):
+    console.game.reply = (False, "/game_node/set_parameters: no such service")
+    assert console.step(key)
+    assert console.game.calls == [("set_depth", depth)]
+    assert console.lines[-1] == "/game_node/set_parameters: no such service"
+
+
+def test_the_hint_is_the_engines_move_for_the_person_found_in_the_console():
+    """Three of the person's in the bottom row, the fourth cell free: the hint is that column, not column 7
+    where the robot would win."""
+    cells = with_tokens(EMPTY_BOARD, (0, HUMAN), (6, ROBOT), (1, HUMAN), (6, ROBOT), (2, HUMAN), (6, ROBOT))
+    game, lines = FakeGame(a_state(cells=cells, moves=6)), []
+    console = play.Console(game, lines.append)
+    assert console.step("?")
+    assert lines[-1] == "hint: column 4"
+    assert game.calls == []  # the game node is not asked: its engine thinks for the robot only
+
+
+def test_a_hint_outside_the_persons_turn_is_refused(console):
+    console.game.state = a_state(state="MOVE", turn="robot")
+    console.step("?")
+    assert console.lines[-1] == "not your turn: MOVE"
+
+
+def test_the_winning_four_is_marked_the_other_tokens_stay():
+    cells = with_tokens(
+        EMPTY_BOARD, (0, HUMAN), (0, ROBOT), (1, HUMAN), (1, ROBOT), (2, HUMAN), (2, ROBOT), (3, HUMAN)
+    )
+    over = a_state(state="GAME_OVER", result="human", cells=cells, moves=7)
+    assert play.render(over).splitlines()[5:7] == ["| Y Y Y . . . . |", "| * * * * . . . |"]
+    assert "\x1b[31m*\x1b[0m \x1b[31m*\x1b[0m" in play.render(over, color=True)
+
+
+def test_the_keys_line_names_every_key():
+    for key in ("1 to 7", "n ", "r ", "s ", "q ", "e, m, h", "?"):
+        assert key in play.KEYS
