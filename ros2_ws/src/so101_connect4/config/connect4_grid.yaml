@@ -46,6 +46,14 @@ dispenser:  # where the robot takes its tokens (ADR-041): three straight rails s
   stop_width: 0.004  # m: a fin in the tokens' plane, as high as a token; the jaws close on either side of it
   rail_pitch: 0.040  # m between two rails' floors, across them: a token, a floor and 3 mm
   station_step: 0.040  # m outwards from a station to the next one up: the gripper clears the rail above
+  markers:  # the dispenser's own, of the grid's dictionary: flat, facing up, on its foot before the lowest
+    # station, on the camera's side of the rails; a shelf higher up would hide the stations below it
+    ids: [14, 15, 16, 17]  # at the corners of the foot: the pose from 3 of them
+    span: [0.090, 0.165]  # m between their centres, towards the arm and aside: a 45 mm block was 7 mm off [MES-76]
+    size: 0.030  # m
+    plate: 0.039  # m, the white square around a marker
+    aside: 0.035  # m from the tokens' plane to the nearest markers' centres, towards -y
+    below: 0.020  # m under a station's token centre: the open jaws go 5 mm under it [MES-75]
   placement:  # in base_link, for the sim scene only: the nodes measure the dispenser's pose (#258)
     azimuth: 1.0472  # rad (60 deg): the scene camera sees its markers, it hides nothing of the grid
     station_r: 0.27  # m from the pan axis to the lowest station [MES-75: the pick pose reaches 0.25 to 0.41]

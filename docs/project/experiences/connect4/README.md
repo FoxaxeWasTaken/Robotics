@@ -8,7 +8,7 @@ What the expert review of phase 2 ran to measure the sim, kept as it ran. **Thro
 | `drop/` | Pose of a drop, paths, clearance, grip, duration, async service | MES-64 | #83, #84, #85 |
 | `reading/` | Camera, pixels per cell, classification, grid pose accuracy | MES-65 | #81, #82 |
 | `game/` | Engine, turns, console client, fake stack; `levels.py`: the package's engine, depth against depth; `play_keys.py` and `record_debug.py`: a game through the console on a pipe, the README's game GIF and the image of a circled four from `/connect4/debug_image` | MES-66, MES-70 | #78, #230, #86, #232, #244, #246 |
-| `dispenser/` (2026-11-13) | Where the arm can take a token, what the open jaws need free, a gravity rail's feed and a pick with real contacts | MES-75 | #257 |
+| `dispenser/` (2026-11-13) | Where the arm can take a token, what the open jaws need free, a gravity rail's feed and a pick with real contacts; `wake_probe.py`: what stalls a sleeping queue; `render_overview.py`: the README's picture of the scene | MES-75 | #257 |
 
 ## Running
 
@@ -43,6 +43,8 @@ python3 docs/project/experiences/connect4/game/record_debug.py gif /tmp/frames d
 # tokens' angular damping or -1 for the scene's, sleep, jaws' opening %, the wake's force in N)
 tools/so101 run 'python3 /repo/docs/project/experiences/connect4/dispenser/reach.py'
 tools/so101 run 'python3 /repo/docs/project/experiences/connect4/dispenser/rail.py 60 0.27 0.02 25 7 -1 1 40 1e-6'
+# the README's picture of the scene, from a free camera (960x720)
+tools/so101 run --out docs/project/media 'python3 /repo/docs/project/experiences/connect4/dispenser/render_overview.py'
 # what stalls a sleeping queue, one variable at a time (the package's scene, with its dispenser)
 tools/so101 run 'python3 /repo/docs/project/experiences/connect4/dispenser/wake_probe.py'
 ```

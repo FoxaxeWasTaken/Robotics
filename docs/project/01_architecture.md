@@ -70,6 +70,8 @@ This table is **the contract** between team members. Any change goes through a P
 | `/perception/debug_image` | `sensor_msgs/Image` | perception → RViz | 5–10 Hz | Annotated image: masks, centroids, status | `external_cam_optical_frame` | Best effort, depth 1 |
 | `/connect4/board` | `so101_interfaces/Connect4Board` | board_reader (game mode) → game_node | 10 Hz **once 5 reads in a row agree**, each on a new image | `cells`: 42, row-major from the bottom row, 0 empty, 1 human, 2 robot; `valid`, `reason`; the stamp is the first image's of the streak (`phase2/P2-02` §6) | `connect4_grid` | Reliable, depth 1 |
 | `/connect4/grid_pose` | `geometry_msgs/PoseStamped` | board_reader → game_node, RViz | 10 Hz when the grid's markers are seen | The grid frame, also sent as the TF `base_link` → `connect4_grid` | `base_link` | Reliable, **transient_local**, depth 1 |
+| `/connect4/dispenser_pose` | `geometry_msgs/PoseStamped` | board_reader → game_node, RViz | 10 Hz when the dispenser's markers are seen | The token dispenser's frame (ADR-041, `layout.dispenser_pose`), also sent as the TF `base_link` → `connect4_dispenser` | `base_link` | Reliable, **transient_local**, depth 1 |
+| `/connect4/stations` | `std_msgs/UInt8MultiArray` | board_reader → game_node | 10 Hz **once 5 reads in a row agree**, each on a new image | For each rail of the dispenser from the lowest: 1 when a token of the robot's color waits at its station, 0 when the rail is empty | – | Reliable, volatile, depth 1 |
 | `/connect4/debug_image` | `sensor_msgs/Image` | board_reader → RViz | 10 Hz | The cells as read, the winning four circled, two status lines: the read and the game's state, the last move with the robot's reason | `external_cam_optical_frame` | Reliable, depth 1 |
 | `/connect4/state` | `std_msgs/String`, JSON | game_node (game mode) → console, bench, board_reader's debug image | At each change | `ready` (the brain's first pose, the grid's pose and the brain's two services are there), `max_depth` (the level), `state`, `reason`, `turn`, `board` (42 cells), `legal` (columns), `last` (`who`, `column`, `planned`; the robot's: the engine's `score` and `depth`, `wins_in` or `loses_in` in plies when proven), `result`, `moves`, `lost`, `missed`, `first` and `history` (who started and the columns in the order the tokens were seen: they rebuild the board), `seconds` (of this game, spent in `move`, `read`, `wait` and `think`) (`phase2/P2-02` §5, §6) | — | Reliable, **transient_local**, depth 1 |
 | `/end_effector_pose` | `geometry_msgs/PoseStamped` | brain → RViz, game_node (game mode: the brain is ready) | 30 Hz | TCP pose (`gripper_frame_link`) from forward kinematics | `base_link` | Reliable, depth 10 |
@@ -164,6 +166,7 @@ flowchart TD
   S --> T["gripper_frame_link = TCP"]
   B -->|"static, from calibration (perception)"| C["external_cam_optical_frame"]
   B -->|"board_reader, at each image whose markers give a pose (game mode)"| G["connect4_grid"]
+  B -->|"board_reader, from the dispenser's own markers (game mode)"| DSP["connect4_dispenser"]
 ```
 
 | Convention | Value | Why |

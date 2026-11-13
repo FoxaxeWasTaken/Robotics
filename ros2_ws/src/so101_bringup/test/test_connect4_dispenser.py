@@ -7,11 +7,15 @@ built by sim_scene from connect4_grid.yaml, the robot's 21 tokens waiting in the
 - The simulated hand takes its tokens at the top of a queue: the stations stay served.
 The tokens' true poses are read here to score, as a test may (C-06)."""
 
+import os
+from pathlib import Path
+
 import mujoco
 import numpy as np
 import pytest
+from ament_index_python.packages import get_package_share_directory
 from so101_sim import SO101Sim
-from test_connect4_scene import ARM_BODIES, CAMERA, GRID, HANDOVER, LAYOUT, T_GRID, URDF, set_arm
+from test_connect4_scene import ARM_BODIES, CAMERA, GRID, HANDOVER, LAYOUT, SCENE, T_GRID, URDF, set_arm
 
 from so101_brain import drop
 from so101_brain.drop import release_pose
@@ -20,7 +24,10 @@ from so101_brain.kinematics import Kinematics
 from so101_bringup import sim_scene
 from so101_common.robot import pct_to_rad
 from so101_connect4 import board, layout
+from so101_driver.camera import opencv_intrinsics
 from so101_driver.connect4_sim import HUMAN, ROBOT, Connect4Sim
+from so101_perception.calibration import detect_markers
+from so101_perception.geometry import load_extrinsics
 
 DISPENSER, TOKEN = LAYOUT["dispenser"], LAYOUT["token"]
 RAILS, PER_RAIL = DISPENSER["rails"], DISPENSER["tokens_per_rail"]
@@ -214,3 +221,84 @@ def test_a_whole_drop_from_handover_stays_clear_of_the_dispenser(sim):
         assert out.result == "", (column, out.result)
     print("handover and drops, arm to dispenser, mm:", closest)
     assert min(gap for gap, *_ in closest.values()) > 10.0, closest
+
+
+# The dispenser read by the camera (#258): its pose from its own markers, its stations by the tokens' color.
+
+PLACES = int(os.environ.get("CONNECT4_DISPENSER_PLACES", "3"))
+EXTRINSICS = Path(get_package_share_directory("so101_perception")) / "config" / "camera_extrinsics.yaml"
+
+
+def moved(rng) -> dict:
+    """The layout with the dispenser set down a little elsewhere: +-3 deg, +-10 mm out, +-10 mm up."""
+    place = dict(DISPENSER["placement"])
+    place["azimuth"] += np.radians(rng.uniform(-3.0, 3.0))
+    place["station_r"] += rng.uniform(-0.01, 0.01)
+    place["station_z"] += rng.uniform(-0.01, 0.01)
+    return {**LAYOUT, "dispenser": {**DISPENSER, "placement": place}}
+
+
+def view(folder, variant, lighting=None):
+    """(sim, an image of the scene camera at 640x480, K): the arm at HANDOVER, the tokens settled."""
+    scene = sim_scene.generate(folder, camera=CAMERA, connect4=variant, lighting=lighting)
+    sim = SO101Sim(scene_path=scene, camera_width=640, camera_height=480)
+    sim.connect()
+    set_arm(sim, HANDOVER)
+    for _ in range(500):
+        mujoco.mj_step(sim.model, sim.data)
+    return sim, opencv_intrinsics(sim.get_camera_intrinsics())
+
+
+def image(sim):
+    renderer = mujoco.Renderer(sim.model, height=480, width=640)
+    renderer.update_scene(sim.data, camera=sim.camera_name)
+    rgb = renderer.render()
+    renderer.close()
+    return rgb
+
+
+@pytest.mark.parametrize("light", ["default", "dim"])
+def test_the_camera_places_each_station_within_2_mm_wherever_the_dispenser_stands(tmp_path, light):
+    """The pose from the dispenser's markers, with our calibration of the phase-1 camera: where it says a
+    station is against where the scene has it. The scene's placement only scores (C-06)."""
+    lighting = None if light == "default" else SCENE["lighting"]["dim"]
+    rng = np.random.default_rng(258)
+    T_base_cam = load_extrinsics(EXTRINSICS).T_base_cam
+    errors, reprojections = [], []
+    for k in range(PLACES):
+        variant = LAYOUT if k == 0 else moved(rng)
+        sim, K = view(tmp_path / f"scene_{k}", variant, lighting)
+        found = detect_markers(image(sim), LAYOUT["markers"]["dictionary"])
+        sim.disconnect()
+        pose = board.dispenser_in_camera(found, variant, K)
+        assert pose is not None, (k, sorted(found))  # from 3 markers or 4, as the reader takes it
+        T_measured, T_true = T_base_cam @ pose[0], layout.dispenser_pose(variant)
+        for rail in range(RAILS):
+            there = [*layout.station(variant, rail), 1.0]
+            errors.append(np.linalg.norm((T_measured @ there - T_true @ there)[:3]) * 1e3)
+        reprojections.append(pose[1])
+    print(
+        f"dispenser pose, {light} light, {PLACES} placements: station error max {max(errors):.2f} mm, "
+        f"mean {np.mean(errors):.2f} mm; reprojection max {max(reprojections):.2f} px"
+    )
+    assert max(errors) < 2.0, errors
+
+
+def test_the_camera_reads_which_stations_hold_a_token(tmp_path):
+    sim, K = view(tmp_path, LAYOUT)
+    found = detect_markers(image(sim), LAYOUT["markers"]["dictionary"])
+    T_cam_dispenser = board.dispenser_in_camera(found, LAYOUT, K)[0]
+    assert board.stations(image(sim), LAYOUT, T_cam_dispenser, K) == (True, True, True)
+    for place in range(PER_RAIL):  # the middle rail emptied
+        q = sim.model.joint(f"{token(1, place)}_free").qposadr[0]
+        sim.data.qpos[q : q + 3] = [-0.6, -0.4 - 0.04 * place, -LAYOUT["placement"]["riser"] + 0.01]
+    mujoco.mj_forward(sim.model, sim.data)
+    assert board.stations(image(sim), LAYOUT, T_cam_dispenser, K) == (True, False, True)
+    sim.disconnect()
+
+
+def test_the_grids_markers_are_still_the_four_the_reader_needs(tmp_path):
+    sim, K = view(tmp_path, LAYOUT)
+    found = detect_markers(image(sim), LAYOUT["markers"]["dictionary"])
+    sim.disconnect()
+    assert board.grid_in_camera(found, LAYOUT, K)[2] == LAYOUT["markers"]["ids"]

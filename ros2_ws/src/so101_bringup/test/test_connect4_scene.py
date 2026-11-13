@@ -123,17 +123,24 @@ def test_42_tokens_the_persons_21_wait_on_the_table_out_of_the_cameras_view(sim)
     assert sum(sim.model.body(i).name.startswith("token_") for i in range(sim.model.nbody)) == 42
 
 
-def test_the_phase_1_camera_sees_the_four_markers_where_the_layout_puts_them(sim):
+def test_the_phase_1_camera_sees_the_grids_and_the_dispensers_markers_where_the_layout_puts_them(sim):
     renderer = mujoco.Renderer(sim.model, height=480, width=640)
     renderer.update_scene(sim.data, camera=sim.camera_name)
     found = calibration.detect_markers(renderer.render(), LAYOUT["markers"]["dictionary"])
     renderer.close()
-    assert sorted(found) == sorted(LAYOUT["markers"]["ids"])
+    grid_ids, dispenser_ids = LAYOUT["markers"]["ids"], LAYOUT["dispenser"]["markers"]["ids"]
+    assert sorted(found) == sorted([*grid_ids, *dispenser_ids])  # the arm at HANDOVER hides none
     T = sim.get_camera_extrinsics()  # test only: the camera's pose, to check the layout's convention
     R, t = T[:3, :3] @ FLIP, T[:3, 3]
     K = opencv_intrinsics(sim.get_camera_intrinsics())
+    T_dispenser = layout.dispenser_pose(LAYOUT)
     for i, detected in found.items():
-        corners = np.array([in_base(c) for c in layout.marker_corners(LAYOUT, i)])
+        if i in grid_ids:
+            corners = np.array([in_base(c) for c in layout.marker_corners(LAYOUT, i)])
+        else:
+            corners = np.array(
+                [(T_dispenser @ [*c, 1.0])[:3] for c in layout.dispenser_marker_corners(LAYOUT, i)]
+            )
         camera = (corners - t) @ R
         uv = (camera @ K.T)[:, :2] / camera[:, 2:]
         # 8 px as the calibration markers (MES-54); a wrong order or a wrong face: a side, 30 px or more

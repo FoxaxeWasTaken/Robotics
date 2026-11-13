@@ -49,6 +49,9 @@ def reader():
     node._pub_pose.publish = node.poses.append
     node._pub_debug.publish = node.debug.append
     node._tf.sendTransform = node.transforms.append
+    node.dispenser_poses, node.stations = [], []
+    node._pub_dispenser.publish = node.dispenser_poses.append
+    node._pub_stations.publish = node.stations.append
     info = CameraInfo(width=640, height=480)
     info.k = K.ravel().tolist()
     node._cb_camera_info(info)
@@ -94,7 +97,7 @@ def test_the_grid_pose_is_the_layouts_within_5_mm_in_base_link_with_its_tf(reade
     position = pose.pose.position
     nominal = layout.grid_pose(LAYOUT)
     assert np.linalg.norm([position.x, position.y, position.z] - nominal[:3, 3]) < 0.005
-    (tf,) = reader.transforms
+    (tf,) = [tf for tf in reader.transforms if tf.child_frame_id == GRID_FRAME]  # the dispenser's too
     assert (tf.header.frame_id, tf.child_frame_id) == ("base_link", GRID_FRAME)
     assert tf.transform.translation.x == position.x
     # x of the grid frame along the columns, at the layout's azimuth
@@ -222,3 +225,54 @@ def test_the_readers_qos_is_the_contracts(reader):
     assert qos(reader.get_publishers_info_by_topic("/connect4/board")) == (reliable, volatile)
     assert qos(reader.get_publishers_info_by_topic("/connect4/grid_pose")) == (reliable, latched)
     assert qos(reader.get_publishers_info_by_topic("/connect4/debug_image")) == (reliable, volatile)
+
+
+# The token dispenser (#258): its pose and its stations, read in the same images as the grid.
+
+DISPENSER_IDS = LAYOUT["dispenser"]["markers"]["ids"]
+
+
+def test_the_dispensers_pose_is_the_layouts_within_2_mm_in_base_link_with_its_tf(reader):
+    show(reader, picture("empty"), 1000)
+    (pose,) = reader.dispenser_poses
+    assert pose.header.frame_id == "base_link"
+    assert stamp_ms(pose) == 1000
+    p, o = pose.pose.position, pose.pose.orientation
+    T = board.transform((p.x, p.y, p.z), (o.x, o.y, o.z, o.w))
+    for rail in range(LAYOUT["dispenser"]["rails"]):
+        there = [*layout.station(LAYOUT, rail), 1.0]
+        assert np.linalg.norm((T @ there - layout.dispenser_pose(LAYOUT) @ there)[:3]) < 0.002, rail
+    frames = {tf.child_frame_id: tf.header.frame_id for tf in reader.transforms}
+    assert frames == {GRID_FRAME: "base_link", "connect4_dispenser": "base_link"}
+
+
+def test_the_stations_come_at_the_fifth_agreeing_image(reader):
+    rgb = picture("midgame")
+    for i in range(4):
+        show(reader, rgb, 1000 + 100 * i)
+    assert reader.stations == []
+    show(reader, rgb, 1400)
+    (msg,) = reader.stations
+    assert list(msg.data) == [int(there) for there in REFERENCE["stations"]["midgame"]]
+    assert list(msg.data) == [0, 1, 1]  # the lowest rail gave its tokens first
+
+
+def test_with_its_markers_hidden_the_dispenser_is_not_placed_and_the_grid_still_is(reader):
+    rgb = without_markers(picture("midgame"), DISPENSER_IDS[:2])
+    for i in range(5):
+        show(reader, rgb, 1000 + 100 * i)
+    assert reader.dispenser_poses == []
+    assert reader.stations == []
+    assert len(reader.poses) == 5
+    assert len(reader.boards) == 1
+
+
+def test_the_debug_image_rings_each_station_green_when_a_token_waits_there(reader):
+    show(reader, picture("midgame"), 1000)
+    seen = BRIDGE.imgmsg_to_cv2(reader.debug[-1], desired_encoding="rgb8").astype(int)
+    found = detect_markers(picture("midgame"), LAYOUT["markers"]["dictionary"])
+    T_cam_dispenser = board.dispenser_in_camera(found, LAYOUT, K)[0]
+    pixels, radius = board.station_pixels(LAYOUT, T_cam_dispenser, K)
+    for (u, v), there in zip(pixels, REFERENCE["stations"]["midgame"], strict=True):
+        r, g, b = seen[round(v) - round(radius), round(u)]  # on the ring
+        assert (g > 200 and r < 80 and b < 80) == there, (u, v, there)

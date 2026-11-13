@@ -140,3 +140,41 @@ def test_a_token_stands_in_the_slot_with_the_play_of_the_grids_slots():
         dispenser["station_wall_height"] <= 0.009
     )  # the open jaws go 5 mm under the token's centre [MES-75]
     assert dispenser["stop_width"] < LAYOUT["token"]["thickness"]  # a fin between the jaws
+
+
+# The dispenser's markers (#258): flat, facing up, on one side of the rails, under the jaws' reach.
+
+
+def test_the_dispenser_has_four_markers_of_its_own_on_its_foot_before_the_lowest_station():
+    """One level: a shelf beside a higher station would hide the stations below it from the camera."""
+    markers = LAYOUT["dispenser"]["markers"]
+    centres = layout.dispenser_marker_centers(LAYOUT)
+    assert list(centres) == markers["ids"]
+    assert len(markers["ids"]) == 4
+    assert not set(markers["ids"]) & set(LAYOUT["markers"]["ids"])  # the grid's are 10 to 13
+    for centre in centres.values():
+        assert np.isclose(centre[2], -markers["below"])  # under the lowest station's token centre
+        assert centre[0] < 0.0  # on the arm's side of that station: the camera sees them past the rails
+
+
+def test_the_dispensers_markers_lie_beside_the_rails_clear_of_them_and_of_each_other():
+    dispenser, markers = LAYOUT["dispenser"], LAYOUT["dispenser"]["markers"]
+    centres = list(layout.dispenser_marker_centers(LAYOUT).values())
+    rail_half = dispenser["slot_gap"] / 2 + dispenser["wall"]
+    for centre in centres:
+        assert centre[1] + markers["plate"] / 2 < -rail_half  # all on the -y side, off the rails
+    assert markers["below"] >= 0.015  # the open jaws go 5 mm under a token's centre [MES-75]
+    for i, a in enumerate(centres):
+        for b in centres[i + 1 :]:
+            assert max(np.abs(a - b)[:2]) >= markers["plate"], (a, b)
+
+
+def test_a_dispenser_markers_corners_are_in_arucos_order_seen_from_above():
+    markers = LAYOUT["dispenser"]["markers"]
+    for i, centre in layout.dispenser_marker_centers(LAYOUT).items():
+        corners = layout.dispenser_marker_corners(LAYOUT, i)
+        assert corners.shape == (4, 3)
+        assert np.allclose(corners.mean(axis=0), centre)
+        assert np.allclose(corners[1] - corners[0], [markers["size"], 0.0, 0.0])  # top left to top right: +x
+        assert np.allclose(corners[3] - corners[0], [0.0, -markers["size"], 0.0])  # top left to bottom left
+        assert np.allclose(corners[:, 2], centre[2])  # flat

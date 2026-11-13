@@ -83,6 +83,23 @@ def waiting(layout, rail, place) -> np.ndarray:
     return station(layout, rail) + place * layout["token"]["diameter"] * rail_axes(layout)[0]
 
 
+def dispenser_marker_centers(layout) -> dict:
+    """{id: centre in the dispenser frame} of its 4 markers: flat and facing up at the corners of the
+    dispenser's foot, before the lowest station, on the -y side of the rails."""
+    markers = layout["dispenser"]["markers"]
+    x0, y0, (span_x, span_y) = -markers["plate"] - 0.006, -markers["aside"], markers["span"]
+    places = [(x0 - x, y0 - y) for x in (0.0, span_x) for y in (0.0, span_y)]
+    return {i: np.array([x, y, -markers["below"]]) for i, (x, y) in zip(markers["ids"], places, strict=True)}
+
+
+def dispenser_marker_corners(layout, i) -> np.ndarray:
+    """A dispenser marker's 4 corners in the dispenser frame, in the order cv2.aruco detects them: seen from
+    above, the marker image's right is +x and its up is +y."""
+    half = layout["dispenser"]["markers"]["size"] / 2
+    corners = [[-half, half, 0.0], [half, half, 0.0], [half, -half, 0.0], [-half, -half, 0.0]]
+    return dispenser_marker_centers(layout)[i] + np.array(corners)
+
+
 def cell(layout, column, row) -> np.ndarray:
     """Centre of a cell in the grid frame; row `rows` is the slot entry's level, half a row too high."""
     return np.array([column * layout["grid"]["column_pitch"], 0.0, row * layout["grid"]["row_pitch"]])

@@ -94,6 +94,8 @@ flowchart LR
 - **Validation**: `board.py` checks gravity and counts, an invalid board carries its reason. What the turn expects is in `turns.py` (§5).
 - **Why not `perception_node`**: it would take tokens for the cube, and `fsm.py`'s `VERIFY` would retry. In game mode `board_reader_node` runs in its place (§6.1).
 - **Markers**: 3 of the 4 are enough for the pose (a hand may hide one); with fewer, the board is published invalid, `markers:<n>`, and no pose.
+- **The token dispenser, in the same images** (#258, ADR-041): its own 4 markers (ids 14 to 17, 30 mm), flat and facing up at the corners of its foot, before the lowest station on the camera's side of the rails. `board.dispenser_in_camera` gives its pose from 3 of them or 4, published as `/connect4/dispenser_pose` with the TF `connect4_dispenser`; a station is that pose plus the part's own dimensions (`layout.station`). Over 20 placements of the dispenser (±3°, ±10 mm), the stations are within **1.4 mm** of the scene's, under the default light and the dim one. The markers are spread 90 × 165 mm: in a 45 mm block the stations were 7 mm off; and they stay on the foot: a shelf beside a higher station hides the stations below it from the camera [MES-76].
+- **Which station holds a token**: `board.stations` reads a disc on the face of each station's token, in the robot's color; a queue slides down to its station, so an empty station is an empty rail. Published as `/connect4/stations` on 5 identical reads, as the board; the debug image rings each station, green where a token waits.
 - **On the game's scene, through `board.py`**: 2100 cells of 2100 on 50 random states, the arm at `HANDOVER` holding a token; the grid's pose within 0.1 mm along, 0.3 mm across and 0.7 mm in height of the scene's [MES-68].
 - **Costs**: a read takes 21 ms; the perception image needs no change [MES-65].
 
@@ -184,7 +186,7 @@ New package `so101_connect4` (ament_python):
 | `client.py` | console, bench, board reader | `/connect4/state` and the services, no rule. A turn is one call: the robot's token given, the person's dropped, `human_done`. A new game is asked first and the grid cleared after: the node takes a board not empty yet as "not yet" (§5). `set_depth` is the level: it sets the game node's `engine.max_depth`. `last_move` says a state's `last` in words, "robot: column 4 (depth 10, it wins in 2 moves)": `wins_in` and `loses_in` are plies, said as moves of the winner. The console and the debug image share it |
 | `play.py` | control container | The console, `tools/so101 play`: draws the state at each change, with the level, the last move and the robot's reason, the winning four as `*` (`game.four`). Keys 1 to 7, `n`, `r`, `s`, `q`; `e`, `m`, `h` the level; `?` a hint, the engine at depth 8 for the person, run in the console's process and never in the node (34 ms [MES-66]). A column key or a hint outside the person's turn, or a full column, changes nothing; on the robot's turn (it starts, `no_token`, `token_lost`) it gives the token by itself |
 | `so101_bringup/sim_hand.py`, `connect4_play` | control container | The simulated person's hand over `/sim/connect4/*`, given to the client; the console's entry point. Outside `so101_connect4`, which names no sim service (guard) |
-| `board_reader_node` | perception container | Camera → `/connect4/board`, `/connect4/grid_pose` and the TF `base_link` → `connect4_grid`, debug image; `board_reader.launch.py`, `config/board_reader.yaml` |
+| `board_reader_node` | perception container | Camera → `/connect4/board`, `/connect4/grid_pose` and the TF `base_link` → `connect4_grid`, `/connect4/dispenser_pose` and its TF, `/connect4/stations`, debug image; `board_reader.launch.py`, `config/board_reader.yaml` |
 | `game_node` | control container | Around `turns.py`; calls `/brain/drop` and `/brain/handover`; `game.launch.py`, `config/game.yaml` (the delays of §5, the engine's `max_depth`, `budget_s` and `seed`) |
 | `config/connect4_grid.yaml` | both containers | The layout (§7): here because the perception container does not build `so101_bringup` |
 
@@ -196,6 +198,8 @@ Next to it: `so101_brain/drop.py`, pure (§2), and `so101_driver/connect4_sim.py
 | --- | --- | --- | --- |
 | `/connect4/board` (topic) | `so101_interfaces/msg/Connect4Board` (new) | board_reader → game_node | `header`, stamp = first image of the stable streak; `int8[42] cells` (row-major from the bottom row, 0 empty, 1 human, 2 robot), `bool valid`, `string reason` (`markers:<n>`, `out_of_view`, `gravity:<column>`, `counts:<human>-<robot>`); stable reads only; Reliable, depth 1 |
 | `/connect4/grid_pose` (topic) | `geometry_msgs/PoseStamped` | board_reader → game_node, RViz | Grid frame in `base_link`: origin at the center of cell (column 0, row 0) in the mid-plane, x outward along the columns (column 0 nearest the arm), z up, y = z × x; at each image whose markers give a pose, with the TF `base_link` → `connect4_grid`; Reliable, transient_local, depth 1 |
+| `/connect4/dispenser_pose` (topic) | `geometry_msgs/PoseStamped` | board_reader → game_node, RViz | The dispenser's frame in `base_link`: origin at the centre of the token waiting at the lowest station, x outwards, z up (§1, §7); latched, with the TF `connect4_dispenser` |
+| `/connect4/stations` (topic) | `std_msgs/UInt8MultiArray` | board_reader → game_node | For each rail from the lowest, 1 when a token of the robot's color waits at its station; on 5 identical reads |
 | `/connect4/debug_image` (topic) | `sensor_msgs/Image` | board_reader → RViz | Each cell's disc, filled in its color when read as a token; the cells of the winning four circled (`game.four` on the cells read); a status line: the read's validity or its reason, the game's state from `/connect4/state`; a second line: the last move and the robot's reason (`client.last_move`). Display only: nothing of it reaches `turns.py`. Reliable, depth 1: best effort loses 9 images in 10 at 640×480 [MES-67] |
 | `/connect4/state` (topic) | `std_msgs/String`, JSON | game_node → console, bench, debug image | `ready`, `max_depth` (the level), `state`, `reason`, `turn`, `board`, `legal`, `last` (`who`, `column`, `planned`; the robot's: `score`, `depth`, and `wins_in` or `loses_in` when proven), `result`, `moves`, `lost`, `missed`, `first`, `history` (the columns in the order the tokens were seen; with `first`, the board can be rebuilt and a game replayed), `seconds` (of this game, by state: `move`, `read`, `wait`, `think`, each added when the state is left); at each change; Reliable, transient_local, depth 1 |
 | `/connect4/new_game` (service) | `std_srvs/SetBool` | game_node | `data: true`, the robot plays first. Refused in `MOVE`, `THINK` and `READ_BOARD`, and while `ready` is false |
@@ -232,9 +236,13 @@ Both phases live on `main`, with no long-lived branch: phase 1 stays what the st
 
 **Scene**: `so101_bringup/sim_scene.py` generates it with `mujoco.MjSpec` from a copy of the provided scene, the same generator as the phase-1 camera and markers; the driver loads it through `scene_path`. `sim/` is never touched.
 
-<img src="../media/connect4_scene.png" width="480" alt="The Connect Four grid with tokens in its windows and a marker at each corner, the arm on its riser beside it, seen by the scene camera">
+<img src="../media/connect4_scene.png" width="480" alt="The game's scene: the Connect Four grid with tokens in its windows and a marker at each corner, the arm on its riser, the token dispenser with its three stacked rails of yellow tokens and its foot plate with four markers">
 
-The game's scene as the phase-1 camera sees it at 640×480, a game under way, the arm at `HANDOVER`.
+The game's scene, a game under way, the arm at `HANDOVER` (`experiences/connect4/dispenser/render_overview.py`).
+
+<img src="../media/connect4_camera.png" width="480" alt="The same scene as the phase-1 camera sees it: the grid and its four markers, the arm, the dispenser's four markers on its foot and, at the image's edge, its stations with the tokens that wait there">
+
+The same scene as the phase-1 camera sees it at 640×480: the grid, and of the dispenser its markers and its stations, which is what the reader needs (a reference image of `so101_connect4/test/data`).
 
 <img src="../media/connect4_four.png" width="480" alt="The debug image at the end of a game: each cell of the grid as a disc, red and yellow where a token is read, four yellow tokens in the bottom row circled in green; at the top, the lines board VALID, game GAME_OVER and robot: column 6 (depth 1, it wins)">
 
