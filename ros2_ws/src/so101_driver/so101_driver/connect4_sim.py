@@ -18,6 +18,9 @@ MIN_OPEN_PCT = 30.0  # give_token needs the jaws that open
 OFF_FIXED_JAW = 0.0005  # m between the given token's face and the fixed jaw
 GIVE_ALONG, GIVE_DEPTH = 0.003, 0.005  # m: how far a hand misses the TCP, along the grid and in depth
 PARKED = 0.01  # m: a token that close to its start pose is a spare one
+OFF_RAIL = 0.005  # m: a robot's token further than that from its rail's line has left the dispenser
+AT_STATION = 0.001  # m: a queue whose first token is further from its station is on its way down
+WAKE_FORCE = 1e-6  # N, downwards, for one tick: it wakes a sleeping token, it moves nothing [MES-75]
 AT_REST = 0.05  # m/s: slower, a token in a cell is on the board
 IN_CELL = 0.25  # of a pitch, around a cell's centre
 DISC_IN_SLOT = np.array([[1.0, 0, 0], [0, 0, 1], [0, -1, 0]])  # a token's axes in the grid frame: its z on y
@@ -33,6 +36,7 @@ class Connect4Sim:
         self._pitch, self._row_pitch = grid["column_pitch"], grid["row_pitch"]
         self._slot = grid["slot_gap"] / 2 + grid["plate"]  # half the grid's thickness
         self._on_jaw = layout["token"]["thickness"] / 2 + OFF_FIXED_JAW
+        self._diameter = layout["token"]["diameter"]
         model = sim.model
         self._grid = model.body("grid").id
         robot = layout["token"]["robot_color"]  # red or yellow, the person plays the other (#255)
@@ -46,6 +50,12 @@ class Connect4Sim:
             names.sort(key=lambda name: int(name.rsplit("_", 1)[1]))
         self._jaws = [self._contact_geoms("gripper"), self._contact_geoms("moving_jaw_so101_v1")]
         self.floating = None  # the token given and not yet pinched: its gravity is cancelled
+        # The token dispenser (ADR-041), when the scene has one: the robot's tokens start in its rails
+        self._dispenser = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "dispenser")
+        if self._dispenser >= 0:
+            slope, self._per_rail = layout["dispenser"]["slope"], layout["dispenser"]["tokens_per_rail"]
+            self._up_rail = np.array([np.cos(slope), 0.0, np.sin(slope)])  # in the dispenser's frame
+        self._nudged = []  # the tokens the last tick woke
 
     def _contact_geoms(self, body) -> set:
         model = self._sim.model
@@ -65,8 +75,33 @@ class Connect4Sim:
         data.qvel[v : v + 6] = 0
         data.qfrc_applied[v : v + 6] = 0
 
+    def _in_rail(self, name):
+        """How far down its rail a robot's token is from where it started (m, 0 or more), or None when it
+        left the rail."""
+        model, data = self._sim.model, self._sim.data
+        q, _ = self._addresses(name)
+        up = data.xmat[self._dispenser].reshape(3, 3) @ self._up_rail
+        moved = data.qpos[q : q + 3] - model.qpos0[q : q + 3]
+        down = -(moved @ up)
+        aside = np.linalg.norm(moved + down * up)
+        in_rail = name != self.floating and aside < OFF_RAIL and down > -OFF_RAIL
+        return down if in_rail else None
+
+    def _rails(self) -> list:
+        """For each rail, its tokens still in it, the nearest to the station first: (name, how far down)."""
+        names = self._tokens[self._color[ROBOT]]
+        rails = []
+        for first in range(0, len(names), self._per_rail):
+            queue = [(name, self._in_rail(name)) for name in names[first : first + self._per_rail]]
+            rails.append([(name, down) for name, down in queue if down is not None])
+        return rails
+
     def _spare(self, color):
-        """The first token of that color still parked, or None."""
+        """A token of that color nobody plays: the first still parked; from a dispenser, the top one of the
+        fullest queue, so that the stations stay served. None when there is none."""
+        if self._dispenser >= 0 and color == self._color[ROBOT]:
+            queue = max(self._rails(), key=len)
+            return queue[-1][0] if queue else None
         model, data = self._sim.model, self._sim.data
         for name in self._tokens[color]:
             q, _ = self._addresses(name)
@@ -144,8 +179,34 @@ class Connect4Sim:
         mujoco.mj_forward(model, data)
         return True, f"{name} between the jaws"
 
+    def tick(self):
+        """Each control tick of the driver."""
+        self.release_if_pinched()
+        if self._dispenser >= 0:
+            self._wake_queues()
+
+    def _wake_queues(self):
+        """A queue whose front token left must slide down. While the arm lifts that token, the one behind
+        follows its rim slower than MuJoCo's sleep tolerance: it falls asleep 3 mm further, and nothing wakes
+        it [MES-75]. A force of 1 uN does, applied only while a station is empty: a full dispenser sleeps."""
+        data = self._sim.data
+        for name in self._nudged:
+            data.qfrc_applied[self._addresses(name)[1] + 2] = 0
+        self._nudged = []
+        for index, queue in enumerate(self._rails()):
+            if not queue:
+                continue
+            start = index * self._per_rail  # the rail's first token started at its station
+            at_station = min(
+                abs(down - (int(name.rsplit("_", 1)[1]) - start) * self._diameter) for name, down in queue
+            )
+            if at_station > AT_STATION:
+                for name, _ in queue:
+                    data.qfrc_applied[self._addresses(name)[1] + 2] = -WAKE_FORCE
+                    self._nudged.append(name)
+
     def release_if_pinched(self):
-        """Each control tick: once both jaws touch the floating token, its weight is its own again."""
+        """Once both jaws touch the floating token, its weight is its own again."""
         if self.floating is None:
             return
         model, data = self._sim.model, self._sim.data

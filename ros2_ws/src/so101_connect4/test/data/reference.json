@@ -221,6 +221,33 @@
    1
   ]
  },
+ "stations": {
+  "empty": [
+   true,
+   true,
+   true
+  ],
+  "first_move": [
+   true,
+   true,
+   true
+  ],
+  "midgame": [
+   false,
+   true,
+   true
+  ],
+  "late": [
+   false,
+   false,
+   true
+  ],
+  "full": [
+   false,
+   false,
+   false
+  ]
+ },
  "K": [
   [
    492.0729,

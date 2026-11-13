@@ -1,5 +1,6 @@
 """Reference images of the game's scene for so101_connect4/test/test_board.py (#81): the phase-1 camera at
-640x480, the arm at HANDOVER, tokens settled in their cells; reference.json holds each image's true cells and K.
+640x480, the arm at HANDOVER, tokens settled in their cells; reference.json holds each image's true cells, K,
+and which stations of the token dispenser hold a token (#258: the robot's tokens leave its rails in order).
 so101_connect4 cannot import the sim (C-05), so the images are rendered here and committed.
 
     tools/so101 run --out ros2_ws/src/so101_connect4/test/data \
@@ -23,9 +24,14 @@ from so101_driver.camera import opencv_intrinsics
 from so101_driver.connect4_sim import Connect4Sim
 
 OUT = Path("/out")
-HANDOVER = [-1.0, -0.6, 0.6, 1.1, 1.57]
 LAYOUT = layout.load()
 T_GRID = layout.grid_pose(LAYOUT)
+T_DISPENSER = layout.dispenser_pose(LAYOUT)
+ROBOT = layout.colors(LAYOUT)[2]
+BRINGUP = Path(get_package_share_directory("so101_bringup")) / "config"
+HANDOVER = yaml.safe_load((BRINGUP / "brain.yaml").read_text())["so101_brain"]["ros__parameters"]["connect4"][
+    "handover_pose"
+]
 DISC_IN_SLOT = np.array([[1.0, 0, 0], [0, 0, 1], [0, -1, 0]])
 
 
@@ -61,24 +67,31 @@ def render(name, cells, camera):
             sim.data.qpos[q : q + 3] = (T_GRID @ [*layout.cell(LAYOUT, i % 7, i // 7), 1.0])[:3]
             sim.data.qpos[q + 3 : q + 7] = quat
     mujoco.mj_forward(sim.model, sim.data)
-    for _ in range(500):  # 1 s: the tokens settle on each other and against a plate
+    person = Connect4Sim(sim, LAYOUT, None)
+    for step in range(1000):  # 2 s: the tokens settle in the grid, the dispenser's queues come down
         mujoco.mj_step(sim.model, sim.data)
-    assert Connect4Sim(sim, LAYOUT, None).board() == cells, name
+        if step % 10 == 9:
+            person.tick()
+    assert person.board() == cells, name
+    stations = []
+    for rail in range(LAYOUT["dispenser"]["rails"]):  # the truth: a robot's token within 2 mm of the station
+        there = (T_DISPENSER @ [*layout.station(LAYOUT, rail), 1.0])[:3]
+        near = [np.linalg.norm(sim.data.body(f"token_{ROBOT}_{i}").xpos - there) for i in range(21)]
+        stations.append(bool(min(near) < 0.002))
     renderer = mujoco.Renderer(sim.model, height=480, width=640)
     renderer.update_scene(sim.data, camera=sim.camera_name)
     cv2.imwrite(str(OUT / f"{name}.png"), cv2.cvtColor(renderer.render(), cv2.COLOR_RGB2BGR))
     K = opencv_intrinsics(sim.get_camera_intrinsics())
     renderer.close()
     sim.disconnect()
-    return K
+    return K, stations
 
 
 if __name__ == "__main__":
-    config = Path(get_package_share_directory("so101_bringup")) / "config" / "sim_scene.yaml"
-    camera = yaml.safe_load(config.read_text())["camera"]
-    reference = {"boards": boards(np.random.default_rng(81))}
+    camera = yaml.safe_load((BRINGUP / "sim_scene.yaml").read_text())["camera"]
+    reference = {"boards": boards(np.random.default_rng(81)), "stations": {}}
     for name, cells in reference["boards"].items():
-        K = render(name, cells, camera)
+        K, reference["stations"][name] = render(name, cells, camera)
     reference["K"] = np.asarray(K).round(4).tolist()
     (OUT / "reference.json").write_text(json.dumps(reference, indent=1) + "\n")
     print("rendered", sorted(reference["boards"]))

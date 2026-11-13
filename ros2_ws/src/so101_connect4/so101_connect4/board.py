@@ -24,16 +24,29 @@ YELLOW = (((18, 120, 30), (40, 255, 255)),)
 FILL = {"red": (255, 0, 0), "yellow": (255, 255, 0)}  # rgb, a cell read as a token in the debug image
 THRESHOLD = 0.35  # of the disc in the color's range: a token [MES-65]
 DISC = 0.3  # the disc's radius, of the column pitch: inside a window, whatever the token's place in its cell
-MIN_MARKERS = 3  # of the grid's 4: one may hide behind a hand
+MIN_MARKERS = 3  # of the grid's 4, or of the dispenser's: one may hide behind a hand
+STATION_DISC = 0.2  # of a token's diameter: the radius of the disc read on the face of a station's token
 
 
 def grid_in_camera(found, layout, K, dist=None):
     """(T_cam_grid, mean reprojection error in px, the marker ids used) from detected marker corners
     ({id: 4 corners in px}, cv2.aruco's order); None with fewer than MIN_MARKERS of the grid's markers."""
     ids = [i for i in layout["markers"]["ids"] if i in found]
-    if len(ids) < MIN_MARKERS:
+    return _pose(found, [(i, geometry.marker_corners(layout, i)) for i in ids], K, dist)
+
+
+def dispenser_in_camera(found, layout, K, dist=None):
+    """The same for the token dispenser, from its own markers (ADR-041): (T_cam_dispenser, error, ids)."""
+    ids = [i for i in layout["dispenser"]["markers"]["ids"] if i in found]
+    return _pose(found, [(i, geometry.dispenser_marker_corners(layout, i)) for i in ids], K, dist)
+
+
+def _pose(found, markers, K, dist):
+    """The pose of the frame the markers' corners are given in: `markers` is [(id, its 4 corners)]."""
+    if len(markers) < MIN_MARKERS:
         return None
-    points = np.vstack([geometry.marker_corners(layout, i) for i in ids])
+    ids = [i for i, _ in markers]
+    points = np.vstack([corners for _, corners in markers])
     pixels = np.vstack([found[i] for i in ids]).astype(float)
     _, rvec, tvec = cv2.solvePnP(points, pixels, K, dist, flags=cv2.SOLVEPNP_SQPNP)
     rvec, tvec = cv2.solvePnPRefineLM(points, pixels, K, dist, rvec, tvec)
@@ -41,6 +54,56 @@ def grid_in_camera(found, layout, K, dist=None):
     T[:3, :3], T[:3, 3] = cv2.Rodrigues(rvec)[0], tvec.ravel()
     projected = cv2.projectPoints(points, rvec, tvec, K, dist)[0][:, 0]
     return T, float(np.linalg.norm(projected - pixels, axis=1).mean()), ids
+
+
+def _station_faces(layout, T_cam_dispenser) -> list:
+    """For each rail, the centre of the face of its station's token, the one towards the camera, in the
+    dispenser frame."""
+    side = np.sign(np.linalg.inv(T_cam_dispenser)[1, 3]) or 1.0  # the camera's side of the tokens' plane
+    aside = [0.0, side * layout["token"]["thickness"] / 2, 0.0]
+    return [geometry.station(layout, rail) + aside for rail in range(layout["dispenser"]["rails"])]
+
+
+def station_pixels(layout, T_cam_dispenser, K):
+    """(each station's token face centre in px; the radius in px of the ring the debug image draws there)."""
+    camera = (
+        np.array(_station_faces(layout, T_cam_dispenser)) @ T_cam_dispenser[:3, :3].T + T_cam_dispenser[:3, 3]
+    )
+    pixels = camera @ K.T
+    radius = 0.35 * layout["token"]["diameter"] * K[0, 0] / camera[:, 2].mean()
+    return pixels[:, :2] / pixels[:, 2:], float(radius)
+
+
+def stations(rgb, layout, T_cam_dispenser, K, red=RED, yellow=YELLOW, threshold=THRESHOLD):
+    """For each rail of the dispenser, whether a token of the robot's color waits at its station: enough of
+    a disc on the token's face, the one towards the camera, lies in that color's range. A queue slides down
+    to its station, so an empty station is an empty rail. None when a station lies outside the image."""
+    rho, turn = STATION_DISC * layout["token"]["diameter"], np.linspace(0, 2 * np.pi, 12, endpoint=False)
+    disc = [(0.0, 0.0), *((r * np.cos(a), r * np.sin(a)) for r in (rho / 2, rho) for a in turn)]
+    offsets = np.array([[x, 0.0, z] for x, z in disc])  # on the face: the tokens stand in the x-z plane
+    height, width = rgb.shape[:2]
+    ranges = {"red": red, "yellow": yellow}[geometry.colors(layout)[ROBOT]]
+    mask = _in_ranges(cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV), ranges)
+    waiting = []
+    for face in _station_faces(layout, T_cam_dispenser):
+        points = face + offsets
+        camera = points @ T_cam_dispenser[:3, :3].T + T_cam_dispenser[:3, 3]
+        pixels = np.round((camera @ K.T)[:, :2] / camera[:, 2:]).astype(int)
+        inside = (pixels >= 0) & (pixels < [width, height]) & (camera[:, 2:] > 0)
+        if not inside.all():
+            return None
+        waiting.append(bool(mask[pixels[:, 1], pixels[:, 0]].mean() >= threshold))
+    return tuple(waiting)
+
+
+def draw_stations(rgb, layout, T_cam_dispenser, K, waiting):
+    """A copy of the image with a ring at each station of the dispenser: green where a token waits."""
+    out = rgb.copy()
+    pixels, radius = station_pixels(layout, T_cam_dispenser, K)
+    for (u, v), there in zip(pixels, waiting or [False] * len(pixels), strict=True):
+        color = (0, 255, 0) if there else (160, 160, 160)
+        cv2.circle(out, (round(u), round(v)), round(radius), color, 2, cv2.LINE_AA)
+    return out
 
 
 def cell_pixels(layout, T_cam_grid, K):

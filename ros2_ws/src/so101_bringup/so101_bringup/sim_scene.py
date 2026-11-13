@@ -128,12 +128,16 @@ def _add_connect4(spec, folder, layout):
         "condim": 3,
     }
     _add_grid(spec, folder, layout, solid)
+    _add_dispenser(spec, folder, layout, table_z, solid)
+    robot = connect4_layout.colors(layout)[2]
     for color, rgba in (("red", RED), ("yellow", YELLOW)):
         for i in range(grid["columns"] * grid["rows"] // 2):
             name = f"token_{color}_{i}"
-            body = spec.worldbody.add_body(
-                name=name, pos=token_parking(color, i, table_z, token["thickness"])
-            )
+            if color == robot:  # the robot's wait in the dispenser's rails, the person's lie on the table
+                pos, quat = _waiting_pose(layout, i)
+            else:
+                pos, quat = token_parking(color, i, table_z, token["thickness"]), [1, 0, 0, 0]
+            body = spec.worldbody.add_body(name=name, pos=pos, quat=quat)
             body.add_joint(name=f"{name}_free", type=mujoco.mjtJoint.mjJNT_FREE).damping = [
                 contact["damping"],
                 0,
@@ -148,6 +152,82 @@ def _add_connect4(spec, folder, layout):
                 solmix=contact["solmix"],
                 **solid,
             )
+
+
+def _waiting_pose(layout, i) -> tuple:
+    """(position, quaternion) in base_link of the robot's token `i` in the dispenser: on edge, its disc in the
+    rails' plane, at layout.waiting."""
+    per_rail = layout["dispenser"]["tokens_per_rail"]
+    T = connect4_layout.dispenser_pose(layout)
+    quat = np.zeros(4)
+    mujoco.mju_mat2Quat(quat, (T[:3, :3] @ [[1.0, 0, 0], [0, 0, 1], [0, -1, 0]]).ravel())  # the disc's z on y
+    return (T @ [*connect4_layout.waiting(layout, i // per_rail, i % per_rail), 1.0])[:3], quat
+
+
+def _add_dispenser(spec, folder, layout, table_z, solid):
+    """The token dispenser, in its frame (so101_connect4.layout, ADR-041): for each rail a floor, two side
+    walls, low at the pick station and high behind it, and a stop, a fin in the tokens' plane."""
+    dispenser, token = layout["dispenser"], layout["token"]
+    radius, diameter = token["diameter"] / 2, token["diameter"]
+    T = connect4_layout.dispenser_pose(layout)
+    quat = np.zeros(4)
+    mujoco.mju_mat2Quat(quat, T[:3, :3].ravel())
+    body = spec.worldbody.add_body(name="dispenser", pos=T[:3, 3], quat=quat)
+    along, across = connect4_layout.rail_axes(layout)
+    tilt = np.zeros(4)  # a rail's boxes: x up the rail, y across the slot, z off its floor
+    mujoco.mju_mat2Quat(tilt, np.column_stack([along, [0.0, 1.0, 0.0], across]).ravel())
+    gap, wall, stop = dispenser["slot_gap"], dispenser["wall"], 0.003
+    start = -radius - stop  # the stop's back, along the rail from the station
+    cut = radius + 0.003  # where the low walls of the station end
+    end = (dispenser["tokens_per_rail"] - 1) * diameter + radius + 0.004
+    part = {"type": BOX, "rgba": [0.85, 0.85, 0.9, 1], "quat": tilt, **solid}
+
+    def box(name, rail, x, y, z, half_y):
+        """A box from x[0] to x[1] up the rail and from z[0] to z[1] off the token's centre, at y across."""
+        centre = connect4_layout.station(layout, rail) + sum(x) / 2 * along + sum(z) / 2 * across
+        centre[1] = y
+        size = [(x[1] - x[0]) / 2, half_y, (z[1] - z[0]) / 2]
+        body.add_geom(name=f"dispenser_{name}_{rail}", pos=centre, size=size, **part)
+
+    floor = -radius - dispenser["floor"]
+    low, high = -radius + dispenser["station_wall_height"], -radius + dispenser["rail_wall_height"]
+    for rail in range(dispenser["rails"]):
+        box("floor", rail, (start, end), 0, (floor, -radius), gap / 2 + wall)
+        box("stop", rail, (start, -radius), 0, (-radius, radius), dispenser["stop_width"] / 2)
+        for side, name in ((1, "left"), (-1, "right")):
+            y = side * (gap + wall) / 2
+            box(f"station_{name}", rail, (start, cut), y, (-radius, low), wall / 2)
+            box(f"wall_{name}", rail, (cut, end), y, (-radius, high), wall / 2)
+    # Its foot: a plate before the lowest station that carries the four markers, flat and facing up
+    # (layout.dispenser_marker_centers), and reaches under the rails.
+    markers = dispenser["markers"]
+    centres = np.array(list(connect4_layout.dispenser_marker_centers(layout).values()))
+    low, high = centres.min(axis=0) - markers["plate"] / 2, centres.max(axis=0) + markers["plate"] / 2
+    high[1] = gap / 2 + wall  # up to the rails' far wall
+    body.add_geom(
+        name="dispenser_foot",
+        type=BOX,
+        size=[*(high - low)[:2] / 2, 0.001],
+        pos=[*(high + low)[:2] / 2, centres[0][2] - 0.0015],
+        rgba=[0.85, 0.85, 0.9, 1],
+        **solid,
+    )
+    for i, centre in connect4_layout.dispenser_marker_centers(layout).items():
+        _add_marker(spec, folder, body, layout["markers"]["dictionary"], i, markers, centre, [1, 0, 0, 0])
+    # What holds it all, drawn only: a leg under the foot, a post from the table to the top rail.
+    top = connect4_layout.waiting(layout, dispenser["rails"] - 1, 2)
+    table = table_z - T[2, 3]
+    drawn = {"type": BOX, "rgba": [0.75, 0.75, 0.8, 1], "contype": 0, "conaffinity": 0}
+    for name, x, y, z in (
+        ("leg", (high + low)[0] / 2, (high + low)[1] / 2, centres[0][2]),
+        ("post", top[0], 0, top[2]),
+    ):
+        body.add_geom(
+            name=f"dispenser_{name}",
+            size=[0.006, 0.006, (z - table) / 2],
+            pos=[x, y, (z + table) / 2],
+            **drawn,
+        )
 
 
 def _add_grid(spec, folder, layout, solid):
@@ -227,29 +307,36 @@ def _add_grid(spec, folder, layout, solid):
             pos=[x, 0, (entry + table) / 2],
             **drawn,
         )
-    dictionary = cv2.aruco.getPredefinedDictionary(getattr(cv2.aruco, markers["dictionary"]))
-    border = round(MARKER_PIXELS * (markers["plate"] - markers["size"]) / markers["size"] / 2)
     face = np.zeros(
         4
     )  # a plane geom's x, y, z: the viewer's right (-x of the grid), up, the front face's normal
     mujoco.mju_mat2Quat(face, np.array([[-1.0, 0, 0], [0, 0, 1], [0, 1, 0]]).ravel())
     for i, center in connect4_layout.marker_centers(layout).items():
-        image = cv2.aruco.generateImageMarker(dictionary, i, MARKER_PIXELS)
-        image = cv2.copyMakeBorder(image, *(border,) * 4, cv2.BORDER_CONSTANT, value=255)  # quiet zone
-        cv2.imwrite(str(folder / f"aruco_{i}.png"), image)
-        spec.add_texture(name=f"aruco_{i}", type=mujoco.mjtTexture.mjTEXTURE_2D, file=f"aruco_{i}.png")
-        material = spec.add_material(name=f"aruco_{i}")
-        material.textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = f"aruco_{i}"
-        body.add_geom(
-            name=f"aruco_{i}",
-            type=mujoco.mjtGeom.mjGEOM_PLANE,
-            size=[markers["plate"] / 2, markers["plate"] / 2, 0.001],
-            pos=center,
-            quat=face,
-            material=f"aruco_{i}",
-            contype=0,
-            conaffinity=0,
-        )
+        _add_marker(spec, folder, body, markers["dictionary"], i, markers, center, face)
+
+
+def _add_marker(spec, folder, body, dictionary, i, markers, center, quat):
+    """A marker on its white plate, drawn only: a plane geom of `body` whose x is the marker image's right
+    and y its up."""
+    border = round(MARKER_PIXELS * (markers["plate"] - markers["size"]) / markers["size"] / 2)
+    image = cv2.aruco.generateImageMarker(
+        cv2.aruco.getPredefinedDictionary(getattr(cv2.aruco, dictionary)), i, MARKER_PIXELS
+    )
+    image = cv2.copyMakeBorder(image, *(border,) * 4, cv2.BORDER_CONSTANT, value=255)  # quiet zone
+    cv2.imwrite(str(folder / f"aruco_{i}.png"), image)
+    spec.add_texture(name=f"aruco_{i}", type=mujoco.mjtTexture.mjTEXTURE_2D, file=f"aruco_{i}.png")
+    material = spec.add_material(name=f"aruco_{i}")
+    material.textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = f"aruco_{i}"
+    body.add_geom(
+        name=f"aruco_{i}",
+        type=mujoco.mjtGeom.mjGEOM_PLANE,
+        size=[markers["plate"] / 2, markers["plate"] / 2, 0.001],
+        pos=center,
+        quat=quat,
+        material=f"aruco_{i}",
+        contype=0,
+        conaffinity=0,
+    )
 
 
 def _window_plate(path, grid, segments=24):

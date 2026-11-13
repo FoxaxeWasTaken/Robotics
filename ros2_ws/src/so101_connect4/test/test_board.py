@@ -248,3 +248,99 @@ def test_with_the_robot_on_red_the_debug_image_fills_its_cells_in_red():
     centres, _ = board.cell_pixels(LAYOUT, T_CAM_GRID, K)
     pixels = [tuple(int(c) for c in out[round(v), round(u)]) for u, v in centres[:2]]
     assert pixels == [(255, 0, 0), (255, 255, 0)]
+
+
+# The token dispenser (#258): its pose from its own markers, and whether a token waits at each station.
+
+
+def camera_over_the_dispenser():
+    """T_cam_dispenser of a camera 0.45 m away on the -y side, outwards and above, as the scene's: x right, y
+    down, z forward."""
+    target = layout.station(LAYOUT, 1)
+    eye = target + np.array([0.25, -0.22, 0.30])
+    forward = (target - eye) / np.linalg.norm(target - eye)
+    right = np.cross(forward, [0.0, 0.0, 1.0])
+    right /= np.linalg.norm(right)
+    T = np.eye(4)
+    T[:3, :3], T[:3, 3] = np.column_stack([right, np.cross(forward, right), forward]), eye
+    return np.linalg.inv(T)
+
+
+T_CAM_DISPENSER = camera_over_the_dispenser()
+DISPENSER_IDS = LAYOUT["dispenser"]["markers"]["ids"]
+
+
+def seen(points, T=T_CAM_DISPENSER):
+    camera = np.atleast_2d(points) @ T[:3, :3].T + T[:3, 3]
+    pixels = camera @ K.T
+    return pixels[:, :2] / pixels[:, 2:]
+
+
+def dispenser_markers(ids):
+    return {i: seen(layout.dispenser_marker_corners(LAYOUT, i)) for i in ids}
+
+
+@pytest.mark.parametrize("ids", [(14, 15, 16, 17), (14, 15, 16), (15, 16, 17)])
+def test_the_dispensers_pose_comes_from_its_four_markers_or_three(ids):
+    T, error, used = board.dispenser_in_camera(dispenser_markers(ids), LAYOUT, K)
+    assert used == list(ids)
+    assert error < 0.01
+    assert np.allclose(T[:3, 3], T_CAM_DISPENSER[:3, 3], atol=1e-4)  # 0.1 mm
+    assert np.allclose(T[:3, :3], T_CAM_DISPENSER[:3, :3], atol=1e-4)
+
+
+def test_two_of_its_markers_or_the_grids_give_no_dispenser_pose():
+    assert board.dispenser_in_camera(dispenser_markers((14, 17)), LAYOUT, K) is None
+    assert board.dispenser_in_camera(detected((10, 11, 12, 13)), LAYOUT, K) is None
+    both = dispenser_markers(DISPENSER_IDS) | detected((10, 11, 12, 13))  # one image holds both sets
+    assert board.dispenser_in_camera(both, LAYOUT, K)[2] == DISPENSER_IDS
+    assert board.grid_in_camera(both, LAYOUT, K)[2] == [10, 11, 12, 13]
+
+
+def stations_image(waiting):
+    """An rgb8 image of the dispenser's stations: a token of the robot's color where `waiting` says so, seen
+    as the ellipse of its face."""
+    image = np.full((*SIZE, 3), BACKGROUND, np.uint8)
+    radius = LAYOUT["token"]["diameter"] / 2
+    angles = np.linspace(0, 2 * np.pi, 40, endpoint=False)
+    for rail, there in enumerate(waiting):
+        if there:
+            centre = layout.station(LAYOUT, rail) - [0.0, LAYOUT["token"]["thickness"] / 2, 0.0]
+            rim = centre + radius * np.column_stack([np.cos(angles), np.zeros(40), np.sin(angles)])
+            cv2.fillPoly(image, [np.round(seen(rim)).astype(np.int32)], YELLOW)
+    return image
+
+
+@pytest.mark.parametrize("waiting", [(True, True, True), (False, False, False), (True, False, True)])
+def test_a_station_is_read_by_the_color_of_the_token_that_waits_there(waiting):
+    assert board.stations(stations_image(waiting), LAYOUT, T_CAM_DISPENSER, K) == waiting
+
+
+def test_a_persons_token_at_a_station_is_not_the_robots():
+    image = stations_image((True, True, True))
+    image[(image == YELLOW).all(axis=2)] = RED
+    assert board.stations(image, LAYOUT, T_CAM_DISPENSER, K) == (False, False, False)
+    assert board.stations(image, RED_ROBOT, T_CAM_DISPENSER, K) == (True, True, True)  # #255
+
+
+def test_a_station_outside_the_image_is_not_read():
+    far = T_CAM_DISPENSER.copy()
+    far[0, 3] += 2.0
+    assert board.stations(stations_image((True, True, True)), LAYOUT, far, K) is None
+
+
+@pytest.mark.parametrize("name", sorted(REFERENCE["boards"]))
+def test_the_reference_images_give_the_dispensers_pose_and_its_stations(name):
+    """The scene's renders (test/data): the dispenser where the layout builds it, within 2 mm at each station
+    with our calibration of the camera; each station read as the scene had it."""
+    rgb = cv2.cvtColor(cv2.imread(str(DATA / f"{name}.png")), cv2.COLOR_BGR2RGB)
+    camera = np.array(REFERENCE["K"])
+    found = detect_markers(rgb, LAYOUT["markers"]["dictionary"])
+    T_cam_dispenser, error, ids = board.dispenser_in_camera(found, LAYOUT, camera)
+    assert len(ids) >= 3
+    assert error < 1.0
+    T = load_extrinsics(EXTRINSICS).T_base_cam @ T_cam_dispenser
+    for rail in range(LAYOUT["dispenser"]["rails"]):
+        there = [*layout.station(LAYOUT, rail), 1.0]
+        assert np.linalg.norm((T @ there - layout.dispenser_pose(LAYOUT) @ there)[:3]) < 0.002, rail
+    assert board.stations(rgb, LAYOUT, T_cam_dispenser, camera) == tuple(REFERENCE["stations"][name])

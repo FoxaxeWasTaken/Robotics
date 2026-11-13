@@ -383,7 +383,7 @@ class DriverNode(rclpy.node.Node):
                 if self._use_sim:
                     self._effort = normalized_effort(self._robot.model, self._robot.data, JOINT_NAMES)
                 if self._connect4:
-                    self._connect4.release_if_pinched()
+                    self._connect4.tick()
         except (OSError, RuntimeError) as error:
             self._bus_errors += 1
             retries = self._p["bus_retries"]
