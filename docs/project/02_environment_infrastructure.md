@@ -104,6 +104,7 @@ cp docker/.env.example docker/.env
 
 - `ROS_DOMAIN_ID`: **unique per team** if several teams share a network; the course asks for a number between 2 and 99 (e.g. your department) instead of the default 42 [BOOT2 p8]. The team uses **69** (0.2a), the value of `.env.example`.
 - `USE_SIM=false` + `REAL_ROBOT_PORT` + `CALIBRATION_FILE` for the real arm (`07`).
+- `CONNECT4` (default false): the Connect Four game in place of the pick & place, sim only (`phase2/P2-02` §6). It can stay in `.env`; for one session, `CONNECT4=true tools/so101 up`. The control container then starts the driver on the game's scene, the brain in game mode and the game node; the perception container starts the board reader in place of perception. `down`, then `up`, to change mode: `restart` keeps the environment of the last `up` [MES-66].
 - `EXPOSE_GROUND_TRUTH` (default false) is not for `.env`: the E2E jobs set it so the evaluation bench can score (C-06, `08` §3).
 
 ## 4. Golden rules of the workspace

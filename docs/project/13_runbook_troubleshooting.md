@@ -18,6 +18,8 @@ tools/so101 down                          # SIGINT → destroy_node() → clean 
 # A cycle, the bench, the tests
 tools/so101 cycle                         # /sim/randomize (sim), /brain/start, then /brain_state until DONE or ERROR
 tools/so101 play                          # game mode (CONNECT4=true tools/so101 up): Connect Four from this terminal
+                                          # keys: 1 to 7 a column, ? a hint, n / r a new game, e m h the level, s stop, q quit
+tools/so101 bench --game -n 3             # measured Connect Four games against a scripted player; its own stack, domain 77
 tools/so101 bench --perception -n 10      # evaluation bench, real pipeline, on ROS domain 77 (below)
 tools/so101 bench --stub -n 10            # the same with the ground-truth stub in place of perception
 tools/so101 robustness 3a                 # a case of the robustness demo, on ROS domain 78, the stack stopped
@@ -75,7 +77,7 @@ docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && expo
 docker compose exec control bash -lc "source /ros2_ws/install/setup.bash && export ROS_DOMAIN_ID=78 && \
   ros2 topic hz /external_cam/camera_info"  # 10 Hz, sent with each image (needs camera_info_file); on the
 # 640x480 images themselves ros2 topic hz reads about 1 Hz: its subscription is best effort and loses the
-# 0.9 MB images; a Reliable subscriber, as perception, gets the 10 Hz [MES-67]
+# 0.9 MB images; a Reliable subscriber, as the board reader, gets the 10 Hz [MES-67]
 "/mnt/c/Program Files/usbipd-win/usbipd.exe" detach --busid <X-Y>
 
 # Real arm, the stack stopped (tools/so101 down), port and file from docker/.env (07 §3.1, #199)
@@ -119,6 +121,11 @@ Per-symptom details:
 | `ros2 topic list` empty **from WSL** | Expected: native ROS and the Docker bridge network are separate | Use `docker compose exec control bash` |
 | `colcon`: "Permission denied" on `build/`/`install/` | Files created by root in the container | `sudo rm -rf ros2_ws/{build,install,log}`; never build outside the container |
 | Editing `sim/` code changes nothing | `so101_sim` is installed **non-editable** in the image | Do not modify `sim/` (ADR-018); otherwise `docker compose build` |
+| `tools/so101 cycle`: "the stack runs the game", or `tools/so101 play`: "the stack does not run the game" | The stack is in the other mode: `CONNECT4=true` was given to the last `up` (or is set in `docker/.env`), or was not. `restart` keeps the mode of the last `up` | `tools/so101 down`, then `tools/so101 up` (pick & place) or `CONNECT4=true tools/so101 up` (the game) |
+| `tools/so101 play`: "waiting for the stack" for more than a minute, in game mode | `/connect4/state` says `ready: false`: the game node waits for the brain's first pose, the grid's pose from the board reader, and the brain's two services. The perception container builds its packages before it starts the reader | `tools/so101 logs perception` until "Board reader ready."; `tools/so101 logs` for "Game node ready." and what it still waits for |
+| The game stops in `FIX_BOARD` | The grid seen is not the one the game expects: `not_seen:human` (no new red token after `human_done`), `not_seen:robot` (its token did not show), `board_not_empty` (tokens left at a new game), or the reader's reason (`markers:<n>`: a hidden marker; `gravity:<column>`, `counts:<h>-<r>`: an impossible board). The arm does not move | Sim: `n` in the console, a new game clears the grid. With a real grid: put the tokens right, then `/connect4/human_done` reads again |
+| The game waits in `WAIT_HUMAN`, reason `no_token` or `token_lost` | The jaws closed on nothing (`no_token`), or the robot's token did not show on the grid (`token_lost`): the turn is still the robot's | Give it a token again: the console does it by itself; by hand, `/sim/connect4/give_token` then `/connect4/human_done` |
+| The game ends in `ERROR` | `stopped` (`s`, `/connect4/stop`), `timeout:MOVE` or `timeout:THINK`, `brain_refused:<message>` (`not_at_handover`: `/brain/drop` starts from `HANDOVER` only; `unreachable`) | `n` starts a new game: it brings the arm back to `HANDOVER` first. The brain's log line of the move says in which step it ended |
 | RViz: "could not connect to display" | X11 not allowed | `xhost +local:docker`; `DISPLAY` passed by compose |
 | Irregular `/joint_states` while the camera runs | Rendering (~50 ms) in the control thread | Render on a copy in a dedicated thread (ADR-006): what the driver does (`03` §3); a regression if it changes |
 | IK "unreachable" on nearby targets | Seeds with the wrong pan sign, or azimuth taken from the origin | `pan = −azimuth` from the pan axis, x = 3.88 cm (ADR-005) |
