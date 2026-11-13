@@ -149,6 +149,9 @@ class GameCase:
     steps: tuple
 
 
+# The game's refusal with the grid 25 mm nearer the arm: every column has a pose, and the shoulder would
+# pass through the grid's near post on the way to the first one asked [MES-78]
+TOO_NEAR = "column 1: unsafe_path:column"
 GAME_CASES = {
     "g1": GameCase(
         question="The scene changes mid-action: the person drops two tokens in one turn.",
@@ -194,6 +197,23 @@ GAME_CASES = {
             Step("stop", state={"state": "ERROR", "reason": "stopped"}),
             Step("wait_2_s", reply={"success": True}, still=True),  # the arm frozen at the dispenser
             Step("new_game", state=WAITS_PERSON | {"moves": 0}),
+        ),
+    ),
+    "g7": GameCase(
+        question="The scene changes between two games: the grid is set down elsewhere (ours).",
+        steps=(
+            Step("turn", state=WAITS_PERSON | {"moves": 2}),
+            Step("move_grid", reply={"success": True}),  # 1 cm nearer, 3 deg around the arm: its far end 2 cm
+            Step("new_game", state=WAITS_PERSON | {"moves": 0}),
+            Step("turn", state=WAITS_PERSON | {"moves": 2}),  # the robot's token fell in the grid, there
+        ),
+    ),
+    "g8": GameCase(
+        question="Target out of reach (ours): the grid set down where the arm would hit it.",
+        steps=(
+            Step("move_grid_too_near", reply={"success": True, "message": TOO_NEAR}),
+            Step("new_game", reply={"success": False, "message": f"not ready: {TOO_NEAR}"}, still=True),
+            Step("drop_on_grid", reply={"success": False, "message": "unsafe_path:column"}, still=True),
         ),
     ),
 }

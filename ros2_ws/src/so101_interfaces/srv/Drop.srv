@@ -3,6 +3,11 @@
 # The token's centre in base_link, m: at the release (so101_connect4.board.column_target), or where it waits at
 # its station (board.station_target)
 geometry_msgs/Point target
+# true: nothing moves, and the arm may be anywhere. The reply comes at once: whether the move would start,
+# where the camera sees the grid and the dispenser now (P2-02 §2.5); busy while the brain moves the arm
+bool check_only
 ---
-bool success    # replied at the end of the move, the arm back at HANDOVER
-string message  # "done in <s> s"; or no_token, unreachable, not_at_handover, not_idle:<state>, busy, no_joint_states, stopped, timeout:<step>
+bool success    # replied at the end of the move, the arm back at HANDOVER; with check_only, at once
+# "done in <s> s" ("" with check_only); or no_token, unreachable, not_at_handover, not_idle:<state>, busy,
+# no_joint_states, stopped, timeout:<step>, no_grid_pose, no_dispenser_pose, not_edge_on, unsafe_path:<step>
+string message

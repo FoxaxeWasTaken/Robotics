@@ -218,3 +218,38 @@ def test_on_a_scene_without_a_dispenser_there_is_none_to_empty_or_to_fill(sim, p
     """The dispenser of the game's scene is so101_bringup's test_connect4_dispenser.py (#259)."""
     assert person.empty_dispenser() == (False, "no dispenser in this scene")
     assert person.fill_dispenser() == (False, "no dispenser in this scene")
+
+
+def test_the_person_sets_the_empty_grid_down_nearer_the_arm_and_carried_around_it(sim, person):
+    """#260: where the grid stands is the camera's to find, so the scene can move it between two games."""
+    grid, pan = sim.data.body("grid"), np.array(LAYOUT["placement"]["pan_axis"])
+    reply = person.move_grid(0.010, np.radians(3.0))
+    assert reply == (True, "the grid 10 mm nearer, 3.0 deg around the arm")
+    R = grid.xmat.reshape(3, 3)
+    assert np.isclose(np.arctan2(R[1, 0], R[0, 0]), LAYOUT["placement"]["azimuth"] + np.radians(3.0))
+    assert np.allclose(R[:, 2], [0.0, 0.0, 1.0])
+    from_axis = grid.xpos[:2] - pan
+    # the pan axis is the model's joint, 0.0388 m to a few hundredths of a millimetre [MES-06]
+    assert np.isclose(from_axis @ R[:2, 0], LAYOUT["placement"]["first_column_r"] - 0.010, atol=1e-4)
+    assert np.isclose(from_axis @ R[:2, 1], -LAYOUT["placement"]["plane_offset"], atol=1e-4)  # as edge-on
+    assert np.isclose(grid.xpos[2], T_GRID[2, 3])
+    # the person drops a token where the grid now stands, and the true board counts it there
+    assert person.drop_token(4, HUMAN)[0]
+    x, y, _ = R.T @ (sim.data.body("token_red_0").xpos - grid.xpos)
+    assert np.allclose([x, y], [4 * GRID["column_pitch"], 0.0], atol=1e-6)
+    put_at = grid.xpos + R @ layout.cell(LAYOUT, 4, 0)
+    q = sim.model.joint("token_red_0_free").qposadr[0]
+    sim.data.qpos[q : q + 3] = put_at
+    mujoco.mj_forward(sim.model, sim.data)
+    assert person.board()[4] == HUMAN
+    # back where the scene starts it
+    person.reset_board()
+    assert person.move_grid(0.0, 0.0)[0]
+    assert np.allclose(grid.xpos, T_GRID[:3, 3])
+    assert np.allclose(grid.xmat.reshape(3, 3), T_GRID[:3, :3], atol=1e-9)
+
+
+def test_a_grid_with_a_token_in_it_stays_where_it_is(sim, person):
+    put(sim, "token_red_0", 1, 0)
+    assert person.move_grid(0.010, 0.0) == (False, "the grid is not empty")
+    assert np.allclose(sim.data.body("grid").xpos, T_GRID[:3, 3])

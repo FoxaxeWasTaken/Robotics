@@ -11,6 +11,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/GoToTarget.srv"
   "srv/DropToken.srv"
   "srv/Drop.srv"
+  "srv/MoveGrid.srv"
   "msg/Connect4Board.msg"
   DEPENDENCIES geometry_msgs std_msgs
 )

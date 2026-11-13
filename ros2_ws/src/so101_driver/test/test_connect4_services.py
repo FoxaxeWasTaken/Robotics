@@ -2,13 +2,14 @@
 /sim/randomize, frees a given token when the jaws close on it, and publishes the true board only with
 expose_ground_truth (C-06). The real DriverNode, in-process, on a small scene (connect4_fake.py)."""
 
+import numpy as np
 import pytest
 import rclpy
 from connect4_fake import layout_path, scene
 from std_srvs.srv import Trigger
 
 from so101_driver.driver_node import DriverNode
-from so101_interfaces.srv import DropToken
+from so101_interfaces.srv import DropToken, MoveGrid
 
 SERVICES = {
     "/sim/connect4/drop_token",
@@ -16,6 +17,7 @@ SERVICES = {
     "/sim/connect4/reset_board",
     "/sim/connect4/empty_dispenser",
     "/sim/connect4/fill_dispenser",
+    "/sim/connect4/move_grid",
 }
 TRUTH = "/sim/ground_truth/connect4_board"
 
@@ -112,3 +114,13 @@ def test_emptying_and_filling_the_dispenser_answer_what_the_simulated_person_say
     for serve in (game._srv_empty_dispenser, game._srv_fill_dispenser):
         reply = serve(Trigger.Request(), Trigger.Response())
         assert (reply.success, reply.message) == (False, "no dispenser in this scene")
+
+
+def test_the_person_sets_the_grid_down_elsewhere_over_its_service(game):
+    grid = game._robot.data.body("grid")
+    before = grid.xpos.copy()
+    reply = game._srv_move_grid(MoveGrid.Request(nearer=0.010, around=0.05), MoveGrid.Response())
+    assert (reply.success, reply.message) == (True, "the grid 10 mm nearer, 2.9 deg around the arm")
+    assert 0.005 < np.linalg.norm(grid.xpos - before) < 0.03
+    assert game._srv_move_grid(MoveGrid.Request(), MoveGrid.Response()).success
+    assert np.allclose(grid.xpos, before)

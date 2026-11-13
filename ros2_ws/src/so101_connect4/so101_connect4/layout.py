@@ -105,6 +105,23 @@ def cell(layout, column, row) -> np.ndarray:
     return np.array([column * layout["grid"]["column_pitch"], 0.0, row * layout["grid"]["row_pitch"]])
 
 
+def grid_boxes(layout) -> list:
+    """The grid's volume as [(low corner, high corner)] in the grid frame: its body (the two posts, the
+    plates, the base) from the table to the slot entries, and the depth guide above the columns. What the
+    brain keeps the arm away from (its connect4.grid_boxes, P2-02 §2.5)."""
+    grid = layout["grid"]
+    near = -grid["column_pitch"] / 2
+    far = near + grid["columns"] * grid["column_pitch"]
+    floor = -grid["row_pitch"] / 2
+    entry = floor + grid["rows"] * grid["row_pitch"] + grid["headroom"]
+    half_y = grid["slot_gap"] / 2 + grid["plate"]
+    guide_y = grid["depth_guide_opening"] / 2 + 0.002  # the strips are 2 mm thick (sim_scene)
+    margin = grid["frame_margin"]
+    body = ([near - margin, -half_y, floor - slot_bottom(layout)], [far + margin, half_y, entry])
+    guide = ([near, -guide_y, entry], [far, guide_y, entry + grid["depth_guide_height"]])
+    return [(np.array(low), np.array(high)) for low, high in (body, guide)]
+
+
 def marker_centers(layout) -> dict:
     """{id: centre in the grid frame} of the 4 markers: on the front face of the side posts, one at the top
     and one at the bottom of each."""

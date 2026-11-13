@@ -50,3 +50,7 @@ The task layer stays as decided: a game node that never publishes `/joint_comman
 ## Update (2026-11-13, built and measured)
 
 The decision as updated on 2026-11-07 is built: `/brain/drop` and `/brain/handover` in game mode, 50 tokens of 50 in their column [MES-69], [MES-73]; `game_node` never publishes `/joint_command`, and a guard checks it. Status: **DECIDED**. The game's software around it is ADR-040.
+
+## Update (2026-11-13, ADR-041, ADR-042): a second service and a request field
+
+The dispenser needed no action: `/brain/pick` is a second service of type `Drop` (ADR-041, #259). `Drop.srv` gets `bool check_only` (ADR-042, #260): the brain replies at once whether the move would start where the camera sees the grid and the dispenser, and nothing moves; the game node asks it for every column and station before it says `ready`. The task layer stays as decided.

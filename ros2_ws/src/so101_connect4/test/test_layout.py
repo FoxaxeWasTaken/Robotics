@@ -178,3 +178,30 @@ def test_a_dispenser_markers_corners_are_in_arucos_order_seen_from_above():
         assert np.allclose(corners[1] - corners[0], [markers["size"], 0.0, 0.0])  # top left to top right: +x
         assert np.allclose(corners[3] - corners[0], [0.0, -markers["size"], 0.0])  # top left to bottom left
         assert np.allclose(corners[:, 2], centre[2])  # flat
+
+
+def test_the_grids_volume_is_its_body_up_to_the_slot_entries_and_the_depth_guide_above_the_columns():
+    """What the brain keeps the arm away from (#260): two boxes in the grid frame, low then high corner."""
+    grid = LAYOUT["grid"]
+    (body_low, body_high), (guide_low, guide_high) = layout.grid_boxes(LAYOUT)
+    T = layout.grid_pose(LAYOUT)
+    assert np.isclose((T @ [*body_low, 1.0])[2], -LAYOUT["placement"]["riser"])  # from the table
+    entry = (T @ [*body_high, 1.0])[2]
+    assert np.isclose(entry, -LAYOUT["placement"]["riser"] + grid["slot_entry_height"])  # to the slot entries
+    # the body holds every cell, and the two posts with their markers on its front face
+    for point in (
+        layout.cell(LAYOUT, 0, 0),
+        layout.cell(LAYOUT, 6, 5),
+        *layout.marker_centers(LAYOUT).values(),
+    ):
+        assert np.all(point >= body_low - 0.001), point
+        assert np.all(point <= body_high + 0.001), point
+    assert np.isclose(body_high[1] - body_low[1], grid["slot_gap"] + 2 * grid["plate"])  # the two plates
+    assert np.isclose(body_low[0], layout.marker_centers(LAYOUT)[10][0] - grid["frame_margin"] / 2)
+    # the guide stands on the entries, above the columns only, as wide as its opening and its two strips
+    assert np.isclose(guide_low[2], body_high[2])
+    assert np.isclose(guide_high[2] - guide_low[2], grid["depth_guide_height"])
+    assert np.allclose([guide_low[0], guide_high[0]], [-grid["column_pitch"] / 2, 6.5 * grid["column_pitch"]])
+    assert np.isclose(guide_high[1], grid["depth_guide_opening"] / 2 + 0.002)
+    assert np.allclose(body_low[1], -body_high[1])
+    assert np.allclose(guide_low[1], -guide_high[1])

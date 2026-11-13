@@ -5,10 +5,13 @@ with the board reader and the ground truth, as test_evaluate_launch.py does for 
   run the nodes in-process, with their publishers replaced.
 - The game bench's command line: a game cut by a short bench timeout fails, as `bench_timeout`, and keeps its
   rosbag; the arm is stopped for the next game.
+- The grid set down elsewhere between two games (#260): the camera finds it, the brain is asked again whether
+  it would play every column there, and the robot's token falls in it.
 """
 
 import csv
 import json
+import math
 import os
 import subprocess
 import tempfile
@@ -27,6 +30,11 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
 
 from so101_bringup import games
+from so101_bringup.sim_hand import SimHand
+from so101_connect4 import placement
+from so101_connect4.client import GameClient
+from so101_connect4.game import ROBOT
+from so101_interfaces.msg import Connect4Board
 
 STARTUP_TIMEOUT = 90.0  # s: the driver, the brain, the reader's first pose of the grid
 RELIABLE, VOLATILE, LATCHED = (
@@ -115,6 +123,42 @@ class TestConnect4Game(unittest.TestCase):
             while time.monotonic() < end and not states:
                 rclpy.spin_once(node, timeout_sec=0.2)
             self.assertEqual([(s["state"], s["reason"]) for s in states[-1:]], [("ERROR", "stopped")])
+        finally:
+            node.destroy_node()
+            rclpy.shutdown()
+
+    def test_3_a_grid_set_down_elsewhere_between_two_games_is_found_and_played(self):
+        """1 cm nearer the arm and 3 deg around it: its far end 2 cm from where the layout puts it. Nothing
+        tells the nodes: the reader measures the pose, the brain judges its moves on it (P2-02 §2.5)."""
+        rclpy.init()
+        node = rclpy.create_node("test_connect4_game_moved")
+        client, truth = GameClient(node, SimHand(node)), []
+        node.create_subscription(Connect4Board, "/sim/ground_truth/connect4_board", truth.append, 10)
+        try:
+            self.assertTrue(client.wait(lambda state: state["ready"], STARTUP_TIMEOUT), client.state)
+            waits = {"state": "WAIT_HUMAN", "turn": "human"}
+            # a first game, up to the person's turn: the cut game left the arm above the grid's markers
+            self.assertTrue(client.new_game()[0])
+            self.assertTrue(client.wait(lambda s: s["moves"] == 0 and waits.items() <= s.items(), 60.0))
+            self.assertTrue(client.hand.reset_board()[0])
+            moved = client.hand.move_grid(0.010, math.radians(3.0))
+            self.assertEqual(moved, (True, "the grid 10 mm nearer, 3.0 deg around the arm"))
+            checking = client.wait(lambda state: state["not_ready"] == placement.CHECKING, 10.0)
+            self.assertTrue(checking, client.state)  # the game saw the grid move
+            self.assertTrue(client.wait(lambda state: state["ready"], STARTUP_TIMEOUT), client.state)
+            before = client.state
+            self.assertTrue(client.new_game()[0])
+            again = client.wait(
+                lambda s: s is not before and s["moves"] == 0 and waits.items() <= s.items(), 60.0
+            )
+            self.assertTrue(again, client.state)
+            self.assertTrue(client.play(3)[0])
+            played = client.wait(lambda s: s["moves"] == 2 and waits.items() <= s.items(), 120.0)
+            self.assertTrue(played, client.state)
+            self.assertEqual((client.state["lost"], client.state["missed"]), (0, 0))
+            truth.clear()
+            client.wait(lambda state: bool(truth), 5.0)
+            self.assertEqual(list(truth[-1].cells).count(ROBOT), 1)  # the token is in the grid, not beside
         finally:
             node.destroy_node()
             rclpy.shutdown()

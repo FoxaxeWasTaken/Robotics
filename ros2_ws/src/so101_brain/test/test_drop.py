@@ -531,3 +531,86 @@ def test_a_rise_that_stops_having_a_pose_keeps_the_waypoints_it_has(kin, monkeyp
     monkeypatch.setattr(kin, "ik_pose", two_poses)
     steps = drop.handover_steps(HANDOVER, P, kin, release_pose(kin, STATIONS[2]))
     assert names(steps) == ["rise_1", "rise_2", "handover"]
+
+
+# Where the grid and the dispenser stand (#260): the brain is told by the camera, as frames in base_link. A
+# slot stands in the x-z plane of its frame, x outwards: the grid's along its columns, the dispenser's along
+# the stations.
+def frame(azimuth_deg, origin, turned_deg=0.0) -> np.ndarray:
+    """A frame at `origin`, its x at this azimuth, then turned about the vertical through its origin."""
+    a = np.radians(azimuth_deg + turned_deg)
+    T = np.eye(4)
+    T[:3, 0], T[:3, 1], T[:3, 3] = [np.cos(a), np.sin(a), 0.0], [-np.sin(a), np.cos(a), 0.0], origin
+    return T
+
+
+def about_pan(T, degrees) -> np.ndarray:
+    """The frame carried around the pan axis."""
+    a, turn = np.radians(degrees), np.eye(4)
+    turn[:2, :2] = [[np.cos(a), -np.sin(a)], [np.sin(a), np.cos(a)]]
+    turn[:3, 3] = [PAN_AXIS_X - PAN_AXIS_X * np.cos(a), -PAN_AXIS_X * np.sin(a), 0.0]
+    return turn @ T
+
+
+DISPENSER = frame(60.0, STATIONS[0])
+
+
+@pytest.mark.parametrize("column", [0, 3, 6])
+def test_a_drop_meets_the_grid_edge_on_from_6_degrees_one_way_to_1_the_other(kin, column):
+    """A token dropped 1.5° past the plane on the fixed jaw's side fell beside its column; 8° the other way
+    it fell in [MES-79]."""
+    steps = drop.drop_steps(kin, COLUMNS[column], HANDOVER, P)
+    release = next(step.q for step in steps if step.name == "descent")
+    assert abs(np.degrees(drop.off_plane(frame(-40.0, COLUMNS[column]), release))) < 1.0  # as the layout
+    assert drop.off_plane(frame(-40.0, COLUMNS[column], turned_deg=3.0), release) == pytest.approx(
+        drop.off_plane(frame(-40.0, COLUMNS[column]), release) + np.radians(3.0)
+    )
+    for turned, fine in ((-7.0, False), (-5.0, True), (0.0, True), (1.0, True), (2.0, False), (179.0, False)):
+        assert drop.edge_on(frame(-40.0, COLUMNS[column], turned), steps) is fine, turned
+
+
+def test_the_angle_off_the_arms_plane_is_wrapped_to_half_a_turn_either_way():
+    """A slot along azimuth 179 deg and the arm at azimuth -179: 2 deg apart, not 358."""
+    origin = [0.0, 0.0, 0.0]
+    assert np.degrees(drop.off_plane(frame(179.0, origin), [np.radians(179.0)])) == pytest.approx(-2.0)
+    assert np.degrees(drop.off_plane(frame(-179.0, origin), [np.radians(-179.0)])) == pytest.approx(2.0)
+
+
+@pytest.mark.parametrize("station", range(3))
+def test_a_pick_meets_the_dispenser_edge_on_within_4_degrees(kin, station):
+    """The jaws touched the stop from 6° on, either way [MES-79]."""
+    steps = drop.pick_steps(kin, STATIONS[station], HANDOVER, P)
+    for turned, fine in ((-5.0, False), (-3.0, True), (0.0, True), (3.0, True), (5.0, False)):
+        assert drop.edge_on(frame(60.0, STATIONS[station], turned), steps) is fine, turned
+
+
+def test_a_grid_carried_around_the_pan_axis_is_as_edge_on_as_before(kin):
+    """Edge-on is about the arm's plane, not about base_link: the arm turns with the grid."""
+    for degrees in (-30.0, 20.0):
+        T = about_pan(frame(-40.0, COLUMNS[3]), degrees)
+        steps = drop.drop_steps(kin, T[:3, 3], HANDOVER, P)
+        assert drop.edge_on(T, steps), degrees
+
+
+def test_the_arm_waits_where_the_dispenser_is_as_handover_does_where_the_layout_puts_it(kin):
+    assert np.allclose(drop.wait_pose(kin, DISPENSER, HANDOVER), HANDOVER, atol=0.01)
+
+
+def test_the_wait_pose_follows_the_dispenser(kin):
+    turned = drop.wait_pose(kin, about_pan(DISPENSER, 10.0), HANDOVER)
+    assert np.allclose(
+        turned, HANDOVER + np.array([-np.radians(10.0), 0, 0, 0, 0]), atol=0.01
+    )  # pan = -azimuth
+    further = DISPENSER.copy()
+    further[:3, 3] += 0.02 * OUT
+    out, there = drop.wait_pose(kin, further, HANDOVER), kin.fk(HANDOVER)
+    moved = kin.fk(out)[:3, 3] - there[:3, 3]
+    assert np.allclose(moved, 0.02 * OUT, atol=0.001)  # the tool 2 cm further out, as the dispenser
+    assert kin.fk(out)[:3, 2] @ there[:3, 2] > np.cos(np.radians(3.0))  # pointing as at HANDOVER
+    assert out[4] == pytest.approx(HANDOVER[4])  # the roll kept
+
+
+def test_a_dispenser_out_of_reach_has_no_wait_pose(kin):
+    far = DISPENSER.copy()
+    far[:3, 3] += 0.3 * OUT
+    assert drop.wait_pose(kin, far, HANDOVER) is None

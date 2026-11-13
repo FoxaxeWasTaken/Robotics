@@ -1,7 +1,7 @@
 """robustness_demo.launch.py - one case of the robustness demo (step 5.4a, #103) on its own stack.
 
     ros2 launch so101_bringup robustness_demo.launch.py case:=<1|2|3a|3b|4|5> [lighting:=dim] [episodes:=5]
-    ros2 launch so101_bringup robustness_demo.launch.py case:=<g1..g6> [lighting:=dim]     the game's (#243)
+    ros2 launch so101_bringup robustness_demo.launch.py case:=<g1..g8> [lighting:=dim]     the game's (#243)
 
 Starts sim.launch.py with perception in this container (the demo stops that node for cases 3 and 4),
 robot_state_publisher (for RViz on this domain), then so101_bringup's robustness_demo for the case; the whole
@@ -37,7 +37,7 @@ def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument(
-                "case", description="1, 2, 3a, 3b, 4 or 5; g1 to g6: the game's (so101_bringup.robustness)"
+                "case", description="1, 2, 3a, 3b, 4 or 5; g1 to g8: the game's (so101_bringup.robustness)"
             ),
             DeclareLaunchArgument(
                 "lighting", default_value="", description="A lighting entry of config/sim_scene.yaml (dim)"
@@ -50,7 +50,7 @@ def generate_launch_description():
                 launch_arguments={
                     "perception": "true",  # with the game: its board reader
                     "lighting": LaunchConfiguration("lighting"),
-                    # the cases g1 to g6 are asked of a Connect Four game (#243)
+                    # the cases g1 to g8 are asked of a Connect Four game (#243)
                     "connect4": PythonExpression(["'", LaunchConfiguration("case"), "'.startswith('g')"]),
                 }.items(),
             ),

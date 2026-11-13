@@ -539,3 +539,34 @@ def test_the_grids_markers_are_still_the_four_the_reader_needs(tmp_path):
     found = detect_markers(image(sim), LAYOUT["markers"]["dictionary"])
     sim.disconnect()
     assert board.grid_in_camera(found, LAYOUT, K)[2] == LAYOUT["markers"]["ids"]
+
+
+def test_the_grid_set_down_elsewhere_takes_its_tokens_there_and_they_fall_asleep(sim, person):
+    """#260: the simulated person moves the empty grid. The scene's contacts sleep, and MuJoCo then computes
+    a fixed body's pose once: moved by its pose in the model alone, the grid stayed where it was in MjData,
+    for the camera and for the tokens. As a mocap body it moved, and kept its tokens awake [MES-78]."""
+    run(sim, person, 1.0)
+    grid, plate = sim.data.body("grid"), sim.data.geom("plate_front")
+    before, plate_before = grid.xpos.copy(), plate.xpos.copy()
+    assert person.move_grid(0.020, np.radians(5.0))[0]
+    run(sim, person, 0.5)
+    assert 0.015 < np.linalg.norm(grid.xpos - before) < 0.04
+    assert np.linalg.norm(plate.xpos - plate_before) > 0.015  # what the camera draws and the tokens touch
+    for column in (0, 3, 3, 6):
+        assert person.drop_token(column, HUMAN)[0]
+        run(sim, person, 2.0)
+    assert [cell for cell, value in enumerate(person.board()) if value] == [
+        0,
+        3,
+        6,
+        10,
+    ]  # stacked in column 3
+    tokens = [f"token_{COLORS[HUMAN]}_{i}" for i in range(4)]
+    assert not any(sim.data.body_awake[sim.model.body(name).id] for name in tokens)
+    person.reset_board()
+    assert person.move_grid(0.0, 0.0)[0]
+    run(sim, person, 0.2)
+    assert np.allclose(grid.xpos, before)
+    run(sim, person, 2.0)  # the dispenser's queues, woken by the move, are back at their stations
+    for rail in range(RAILS):
+        assert off_place(sim, token(rail, 0), layout.station(LAYOUT, rail))[0] < 0.001

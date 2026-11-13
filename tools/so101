@@ -36,6 +36,7 @@ Usage: tools/so101 [--dry-run] <command> [options]
                         a case of the robustness demo (1, 2, 3a, 3b, 4 or 5) in a new control container on
                         ROS domain $ROBUSTNESS_DOMAIN, the stack stopped; case 5: --lighting dim, N cycles (5).
                         g1 to g6: the same questions asked of a Connect Four game; g5: --lighting dim
+                        g7, g8: the grid set down elsewhere between two games, then too near the arm
   run [--stack|--game] [--out DIR] '<command>'
                         <command> in a throwaway control container, next to a running stack without touching
                         it: no network, ROS domain $RUN_DOMAIN, the repository read-only at /repo, our packages
@@ -169,7 +170,7 @@ ros2 run so101_bringup evaluate $what${bags:+ --bags $bags}"
     ;;
   robustness)
     case=${1:-} lighting="" episodes=""
-    [[ $case =~ ^(1|2|3a|3b|4|5|g[1-6])$ ]] || die "robustness: case 1, 2, 3a, 3b, 4 or 5, or g1 to g6 for the game"
+    [[ $case =~ ^(1|2|3a|3b|4|5|g[1-8])$ ]] || die "robustness: case 1, 2, 3a, 3b, 4 or 5, or g1 to g8 for the game"
     shift
     while [ $# -gt 0 ]; do
       case $1 in

@@ -106,3 +106,29 @@ def test_the_games_cases_start_the_demos_stack_in_game_mode(case, game):
 
     arguments = {text(key): text(value) for key, value in include.launch_arguments}
     assert (arguments["connect4"], arguments["perception"]) == (game, "true")
+
+
+def test_g7_and_g8_are_run_step_by_step_and_handled():
+    """#260: the grid set down elsewhere between two games, then where the arm would hit it."""
+    turns = iter([state("WAIT_HUMAN", moves=2), state("WAIT_HUMAN", moves=2, lost=0)])
+
+    class Moved(ScriptedDemo):
+        def act(self, action):
+            if action == "turn":
+                self.after["turn"] = (next(turns), 0.9)
+            return super().act(action)
+
+    demo = Moved({"new_game": (state("WAIT_HUMAN"), 0.5)})
+    results = robustness_game.run(GAME_CASES["g7"], demo)
+    assert demo.actions == ["turn", "move_grid", "new_game", "turn"]
+    assert game_verdict(GAME_CASES["g7"], results) == ("handled", "")
+    refusal = "column 1: unsafe_path:column"
+    replies = {
+        "move_grid_too_near": {"success": True, "message": refusal},
+        "new_game": {"success": False, "message": f"not ready: {refusal}"},
+        "drop_on_grid": {"success": False, "message": "unsafe_path:column"},
+    }
+    demo = ScriptedDemo({}, replies)
+    results = robustness_game.run(GAME_CASES["g8"], demo)
+    assert demo.actions == ["move_grid_too_near", "new_game", "drop_on_grid"]
+    assert game_verdict(GAME_CASES["g8"], results) == ("handled", "")

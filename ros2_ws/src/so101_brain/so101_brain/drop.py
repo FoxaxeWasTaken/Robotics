@@ -42,6 +42,14 @@ PICK_ASIDE = 0.0025
 PICK_SEAT = 0.0008
 AT_HANDOVER = 0.05  # rad: every arm joint this close to HANDOVER is there; a drop or a pick starts there
 HANDOVER_RISE = 0.040  # m straight up before a handover from elsewhere: out of a station [MES-77]
+# rad, by the step that meets a slot: how far the slot's plane may stand from the arm's there. The arm holds
+# a token in its own vertical plane; a token dropped 1.5 deg past it on the fixed jaw's side fell beside its
+# column, 8 deg the other way it fell in; at a station the jaws touched the stop from 6 deg on [MES-79]
+EDGE_ON = {"descent": np.radians((-6.0, 1.0)), "seat": np.radians((-4.0, 4.0))}
+# Where the arm waits beside a dispenser, in the dispenser's frame: the tool's place (m) and its tilt from
+# vertical at HANDOVER, the dispenser where the layout puts it. The camera sees the whole grid [MES-65]
+WAIT_IN_DISPENSER = (-0.081, -0.052, 0.069)
+WAIT_TILT_DEG = 27.0
 
 
 def release_pose(kin, target, q_seed=None) -> np.ndarray | None:
@@ -69,6 +77,29 @@ def _release_axes(azimuth) -> np.ndarray:
     z = tilted_down(TILT_DEG, azimuth)
     x = np.array([np.sin(azimuth), -np.cos(azimuth), 0.0])
     return np.column_stack([x, np.cross(z, x), z])
+
+
+def off_plane(T, q) -> float:
+    """rad between the vertical plane a slot stands in, the x-z plane of the frame T (base_link), and the
+    arm's at the joints `q`: 0 when the arm meets the slot edge-on."""
+    angle = np.arctan2(T[1, 0], T[0, 0]) + q[0]  # pan = -azimuth (04 §3.1)
+    return float((angle + np.pi) % (2 * np.pi) - np.pi)
+
+
+def edge_on(T, steps) -> bool:
+    """Whether a drop's or a pick's steps meet the slot of the frame T edge-on, within EDGE_ON."""
+    step = next(step for step in steps if step.name in EDGE_ON)
+    low, high = EDGE_ON[step.name]
+    return bool(low <= off_plane(T, step.q) <= high)
+
+
+def wait_pose(kin, T_base_dispenser, seed) -> np.ndarray | None:
+    """The joints the arm waits at beside a dispenser that stands at T_base_dispenser, as the camera
+    measures it: `seed` (connect4.handover_pose) where the layout puts the dispenser, and the same place
+    beside it elsewhere. None when the IK finds none."""
+    p = (T_base_dispenser @ [*WAIT_IN_DISPENSER, 1.0])[:3]
+    q = kin.ik_pos(p, q_seed=seed, roll=seed[4])  # the pan first: the tool tilts in the arm's plane
+    return None if q is None else kin.ik_point(p, tilted_down(WAIT_TILT_DEG, -q[0]), q_seed=q, roll=seed[4])
 
 
 @dataclass(frozen=True)
