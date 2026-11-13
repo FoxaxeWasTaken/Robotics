@@ -58,11 +58,11 @@ Same scale as `10` (P = probability, I = impact, 1 to 3; Crit. = P × I).
 
 | When | What |
 | --- | --- |
-| Every PR | The 7 required checks, unchanged in name: lint, guards (extended to `so101_connect4`, plus no `/joint_command` in the game and no `/sim/` in the pipeline), both builds and tests, phase-1 E2E. New: `E2E sim (1 game)`, a short seeded game, **not required**, so a flaky game cannot freeze every PR in the last week |
-| Each night `main` changed | The phase-1 bench, then 10 games on a restarted stack; one verdict line, `Target ≥ 90 % and ≥ 8/10 games: met.`, read by the report and by `release.sh`; SonarQube Cloud, coverage per package, trends |
+| Every PR | The 7 required checks, unchanged in name: lint, guards (extended to `so101_connect4`, plus no `/joint_command` in the game and no `/sim/` in the pipeline), both builds and tests, phase-1 E2E. New: `E2E sim (1 game)`, one game against a random player on the compose stack in game mode (`evaluate --games 1 --min-success 1`), **not required at first**, so a flaky game cannot freeze every PR in the last week; it joins the required checks on Thu 19 if every run was green (#233) |
+| Each night `main` changed | The phase-1 bench, then 10 games against a random player on the stack started again in game mode (`down`, then `up`); one verdict line, `Target ≥ 90 % and ≥ 8/10 games: met.`, read by the report and by `release.sh`; SonarQube Cloud, coverage per package, trends |
 | Release | `release.sh` needs the bench on the exact commit, the gate and the CHANGELOG (`15` §6). The gate is read **before** the last PR (#227) |
 
-Ten games last about 25 to 50 min (estimated: 13 to 19 s a move [MES-69], 9 robot moves a game on average and 18 at most [MES-64]), in a job of 120 min that uses 19 today. Not worth doing here: CI or Sonar badges, a Sonar scan on PRs, path filters, mypy, mutation tests on the game, a matrix.
+Ten games against a random person last about 12 min: 58 to 126 s a game, 7 to 16 tokens [MES-71]. Against the engine as the person a game goes up to 40 tokens and 5 min, so the night plays the random one. The job has 120 min and uses 19 without the games. Not worth doing here: CI or Sonar badges, a Sonar scan on PRs, path filters, mypy, mutation tests on the game, a matrix.
 
 Who sees it: the repository is private and the school copy has no Actions, Issues or Releases, so the visible proof is in the tree: `.github/workflows/`, `results/phase2_<date>.md`, the README (#234).
 

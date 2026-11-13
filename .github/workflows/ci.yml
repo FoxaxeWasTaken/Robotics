@@ -177,8 +177,8 @@ jobs:
         run: |
           docker run --rm -v "$PWD/ros2_ws:/ros2_ws" tek5/perception:ci bash -lc '
             source /opt/ros/jazzy/setup.bash && cd /ros2_ws &&
-            colcon build --build-base build_perception --install-base install_perception --packages-up-to so101_perception &&
-            colcon test --build-base build_perception --install-base install_perception --packages-select so101_perception &&
+            colcon build --build-base build_perception --install-base install_perception --packages-up-to so101_perception so101_connect4 &&
+            colcon test --build-base build_perception --install-base install_perception --packages-select so101_perception so101_connect4 &&
             colcon test-result --test-result-base build_perception --verbose'
 
   e2e-smoke:
@@ -220,4 +220,47 @@ jobs:
         with:
           name: e2e-smoke
           path: ros2_ws/eval.csv
+          if-no-files-found: ignore
+
+  e2e-game:
+    # Phase 2 (#233): one Connect Four game on the compose stack in game mode, scored with the ground truth.
+    # Not a required check until its runs have been green for a few days; its name must not change after that.
+    name: E2E sim (1 game)
+    if: ${{ github.event_name == 'pull_request' && vars.CI_ENABLED == 'true' && vars.E2E_ENABLED == 'true' }}
+    runs-on: ubuntu-24.04
+    needs: [control, perception]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build images
+        run: docker compose -f docker/docker-compose.yml build
+      - name: Game bench (N=1, a random player)
+        env:
+          CONNECT4: "true"  # the game in place of the pick & place: the stack, and what wait_for_stack.sh waits for
+          EXPOSE_GROUND_TRUTH: "true"  # the bench scores with the ground truth; the pipeline never reads it (C-06)
+          FASTDDS_BUILTIN_TRANSPORTS: DEFAULT  # as the control tests: LARGE_DATA lost nodes at the start (#141)
+        run: |
+          cp docker/.env.example docker/.env
+          docker compose -f docker/docker-compose.yml up -d control perception viz
+          bash tools/ci/wait_for_stack.sh
+          docker compose -f docker/docker-compose.yml exec -T control bash -lc '
+            source /ros2_ws/install/setup.bash && ros2 run so101_bringup evaluate --games 1 --min-success 1 --out /ros2_ws/eval_games.csv'
+      - name: Stack state and logs (on failure)
+        if: failure()
+        run: |
+          docker compose -f docker/docker-compose.yml ps -a
+          docker compose -f docker/docker-compose.yml logs --tail 150 control perception
+          # the game as its node last saw it, and the grid as the camera and the sim have it
+          docker compose -f docker/docker-compose.yml exec -T control bash -lc '
+            source /ros2_ws/install/setup.bash && ros2 node list --no-daemon --spin-time 3
+            for t in "/connect4/state std_msgs/msg/String" "/connect4/board so101_interfaces/msg/Connect4Board" "/sim/ground_truth/connect4_board so101_interfaces/msg/Connect4Board"; do
+              timeout 10 ros2 topic echo --once $t || echo "${t%% *}: nothing in 10 s"
+            done'
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: e2e-game
+          path: ros2_ws/eval_games.csv
           if-no-files-found: ignore

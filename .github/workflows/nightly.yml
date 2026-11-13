@@ -9,6 +9,9 @@ on:
       episodes:
         description: Number of evaluation episodes
         default: "50"
+      games:
+        description: Number of Connect Four games
+        default: "10"
 
 permissions:
   contents: read
@@ -100,6 +103,24 @@ jobs:
             source /ros2_ws/install/setup.bash &&
             ros2 run so101_bringup evaluate --episodes "$EPISODES" --out /ros2_ws/eval.csv --bags /ros2_ws/bags' |
             tee "$RUNNER_TEMP/bench.log"
+      - name: Game bench (Connect Four, phase 2)
+        if: ${{ !cancelled() }}  # the games are played even when the pick & place bench stopped
+        env:
+          GAMES: ${{ inputs.games || '10' }}
+          CONNECT4: "true"  # the game in place of the pick & place: the stack, and what wait_for_stack.sh waits for
+          EXPOSE_GROUND_TRUTH: "true"
+          FASTDDS_BUILTIN_TRANSPORTS: DEFAULT
+        run: |
+          set -o pipefail
+          # down then up, never restart: a restarted container keeps its environment, and wait_for_stack.sh reads
+          # the logs, which must be the new stack's
+          docker compose -f docker/docker-compose.yml down
+          docker compose -f docker/docker-compose.yml up -d control perception viz
+          bash tools/ci/wait_for_stack.sh
+          docker compose -f docker/docker-compose.yml exec -T -e GAMES control bash -lc '
+            source /ros2_ws/install/setup.bash &&
+            ros2 run so101_bringup evaluate --games "$GAMES" --out /ros2_ws/eval_games.csv --bags /ros2_ws/bags_games' |
+            tee "$RUNNER_TEMP/games.log"
       - name: Report (run summary, issue "Nightly bench results")
         if: always()  # a bench that stopped, or never started, is reported too
         env:
@@ -108,11 +129,12 @@ jobs:
           REF: ${{ github.ref_name }}  # main, or the branch of a workflow_dispatch
           SHA: ${{ github.sha }}
           EPISODES: ${{ inputs.episodes || '50' }}
+          GAMES: ${{ inputs.games || '10' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           ARTIFACT: evaluation-${{ github.run_number }}
         run: |
-          touch "$RUNNER_TEMP/bench.log"  # the bench never started: an empty log, "did not finish"
-          bash tools/ci/bench_report.sh "$RUNNER_TEMP/bench.log"
+          touch "$RUNNER_TEMP/bench.log" "$RUNNER_TEMP/games.log"  # a bench that never started: an empty log, "did not finish"
+          bash tools/ci/bench_report.sh "$RUNNER_TEMP/bench.log" "$RUNNER_TEMP/games.log"
       - name: Stack state and logs (on failure)
         if: failure()
         run: |
@@ -131,6 +153,8 @@ jobs:
           path: |
             ros2_ws/eval.csv
             ros2_ws/bags/
+            ros2_ws/eval_games.csv
+            ros2_ws/bags_games/
           retention-days: 14
 
   quality:

@@ -42,7 +42,7 @@ flowchart LR
 | `pre-commit` | Every `git commit` | < 10 s | Lint, format, invalid YAML/XML/TOML, large files, private keys, commit message |
 | Local tests (`colcon test --packages-select …`) | Before pushing | < 1 min per package | Unit and component regressions |
 | PR CI | Every push to a PR ready for review (a draft or a docs-only change: lint, guards and PR title only, §5.4) | ≈ 17 min (cached) | All of the above + project-rule guards + clean build + short E2E |
-| Nightly | Every night or on demand | 30–60 min | 50-episode success rate, diagrams, external links, new course commits |
+| Nightly | Every night or on demand | 30–60 min | 50-episode success rate, 10 Connect Four games, diagrams, external links, new course commits |
 | Release | Every tag | — | Frozen evaluation report, release notes |
 
 ## 3. Check matrix: who checks what, and where
@@ -66,6 +66,8 @@ flowchart LR
 | Unit tests | | | ✅ | | pytest via `colcon test` |
 | Component tests (real node, headless sim) | | | ✅ | | launch_testing |
 | Short E2E (3 episodes) | | | ✅* | | `ros2 run so101_bringup evaluate` |
+| One Connect Four game (phase 2, `e2e-game`) | | | ✅* | | `evaluate --games 1` |
+| Game bench (10 games against a random player) | | | | ✅* | `evaluate --games 10` |
 | **Full E2E (50 episodes, randomized cube and box)** | | | | ✅* | same |
 | Rendering of every Mermaid diagram | | | | ✅ | mermaid-cli (`tools/ci/check_mermaid.sh`) |
 | External links | | | | ✅ | lychee (`.lycheeignore`: the private repository) |
@@ -116,8 +118,11 @@ flowchart LR
   A --> P
   B --> P
   C["control<br/>image build (cache) + colcon build/test<br/>≈ 5–10 min"] --> E
-  P["perception<br/>image build + perception tests<br/>≈ 3–5 min"] --> E
+  P["perception<br/>image build + perception and connect4 tests<br/>≈ 3–5 min"] --> E
   E["e2e-smoke<br/>3 sim episodes<br/>(PRs, if E2E_ENABLED)"]
+  C --> G
+  P --> G
+  G["e2e-game<br/>1 Connect Four game<br/>(PRs, if E2E_ENABLED; not required yet)"]
 ```
 
 | Job | Fails when… | Artifacts |
@@ -128,6 +133,7 @@ flowchart LR
 | `control` | `colcon build` fails or a test fails (`colcon test-result --verbose`); only packages with a `test/` folder are tested, one at a time (`--executor sequential`): in parallel, the brain's IK property tests starved the driver's camera test (2.7 Hz on the 4-vCPU runner) | Each package's `pytest.xml` |
 | `perception` | Same for the perception packages (separate build, ADR-002) | — |
 | `e2e-smoke` | PRs only (§5.4). The stack is not ready within 15 min (`tools/ci/wait_for_stack.sh`), or the bench stops (exit 2: no ground truth, no brain pose). Fewer than 3 successes out of 3 fail it too (`evaluate --min-success 3`, #156): it replays the same three scenes each time (driver seed 0, a fresh stack), all three visible to the camera (MES-12), and passed 11 runs out of 11 after #141 and #144. The 80 % per episode of random scenes does not apply to these three; the nightly's 50 random episodes stay informative (#151). On failure, the job prints `docker compose ps -a` (an exited container shows there) and the last 150 log lines of `control` and `perception`, then the nodes a fresh process finds and whether `/joint_states` and `/end_effector_pose` reach it (#141). The stack runs with `FASTDDS_BUILTIN_TRANSPORTS=DEFAULT`, as the control tests: under the compose default `LARGE_DATA`, a fresh process missed the driver or the brain for 60 s in 2 of 5 runs on the runner. | `eval.csv` |
+| `e2e-game` | PRs only, as `e2e-smoke` (#233). The compose stack in game mode (`CONNECT4=true`) is not ready within 15 min (`wait_for_stack.sh`: driver, brain, game node, board reader), the bench stops (exit 2: no true board, a game node not `ready`), or the game is not a success (`evaluate --games 1 --min-success 1`, `08` §3.1): one game against a random player, the same one each time (driver seed 0, a fresh stack), about a minute once the stack is up. On failure: the stack state, the last 150 log lines, the nodes found, and one message of `/connect4/state`, `/connect4/board` and the true board. **Not a required check yet**: it joins them on 2026-11-19 if every run since its merge was green (#233); its displayed name, `E2E sim (1 game)`, must not change after that. | `eval_games.csv` |
 
 ### 5.2 Technical notes
 
@@ -174,6 +180,7 @@ The table below is the plan from 2026-10-15:
 - **The draft state is read when the run executes** (#209, `tools/ci/heavy.sh`): `gh pr view --json isDraft`, not the event's `pull_request.draft`. The event's is a snapshot. A push while draft and a "ready" in the same second start two runs, and the concurrency group (`ci-<ref>`, cancel in progress) can cancel the ready one. That happened on #207: the surviving run said "Draft", skipped the heavy jobs, and the PR showed every required check passed. A rerun keeps its event too. Whichever run survives, or is rerun, now sees the PR as it is. A failed lookup counts as ready, so it runs everything. The step logs both states.
 - **Linked tickets have a milestone** (#211, `pr-title.yml`, `tools/ci/linked_milestones.sh`, tested by `test_release.sh`). Each `Closes`, `Fixes` or `Resolves #n` of the PR body must name a ticket with a milestone, the version it ships in (ADR-028 Update, CONTRIBUTING §8), or the check fails and names it. A PR that closes nothing passes. The check runs on `edited` too: set the milestone, then edit the PR or rerun the job. It is a required check of the `main protection` ruleset.
 - The `lint` job decides, not a separate job: `lint` is a required check, so a failed decision blocks the PR instead of letting it merge without its tests, and no extra job is billed.
+- **`E2E sim (1 game)` runs with `e2e-smoke`** (#233): same events, same skips, its own job so that a failed game does not fail the pick & place check. Not required yet (§5.1).
 - **`E2E sim (3 episodes)` is a required check** since #156: a failed pick & place blocks the merge. A failed run gets one rerun of the failed job at most; a second failure is a `bug` issue (CONTRIBUTING §5).
 - **A skipped required check counts as passed**: a docs-only PR merges with `control`, `perception` and `e2e-smoke` skipped. A draft cannot be merged, and marking it ready reruns everything: since #209, also when the ready run is cancelled by a push of the same second, or an old draft run is rerun.
 - Tested without GitHub (the decision, from a given draft state) by `tools/ci/test_ci_skips.sh` (pre-commit, when one of the scripts changes).
@@ -200,6 +207,7 @@ flowchart LR
 - **The report** (#151, `tools/ci/bench_report.sh`, tested by `test_bench_report.sh`): each night the bench runs, its summary line (success rate, p50/p95 duration, failure causes), the commit of `main`, the target (≥ 90 %, informative: the nightly does not fail under it) and the run link go to the run summary and to one comment on the issue "Nightly bench results". A bench that stopped, or never started, comments that too. Skipped nights add nothing. The first report created it (#155), labeled `report` so the project views leave it out (it is not a work item), then pinned by hand; only this job can write issues. Its last line is the release reminder (#211, `tools/ci/milestone.sh`): the latest Release, the number of `[Unreleased]` entries, the oldest open version milestone, and either "**releasable**" (the bench met its target and the milestone has no open ticket but its release ticket and the epics) or "not yet" with the reason. The `nightly-triage` skill reads it.
 - The bench runs only when `main` changed (#146): `main-changed` (`tools/ci/evaluation_due.sh`) finds the newest nightly run whose bench gave a verdict, success or failure, and skips the bench when that run was on the same commit. Skipped nights are passed over, and so are cancelled or timed-out benches. Any doubt runs it: no verdict among the last 30 runs, or the API failing; the bench is then skipped only on an explicit `false`. A failed bench is not rerun on the same commit: it was reported that night, and `workflow_dispatch` always runs it.
 - On failure, the evaluation job prints the stack state, the logs and the links still alive, and runs on the `DEFAULT` transports, as `e2e-smoke` (#141).
+- **The game bench** (#233), in the same job after the pick & place bench, even when that one stopped: `docker compose down`, then `up` with `CONNECT4=true` (never `restart`: a restarted container keeps its environment, and `wait_for_stack.sh` reads the logs), `wait_for_stack.sh`, which with `CONNECT4=true` waits for the game node and the board reader, then `evaluate --games 10` against a random player (`08` §3.1; input `games` of a manual run). Its CSV and the failed games' rosbags join the artifact. **One verdict line for both benches**, `Target ≥ 90 % and ≥ 8/10 games: met.`: `tools/release.sh` takes any `Target …: met.` for a releasable night, so two lines would release a version on one bench. Games that did not finish are never "met".
 - The `upstream` job (#137) compares the course's `main` with `.github/upstream-sha`. When they differ, it opens one issue listing the new commits and their files, or updates the one already open. It runs without `E2E_ENABLED`, and its token can only write issues.
 - Reports of important milestones are **versioned by hand** in `results/` (small CSV/MD), never the rosbags (ADR-029).
 
