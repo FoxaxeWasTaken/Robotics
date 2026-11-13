@@ -51,7 +51,8 @@ def test_without_a_layout_the_driver_serves_randomize_and_nothing_of_the_game():
     node = start()
     try:
         services = names(node.get_service_names_and_types)
-        assert "/sim/randomize" in services and not services & SERVICES
+        assert "/sim/randomize" in services
+        assert not services & SERVICES
     finally:
         node.destroy_node()
         rclpy.shutdown()
@@ -64,13 +65,15 @@ def test_drop_token_answers_and_moves_a_token_of_the_color(game):
     assert reply.success, reply.message
     full = DropToken.Request(column=9, color=DropToken.Request.HUMAN)
     reply = game._srv_drop_token(full, DropToken.Response())
-    assert not reply.success and "column" in reply.message
+    assert not reply.success
+    assert "column" in reply.message
 
 
 def test_a_given_token_is_freed_once_the_jaws_close_on_it_and_reset_parks_it(game):
     run(game, 0.5, gripper=0.0)
     reply = game._srv_give_token(Trigger.Request(), Trigger.Response())
-    assert not reply.success and "open" in reply.message  # the jaws are closed
+    assert not reply.success  # the jaws are closed
+    assert "open" in reply.message
     run(game, 1.0, gripper=60.0)
     reply = game._srv_give_token(Trigger.Request(), Trigger.Response())
     assert reply.success, reply.message
@@ -88,7 +91,9 @@ def test_the_true_board_is_published_with_expose_ground_truth(game):
     game._pub_board.publish = sent.append
     game._publish_ground_truth()
     (board,) = sent
-    assert board.valid and len(board.cells) == 42 and not any(board.cells)
+    assert board.valid
+    assert len(board.cells) == 42
+    assert not any(board.cells)
     assert board.header.frame_id == "base_link"
 
 

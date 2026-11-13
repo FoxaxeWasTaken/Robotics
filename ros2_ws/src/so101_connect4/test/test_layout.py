@@ -1,6 +1,8 @@
 """layout.py: the geometry every user of connect4_grid.yaml shares (phase2/P2-02 §6, §7). No ROS, no sim."""
 
 import numpy as np
+import pytest
+import yaml
 
 from so101_connect4 import layout
 
@@ -39,16 +41,40 @@ def test_the_markers_sit_on_the_front_face_of_the_posts_between_the_table_and_th
     entry = table + LAYOUT["grid"]["slot_entry_height"]
     for center in centers.values():
         assert center[1] > LAYOUT["grid"]["slot_gap"] / 2  # the front face, +y
-        assert table < center[2] - half and center[2] + half < entry
+        assert table < center[2] - half
+        assert center[2] + half < entry
         on_a_post = center[0] + half < -0.037 / 2 or center[0] - half > 6.5 * 0.037
         assert on_a_post  # never over a window
-    assert centers[10][0] < 0 < centers[11][0] and centers[10][2] > centers[12][2]
+    assert centers[10][0] < 0 < centers[11][0]
+    assert centers[10][2] > centers[12][2]
 
 
 def test_marker_corners_follow_the_order_cv2_aruco_detects_seen_from_the_front():
     corners = layout.marker_corners(LAYOUT, 10)
     top_left, top_right, _, bottom_left = corners
     assert top_left[0] > top_right[0]  # the viewer's right is -x
-    assert top_left[2] > bottom_left[2] and np.isclose(top_right[2], top_left[2])
+    assert top_left[2] > bottom_left[2]
+    assert np.isclose(top_right[2], top_left[2])
     assert np.allclose(corners.mean(axis=0), layout.marker_centers(LAYOUT)[10])
     assert np.isclose(np.linalg.norm(top_left - top_right), LAYOUT["markers"]["size"])
+
+
+def robot_on(color) -> dict:
+    return {**LAYOUT, "token": {**LAYOUT["token"], "robot_color": color}}
+
+
+def test_the_robot_plays_yellow_in_the_installed_file_and_the_person_the_other_color():
+    """#255: one place pairs a side (1 the person's, 2 the robot's) with a color."""
+    assert LAYOUT["token"]["robot_color"] == "yellow"
+    assert layout.colors(LAYOUT) == {1: "red", 2: "yellow"}
+
+
+def test_the_robots_color_is_a_setting_of_the_file():
+    assert layout.colors(robot_on("red")) == {1: "yellow", 2: "red"}
+
+
+def test_a_color_the_reader_has_no_range_for_is_refused_when_the_file_is_loaded(tmp_path):
+    path = tmp_path / "connect4_grid.yaml"
+    path.write_text(yaml.safe_dump(robot_on("blue")))
+    with pytest.raises(ValueError, match=r"robot_color.*blue.*red.*yellow"):
+        layout.load(path)

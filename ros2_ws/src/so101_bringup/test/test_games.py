@@ -133,7 +133,8 @@ def test_the_scripted_person_only_plays_legal_columns(human):
     cells = with_tokens(EMPTY_BOARD, *[(3, p) for p in (HUMAN, ROBOT) * 3])  # column 3 is full
     rng = random.Random(0)
     played = {games.choose(human, a_state("WAIT_HUMAN", cells), rng) for _ in range(30)}
-    assert played and played <= {0, 1, 2, 4, 5, 6}
+    assert played
+    assert played <= {0, 1, 2, 4, 5, 6}
 
 
 def test_the_engine_person_takes_its_win():

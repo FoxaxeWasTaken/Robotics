@@ -67,7 +67,7 @@ Same scale as `10` (P = probability, I = impact, 1 to 3; Crit. = P × I).
 
 Ten games against a random person last about 12 min: 58 to 126 s a game, 7 to 16 tokens [MES-71]. Against the engine as the person a game goes up to 40 tokens and 5 min, so the night plays the random one. The job has 120 min and uses 19 without the games. Not worth doing here: CI or Sonar badges, a Sonar scan on PRs, path filters, mypy, a matrix. Mutation tests (mutmut) run by hand, as phase 1's: `turns.py` 95.9 % and `drop.py` 88.6 % of the mutants killed [MES-74] (`08` §1).
 
-Who sees it: the repository is private and the school copy has no Actions, Issues or Releases, so the visible proof is in the tree: `.github/workflows/`, `results/phase2_<date>.md`, the README (#234).
+Who sees it: the repository is private and the school copy has no Actions, Issues or Releases, so the visible proof is in the tree: `.github/workflows/`, `results/phase2_2026-11-13.md`, the README (#234).
 
 Every result enters the register of `../11_cross_review_and_measurements.md` as a MES, like phase 1.
 

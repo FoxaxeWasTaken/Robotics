@@ -136,45 +136,55 @@ class Move:
         self.seconds[name] = self.seconds.get(name, 0.0) + now - self._started
         self._started = None
 
+    def _start(self, step, now, q, sent):
+        """The step starts on this tick, its motion from the measured joints: what the gripper is sent."""
+        p = self._p
+        self._started = now
+        speed = p.v_max if step.v is None else step.v
+        self._trajectory = None if step.q is None else min_jerk(q, step.q, speed, p.min_motion_s)
+        return sent if step.gripper is None else step.gripper
+
+    def _progress(self, t, q) -> tuple[bool, bool]:
+        """(reached, late) of the running step's motion at `t`; a step without motion is reached."""
+        if self._trajectory is None:
+            return True, False
+        p, duration = self._p, self._trajectory.duration
+        errors = np.abs(q - self._trajectory.q_goal)
+        reached = t >= duration and errors[:4].max() < p.reach_tol and errors[4] < p.reach_tol_roll
+        return reached, not reached and t > duration + p.motion_margin_s
+
+    def _holds(self, step, effort, gripper) -> bool:
+        """A step that must hold a token does: the closing effort, or the jaws' gap from their command."""
+        p = self._p
+        return step.held_by is None or (
+            effort > p.effort_threshold or (gripper is not None and gripper - p.close_pct >= p.hold_gap_pct)
+        )
+
     def step(self, now, q, effort, gripper) -> Out:
         """One tick: `q` the measured arm joints, `effort` the gripper's closing effort, `gripper` its
         opening in % or None."""
         sent = command = None  # a step that ends still sends its goal, as the cycle does
         while self._steps:
-            step, p = self._steps[0], self._p
+            step = self._steps[0]
             if self._started is None:
-                self._started, sent = now, step.gripper if step.gripper is not None else sent
-                speed = p.v_max if step.v is None else step.v
-                self._trajectory = None if step.q is None else min_jerk(q, step.q, speed, p.min_motion_s)
+                sent = self._start(step, now, q, sent)
             t = now - self._started
-            reached = True
             if self._trajectory is not None:
                 command = self._trajectory.sample(t)
-                errors = np.abs(q - self._trajectory.q_goal)
-                reached = (
-                    t >= self._trajectory.duration
-                    and errors[:4].max() < p.reach_tol
-                    and errors[4] < p.reach_tol_roll
-                )
-                if not reached and t > self._trajectory.duration + p.motion_margin_s:
-                    self._end(now)
-                    return Out(command, sent, f"timeout:{step.name}")
-            held = step.held_by is None or (
-                effort > p.effort_threshold
-                or (gripper is not None and gripper - p.close_pct >= p.hold_gap_pct)
-            )
+            reached, late = self._progress(t, q)
+            held = self._holds(step, effort, gripper)
+            if late:
+                self._end(now)
+                return Out(command, sent, f"timeout:{step.name}")
             if reached and held and t >= step.wait:
                 self._end(now)
-                self._steps.pop(0)
-                continue  # the next step starts on this tick
-            if not held and t >= step.held_by:
+                self._steps.pop(0)  # the next step starts on this tick
+            elif not held and t >= step.held_by:
                 # Nothing held: the jaws open again, and the result waits for them. A token given right after
                 # the reply needs them open.
                 self._end(now)
-                self._steps, self._result = (
-                    [Step("reopen", gripper=p.open_pct, wait=p.release_wait_s)],
-                    NO_TOKEN,
-                )
-                continue
-            return Out(command, sent)
+                self._steps = [Step("reopen", gripper=self._p.open_pct, wait=self._p.release_wait_s)]
+                self._result = NO_TOKEN
+            else:
+                return Out(command, sent)
         return Out(command, sent, self._result)

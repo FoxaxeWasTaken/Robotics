@@ -127,7 +127,7 @@ def _add_connect4(spec, folder, layout):
         "margin": 0,
         "condim": 3,
     }
-    _add_grid(spec, folder, layout, table_z, solid)
+    _add_grid(spec, folder, layout, solid)
     for color, rgba in (("red", RED), ("yellow", YELLOW)):
         for i in range(grid["columns"] * grid["rows"] // 2):
             name = f"token_{color}_{i}"
@@ -150,7 +150,7 @@ def _add_connect4(spec, folder, layout):
             )
 
 
-def _add_grid(spec, folder, layout, table_z, solid):
+def _add_grid(spec, folder, layout, solid):
     """The grid, in its frame (so101_connect4.layout): contacts in hidden boxes, both faces drawn as a plate
     with round windows, the two posts with the markers, the depth guide."""
     grid, markers = layout["grid"], layout["markers"]

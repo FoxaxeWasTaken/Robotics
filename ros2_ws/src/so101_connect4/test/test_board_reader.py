@@ -77,16 +77,20 @@ def test_the_board_comes_at_the_fifth_agreeing_image_stamped_as_the_first(reader
     show(reader, rgb, 1400)
     (msg,) = reader.boards
     assert tuple(msg.cells) == tuple(REFERENCE["boards"]["midgame"])
-    assert msg.valid and msg.reason == "" and msg.header.frame_id == GRID_FRAME
+    assert msg.valid
+    assert msg.reason == ""
+    assert msg.header.frame_id == GRID_FRAME
     assert stamp_ms(msg) == 1000
     show(reader, rgb, 1500)
-    assert len(reader.boards) == 2 and stamp_ms(reader.boards[1]) == 1000  # the streak goes on
+    assert len(reader.boards) == 2  # the streak goes on
+    assert stamp_ms(reader.boards[1]) == 1000
 
 
 def test_the_grid_pose_is_the_layouts_within_5_mm_in_base_link_with_its_tf(reader):
     show(reader, picture("empty"), 1000)
     (pose,) = reader.poses
-    assert pose.header.frame_id == "base_link" and stamp_ms(pose) == 1000
+    assert pose.header.frame_id == "base_link"
+    assert stamp_ms(pose) == 1000
     position = pose.pose.position
     nominal = layout.grid_pose(LAYOUT)
     assert np.linalg.norm([position.x, position.y, position.z] - nominal[:3, 3]) < 0.005
@@ -103,7 +107,8 @@ def test_a_frame_seen_again_does_not_count(reader):
     rgb = picture("late")
     for _ in range(10):
         show(reader, rgb, 1000)  # the camera stalls: the same image, the same stamp
-    assert reader.boards == [] and len(reader.debug) == 10
+    assert reader.boards == []
+    assert len(reader.debug) == 10
 
 
 def test_one_bad_frame_in_a_streak_starts_it_again(reader):
@@ -116,7 +121,8 @@ def test_one_bad_frame_in_a_streak_starts_it_again(reader):
     assert reader.boards == []
     show(reader, good, 1900)
     (msg,) = reader.boards
-    assert stamp_ms(msg) == 1500 and tuple(msg.cells) == tuple(REFERENCE["boards"]["midgame"])
+    assert stamp_ms(msg) == 1500
+    assert tuple(msg.cells) == tuple(REFERENCE["boards"]["midgame"])
 
 
 def test_three_markers_are_enough_to_read_the_board(reader):
@@ -124,7 +130,8 @@ def test_three_markers_are_enough_to_read_the_board(reader):
     for i in range(5):
         show(reader, rgb, 1000 + 100 * i)
     (msg,) = reader.boards
-    assert msg.valid and tuple(msg.cells) == tuple(REFERENCE["boards"]["midgame"])
+    assert msg.valid
+    assert tuple(msg.cells) == tuple(REFERENCE["boards"]["midgame"])
     assert len(reader.poses) == 5
 
 
@@ -133,8 +140,10 @@ def test_two_markers_give_an_invalid_board_with_its_reason_and_no_pose(reader):
     for i in range(5):
         show(reader, rgb, 1000 + 100 * i)
     (msg,) = reader.boards
-    assert not msg.valid and msg.reason == "markers:2"
-    assert reader.poses == [] and len(reader.debug) == 5
+    assert not msg.valid
+    assert msg.reason == "markers:2"
+    assert reader.poses == []
+    assert len(reader.debug) == 5
 
 
 def test_a_token_over_an_empty_cell_is_published_invalid_with_its_column(reader):
@@ -146,13 +155,15 @@ def test_a_token_over_an_empty_cell_is_published_invalid_with_its_column(reader)
     for i in range(5):
         show(reader, rgb, 1000 + 100 * i)
     (msg,) = reader.boards
-    assert not msg.valid and msg.reason == "gravity:5"
+    assert not msg.valid
+    assert msg.reason == "gravity:5"
 
 
 def test_nothing_is_read_before_the_cameras_intrinsics_and_the_game_state_shows_on_the_debug_image(reader):
     reader._camera_info = None
     show(reader, picture("empty"), 1000)
-    assert reader.debug == [] and reader.poses == []
+    assert reader.debug == []
+    assert reader.poses == []
     info = CameraInfo(width=640, height=480)
     info.k = K.ravel().tolist()
     reader._cb_camera_info(info)
@@ -174,7 +185,8 @@ def test_the_debug_image_says_the_robots_reason_and_circles_the_winning_four(rea
     last = {"who": "robot", "column": 3, "planned": 3, "score": 2, "depth": 10}
     told = shown({"state": "WAIT_HUMAN", "last": last})
     changed = np.flatnonzero((told != quiet).any(axis=(1, 2)))
-    assert changed.min() > 22 and changed.max() < 44, "the reason is a second line, nothing else changes"
+    assert changed.min() > 22, "the reason is a second line, nothing else changes"
+    assert changed.max() < 44, "the reason is a second line, nothing else changes"
 
     won = (1, 1, 1, 1, 2, 2, 2) + (0,) * 35
     monkeypatch.setattr(board, "read", lambda *args, **kwargs: won)
@@ -182,7 +194,9 @@ def test_the_debug_image_says_the_robots_reason_and_circles_the_winning_four(rea
     centres, radius = board.cell_pixels(LAYOUT, reader_pose(reader), K)
     u, v = centres[0]
     r, g, b = (int(c) for c in circled[round(v) - round(radius) - 3, round(u)])
-    assert g > 200 and r < 80 and b < 80
+    assert g > 200
+    assert r < 80
+    assert b < 80
 
 
 def reader_pose(reader):

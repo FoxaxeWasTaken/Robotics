@@ -91,7 +91,7 @@ This table is **the contract** between team members. Any change goes through a P
 | `/connect4/new_game` | `std_srvs/SetBool` | game_node (**game mode only**) | A new game: the arm to `HANDOVER`, then the empty board read; `data: true`, the robot plays first. Refused while the robot moves, thinks or reads (`refused in <state>`), and until the stack is seen (`not ready: no <topic or service>`) |
 | `/connect4/human_done`, `/connect4/stop` | `std_srvs/Trigger` | game_node (**game mode only**) | The person's turn is over (a token dropped, or the robot's token given): accepted in `WAIT_HUMAN` and `FIX_BOARD`. Stop: from any state, `ERROR:stopped`, `/brain/stop` called |
 | `/sim/connect4/drop_token` | `so101_interfaces/DropToken` | driver (**sim only**, game mode) | The simulated person drops a token: `column` 0 to 6, `color` `HUMAN` or `ROBOT` (`03` §7, `phase2/P2-02` §7) |
-| `/sim/connect4/give_token`, `/sim/connect4/reset_board` | `std_srvs/Trigger` | driver (**sim only**, game mode) | A yellow token between the open jaws; every token back to its parking place |
+| `/sim/connect4/give_token`, `/sim/connect4/reset_board` | `std_srvs/Trigger` | driver (**sim only**, game mode) | A token of the robot's color (yellow as installed, `token.robot_color`) between the open jaws; every token back to its parking place |
 
 ### 3.3 Main parameters
 

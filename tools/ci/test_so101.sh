@@ -72,7 +72,7 @@ echo "ok: cycle randomizes in sim only, /brain/start either way"
 : > "$CALLS"
 out=$(CONNECT4=true FINAL=DONE PATH="$tmp/run:$PATH" timeout 10 "$so101" cycle 2>&1) && fail "cycle ran on a stack in game mode"
 grep -q "CONNECT4=true" <<< "$out" || fail "cycle on a stack in game mode said: $out"
-[ ! -s "$CALLS" ] || fail "cycle on a stack in game mode called: $(cat "$CALLS")"
+[[ ! -s "$CALLS" ]] || fail "cycle on a stack in game mode called: $(cat "$CALLS")"
 echo "ok: cycle refuses a stack started in game mode (#231), no service called"
 dry "-e ROS_DOMAIN_ID=77 control" "&& set -m;" "pgrep -f \"[/]lib/so101_\"" "grep -qxz ROS_DOMAIN_ID=77 /proc/" "a stack already runs on ROS domain 77" \
   "expose_ground_truth:=true perception:=true" \

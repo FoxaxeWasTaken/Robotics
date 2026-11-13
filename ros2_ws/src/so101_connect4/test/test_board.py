@@ -76,7 +76,8 @@ def detected(ids):
 @pytest.mark.parametrize("ids", [(10, 11, 12, 13), (10, 11, 13), (11, 12, 13)])
 def test_the_grids_pose_comes_from_four_markers_or_three(ids):
     T, error, used = board.grid_in_camera(detected(ids), LAYOUT, K)
-    assert used == list(ids) and error < 0.01
+    assert used == list(ids)
+    assert error < 0.01
     assert np.allclose(T[:3, 3], T_CAM_GRID[:3, 3], atol=1e-4)  # 0.1 mm
     assert np.allclose(T[:3, :3], T_CAM_GRID[:3, :3], atol=1e-4)
 
@@ -108,7 +109,8 @@ def test_an_image_is_rgb8_a_bgr_one_reads_the_humans_tokens_as_nothing():
     cells = random_board(np.random.default_rng(1), 20)
     bgr = cv2.cvtColor(synthetic(cells), cv2.COLOR_RGB2BGR)
     read = board.read(bgr, LAYOUT, T_CAM_GRID, K)
-    assert HUMAN not in read and read != cells
+    assert HUMAN not in read
+    assert read != cells
 
 
 def test_a_grid_partly_out_of_the_image_is_not_read():
@@ -142,7 +144,8 @@ def test_the_drop_target_is_over_the_guide_above_the_column_1_mm_towards_the_fix
     for column in (0, 3, 6):
         target = board.column_target(LAYOUT, T_base_grid, column)
         x, y = (np.linalg.inv(T_base_grid) @ [*target, 1.0])[:2]
-        assert x == pytest.approx(column * GRID["column_pitch"]) and y == pytest.approx(0.001)
+        assert x == pytest.approx(column * GRID["column_pitch"])
+        assert y == pytest.approx(0.001)
         # table 10 cm under base_link, entries at 25 cm, guide 30 mm, 8 mm clear, the token's radius
         assert target[2] == pytest.approx(-0.10 + 0.25 + 0.030 + 0.008 + 0.017)
 
@@ -187,7 +190,8 @@ def test_every_cell_of_a_reference_image_of_the_scene_is_read(name):
     camera = np.array(REFERENCE["K"])
     found = detect_markers(rgb, LAYOUT["markers"]["dictionary"])
     T_cam_grid, error, ids = board.grid_in_camera(found, LAYOUT, camera)
-    assert ids == LAYOUT["markers"]["ids"] and error < 1.0
+    assert ids == LAYOUT["markers"]["ids"]
+    assert error < 1.0
     cells = board.read(rgb, LAYOUT, T_cam_grid, camera)
     assert cells == tuple(REFERENCE["boards"][name])
     assert board.validate(cells) == (True, "")
@@ -200,7 +204,8 @@ def test_the_debug_image_fills_the_cells_read_and_keeps_the_size():
     cells = random_board(np.random.default_rng(2), 12)
     image = synthetic([EMPTY] * 42)
     out = board.draw(image, LAYOUT, T_CAM_GRID, K, cells, "board VALID")
-    assert out.shape == image.shape and out is not image
+    assert out.shape == image.shape
+    assert out is not image
     centres, _ = board.cell_pixels(LAYOUT, T_CAM_GRID, K)
     for (u, v), cell in zip(centres, cells, strict=True):
         pixel = tuple(int(c) for c in out[round(v), round(u)])
@@ -226,3 +231,20 @@ def test_a_second_status_line_goes_under_the_first():
     first, second = board.label(image, "board VALID"), board.label(image, "robot: column 4", row=1)
     rows = [np.flatnonzero((out != image).any(axis=(1, 2))) for out in (first, second)]
     assert rows[0].max() < rows[1].min()
+
+
+RED_ROBOT = {**LAYOUT, "token": {**LAYOUT["token"], "robot_color": "red"}}  # #255: the robot plays red
+
+
+def test_with_the_robot_on_red_a_red_disc_is_read_as_the_robots():
+    cells = random_board(np.random.default_rng(3), 20)
+    other = {EMPTY: EMPTY, HUMAN: ROBOT, ROBOT: HUMAN}
+    assert board.read(synthetic(cells), RED_ROBOT, T_CAM_GRID, K) == tuple(other[cell] for cell in cells)
+
+
+def test_with_the_robot_on_red_the_debug_image_fills_its_cells_in_red():
+    cells = [ROBOT, HUMAN] + [EMPTY] * 40
+    out = board.draw(synthetic([EMPTY] * 42), RED_ROBOT, T_CAM_GRID, K, cells)
+    centres, _ = board.cell_pixels(LAYOUT, T_CAM_GRID, K)
+    pixels = [tuple(int(c) for c in out[round(v), round(u)]) for u, v in centres[:2]]
+    assert pixels == [(255, 0, 0), (255, 255, 0)]

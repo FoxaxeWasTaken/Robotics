@@ -145,7 +145,8 @@ def test_a_token_dropped_above_each_column_lands_in_its_bottom_row(sim):
     step(sim, 1.5)
     for column in range(GRID["columns"]):
         at, row, across = cell_of(sim, f"token_red_{column}")
-        assert abs(at - column) < 0.1 and abs(row) < 0.1, (column, at, row)
+        assert abs(at - column) < 0.1, (column, at, row)
+        assert abs(row) < 0.1, (column, at, row)
         assert abs(across) < GRID["slot_gap"] / 2
 
 
@@ -156,7 +157,8 @@ def test_six_tokens_stack_in_a_column_and_come_to_rest(sim):
     step(sim, 1.0)
     for row in range(GRID["rows"]):
         at, height, _ = cell_of(sim, f"token_yellow_{row}")
-        assert abs(at - 3) < 0.1 and abs(height - row) < 0.1, (row, at, height)
+        assert abs(at - 3) < 0.1, (row, at, height)
+        assert abs(height - row) < 0.1, (row, at, height)
         velocity = sim.data.cvel[sim.model.body(f"token_yellow_{row}").id]
         assert np.abs(velocity).max() < 1e-3, (row, velocity)  # the provided contacts crept at 70 mm/s
 
@@ -182,7 +184,8 @@ def clearance(sim):
     ]
     arm = {model.body(name).id for name in ARM_BODIES}
     arm_geoms = [g for g in range(model.ngeom) if model.geom_bodyid[g] in arm and model.geom_contype[g]]
-    assert arm_geoms and grid_geoms
+    assert arm_geoms
+    assert grid_geoms
     gaps = [mujoco.mj_geomDistance(model, sim.data, a, g, 0.05, None) for a in arm_geoms for g in grid_geoms]
     pair = int(np.argmin(gaps))
     body = model.body(model.geom_bodyid[arm_geoms[pair // len(grid_geoms)]]).name
@@ -293,4 +296,5 @@ def test_the_driver_ends_at_handover_in_game_mode_the_way_to_park_crosses_the_gr
 
 def test_without_connect4_the_scene_has_no_grid_and_no_token(tmp_path):
     xml = sim_scene.generate(tmp_path, camera=CAMERA).read_text()
-    assert "grid" not in xml and "token" not in xml
+    assert "grid" not in xml
+    assert "token" not in xml

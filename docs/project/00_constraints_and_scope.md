@@ -24,6 +24,7 @@ The project has two phases [BRIEF], [KO2 p13] (the roadmap calls its own work pa
 | [KO1] | `docs/part_1_Kickoff_rob_tek5.pdf` | General culture slides + schedule |
 | [KO2] | `docs/part_2_Kickoff_rob_tek5_aprem.pdf` | Architecture, topics, nodes slides |
 | [J3] | `docs/J3_visio_perception.pdf` (added upstream on 2026-10-21, pulled 2026-10-23) | Day-3 visio (2026-10-22) on perception: the calendar (intermediate review ~31 Oct, phase 1 working in sim, ideally on the real arm; visio #2 on 5 Nov; final review 21 or 28 Nov), pixel → 3D (K, D, depth, TF), calibration and camera pose (checkerboard, ArUco, PnP, hand-eye; autofocus off), depth from a known plane, then sensors and AI |
+| [J4] | `docs/J4_veille_et_projets.pdf` (not published upstream; the file the staff sent, added on 2026-11-13) | Day-4 visio (2026-11-05): robotics culture (the industry, models and world models, fake autonomy, Europe and defense, ethics), then the 13 groups' phase-2 projects in 5 themes, with 10-minute follow-up slots. Ours, under "Play a game": "Connect 4, with a way to grab the pieces easily. Perception: maybe YOLO". No new requirement |
 | [CODE] | Provided code (`core/`, `sim/`, `ros2_ws/`, `docker/`) | De facto technical constraints |
 | [MES-xx] | Team measurements (`11_cross_review_and_measurements.md`) | Experimental evidence |
 

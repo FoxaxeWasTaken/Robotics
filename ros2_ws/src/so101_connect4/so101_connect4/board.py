@@ -5,7 +5,8 @@ The grid's pose comes from its markers (grid_in_camera); the 42 cell centres are
 face, and a cell is a token when enough of a disc around its centre lies in that color's HSV range. Images
 are rgb8.
 Cells are row-major from the bottom row, cells[row * 7 + column], column 0 nearest the arm: 0 empty, 1 the
-human's (red), 2 the robot's (yellow), as so101_interfaces/msg/Connect4Board.
+human's, 2 the robot's, as so101_interfaces/msg/Connect4Board. Which color is whose: layout.colors (the
+layout's token.robot_color, yellow or red).
 """
 
 from itertools import pairwise
@@ -20,6 +21,7 @@ from so101_connect4.game import EMPTY, HUMAN, ROBOT  # the cells' values, one de
 # this yellow, 2100 cells of 2100 [MES-65].
 RED = (((160, 150, 30), (180, 255, 255)), ((0, 150, 30), (8, 255, 255)))
 YELLOW = (((18, 120, 30), (40, 255, 255)),)
+FILL = {"red": (255, 0, 0), "yellow": (255, 255, 0)}  # rgb, a cell read as a token in the debug image
 THRESHOLD = 0.35  # of the disc in the color's range: a token [MES-65]
 DISC = 0.3  # the disc's radius, of the column pitch: inside a window, whatever the token's place in its cell
 MIN_MARKERS = 3  # of the grid's 4: one may hide behind a hand
@@ -68,7 +70,8 @@ def read(rgb, layout, T_cam_grid, K, red=RED, yellow=YELLOW, threshold=THRESHOLD
     if not inside.all():
         return None
     hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
-    colors = {HUMAN: _in_ranges(hsv, red), ROBOT: _in_ranges(hsv, yellow)}
+    ranges = {"red": red, "yellow": yellow}
+    colors = {side: _in_ranges(hsv, ranges[name]) for side, name in geometry.colors(layout).items()}
     cells = []
     for u, v in centres:
         disc = np.zeros((height, width), np.uint8)
@@ -140,7 +143,7 @@ def draw(rgb, layout, T_cam_grid, K, cells, text="", four=()):
     (game.four) circled, and a status line."""
     out = rgb.copy()
     centres, radius = cell_pixels(layout, T_cam_grid, K)
-    fill = {HUMAN: (255, 0, 0), ROBOT: (255, 255, 0)}
+    fill = {side: FILL[name] for side, name in geometry.colors(layout).items()}
     for (u, v), cell in zip(centres, cells or [EMPTY] * len(centres), strict=True):
         centre = (round(u), round(v))
         if cell:

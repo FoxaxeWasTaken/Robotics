@@ -133,20 +133,18 @@ def _threats(stones: int, mask: int) -> int:
     return found & _BOARD & ~mask
 
 
-def best_move(
-    me: int, mask: int, budget_s: float | None = 1.0, max_depth: int = CELLS, seed: int = 0
-) -> Choice:
-    """Iterative deepening to max_depth, within budget_s. Among equal best moves at the root: the most central
-    column, and `seed` between two as central."""
-    start = time.monotonic()
-    deadline = None if budget_s is None else start + budget_s
-    table = {}
-    nodes = 0
+class _Search:
+    """One best_move's negamax: its deadline, its node count, its transposition table."""
 
-    def search(me, mask, depth, alpha, beta):
-        nonlocal nodes
-        nodes += 1
-        if deadline is not None and not nodes & _CHECK_EVERY and time.monotonic() > deadline:
+    __slots__ = ("deadline", "nodes", "table")
+
+    def __init__(self, deadline):
+        self.deadline, self.nodes, self.table = deadline, 0, {}
+
+    def score(self, me, mask, depth, alpha, beta) -> int:
+        """The position's score for `me`, to play, within (alpha, beta)."""
+        self.nodes += 1
+        if self.deadline is not None and not self.nodes & _CHECK_EVERY and time.monotonic() > self.deadline:
             raise _TimeoutError
         stones = mask.bit_count()
         if stones == CELLS:
@@ -166,8 +164,12 @@ def best_move(
             return stones + 2 - _WIN
         if depth <= 0:
             return 2 * (mine.bit_count() - theirs.bit_count()) + (me & _CENTER).bit_count()
+        return self._deeper(me, mask, depth, alpha, beta, possible)
+
+    def _deeper(self, me, mask, depth, alpha, beta, possible) -> int:
+        """The best of the `possible` moves, through the table: what a search as deep already knows."""
         key = me + mask  # unique for a position: each column's stones plus its first empty cell
-        hit = table.get(key)
+        hit = self.table.get(key)
         first = 0
         if hit is not None:
             entry_depth, kind, value, first = hit
@@ -180,26 +182,54 @@ def best_move(
                     beta = min(beta, value)
                 if alpha >= beta:
                     return value
-        original_alpha = alpha
-        best = -_WIN - 1
-        best_bit = 0
-        order = [_COLUMN[c] & possible for c in _ORDER]
+        best, best_bit = self._best(me, mask, depth, alpha, beta, possible, first)
+        # exact (0), or a bound: 1 when the search was cut (at least `best`), -1 when no move reached alpha
+        kind = 0
+        if best >= beta:
+            kind = 1
+        elif best <= alpha:
+            kind = -1
+        self.table[key] = (depth, kind, best, best_bit)
+        return best
+
+    def _best(self, me, mask, depth, alpha, beta, possible, first) -> tuple[int, int]:
+        """(score, bit) of the best move: the table's move first, then the columns from the center."""
+        order = [bit for column in _ORDER if (bit := _COLUMN[column] & possible) and bit != first]
         if first & possible:
             order.insert(0, first)
+        best, best_bit = -_WIN - 1, 0
         for bit in order:
-            if not bit or (bit == first and best != -_WIN - 1):
-                continue
-            score = -search(me ^ mask, mask | bit, depth - 1, -beta, -alpha)
+            score = -self.score(me ^ mask, mask | bit, depth - 1, -beta, -alpha)
             if score > best:
                 best, best_bit = score, bit
                 if score > alpha:
                     alpha = score
                     if alpha >= beta:
                         break
-        kind = 1 if best >= beta else -1 if best <= original_alpha else 0
-        table[key] = (depth, kind, best, best_bit)
-        return best
+        return best, best_bit
 
+    def root(self, me, mask, columns, depth) -> tuple[dict, int]:
+        """({column: score}, the best score) of the root's moves at `depth`."""
+        scores, best = {}, -_WIN - 1
+        for column in columns:
+            child_me, child_mask = play(me, mask, column)
+            if has_four(me | (child_mask ^ mask)):
+                score = _WIN - mask.bit_count() - 1
+            else:
+                # best - 1, not best: a move as good as the best gets its exact score, for the tie-break
+                score = -self.score(child_me, child_mask, depth - 1, -_WIN - 1, -(best - 1))
+            scores[column] = score
+            best = max(best, score)
+        return scores, best
+
+
+def best_move(
+    me: int, mask: int, budget_s: float | None = 1.0, max_depth: int = CELLS, seed: int = 0
+) -> Choice:
+    """Iterative deepening to max_depth, within budget_s. Among equal best moves at the root: the most central
+    column, and `seed` between two as central."""
+    start = time.monotonic()
+    search = _Search(None if budget_s is None else start + budget_s)
     legal = legal_columns(mask)
     if not legal:
         raise ValueError("no legal move: the board is full")
@@ -210,24 +240,14 @@ def best_move(
     done = Choice(root[0], 0, 0, 0, 0.0)
     for depth in range(1, min(max_depth, CELLS - mask.bit_count()) + 1):
         try:
-            scores = {}
-            best = -_WIN - 1
-            for column in root:
-                child_me, child_mask = play(me, mask, column)
-                if has_four(me | (child_mask ^ mask)):
-                    score = _WIN - mask.bit_count() - 1
-                else:
-                    # best - 1, not best: a move as good as the best gets its exact score, for the tie-break
-                    score = -search(child_me, child_mask, depth - 1, -_WIN - 1, -(best - 1))
-                scores[column] = score
-                best = max(best, score)
+            scores, best = search.root(me, mask, root, depth)
         except _TimeoutError:
             break
         ties = [c for c, score in scores.items() if score == best]
         near = min(abs(c - COLUMNS // 2) for c in ties)
         central = [c for c in ties if abs(c - COLUMNS // 2) == near]
-        done = Choice(rng.choice(central), best, depth, nodes, time.monotonic() - start)
-        root.sort(key=lambda c: -scores[c])  # stable: center first among equals
+        done = Choice(rng.choice(central), best, depth, search.nodes, time.monotonic() - start)
+        root.sort(key=scores.get, reverse=True)  # stable: center first among equals
         if abs(best) > _IS_MATE:
             break
-    return done._replace(nodes=nodes, seconds=time.monotonic() - start)
+    return done._replace(nodes=search.nodes, seconds=time.monotonic() - start)

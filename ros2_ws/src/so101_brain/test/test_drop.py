@@ -213,7 +213,8 @@ def test_a_move_cut_short_counts_the_step_it_ended_in(kin):
 def test_the_legs_back_go_faster_once_the_jaws_are_empty_the_ones_with_the_token_do_not(kin):
     steps = drop.drop_steps(kin, COLUMNS[6], HANDOVER, P)
     by_name = {step.name: step for step in steps}
-    assert by_name["rise"].v is None and by_name["column"].v is None  # the token held: the motion's v_max
+    assert by_name["rise"].v is None  # the token held: the motion's v_max
+    assert by_name["column"].v is None
     assert all(step.v is None for step in steps if step.name.startswith("lift"))  # next to the guide
     arm = Arm(HANDOVER)
     arm.run(drop.Move(steps, P))
@@ -301,7 +302,8 @@ def test_a_handover_opens_the_jaws_and_reaches_the_pose():
     result, _ = arm.run(drop.Move(drop.handover_steps(HANDOVER, P), P))
     assert result == ""
     np.testing.assert_allclose(arm.q, HANDOVER)
-    assert arm.log[0][2].gripper == P.open_pct and arm.gripper == P.open_pct
+    assert arm.log[0][2].gripper == P.open_pct
+    assert arm.gripper == P.open_pct
 
 
 # Found by mutation testing (mutmut on drop.py, 08 §1) [MES-74]
@@ -345,7 +347,8 @@ def test_a_timeout_still_commands_the_arm_on_its_last_tick(kin):
     arm = Arm(HANDOVER, follows=False)
     arm.run(drop.Move(drop.drop_steps(kin, COLUMNS[3], HANDOVER, P), P))
     _, _, last = arm.log[-1]
-    assert last.result == "timeout:rise" and last.command is not None
+    assert last.result == "timeout:rise"
+    assert last.command is not None
 
 
 def test_the_wrist_roll_has_its_own_tolerance(kin):

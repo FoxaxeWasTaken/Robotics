@@ -11,11 +11,24 @@ import numpy as np
 import yaml
 from ament_index_python.packages import get_package_share_directory
 
+TOKEN_COLORS = ("red", "yellow")  # the store-bought game's: the two the reader has a range for (board.py)
+
 
 def load(path=None) -> dict:
     """The installed layout, or the one of `path`."""
     path = path or Path(get_package_share_directory("so101_connect4")) / "config" / "connect4_grid.yaml"
-    return yaml.safe_load(Path(path).read_text())
+    layout = yaml.safe_load(Path(path).read_text())
+    colors(layout)  # a robot_color the reader has no range for is refused here, before anything starts
+    return layout
+
+
+def colors(layout) -> dict:
+    """{1: the color of the person's tokens, 2: of the robot's} (Connect4Board's cells): token.robot_color,
+    and the person plays the other. The one place that pairs a side with a color (#255)."""
+    robot = layout["token"]["robot_color"]
+    if robot not in TOKEN_COLORS:
+        raise ValueError(f"connect4_grid.yaml: token.robot_color is {robot!r}, it is red or yellow")
+    return {1: next(color for color in TOKEN_COLORS if color != robot), 2: robot}
 
 
 def slot_bottom(layout) -> float:

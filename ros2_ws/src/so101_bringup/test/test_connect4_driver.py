@@ -92,7 +92,8 @@ def test_a_given_token_stays_in_the_closed_jaws_while_the_arm_moves(game):
     assert slip < 4.0  # MES-63: under 4 mm up to 1.5 rad/s
     # What tells a held token from none is the effort, as on the cube [MES-10]: the jaws end within 0.2 % of
     # an empty close, the token sits where they do not meet [MES-67].
-    assert empty < 0.05 and on_token > 0.25
+    assert empty < 0.05
+    assert on_token > 0.25
 
 
 def test_a_game_of_42_tokens_falls_with_the_tick_and_the_image_rate_kept(game):
