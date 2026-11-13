@@ -25,7 +25,7 @@ dry " down" -- down
 dry "logs -f control" -- logs
 dry "logs -f viz" -- logs viz
 dry "exec control bash -lc" "source /ros2_ws/install/setup.bash && exec bash'" -- shell
-dry "rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz" -- rviz
+dry "rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/" -- rviz
 dry "yml build" -- build
 dry "yml build perception" -- build perception
 dry "restart control" -- restart
@@ -192,6 +192,37 @@ grep -qF "the workspace is not built in this container yet" <<< "$out" || fail "
 out=$("$so101" --dry-run bench --game)
 grep -qF "tail -n 30 /tmp/bench_stack.log" <<< "$out" || fail "bench does not show its stack's log when it fails: $out"
 echo "ok: play, cycle, rviz, shell, bench and robustness say when the workspace is not built; bench shows its stack's log"
+
+# #265: the game in one command. up --game is CONNECT4=true tools/so101 up; an up never changes the mode of a
+# running stack (compose would recreate the containers: a game in progress replaced by the pick & place).
+out=$("$so101" --dry-run up --game) || fail "up --game: exit $?"
+grep -qF "up -d control perception viz" <<< "$out" && grep -qF "CONNECT4=true" <<< "$out" || fail "up --game: $out"
+out=$(CONNECT4=false "$so101" --dry-run up) || fail "up: exit $?"
+grep -qF "CONNECT4=true" <<< "$out" && fail "up alone starts the game: $out"
+mkdir "$tmp/mode"
+cat > "$tmp/mode/docker" << 'FAKE'
+#!/usr/bin/env bash
+case "$*" in
+  *"ps -q control"*) echo abc123 ;;
+  *inspect*) printf 'ROS_DOMAIN_ID=69\nCONNECT4=%s\n' "${RUNNING:-false}" ;;
+  *) echo "docker called: $*" >&2; exit 99 ;;
+esac
+FAKE
+chmod +x "$tmp/mode/docker"
+out=$(RUNNING=false PATH="$tmp/mode:$PATH" "$so101" up --game 2>&1) && fail "up --game over a pick & place stack ran"
+grep -qF "the stack runs the pick & place" <<< "$out" && grep -qF "tools/so101 down" <<< "$out" || fail "up --game over the other mode said: $out"
+out=$(RUNNING=true PATH="$tmp/mode:$PATH" "$so101" up 2>&1) && fail "up over a game ran"
+grep -qF "the stack runs the Connect Four game" <<< "$out" || fail "up over a game said: $out"
+out=$(RUNNING=true PATH="$tmp/mode:$PATH" "$so101" up --game 2>&1) || true
+grep -qF "docker called: compose" <<< "$out" && grep -qF "up -d control perception viz" <<< "$out" || fail "up --game over a game did not go on: $out"
+out=$("$so101" --dry-run wait) || fail "wait: exit $?"
+grep -qF "tools/ci/wait_for_stack.sh" <<< "$out" || fail "wait: $out"
+out=$("$so101" --dry-run demo < /dev/null) || fail "demo: exit $?"
+[[ "$(grep -c '^+ ' <<< "$out")" = 3 ]] || fail "demo is not three commands: $out"
+grep -qF "CONNECT4=true" <<< "$out" && grep -qF "wait_for_stack.sh" <<< "$out" && grep -qF "connect4_play" <<< "$out" || fail "demo: $out"
+out=$("$so101" --dry-run rviz)
+grep -qF 'echo connect4 || echo so101).rviz' <<< "$out" || fail "rviz does not open the game's view in game mode: $out"
+echo "ok: up --game, an up that keeps the running stack's mode, wait, demo in three commands, rviz with the game's view"
 
 "$so101" --help | grep -q "bench --stub|--perception" || fail "--help"
 "$so101" --help | grep -q "r the robot first, e m h the level, s stop" || fail "--help: the keys of play"

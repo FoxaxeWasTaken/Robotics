@@ -24,8 +24,8 @@ from so101_connect4 import layout
 from so101_connect4.client import GameClient, last_move
 
 KEYS = (
-    "keys: 1 to 7 play a column, ? a hint, n new game, r new game with the robot first, "
-    "e, m, h the level (easy, medium, hard), s stop, q quit"
+    "keys: 1 to 7 play a column, ? a hint, a the computer plays your turns, n new game, "
+    "r new game with the robot first, e, m, h the level (easy, medium, hard), s stop, q quit"
 )
 NO_STATE = "no /connect4/state yet: is the game's stack up, and built? (CONNECT4=true tools/so101 up)"
 LEVEL_KEYS = {name[0]: depth for name, depth in engine.LEVELS.items()}  # e, m, h
@@ -75,12 +75,34 @@ def show(text):
     print(text, flush=True)  # through a pipe stdout is block-buffered: the drawing would wait
 
 
+class Screen:
+    """A terminal redrawn in place: the keys, the last board, the last message under it. Printed one after
+    the other, a turn scrolled fifty lines."""
+
+    def __init__(self, out=show):
+        self._out, self._board, self._message = out, "", ""
+
+    def draw(self, board):
+        self._board = board
+        self._paint()
+
+    def write(self, message):
+        self._message = message
+        self._paint()
+
+    def _paint(self):  # the cursor home, the screen cleared from there, then the whole screen
+        self._out("\x1b[H\x1b[J" + "\n".join(part for part in (KEYS, self._board, self._message) if part))
+
+
 class Console:
     """One pass at a time, nothing waits: step() draws the state when it changed, gives the robot its token
     when the turn is its own, and acts on a key."""
 
-    def __init__(self, game, write=show, color=False, colors=None):
+    def __init__(self, game, write=show, color=False, colors=None, draw=None):
+        """`write` gets the messages and `draw` the boards; the same by default."""
         self.game, self.write, self.color = game, write, color
+        self.draw = draw or write
+        self.auto = False  # the automatic player plays the person's turns
         self.colors = colors or layout.colors(layout.load())  # each side's token color (token.robot_color)
         # The states drawn and played, and the one whose robot's turn failed: the client's state is a new
         # dict each time
@@ -88,7 +110,7 @@ class Console:
 
     def step(self, key=None) -> bool:
         """False to quit."""
-        state = self.game.state
+        state, key = self.game.state, key.lower() if key else key
         if key == "q":
             return False
         if state is None:
@@ -97,7 +119,7 @@ class Console:
             return True
         if state is not self._drawn:
             self._drawn = state
-            self.write(render(state, self.color, self.colors))
+            self.draw(render(state, self.color, self.colors))
         try:
             self._act(state, key)
         except RuntimeError as error:  # a service that is gone
@@ -118,6 +140,20 @@ class Console:
                 if not done:
                     self.write(f"{message}; any key to try again")
                 return
+        if key and not key.isspace() and self.auto:  # any key stops it, and is not taken for a move
+            self.auto = False
+            self.write("automatic player: off")
+            return
+        if key == "a":
+            self.auto = True
+            self.write("automatic player: on, any key stops it")
+        if self.auto:  # a whole game to watch: the engine plays the person's turns, at the hint's depth
+            if mine and state["turn"] == "human":
+                position = engine.from_cells(state["board"], engine.HUMAN)
+                column = engine.best_move(*position, max_depth=HINT_DEPTH).column
+                if not self._turn(state, str(column + 1)):
+                    self.auto = False  # refused: no try at each pass
+            return
         if key in ("n", "r"):
             self._say(self.game.new_game(robot_first=key == "r"))
         elif key == "s":
@@ -132,8 +168,8 @@ class Console:
         elif key and not key.isspace():
             self.write(KEYS)
 
-    def _turn(self, state, key):
-        """The person's turn: a hint, or their token in the column of `key`."""
+    def _turn(self, state, key) -> bool:
+        """The person's turn: a hint, or their token in the column of `key`; whether a token was played."""
         if key == "?":
             position = engine.from_cells(state["board"], engine.HUMAN)
             self.write(f"hint: column {engine.best_move(*position, max_depth=HINT_DEPTH).column + 1}")
@@ -144,6 +180,8 @@ class Console:
             if reply[0]:  # refused, the state stays as it is: the key must work again
                 self._played = state
             self._say(reply)
+            return reply[0]
+        return False
 
     def _say(self, reply):
         if not reply[0]:
@@ -172,8 +210,14 @@ def main(make_hand, args=None):
     """The console, with make_hand(node) as the person's hand."""
     rclpy.init(args=args)
     node = rclpy.create_node("connect4_play")
-    console = Console(GameClient(node, make_hand(node)), color=sys.stdout.isatty())
-    show(KEYS)
+    game = GameClient(node, make_hand(node))
+    if sys.stdout.isatty():  # a terminal: the screen redrawn in place; a pipe: one line after the other
+        screen = Screen()
+        console = Console(game, screen.write, color=True, draw=screen.draw)
+        screen.write("")
+    else:
+        console = Console(game)
+        show(KEYS)
     saved = termios.tcgetattr(sys.stdin) if sys.stdin.isatty() else None
     try:
         if saved:

@@ -80,12 +80,12 @@ Linux (x86_64) with Docker and Compose v2, an X server for RViz, and about 8 GB 
 After the quickstart's `build` (stop the pick & place stack first: `tools/so101 down`):
 
 ```bash
-CONNECT4=true tools/so101 up                 # the game's simulation: the grid, its 42 tokens, the board reader, the game node
-tools/so101 logs                             # the first time, wait for "Game node ready." (it builds first), then Ctrl+C
-tools/so101 rviz                             # optional: the arm, and the grid as the board reader draws it
-tools/so101 play                             # the game, in a second terminal; it waits for the stack to be ready
+tools/so101 demo                             # the game in one command: starts it, waits until it is ready, opens the console
+tools/so101 rviz                             # optional, in a second terminal: the arm, and the grid as the board reader draws it
 tools/so101 down                             # before coming back to the pick & place
 ```
+
+`demo` is `tools/so101 up --game` (the game's simulation: the grid, its 42 tokens, the dispenser, the board reader, the game node), `tools/so101 wait` (the first start builds the workspace, minutes) and `tools/so101 play` (the console). An `up` never changes the mode of a running stack: `down` first.
 
 <img src="docs/project/media/connect4_scene.png" width="480" alt="The simulated scene of the game: the Connect Four grid with red and yellow tokens and a marker at each corner, the arm on its riser, and the token dispenser, three stacked rails of yellow tokens behind a marker plate that carries four markers">
 
@@ -94,11 +94,12 @@ tools/so101 down                             # before coming back to the pick & 
 | `n`, `r` | A new game: you start (`n`), or the robot starts (`r`) |
 | `1` to `7` | Your red token in that column, numbered as on the screen. The simulated hand drops it; the robot takes its own yellow token at the dispenser |
 | `?` | A hint: the column the engine would play in your place |
+| `a` | The computer plays your turns too: a whole game to watch. Any key stops it |
 | `e`, `m`, `h` | The robot's level: easy, medium, hard (the default). It applies from its next move |
 | `s` | Stops the arm and the game |
 | `q` | Quits the console; the stack keeps running |
 
-- **The screen** shows the grid, the level, the robot's last move with its reason, and what to do. The winning four is drawn as `*`.
+- **The screen** shows the grid, the level, the robot's last move with its reason, and what to do, redrawn in place on a terminal. The winning four is drawn as `*`. Keys work in capitals too.
 - **The colors**: the robot plays yellow (`Y`) and you red (`R`). To swap them, set `token.robot_color: red` in [`connect4_grid.yaml`](ros2_ws/src/so101_connect4/config/connect4_grid.yaml) and start the stack again (`tools/so101 down`, then `CONNECT4=true tools/so101 up`: both containers read the file): the simulated hand, the camera's reading and the screen follow.
 - **A robot's move takes about 20 s**: 8 to 12 s to take its token at the dispenser, then 12 s to drop it (17 on the far column). A game against a careless player lasts about a minute and a half.
 - **The dispenser** holds the robot's 21 tokens, enough for a whole game; a new game fills it again. Found empty, the game waits (`dispenser_empty`) and the console fills it. To play as before the dispenser, a token given between the jaws at each turn, set `token_source: hand` in [`game.yaml`](ros2_ws/src/so101_connect4/config/game.yaml) and start the stack again.
