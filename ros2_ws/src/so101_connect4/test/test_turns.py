@@ -144,6 +144,58 @@ def test_the_humans_last_move_carries_no_engine_reason():
     assert c.turns.last == {"who": "human", "column": 4, "planned": 4}
 
 
+def test_the_history_and_who_started_rebuild_the_board():
+    """#245: the columns in the order the tokens were seen; `moves` is only a count."""
+    c = new_game(robot_first=True)
+    c.step(human_done=True)
+    c.read(EMPTY_BOARD)
+    robot_plays(c, 3)
+    human_plays(c, 3)
+    robot_plays(c, 4, lands=5)  # the camera says where it went
+    human_plays(c, 0)
+    state = c.turns.snapshot()
+    assert (state["first"], state["history"]) == ("robot", [3, 3, 5, 0])
+    players = (ROBOT, HUMAN) if state["first"] == "robot" else (HUMAN, ROBOT)
+    rebuilt = with_tokens(
+        EMPTY_BOARD, *[(column, players[i % 2]) for i, column in enumerate(state["history"])]
+    )
+    assert rebuilt == c.turns.cells == tuple(state["board"])
+
+
+def test_a_new_game_starts_the_history_again():
+    c = new_game()
+    human_plays(c, 2)
+    c.step(stop=True)
+    c.step(new_game=True)
+    assert (c.turns.snapshot()["first"], c.turns.snapshot()["history"]) == ("human", [])
+
+
+def test_the_seconds_of_a_game_are_counted_by_state():
+    """#245: where a game's time goes, for the bench's CSV. Each state's time is added when it is left."""
+    c = Clock()
+    c.step(new_game=True)
+    c.wait(0.5)  # the arm goes to HANDOVER
+    c.step(move_reply=(True, ""))
+    c.read(EMPTY_BOARD)
+    c.wait(2.0)  # the person thinks
+    human_plays(c, 3)
+    c.wait(0.3)  # the engine searches
+    c.step(engine=choice(3))
+    c.wait(14.0)  # the drop
+    c.step(move_reply=(True, ""))
+    c.read(with_tokens(c.turns.cells, (3, ROBOT)))
+    seconds = c.turns.snapshot()["seconds"]
+    assert seconds == {
+        "move": pytest.approx(0.6 + 14.1),
+        "read": pytest.approx(0.15 + 0.15 + 0.15),
+        "wait": pytest.approx(2.1),
+        "think": pytest.approx(0.4),
+    }
+    c.wait(1.0)  # the person waits, then asks for a new game
+    c.step(new_game=True)
+    assert set(c.turns.snapshot()["seconds"].values()) == {0.0}
+
+
 def test_a_stale_read_is_not_yet_an_error():
     c = new_game()
     c.step(human_done=True)
@@ -497,6 +549,9 @@ def test_the_snapshot_holds_what_the_console_and_the_bench_need():
         "moves",
         "lost",
         "missed",
+        "first",
+        "history",
+        "seconds",
     }
     assert snapshot["state"] == "THINK"
     assert snapshot["board"][3] == HUMAN

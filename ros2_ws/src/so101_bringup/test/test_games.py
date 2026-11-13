@@ -37,7 +37,9 @@ def a_state(state="GAME_OVER", cells=ROBOT_WON, **fields):
         "board": list(cells),
         "legal": legal,
     }
-    return base | {"last": None, "result": "robot", "moves": 7, "lost": 0, "missed": 0} | fields
+    played = {"first": "robot", "history": [0, 0, 1, 1, 2, 2, 3], "moves": 7, "lost": 0, "missed": 0}
+    seconds = {"move": 56.5, "read": 2.1, "wait": 0.7, "think": 0.8}  # 4 robot moves and the handover
+    return base | {"last": None, "result": "robot", "seconds": seconds} | played | fields
 
 
 # The scoring
@@ -78,7 +80,7 @@ def test_the_summary_starts_with_games_never_with_success():
     rows = [{"success": True, "duration_s": 90.0, "cause": ""}] * 8
     rows += [{"success": False, "duration_s": 600.0, "cause": "bench_timeout"}] * 2
     text = games.summary(rows)
-    assert text.startswith("games 8/10 (80 %); duration p50 90.0 s, p95 90.0 s; causes: bench_timeout: 2")
+    assert text == "games 8/10 (80 %); duration p50 90.0 s, p95 90.0 s, max 90.0 s; causes: bench_timeout: 2"
 
 
 def test_the_summary_of_no_success_has_no_duration():
@@ -114,6 +116,9 @@ def test_a_games_row_holds_the_fields_of_the_csv_in_order():
         "robot",
     )
     assert (row["duration_s"], row["success"], row["cause"]) == (61.2, True, "")
+    # #245: the columns in order, and where the time went: a robot's move, its search, a read of the grid
+    assert row["history"] == "0011223"
+    assert (row["move_s"], row["think_s"], row["read_s"]) == (14.1, 0.2, 0.3)
     assert (
         games.row(4, 0, "random", False, a_state("THINK"), "bench_timeout", ROBOT_WON, 0.0, 600.0)["first"]
         == "human"
@@ -269,7 +274,7 @@ def test_each_game_is_a_csv_row_and_a_line_then_the_summary(tmp_path, capsys):
     assert out[-3:] == [
         "game 1: GAME_OVER, 90.0 s, success",
         "game 2: GAME_OVER, 90.0 s, bench_timeout",
-        "games 1/2 (50 %); duration p50 90.0 s, p95 90.0 s; causes: bench_timeout: 1",
+        "games 1/2 (50 %); duration p50 90.0 s, p95 90.0 s, max 90.0 s; causes: bench_timeout: 1",
     ]
 
 

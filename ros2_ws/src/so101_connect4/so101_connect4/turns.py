@@ -59,6 +59,7 @@ class Expect(StrEnum):
 
 NEW_GAME_FROM = {State.IDLE, State.WAIT_HUMAN, State.FIX_BOARD, State.GAME_OVER, State.ERROR}
 HUMAN_DONE_FROM = {State.WAIT_HUMAN, State.FIX_BOARD}
+TIMED = {State.MOVE: "move", State.READ_BOARD: "read", State.WAIT_HUMAN: "wait", State.THINK: "think"}
 NO_TOKEN = "no_token"  # /brain/drop's refusal when the jaws closed on nothing (P2-02 §6)
 STOPPED = "stopped"  # the reply of a move cut by /brain/stop
 
@@ -113,6 +114,10 @@ class Turns:
         self.result = ""
         self.last = None  # {"who", "column", "planned"}; the robot's: and the engine's reason, _why
         self.lost = self.missed = self.moves = 0
+        self.history = []  # the columns, in the order the tokens were seen
+        self.seconds = dict.fromkeys(
+            TIMED.values(), 0.0
+        )  # of this game, by state; added when a state is left
         self._expect = Expect.EMPTY
         self._robot_first = False
         self._column = None
@@ -142,6 +147,9 @@ class Turns:
             "last": self.last,
             "result": self.result,
             "moves": self.moves,
+            "first": "robot" if self._robot_first else "human",
+            "history": list(self.history),  # with `first`, the board can be rebuilt
+            "seconds": {state: round(spent, 2) for state, spent in self.seconds.items()},
             "lost": self.lost,
             "missed": self.missed,
         }
@@ -182,10 +190,14 @@ class Turns:
         self._robot_first = robot_first
         self._expect = Expect.EMPTY
         self._column = None
+        self.history = []
         self._go(State.MOVE)
+        self.seconds = dict.fromkeys(TIMED.values(), 0.0)  # after _go: the last game's wait is not this one's
 
     def _go(self, state, reason=""):
         old, spent = self.label, self._now - self._since
+        if self.state in TIMED:
+            self.seconds[TIMED[self.state]] += spent
         self.state, self.reason, self._since = state, reason, self._now
         self._out.transition = f"{old} → {self.label} ({spent:.2f} s in {old})"
         match state:
@@ -241,6 +253,7 @@ class Turns:
             return
         self.cells = tuple(board.cells)
         self.moves += 1
+        self.history.append(column)
         who = "robot" if player == ROBOT else "human"
         planned = self._column if player == ROBOT else column
         self.last = {"who": who, "column": column, "planned": planned} | (

@@ -9,8 +9,9 @@ timeout (then /connect4/stop). The person plays a random legal column, or the en
 
 Scored with the driver's ground truth (expose_ground_truth, for this bench only, C-06): a success is a game
 over that the true grid agrees with, the board and the winner, with no token lost or in another column than
-asked, and an arm that stayed still while the person played (target P2-05). One CSV row per game, a rosbag
-per failed game with --bags, and the summary at the end, which starts with `games`.
+asked, and an arm that stayed still while the person played (target P2-05). One CSV row per game, with its
+columns in order and where its time went, a rosbag per failed game with --bags, and the summary at the end,
+which starts with `games`.
 """
 
 import random
@@ -28,8 +29,8 @@ from so101_connect4.client import GameClient
 from so101_interfaces.msg import Connect4Board
 
 FIELDS = [
-    "game", "seed", "human", "first", "final_state", "result", "plies", "missed", "lost",
-    "duration_s", "success", "cause",
+    "game", "seed", "human", "first", "final_state", "result", "plies", "history", "missed", "lost",
+    "think_s", "move_s", "read_s", "duration_s", "success", "cause",
 ]  # fmt: skip
 BAG_TOPICS = [
     "/joint_states", "/joint_command", "/brain_state", "/connect4/state", "/connect4/board",
@@ -69,11 +70,10 @@ def summary(rows) -> str:
     `games`: tools/ci/bench_report.sh reads the pick & place line by `success`."""
     done = [r["duration_s"] for r in rows if r["success"]]
     rate = f"games {len(done)}/{len(rows)} ({100 * len(done) / len(rows):.0f} %)"
-    duration = (
-        f"duration p50 {np.percentile(done, 50):.1f} s, p95 {np.percentile(done, 95):.1f} s"
-        if done
-        else "duration: no success"
-    )
+    duration = "duration: no success"
+    if done:
+        p50, p95 = np.percentile(done, [50, 95])
+        duration = f"duration p50 {p50:.1f} s, p95 {p95:.1f} s, max {max(done):.1f} s"
     causes = Counter(r["cause"] for r in rows if not r["success"])
     return f"{rate}; {duration}; causes: {', '.join(f'{c}: {n}' for c, n in causes.most_common()) or 'none'}"
 
@@ -140,8 +140,10 @@ class Still:
 
 
 def row(number, seed, human, robot_first, state, why, truth, moved_rad, duration_s) -> dict:
-    """A game's CSV row, FIELDS in order."""
+    """A game's CSV row, FIELDS in order. `history` and `first` rebuild the board; think_s and move_s are
+    means over the robot's moves (the new game's way to HANDOVER counts in move_s), read_s over the tokens."""
     success, cause = outcome(state, why, truth, moved_rad)
+    seconds, robot_moves = state["seconds"], max(1, state["board"].count(game.ROBOT))
     return {
         "game": number,
         "seed": seed,
@@ -150,8 +152,12 @@ def row(number, seed, human, robot_first, state, why, truth, moved_rad, duration
         "final_state": state["state"],
         "result": state["result"],
         "plies": state["moves"],
+        "history": "".join(str(column) for column in state["history"]),
         "missed": state["missed"],
         "lost": state["lost"],
+        "think_s": round(seconds["think"] / robot_moves, 1),
+        "move_s": round(seconds["move"] / robot_moves, 1),
+        "read_s": round(seconds["read"] / max(1, state["moves"]), 1),
         "duration_s": round(duration_s, 1),
         "success": success,
         "cause": cause,
