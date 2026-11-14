@@ -7,7 +7,14 @@ import yaml
 
 RVIZ = Path(__file__).resolve().parents[1] / "rviz"
 GAME_ONLY = "Connect Four board (game mode)"
-PICK_AND_PLACE = ["Cube (perception)", "Box floor (perception)", "Drop box", "Brain targets", "Cube (locked)"]
+PICK_AND_PLACE = [  # "Perception debug": its node does not run in game mode, the panel would stay empty
+    "Cube (perception)",
+    "Box floor (perception)",
+    "Drop box",
+    "Brain targets",
+    "Cube (locked)",
+    "Perception debug",
+]
 
 
 def displays(name) -> dict:
