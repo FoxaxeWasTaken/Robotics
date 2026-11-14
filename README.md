@@ -16,7 +16,7 @@
 
 *A game against the simulated arm at 16× speed, as the board reader draws it: the cells it reads, the stations of the dispenser, the robot's reason, the winning four.*
 
-| **50/50** | **2100/2100** | **10/10** | **6/6** |
+| **50/50** | **2100/2100** | **10/10** | **8/8** |
 | --- | --- | --- | --- |
 | tokens dropped in their column | cells of the grid read by the camera | full games finished, the robot wins each | fault cases of a game handled |
 
