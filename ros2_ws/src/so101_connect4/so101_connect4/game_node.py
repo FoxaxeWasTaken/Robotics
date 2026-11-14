@@ -295,7 +295,9 @@ class GameNode(rclpy.node.Node):
             self._pub_state.publish(String(data=text))
 
     def destroy_node(self):
-        self._worker.shutdown(wait=False, cancel_futures=True)  # a running search ends, then the process
+        # Waited for: a running search ends, then the process. A pool still closing at the interpreter's exit
+        # gets a write on its closed pipe there, a traceback at the node's stop (#272)
+        self._worker.shutdown(wait=True, cancel_futures=True)
         super().destroy_node()
 
 

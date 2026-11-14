@@ -725,7 +725,9 @@ class BrainNode(rclpy.node.Node):
         return self._steady.now().nanoseconds * 1e-9
 
     def destroy_node(self):
-        self._worker.shutdown(wait=False, cancel_futures=True)  # a running plan ends, then the process
+        # Waited for: a running plan ends, then the process. A pool still closing at the interpreter's exit
+        # gets a write on its closed pipe there, a traceback at the brain's stop (#272)
+        self._worker.shutdown(wait=True, cancel_futures=True)
         super().destroy_node()
 
 

@@ -5,7 +5,9 @@ The rules of the turns are test_turns.py's; here, what the node adds: the messag
 the brain, and that nothing blocks the tick."""
 
 import json
+import os
 import re
+import threading
 import time
 
 import numpy as np
@@ -564,3 +566,18 @@ def test_a_new_game_accepted_in_the_same_tick_as_a_stop_starts(stack):
     stack.wait_for("WAIT_HUMAN", moves=0)
     assert stack.calls.count(("handover",)) == handovers + 1
     assert ("stop",) in stack.calls
+
+
+def test_a_destroyed_game_node_has_joined_the_threads_of_its_search_pool():
+    """As the brain's planning pool (#272): a pool still closing at the interpreter's exit gets a write on
+    its closed pipe there, a traceback at the node's stop."""
+    before = set(threading.enumerate())
+    rclpy.init()
+    try:
+        node = GameNode()
+        node._worker.submit(os.getpid).result()  # the pool's process and its threads start with a search
+        node.destroy_node()
+        left = [thread.name for thread in threading.enumerate() if thread not in before]
+    finally:
+        rclpy.shutdown()
+    assert left == []
