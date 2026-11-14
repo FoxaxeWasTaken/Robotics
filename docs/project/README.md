@@ -110,7 +110,7 @@ Sent on Teams on 2026-10-16 and answered the same day (ticket 0.1c). *Team* mark
 3. **Robustness evaluation**: a bench drawing random cube **and** box poses is what is expected; showing that it works on a few draws is enough. "Robust" means the five cases of [BOOT2 p12]: the object moves mid-action, the grasp fails, the object leaves the view, the target is out of reach, the lighting changes. Show a quick example of how each one is handled, or not (ADR-018).
 4. **Calibration scene**: our own scene is fine, and markers other than ArUco are allowed if they work better (ADR-013, ADR-036).
 5. **Real arm and cameras**: recalibrate the arm with the LeRobot (Hugging Face) calibration tools (`07` §3.1). Any USB webcam works as the scene camera and the grid webcam (a phone only as a stopgap: latency). The wrist camera is probably the WowRobo 2 MP USB module for SO-ARM100/101 (30 fps, 3 m cable), with a printable wrist mount (STL shared on Teams); whether each campus has one: the staff will confirm (ADR-038).
-6. **License** (*team*): not asked for now, the repository is private. ADR-031 stays OPEN until a public release (8.1c).
+6. **License** (*team*): Apache-2.0 for the team's work, `LICENSE` and `NOTICE` at the root (ADR-031 Update, 2026-11-14); the school agreed that the kit is published with the repository (8.1c, #99).
 7. **School repository** (*team*): question withdrawn. Without admin rights there, the mirror uses a key on a member's account and force-pushes `main` (ADR-033, `16`); Dependabot PRs that may appear there are closed by hand.
 
 Phase-2 questions and answers (riser, cameras, real-arm sessions, taught poses, 3D printer): `phase2/P2-03` §4.

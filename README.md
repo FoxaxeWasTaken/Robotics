@@ -293,4 +293,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Planned work and progress: the team's Gi
 
 ## Acknowledgements and license
 
-TEK5 Robotics module kit (Epitech). Driver extracted from [LeRobot](https://github.com/huggingface/lerobot) (Apache-2.0). The team's code has no license file yet: the decision is open (ADR-031); the packages' manifests say Apache-2.0, as LeRobot.
+TEK5 Robotics module kit (Epitech). Driver extracted from [LeRobot](https://github.com/huggingface/lerobot) (Apache-2.0). The team's work is under the [Apache License 2.0](LICENSE) (ADR-031); [`NOTICE`](NOTICE) names what is not ours and keeps its own terms: LeRobot's extract in `core/` and the course kit.

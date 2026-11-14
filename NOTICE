@@ -1,0 +1,11 @@
+SO-ARM101: Connect Four and pick & place with ROS 2
+Copyright 2026 FoxaxeWasTaken, SamuelValentin974, Hasnain-Pyarali
+
+The team's work in this repository is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Not the team's work, each under its own terms:
+- core/lerobot_min is derived from LeRobot (https://github.com/huggingface/lerobot), Copyright the
+  HuggingFace Inc. team, Apache License 2.0; its file headers are kept.
+- The TEK5 Robotics course kit (Epitech): sim/, ros2_ws/src/so101_description/, ros2_ws/src/example_py_pkg/
+  (MIT in its manifest), docs/SUJET.md and the course slides in docs/. Published here with the school's
+  agreement; the kit states no license of its own.

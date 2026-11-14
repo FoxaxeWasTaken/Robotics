@@ -43,7 +43,7 @@ flowchart LR
     A20["020 Git"] --> A28
     A29["029 Heavy data"]
     A30["030 Docs as code"]
-    A31["031 License (OPEN)"]
+    A31["031 License"]
   end
   subgraph S7["Phase 2: Connect Four"]
     A34["034 Application"] --> A35["035 Grid layout"]
@@ -98,7 +98,7 @@ flowchart LR
 | [ADR-028](ADR-028-merge-versioning.md) | PR merges, versions and changelog | DECIDED | CP → QA | C-07, C-53 |
 | [ADR-029](ADR-029-large-data.md) | Heavy data outside Git (no LFS); versioned calibration | DECIDED | OPS → QA, VIS | C-53 |
 | [ADR-030](ADR-030-docs-as-code.md) | Versioned documentation: Markdown, checked Mermaid, ADRs, English | DECIDED | ARC → QA, CP | C-50, C-53 |
-| [ADR-031](ADR-031-license.md) | Repository license | OPEN | CP → teaching staff | C-53 |
+| [ADR-031](ADR-031-license.md) | Repository license | DECIDED | CP → teaching staff | C-53 |
 | [ADR-032](ADR-032-provided-connect-arm.md) | Real-arm connection: keep the provided `_connect_arm` | DECIDED (revised after the upstream pull) | CTRL/SAFE → CP, OPS | C-10, C-51 |
 | [ADR-033](ADR-033-school-mirroring.md) | Private repository with CI, mirrored to the school repository | DECIDED | OPS → CP, QA | C-07, C-53 |
 | [ADR-034](ADR-034-phase-2-application.md) | Phase-2 application: Connect Four against the robot | DECIDED, validated by the teaching staff (2026-10-09) | CP → all | C-53, C-54 |
