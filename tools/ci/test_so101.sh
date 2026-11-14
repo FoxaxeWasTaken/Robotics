@@ -24,7 +24,7 @@ dry "up -d control perception viz" -- up
 dry " down" -- down
 dry "logs -f control" -- logs
 dry "logs -f viz" -- logs viz
-dry "exec control bash -lc 'source /ros2_ws/install/setup.bash && exec bash'" -- shell
+dry "exec control bash -lc" "source /ros2_ws/install/setup.bash && exec bash'" -- shell
 dry "rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz" -- rviz
 dry "yml build" -- build
 dry "yml build perception" -- build perception
@@ -76,11 +76,11 @@ grep -q "CONNECT4=true" <<< "$out" || fail "cycle on a stack in game mode said: 
 echo "ok: cycle refuses a stack started in game mode (#231), no service called"
 dry "-e ROS_DOMAIN_ID=77 control" "&& set -m;" "pgrep -f \"[/]lib/so101_\"" "grep -qxz ROS_DOMAIN_ID=77 /proc/" "a stack already runs on ROS domain 77" \
   "expose_ground_truth:=true perception:=true" \
-  "evaluate --episodes 10 --out /ros2_ws/eval_bench.csv'" -- bench --perception
+  "evaluate --episodes 10 --out /ros2_ws/eval_bench.csv || {" -- bench --perception
 dry "-e ROS_DOMAIN_ID=77 control" "test/gt_stub.launch.py" "--episodes 3 " "--bags /ros2_ws/bags" \
   -- bench --stub -n 3 --bags /ros2_ws/bags
 dry "-e ROS_DOMAIN_ID=77 control" "expose_ground_truth:=true perception:=true connect4:=true" \
-  "evaluate --games 2 --out /ros2_ws/eval_games.csv'" -- bench --game -n 2
+  "evaluate --games 2 --out /ros2_ws/eval_games.csv || {" -- bench --game -n 2
 echo "ok: bench runs on ROS domain 77 only, refuses a busy domain, real pipeline or stub, N episodes, bags"
 
 # From a terminal, bench gets one in the container (#58): with exec -T, Ctrl+C stopped only the docker client and
@@ -126,7 +126,8 @@ grep -qF "/end_effector_pose" <<< "$out" && grep -qF "/connect4/grid_pose" <<< "
 echo "ok: run builds our packages in a throwaway container (no network, domain 79, the repository read-only), --stack, --game, --out"
 
 for case in 1 2 3a 3b 4 5 g1 g2 g3 g4 g5 g6 g7 g8; do
-  dry "run --rm --no-deps -e ROS_DOMAIN_ID=78 control bash -lc 'source /ros2_ws/install/setup.bash && ros2 launch so101_bringup robustness_demo.launch.py case:=$case'" \
+  dry "run --rm --no-deps -e ROS_DOMAIN_ID=78 control bash -lc" \
+    "source /ros2_ws/install/setup.bash && ros2 launch so101_bringup robustness_demo.launch.py case:=$case'" \
     -- robustness $case
 done
 dry "robustness_demo.launch.py case:=5 lighting:=dim episodes:=1'" -- robustness 5 --lighting dim -n 1
@@ -163,7 +164,37 @@ refused restart deploy
 refused test "so101_brain && reboot"
 refused logs control-real
 refused deploy
+# #264: a flag after a command that takes no argument did the opposite of what it says (down --dry-run stopped
+# the stack); an option without its value ended with exit 1 and no message.
+for command in up down shell rviz cycle play; do
+  out=$("$so101" "$command" --dry-run 2>&1) && fail "so101 $command --dry-run ran"
+  grep -qF "$command: no argument expected" <<< "$out" || fail "so101 $command --dry-run said: $out"
+done
+out=$("$so101" --dry-run bench --game -n 2>&1) && fail "bench -n without a number ran"
+grep -qF "bench: -n takes a number of episodes" <<< "$out" || fail "bench -n without a number said: $out"
+out=$("$so101" --dry-run robustness 5 --lighting 2>&1) && fail "robustness --lighting without a name ran"
+grep -qF "robustness: --lighting takes an entry" <<< "$out" || fail "robustness --lighting without a name said: $out"
+out=$("$so101" --dry-run robustness 5 -n 2>&1) && fail "robustness -n without a number ran"
+grep -qF "robustness: -n takes a number of cycles" <<< "$out" || fail "robustness -n without a number said: $out"
+out=$("$so101" --dry-run run --out 2>&1) && fail "run --out without a path ran"
+grep -qF "run: one command, quoted" <<< "$out" || fail "run --out without a path said: $out"
+echo "ok: no argument for up, down, shell, rviz, cycle and play; an option without its value is said"
+
+# #264: before the first up has built the workspace, play said "the stack does not run the game" and rviz a bare
+# "No such file": every command in the control container says the workspace is not built.
+for command in play cycle rviz shell "bench --game"; do
+  # shellcheck disable=SC2086
+  out=$("$so101" --dry-run $command < /dev/null) || fail "so101 $command: exit $?"
+  grep -qF "the workspace is not built in this container yet" <<< "$out" || fail "so101 $command does not check the build: $out"
+done
+out=$("$so101" --dry-run robustness g1)
+grep -qF "the workspace is not built in this container yet" <<< "$out" || fail "robustness does not check the build: $out"
+out=$("$so101" --dry-run bench --game)
+grep -qF "tail -n 30 /tmp/bench_stack.log" <<< "$out" || fail "bench does not show its stack's log when it fails: $out"
+echo "ok: play, cycle, rviz, shell, bench and robustness say when the workspace is not built; bench shows its stack's log"
+
 "$so101" --help | grep -q "bench --stub|--perception" || fail "--help"
+"$so101" --help | grep -q "r the robot first, e m h the level, s stop" || fail "--help: the keys of play"
 "$so101" --help | grep -q "CONNECT4=true tools/so101 up" || fail "--help: the game mode"
 echo "ok: a bench without its mode, a bad count or path, a bad package or service, an unknown command: refused"
 

@@ -121,7 +121,7 @@ All the following choices belong to the team; each has an ADR (see `adr/README.m
 | Interfaces | Exact topic names (suggested), position types, QoS, frames, extra nodes | 004, 005 |
 | Infra | Docker image extensions, extra compose services, CI | 002, 019, 025 |
 | Real arm | Real camera, placement, intrinsic calibration | 007, 014, 021 |
-| Phase 2 | The application itself and its design (Connect Four) | 034, 035, 036, 037, 038 |
+| Phase 2 | The application itself and its design (Connect Four) | 034, 035, 036, 037, 038, 040, 041, 042 |
 
 ## 5. Inconsistencies between sources and how they are resolved
 

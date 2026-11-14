@@ -67,7 +67,7 @@ shift
 readings=1 corner=""
 while [ $# -gt 0 ]; do
   case $command:$1 in
-    zero-offsets:-n) readings=${2:-}; shift ;;
+    zero-offsets:-n) readings=${2:-}; [ $# -lt 2 ] || shift ;;
     touch:[0-9]*) corner=$1 ;;
     *) die "$command: unknown option $1" ;;
   esac

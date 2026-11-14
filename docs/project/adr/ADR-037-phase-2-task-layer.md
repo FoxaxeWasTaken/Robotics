@@ -2,7 +2,7 @@
 
 | Status | Date | Experts (author → reviewers) | Related requirements |
 | --- | --- | --- | --- |
-| RECOMMENDED (interface change: approval of the brain and perception owners in the implementing PR, `01` §3) | 2026-10-09 | ARC → KIN, DEC, VIS | C-05, C-33, C-54 |
+| DECIDED as updated: the action became a `/brain/drop` service (Update 2026-11-07), built and measured (Update 2026-11-13); `/brain/pick` and `check_only` (Update 2026-11-13, ADR-041, ADR-042) | 2026-10-09 | ARC → KIN, DEC, VIS | C-05, C-33, C-54 |
 
 ## Context
 

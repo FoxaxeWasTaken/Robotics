@@ -2,8 +2,8 @@
 
 # SO-ARM101 · Connect Four and pick & place with ROS 2
 
-**The arm plays Connect Four against you: its camera reads the grid, an engine picks the move, the arm drops its token.**<br>
-**It also picks a cube and drops it on target. One ROS 2 stack, in simulation and on the real robot.**
+**The arm plays Connect Four against you, in simulation: its camera reads the grid, an engine picks the move, the arm takes a token and drops it.**<br>
+**It also picks a cube and drops it on target, in simulation and on the real robot. One ROS 2 stack.**
 
 [![Nightly](https://github.com/FoxaxeWasTaken/Robotics/actions/workflows/nightly.yml/badge.svg)](https://github.com/FoxaxeWasTaken/Robotics/actions/workflows/nightly.yml)
 ![ROS 2 Jazzy](https://img.shields.io/badge/ROS_2-Jazzy-22314E?logo=ros&logoColor=white)
@@ -81,6 +81,7 @@ After the quickstart's `build` (stop the pick & place stack first: `tools/so101 
 
 ```bash
 CONNECT4=true tools/so101 up                 # the game's simulation: the grid, its 42 tokens, the board reader, the game node
+tools/so101 logs                             # the first time, wait for "Game node ready." (it builds first), then Ctrl+C
 tools/so101 rviz                             # optional: the arm, and the grid as the board reader draws it
 tools/so101 play                             # the game, in a second terminal; it waits for the stack to be ready
 tools/so101 down                             # before coming back to the pick & place
@@ -98,11 +99,12 @@ tools/so101 down                             # before coming back to the pick & 
 | `q` | Quits the console; the stack keeps running |
 
 - **The screen** shows the grid, the level, the robot's last move with its reason, and what to do. The winning four is drawn as `*`.
-- **The colors**: the robot plays yellow (`Y`) and you red (`R`). To swap them, set `token.robot_color: red` in [`connect4_grid.yaml`](ros2_ws/src/so101_connect4/config/connect4_grid.yaml) and start the stack again (`tools/so101 restart`): the simulated hand, the camera's reading and the screen follow.
+- **The colors**: the robot plays yellow (`Y`) and you red (`R`). To swap them, set `token.robot_color: red` in [`connect4_grid.yaml`](ros2_ws/src/so101_connect4/config/connect4_grid.yaml) and start the stack again (`tools/so101 down`, then `CONNECT4=true tools/so101 up`: both containers read the file): the simulated hand, the camera's reading and the screen follow.
 - **A robot's move takes about 20 s**: 8 to 12 s to take its token at the dispenser, then 12 s to drop it (17 on the far column). A game against a careless player lasts about a minute and a half.
 - **The dispenser** holds the robot's 21 tokens, enough for a whole game; a new game fills it again. Found empty, the game waits (`dispenser_empty`) and the console fills it. To play as before the dispenser, a token given between the jaws at each turn, set `token_source: hand` in [`game.yaml`](ros2_ws/src/so101_connect4/config/game.yaml) and start the stack again.
 - **`FIX_BOARD`** means the grid the camera sees is not the one the game expects: `not_seen:human` when your move did not show, `board_not_empty` when tokens are left at a new game, a token played out of turn. Nothing moves. In simulation, press `n` for a new game.
 - **`ERROR`** follows a stop (`s`) or a move the arm could not finish; `n` starts again.
+- **Other messages**: `waiting: …` says what the game still waits for before it is ready (a topic, or `checking where the grid stands`), or why the arm would not play where the grid stands (`column 7: unsafe_path:column`); `not your turn: <STATE>` and `column N is full` change nothing; on `the robot's turn (no_token, token_lost, dispenser_not_seen)` the console answers by itself. Every reason: the [runbook](docs/project/13_runbook_troubleshooting.md#2-troubleshooting).
 - `tools/so101 bench --game -n 3` plays measured games against a scripted player: it runs in the control container (after `tools/so101 up`) and starts its own stack on ROS domain 77. `tools/so101 robustness g1` (to `g8`) shows one fault case, in its own container: after `tools/so101 down`.
 
 How the game is built: [`phase2/P2-02`](docs/project/phase2/P2-02_design.md).
@@ -123,8 +125,8 @@ In game mode, a board reader takes perception's place and a game node sits above
 
 | Metric | Result | Source |
 | --- | --- | --- |
-| **Connect Four**, simulation: full games without intervention, the robot at its hard level | **10/10** against a random player, 2/2 against the engine; **20/20** with the robot taking its tokens at the dispenser (MES-77); target ≥ 8/10. One game on each PR, 10 each night `main` changes: 10/10 on the runner, a game 51 to 112 s | [`results/phase2_2026-11-13.md`](results/phase2_2026-11-13.md), MES-71 |
-| Connect Four: a token taken at the dispenser, then dropped in the requested column | **50/50**, held 50/50, empty jaws refused 10/10; a pick 8.2 to 12.3 s, a drop 11.5 to 17.0 s | MES-69, MES-73, MES-77 |
+| **Connect Four**, simulation: full games without intervention, the robot at its hard level | **10/10** against a random player, 2/2 against the engine; **20/20** with the robot taking its tokens at the dispenser (MES-77); target ≥ 8/10. One game on each PR, 10 each night `main` changes: 10/10 on the runner (2026-11-13, the tokens given by hand: a game 51 to 112 s; with the dispenser a game lasts 86 to 190 s) | [`results/phase2_2026-11-14.md`](results/phase2_2026-11-14.md), [`results/phase2_2026-11-13.md`](results/phase2_2026-11-13.md), MES-71, MES-77, MES-78 |
+| Connect Four: a token taken at the dispenser, then dropped in the requested column, both where the camera sees them | **50/50**, held 50/50, empty jaws refused 10/10; a pick 8.1 to 12.4 s, a drop 11.4 to 16.7 s | MES-69, MES-73, MES-77, MES-78 |
 | Connect Four: the grid read by the camera, 50 random game states | **2100/2100** cells; the grid's pose within 0.7 mm | MES-68 |
 | Connect Four: the engine | 100/100 against a random player; hard beats medium 26 – 7, medium beats easy 28 – 2 (40 games each); a move in 0.2 s | MES-66, MES-70, MES-72 |
 | Connect Four: fault cases of a game (a token out of turn, the dispenser empty, the reader stopped, a column out of reach, a dim light, a stop, the grid set down elsewhere between two games, then where the arm would hit it) | All eight handled | [`results/robustness_demo.md`](results/robustness_demo.md) |
@@ -153,6 +155,7 @@ The real SO-101 runs the same cycle with a USB webcam, at the simulation's speed
 ```bash
 tools/so101-arm calibrate                    # back up CALIBRATION_FILE, then LeRobot's calibration and its prompts
 tools/so101-arm zero-offsets -n 3            # the arm held at the URDF zero: the joint_zero_offsets line (driver_real.yaml)
+tools/so101-arm touch 0                      # read-only, the jaws closed on corner 0 of the board: the --touch argument of calibrate_touch (07 §9)
 ```
 
 ## Going further
@@ -263,7 +266,7 @@ The ground truth (`/sim/ground_truth/*`) is published only by a driver started w
 | `docker/` | Images and compose (`control`, `perception`, `viz`) |
 | `tools/` | `so101` (everyday commands), `so101-arm` (the real arm's calibration and joint zeros), `calibration_sheets.py` (the printed board and markers), `ci/` (the CI scripts and their tests) |
 | `docs/project/` | Design, decisions (ADRs), roadmap, measurements |
-| `results/` | Milestone reports: the real pick & place, the 50-episode bench, the calibration, the IK accuracy, the robustness demo |
+| `results/` | Milestone reports: the real pick & place, the 50-episode bench, the calibration, the IK accuracy, the perception's robustness, the robustness demo, the Connect Four games |
 | `core/`, `sim/`, `so101_description/` | Course kit (unmodified) |
 
 ## Team
@@ -289,4 +292,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Planned work and progress: the team's Gi
 
 ## Acknowledgements and license
 
-TEK5 Robotics module kit (Epitech). Driver extracted from [LeRobot](https://github.com/huggingface/lerobot) (Apache-2.0). License of the team's code: see `LICENSE` (to be decided, ADR-031).
+TEK5 Robotics module kit (Epitech). Driver extracted from [LeRobot](https://github.com/huggingface/lerobot) (Apache-2.0). The team's code has no license file yet: the decision is open (ADR-031); the packages' manifests say Apache-2.0, as LeRobot.

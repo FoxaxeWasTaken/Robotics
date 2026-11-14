@@ -70,15 +70,19 @@ The current compose file forbids two concurrent `colcon build` on the same volum
     init: true
     environment:
       <<: *ros-env
+      USE_SIM: ${USE_SIM:-true}
+      CONNECT4: ${CONNECT4:-false}
     volumes:
       - ../ros2_ws:/ros2_ws
     networks: [rosnet]
+    # In game mode the board reader takes the place of the cube's perception (phase2/P2-02 §6.1).
     command: >
       bash -lc "source /opt/ros/jazzy/setup.bash && cd /ros2_ws &&
       colcon build --symlink-install --build-base build_perception --install-base install_perception
-      --packages-up-to so101_perception &&
+      --packages-up-to so101_perception so101_connect4 &&
       source install_perception/setup.bash &&
-      ros2 launch so101_perception perception.launch.py"
+      if [ $${CONNECT4} = true ]; then ros2 launch so101_connect4 board_reader.launch.py;
+      else ros2 launch so101_perception perception.launch.py; fi"
 ```
 
 `build_perception/` and `install_perception/` are already covered by the root `.gitignore`.
@@ -183,6 +187,9 @@ ros2 node list                                            # driver, brain, perce
 ros2 topic hz /joint_states                               # ≥ 20 Hz (30 Hz on the three machines, 0.2a)
 ros2 run example_py_pkg talker                            # C-04 check, then Ctrl-C (see below)
 ros2 topic pub --once -w 1 --keep-alive 1 /joint_command sensor_msgs/msg/JointState '{name: [shoulder_pan], position: [0.5]}'
+exit                                                      # back on the host, then phase 2:
+tools/so101 down && CONNECT4=true tools/so101 up          # the Connect Four game in place of the pick & place (README)
+tools/so101 play                                          # a game from the terminal, once the logs say "Game node ready."
 ```
 
 `tools/so101` (#133) prints each `docker compose` command it runs; `tools/so101 --help` lists the others (`down`, `restart`, `bench`, `robustness`, `test`, `run`: a throwaway container next to a running stack); the real arm's calibration and joint zeros are in `tools/so101-arm` (`07` §3.1), `13` §1 the everyday use.

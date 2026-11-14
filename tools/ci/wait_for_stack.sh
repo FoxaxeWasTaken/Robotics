@@ -8,8 +8,11 @@ set -uo pipefail
 timeout_s=${1:-900}
 compose=(docker compose -f docker/docker-compose.yml)
 ready() {  # ready <service> <log line>
-  local service=$1 line=$2
-  "${compose[@]}" logs "$service" 2>&1 | grep -q "$line"
+  local service=$1 line=$2 logs
+  # Into a variable first: under pipefail, grep -q closes the pipe at its first match and a long log's writer
+  # dies of SIGPIPE, "not ready" on a ready stack (#264)
+  logs=$("${compose[@]}" logs "$service" 2>&1) || true
+  grep -q "$line" <<< "$logs"
 }
 if [[ "${CONNECT4:-false}" = true ]]; then
   nodes_ready() { ready control "Game node ready" && ready perception "Board reader ready"; }

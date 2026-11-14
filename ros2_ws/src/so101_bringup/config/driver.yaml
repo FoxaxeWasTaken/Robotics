@@ -7,11 +7,11 @@ so101_driver:
     camera_rate_hz: 10.0        # C-12
     max_joint_velocity: 1.5     # rad/s, sim and real arm (ADR-023 Update)
     max_gripper_velocity: 200.0 # %/s
-    camera_width: 320           # 640 x 480 during calibration (ADR-013)
+    camera_width: 320           # 640 x 480 during calibration (ADR-013) and in game mode (driver_connect4.yaml)
     camera_height: 240
     seed: 0                     # /sim/randomize: same seed, same cube and box sequence
     shutdown_pose: [1.9, -1.7, 1.5, 0.7, 0.0]  # rad: the brain's PARK, reached before disconnect (03 §8)
-    shutdown_velocity: 0.5      # rad/s, capped by max_joint_velocity; the move has 4 s (ros2 launch's SIGTERM)
+    shutdown_velocity: 0.5      # rad/s, capped by max_joint_velocity; the move has 11 s (03 §8)
     shutdown_tolerance: 0.05    # rad: shutdown_pose reached
     bus_retries: 3              # failed control ticks retried before the driver stops (03 §8)
     joint_zero_offsets: [0.0, 0.0, 0.0, 0.0, 0.0]  # rad, ARM_JOINT_NAMES order: none in sim (07 §4)

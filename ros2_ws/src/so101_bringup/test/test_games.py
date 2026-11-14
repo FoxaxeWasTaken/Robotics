@@ -294,3 +294,9 @@ def test_the_cli_takes_games_or_episodes_never_both_and_a_game_gets_ten_minutes(
     for arguments in (["--out", "x.csv"], ["--games", "1", "--episodes", "1", "--out", "x.csv"]):
         with pytest.raises(SystemExit):
             evaluate.main(arguments)
+
+
+def test_a_failed_games_rosbag_holds_what_a_pick_and_a_drop_were_aimed_at():
+    """#264: the stations and the dispenser's pose were missing: a failed pick could not be replayed."""
+    for topic in ("/connect4/grid_pose", "/connect4/dispenser_pose", "/connect4/stations", "/connect4/board"):
+        assert topic in games.BAG_TOPICS

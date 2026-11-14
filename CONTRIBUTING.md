@@ -104,7 +104,7 @@ The PR shows both runs (RED → GREEN). A bug gets its regression test before it
 | --- | --- | --- |
 | Unit (pytest) | `<pkg>/test/test_*.py` | Any pure logic (conversions, IK, FSM, geometry, detection); a rule that must hold for every input gets a property test (Hypothesis, `docs/project/08` §5) |
 | Component (launch_testing) | `<pkg>/test/test_*_launch.py` | Rates, commands, services of one node |
-| Sim-backed | `so101_bringup/test/` | Anything that needs `so101_sim` (closed loop, IK accuracy, launch files): never under `so101_brain` or `so101_perception` |
+| Sim-backed | `so101_bringup/test/` | Anything that needs `so101_sim` (closed loop, IK accuracy, launch files): never under `so101_brain`, `so101_perception` or `so101_connect4` |
 | E2E | `tools/so101 bench` (`ros2 run so101_bringup evaluate`) | Full pick & place, N episodes. CI runs 3 on every PR (`e2e-smoke`, a required check: 3 successes out of 3) and 50 in the nightly each night `main` changes. Phase 2: `tools/so101 bench --game` (`evaluate --games`), full Connect Four games; CI plays 1 on every PR (`e2e-game`) and 10 each night |
 | Scripts | `tools/ci/test_*.sh`, run by pre-commit | A CI or tooling script: its behavior without network or Docker (fake `gh`, `--dry-run`) |
 

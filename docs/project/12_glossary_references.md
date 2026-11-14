@@ -48,14 +48,14 @@
 | **Depth guide** | Two sloped strips along the top of the grid, a V across the slots: absorbs the arm's error in the tight direction (`phase2/P2-02` §1) |
 | **Handover**, `HANDOVER` | `HANDOVER` is the pose the arm waits at, where the camera sees the whole grid and the dispenser's stations; a pick and a drop start and end there. It is the place beside the dispenser where the camera sees it (`drop.wait_pose`), and `connect4.handover_pose` while it has seen none (`phase2/P2-02` §2.5). The handover itself is the first token supply, kept as `token_source: hand`: the robot's token is put between its open jaws there (in sim, `/sim/connect4/give_token`), and `/brain/drop` closes the jaws and checks the grip (`phase2/P2-02` §2.3, §5). A person's handover is `v2.1.0` |
 | **Dispenser**, station, pick | The part the robot takes its tokens from (ADR-041): three stacked rails of 7 tokens on edge; the lowest place of a rail is its **station**, open so that the jaws reach the token's two faces. The camera places it by its own markers (`/connect4/dispenser_pose`) and reads which stations hold a token (`/connect4/stations`); `/brain/pick` takes the token (`phase2/P2-02` §2.3) |
-| **Riser** | Rigid block under the arm (about 8 cm) so that a store-bought grid is within reach [MES-32] |
+| **Riser** | Rigid block under the arm (about 8 cm; 10 cm in sim) so that a store-bought grid is within reach [MES-32] |
 | **Wrist camera (eye-in-hand)** | Camera on the gripper; sees the token and the slot in one image, so their offset does not depend on calibration (`phase2/P2-02` §3.1) |
 | **Negamax, alpha-beta** | Game-tree search of the Connect Four engine; alpha-beta skips the branches that cannot change the result |
 | **Task layer** | Phase-2 node that turns a game move into a `/brain/drop` call (ADR-037) |
-| **Game mode** | The stack started with `CONNECT4=true` (sim only): the game's scene, the brain's `/brain/drop` and `/brain/handover`, the board reader in place of perception, the game node; no pick & place cycle |
+| **Game mode** | The stack started with `CONNECT4=true` (sim only): the game's scene, the brain's `/brain/drop`, `/brain/pick` and `/brain/handover`, the board reader in place of perception, the game node; no pick & place cycle |
 | **Game bench**, **scripted person** | `evaluate --games`: full games played and scored without anyone, by a person the bench scripts, random or the engine itself, through the console's own client (`08` §3.1) |
 | **Board reader** | Phase-2 node (`board_reader_node`) that reads the grid in the scene camera: the grid's pose from its four markers, the 42 cells by color, published once 5 images in a row agree (`phase2/P2-02` §3) |
-| **Game node** | Phase-2 node (`game_node`) that runs a game: whose turn it is, the engine's search, one `/brain/drop` per move, `/connect4/state` (`phase2/P2-02` §5, §6) |
+| **Game node** | Phase-2 node (`game_node`) that runs a game: whose turn it is, the engine's search, a `/brain/pick` then a `/brain/drop` per move, `/connect4/state` (`phase2/P2-02` §5, §6) |
 | **`FIX_BOARD`** | State of a game whose grid is not the one expected (a token out of turn, a move not seen, an unreadable grid): the arm stays still until a person puts it right |
 | **Ply** | One token dropped by one player; a "move" of a player is one ply. The engine's depth and its `wins_in` are counted in plies |
 | **Level** | The engine's search depth, `engine.max_depth`: easy 1, medium 4, hard 10, the three depths measured in order [MES-70] |
