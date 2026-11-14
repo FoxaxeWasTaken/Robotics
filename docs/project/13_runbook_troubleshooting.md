@@ -10,15 +10,18 @@
 # Build, start, stop
 tools/so101 build                         # the images (~10 min the first time); again after a Dockerfile change
 tools/so101 up                            # control, perception, viz; perception builds its packages, then starts
-CONNECT4=true tools/so101 up              # the Connect Four game instead (sim only); down, then up, to come back
+tools/so101 up --game                     # the Connect Four game instead (sim only; or CONNECT4=true tools/so101 up); down, then up, to come back
+tools/so101 wait                          # until the running stack is ready: the first start builds the workspace
+tools/so101 demo                          # the game in one command: up --game, wait, play
 tools/so101 logs                          # control's logs: wait for "Brain node ready." (logs perception, logs viz)
 tools/so101 restart                       # reload Python code changes (symlink-install); restart perception too
 tools/so101 down                          # SIGINT → destroy_node() → clean stop
 
 # A cycle, the bench, the tests
 tools/so101 cycle                         # /sim/randomize (sim), /brain/start, then /brain_state until DONE or ERROR
-tools/so101 play                          # game mode (CONNECT4=true tools/so101 up): Connect Four from this terminal
-                                          # keys: 1 to 7 a column, ? a hint, n / r a new game, e m h the level, s stop, q quit
+tools/so101 play                          # game mode (tools/so101 up --game): Connect Four from this terminal
+                                          # keys: 1 to 7 a column, ? a hint, a the computer plays your turns, n / r a new game,
+                                          # e m h the level, s stop, q quit
 tools/so101 bench --game -n 3             # measured Connect Four games against a scripted player; its own stack, domain 77
 tools/so101 bench --perception -n 10      # evaluation bench, real pipeline, on ROS domain 77 (below)
 tools/so101 bench --stub -n 10            # the same with the ground-truth stub in place of perception
@@ -50,7 +53,7 @@ ros2 service call /brain/handover std_srvs/srv/Trigger       # game mode: the ja
 ros2 service call /sim/connect4/give_token std_srvs/srv/Trigger  # game mode: a token of the robot's color between the jaws, for /brain/drop (06 §5.1)
 ros2 service call /sim/connect4/fill_dispenser std_srvs/srv/Trigger  # game mode: the robot's tokens that are not in the grid back in the rails
 ros2 service call /sim/connect4/move_grid so101_interfaces/srv/MoveGrid "{nearer: 0.01, around: 0.05}"  # game mode: the empty grid set down elsewhere; zeros: back
-rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz
+rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz     # connect4.rviz in game mode: the board shown, the pick & place displays off
 
 # Manual commands
 ros2 topic pub --once -w 1 --keep-alive 1 /joint_command sensor_msgs/msg/JointState '{name: [shoulder_pan], position: [0.5]}'
@@ -124,7 +127,7 @@ Per-symptom details:
 | `ros2 topic list` empty **from WSL** | Expected: native ROS and the Docker bridge network are separate | Use `docker compose exec control bash` |
 | `colcon`: "Permission denied" on `build/`/`install/` | Files created by root in the container | `sudo rm -rf ros2_ws/{build,install,log}`; never build outside the container |
 | Editing `sim/` code changes nothing | `so101_sim` is installed **non-editable** in the image | Do not modify `sim/` (ADR-018); otherwise `docker compose build` |
-| `tools/so101 cycle`: "the stack runs the game", or `tools/so101 play`: "the stack does not run the game" | The stack is in the other mode: `CONNECT4=true` was given to the last `up` (or is set in `docker/.env`), or was not. `restart` keeps the mode of the last `up` | `tools/so101 down`, then `tools/so101 up` (pick & place) or `CONNECT4=true tools/so101 up` (the game) |
+| `tools/so101 cycle`: "the stack runs the game", `tools/so101 play`: "the stack does not run the game", or `tools/so101 up`: "the stack runs …: tools/so101 down first" | The stack is in the other mode, and an `up` never changes the mode of a running stack: `CONNECT4=true` was given to the last `up` (or is set in `docker/.env`), or was not. `restart` keeps the mode of the last `up` | `tools/so101 down`, then `tools/so101 up` (pick & place) or `tools/so101 up --game` (the game; `tools/so101 demo` also waits and opens the console) |
 | `tools/so101 play`: "waiting: no /connect4/grid_pose…" for more than a minute, in game mode | `/connect4/state` says `ready: false`, and `not_ready` names what the game node waits for: the brain's first pose, the grid's pose from the board reader, the brain's services and, with `token_source: dispenser`, the dispenser's pose and a first read of its stations. The perception container builds its packages before it starts the reader | `tools/so101 logs perception` until "Board reader ready."; `tools/so101 logs` for "Game node ready." |
 | `tools/so101 play`: "waiting: column 7: unsafe_path:column", or `unreachable`, `not_edge_on`, with a station too | The brain would not play there (`phase2/P2-02` §2.5): the grid or the dispenser stands too near the arm, too far, or its slots are not in a plane through the arm's pan axis. The columns and the stations are numbered as the console's keys. "waiting: checking where the grid stands" lasts about 4 s after a start or a move of the grid | Set the grid or the dispenser down again: the game asks the brain again once the camera sees it 5 mm or 2° elsewhere. The brain's log says how near the arm would pass (`/brain/drop: unsafe_path:column, -2.5 mm from the grid`) |
 | The game stops in `FIX_BOARD` | The grid seen is not the one the game expects: `not_seen:human` (no new red token after `human_done`), `not_seen:robot` (its token did not show), `board_not_empty` (tokens left at a new game), `unexpected_token` (a token while the robot was to play), `not_one_human_token` or `not_one_robot_token` (two tokens, the wrong color, or not where a token lands), or the reader's reason (`markers:<n>`: a hidden marker; `out_of_view`: a cell outside the image; `gravity:<column>`, `counts:<h>-<r>`: an impossible board). The arm does not move | Sim: `n` in the console, a new game clears the grid. With a real grid: put the tokens right, then `/connect4/human_done` reads again |

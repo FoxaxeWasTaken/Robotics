@@ -188,8 +188,7 @@ ros2 topic hz /joint_states                               # ≥ 20 Hz (30 Hz on 
 ros2 run example_py_pkg talker                            # C-04 check, then Ctrl-C (see below)
 ros2 topic pub --once -w 1 --keep-alive 1 /joint_command sensor_msgs/msg/JointState '{name: [shoulder_pan], position: [0.5]}'
 exit                                                      # back on the host, then phase 2:
-tools/so101 down && CONNECT4=true tools/so101 up          # the Connect Four game in place of the pick & place (README)
-tools/so101 play                                          # a game from the terminal, once the logs say "Game node ready."
+tools/so101 down && tools/so101 demo                      # the Connect Four game in place of the pick & place: up --game, wait, play (README)
 ```
 
 `tools/so101` (#133) prints each `docker compose` command it runs; `tools/so101 --help` lists the others (`down`, `restart`, `bench`, `robustness`, `test`, `run`: a throwaway container next to a running stack); the real arm's calibration and joint zeros are in `tools/so101-arm` (`07` §3.1), `13` §1 the everyday use.

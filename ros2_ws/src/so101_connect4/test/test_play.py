@@ -274,7 +274,7 @@ def test_the_winning_four_is_marked_the_other_tokens_stay():
 
 
 def test_the_keys_line_names_every_key():
-    for key in ("1 to 7", "n ", "r ", "s ", "q ", "e, m, h", "?"):
+    for key in ("1 to 7", "n ", "r ", "s ", "q ", "e, m, h", "?", "a "):
         assert key in play.KEYS
 
 
@@ -360,3 +360,65 @@ def test_the_end_of_the_input_quits(monkeypatch):
     with os.fdopen(read, "r") as stdin:
         monkeypatch.setattr(sys, "stdin", stdin)
         assert play.read_key() == "q"
+
+
+# Comfort for the demo (#265): robot against robot, the screen redrawn in place, keys in either case.
+def test_the_automatic_player_plays_the_persons_turns_with_the_engine_until_a_key_stops_it(console):
+    """A whole game to watch: `a` plays the person's turns, the engine at the hint's depth."""
+    console.step("a")
+    assert console.lines[-1] == "automatic player: on, any key stops it"
+    assert console.game.calls == [("play", 3)]  # the engine's move on an empty board: the middle column
+    console.step()
+    assert console.game.calls == [("play", 3)]  # once per state
+    cells = with_tokens(EMPTY_BOARD, (3, HUMAN), (3, ROBOT))
+    console.game.state = a_state(cells=cells, moves=2)
+    console.step()
+    assert len(console.game.calls) == 2
+    assert console.game.calls[-1][0] == "play"
+    console.game.state = a_state(cells=with_tokens(cells, (2, HUMAN), (2, ROBOT)), moves=4)
+    console.step("x")  # any key stops it, and is not taken for a move
+    assert console.lines[-1] == "automatic player: off"
+    assert len(console.game.calls) == 2
+    console.step()
+    assert len(console.game.calls) == 2
+
+
+def test_the_automatic_player_never_plays_out_of_the_persons_turn(console):
+    console.game.state = a_state(state="MOVE", turn="robot")
+    console.step("a")
+    console.step()
+    assert console.game.calls == []
+    console.game.state = a_state(state="GAME_OVER", result="robot")
+    console.step()
+    assert console.game.calls == []
+    console.game.state = a_state(turn="robot")  # the robot's own turn stays the console's usual answer
+    console.step()
+    assert console.game.calls == [("play", None)]
+
+
+def test_a_key_in_capitals_is_the_same_key(console):
+    console.step("N")
+    assert console.game.calls == [("new_game", False)]
+    console.step("H")
+    assert console.game.calls[-1] == ("set_depth", play.LEVEL_KEYS["h"])
+
+
+def test_the_board_goes_to_the_drawing_and_the_messages_to_the_writing():
+    """On a terminal the board is redrawn in place and the last message stays under it: the console gives
+    them apart."""
+    game, boards, messages = FakeGame(a_state()), [], []
+    console = play.Console(game, messages.append, draw=boards.append)
+    console.step("x")
+    assert len(boards) == 1
+    assert boards[0].splitlines()[0] == "  1 2 3 4 5 6 7"
+    assert messages == [play.KEYS]
+
+
+def test_a_screen_keeps_the_keys_the_last_board_and_the_last_message_and_redraws_them_in_place():
+    out = []
+    screen = play.Screen(out.append)
+    screen.draw("board 1")
+    screen.write("column 3 is full")
+    screen.draw("board 2")
+    assert out[-1] == "\x1b[H\x1b[J" + play.KEYS + "\nboard 2\ncolumn 3 is full"
+    assert len(out) == 3  # one repaint per change, the whole screen each time
