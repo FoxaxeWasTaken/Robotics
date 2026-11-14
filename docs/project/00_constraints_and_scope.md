@@ -140,7 +140,8 @@ The kit contains leftovers of a previous project version ("golden ball"). Resolu
 | I-9 | Slides: "wait: Brain node prêt"; the real log says "Brain node ready." | Cosmetic | — |
 | I-10 | **21 % of the randomized cube positions are partially outside the field of view** of the simulated camera [MES-12] | The staff allows moving the sim camera (2026-10-16): move it and re-measure; the software mitigation stays (`05` §6) | Resolved (#47): the camera moved, 0 % cut [MES-45] |
 | I-11 | Brief update of 2026-10-08: the S2 milestone, "7 out of 10 on a real arm" and "randomized object and box poses" are gone; S4 adds "ideally the pick & place should be functional"; S7 adds phase 2 | 7/10 and the randomized bench kept as **team targets** (DECIDED, source tags changed); early vertical slice kept; phase 2 becomes roadmap stage 7 (`09`) | Resolved |
-| I-12 | The hand-in is 2026-11-20 23:42, and the phase-2 pitch aimed at the real arm | Team decision (2026-11-07): `v2.0.0` is Connect Four in sim, the real arm `v2.1.0` (ADR-034 Update). C-54 is met in sim, said at the defense; C-53 unchanged: the team on camera, beside the sim | Decided |
+| I-12 | The hand-in is 2026-11-20 23:42, and the phase-2 pitch aimed at the real arm | Team decision (2026-11-07): `v2.0.0` is Connect Four in sim, the real arm `v2.1.0` (ADR-034 Update). C-54 is met in sim, said at the defense; C-53: I-13 | Decided |
+| I-13 | C-53 asks for a demo video with the team on it [BRIEF]; no filming session is possible before the hand-in | Team decision (2026-11-14): no video with the team. The phase-2 video is a game rendered from the sim stack (#97); the phase-1 videos of the real arm stand (`v1.3.0`) | Decided |
 
 ## 6. Out of scope (phase 1)
 

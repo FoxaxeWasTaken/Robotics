@@ -14,7 +14,8 @@
 
 <img src="docs/project/media/demo_connect4.gif" height="240" alt="A Connect Four game against the simulated arm, seen by the scene camera: the arm takes each yellow token at its dispenser, at the bottom right, and drops it into the grid; each cell read is drawn as a disc, each station of the dispenser is ringed in green, the robot's last move and its reason are written at the top, and the winning four is circled in green">
 
-*A game against the simulated arm at 16× speed, as the board reader draws it: the cells it reads, the stations of the dispenser, the robot's reason, the winning four.*
+*A game against the simulated arm at 16× speed, as the board reader draws it: the cells it reads, the stations of the dispenser, the robot's reason, the winning four.*<br>
+**Video:** [a full game at 4× speed, 27 s](https://github.com/FoxaxeWasTaken/Robotics/releases/download/v2.0.0/demo_connect4_sim.mp4)
 
 | **50/50** | **2100/2100** | **10/10** | **8/8** |
 | --- | --- | --- | --- |
@@ -293,4 +294,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Planned work and progress: the team's Gi
 
 ## Acknowledgements and license
 
-TEK5 Robotics module kit (Epitech). Driver extracted from [LeRobot](https://github.com/huggingface/lerobot) (Apache-2.0). The team's code has no license file yet: the decision is open (ADR-031); the packages' manifests say Apache-2.0, as LeRobot.
+TEK5 Robotics module kit (Epitech). Driver extracted from [LeRobot](https://github.com/huggingface/lerobot) (Apache-2.0). The team's work is under the [Apache License 2.0](LICENSE) (ADR-031); [`NOTICE`](NOTICE) names what is not ours and keeps its own terms: LeRobot's extract in `core/` and the course kit.

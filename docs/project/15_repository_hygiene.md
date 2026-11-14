@@ -66,7 +66,7 @@ The school mirror is described in `16`.
 ├── CONTRIBUTING.md              ← contribution rules                                          [team]
 ├── CHANGELOG.md                 ← release notes (Keep a Changelog)                            [team]
 ├── AGENTS.md  CLAUDE.md         ← instructions for AI coding agents (CLAUDE.md imports AGENTS.md) [team]
-├── LICENSE                      ← to be decided (ADR-031)                                     [OPEN]
+├── LICENSE  NOTICE              ← Apache-2.0 for the team's work, what it leaves out (ADR-031) [team]
 ├── pyproject.toml               ← ruff configuration                                          [team]
 ├── .pre-commit-config.yaml  .markdownlint-cli2.yaml  .hadolint.yaml  .lycheeignore  .editorconfig  .gitattributes  .gitignore  .gitleaksignore
 ├── sonar-project.properties  .sonarlint/connectedMode.json   ← SonarQube Cloud analysis and its IDE binding (14 §4)
@@ -114,7 +114,7 @@ flowchart LR
 | `CONTRIBUTING.md` | How to contribute: setup, branches, commits, PRs, tests, safety, mirror | root | markdownlint |
 | `CHANGELOG.md` | What changes between versions | root | markdownlint |
 | `AGENTS.md` | Instructions for AI coding agents: build/test commands, prohibitions checked by CI, traps. Read natively by most agents; `CLAUDE.md` only imports it (one source of truth). Update it when a command or a rule changes | root | markdownlint |
-| `LICENSE` | Reuse rights | — | **OPEN** (ADR-031) |
+| `LICENSE`, `NOTICE` | Reuse rights: Apache-2.0 for the team's work; `NOTICE` names what is not ours (LeRobot's extract, the course kit) (ADR-031) | root | — |
 | `.gitignore` | Artifacts, secrets, heavy data, duplicated slides | root | — |
 | `.gitattributes` | LF everywhere, declared binaries | root | — |
 | `.editorconfig` | UTF-8, LF, indentation per file type | root | — |
@@ -203,15 +203,16 @@ flowchart TD
 - Commit e-mail: enable GitHub's "noreply" address if the repository becomes public.
 - No personal data in published rosbags/videos (blur faces if needed).
 
-## 9. License (ADR-031, OPEN)
+## 9. License (ADR-031)
 
 | Item | Known license |
 | --- | --- |
 | `core/lerobot_min` | Apache-2.0 (derived from LeRobot, headers kept) |
 | `so101_description`, stub packages | Apache-2.0 declared in `package.xml` (`example_py_pkg`: MIT) |
 | Course kit (scenes, Dockerfiles, brief, slides) | **Not specified** |
+| The team's packages, tools, tests and docs | Apache-2.0 (`LICENSE`) |
 
-Default proposal for **our** code: **Apache-2.0** (consistent with the rest, compatible with LeRobot). **Before making the repository public**, ask the teaching staff about the kit's distribution terms.
+**Our** code is under **Apache-2.0** (`LICENSE`; consistent with the rest, compatible with LeRobot), and `NOTICE` lists the rows above, which are not ours and keep their terms (ADR-031 Update). The school agreed that the kit, its brief included, is published with the repository.
 
 ## 10. Continuous hygiene
 

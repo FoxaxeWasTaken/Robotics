@@ -324,5 +324,5 @@ Ideas compatible with the current pipeline (the brief suggests "AI for control o
 
 ### Step 8.1 — Demo and defense
 
-- **Tasks**: the phase-1 real videos exist (`v1.3.0`); a demo video **with the team on it** [BRIEF], and the phase-2 video, both on the sim game; slides **in English**: architecture, decisions (ADRs), **measurements** (bench, accuracy, perception), limitations, **phase 2**; clean repo (README, docs, tags).
+- **Tasks**: the phase-1 real videos exist (`v1.3.0`); the phase-2 video, a game rendered from the sim stack; the demo video **with the team on it** [BRIEF] is not made (`00` I-13); slides **in English**, after the `v2.0.0` tag (#98): architecture, decisions (ADRs), **measurements** (bench, accuracy, perception), limitations, **phase 2**; clean repo (README, docs, tags).
 - **Done when**: timed rehearsal done; every member can answer a question on any block, phase 2 included.

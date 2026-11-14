@@ -5,7 +5,7 @@
 
 ## 1. Goal
 
-A complete game of Connect Four between a human and the arm, the robot reading the grid by itself, choosing its move and playing it without help, filmed with the team on camera (C-53).
+A complete game of Connect Four between a human and the arm, the robot reading the grid by itself, choosing its move and playing it without help. Its video is rendered from the sim (C-53; no video with the team on it, `00` I-13).
 
 **`v2.0.0`, the hand-in of 2026-11-20 23:42, is the game in simulation.** The real arm is `v2.1.0`: phase 1 already runs on it, and the two weeks left go to a game that really works rather than to a riser and a handover (ADR-034 Update).
 
