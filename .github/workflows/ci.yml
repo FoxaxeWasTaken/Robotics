@@ -197,7 +197,6 @@ jobs:
       - name: Evaluation bench (N=3)
         env:
           EXPOSE_GROUND_TRUTH: "true"  # the bench scores with the ground truth; the pipeline never reads it (C-06)
-          FASTDDS_BUILTIN_TRANSPORTS: DEFAULT  # as the control tests: LARGE_DATA lost nodes at the start (#141)
         run: |
           cp docker/.env.example docker/.env
           docker compose -f docker/docker-compose.yml up -d control perception viz
@@ -240,7 +239,6 @@ jobs:
         env:
           CONNECT4: "true"  # the game in place of the pick & place: the stack, and what wait_for_stack.sh waits for
           EXPOSE_GROUND_TRUTH: "true"  # the bench scores with the ground truth; the pipeline never reads it (C-06)
-          FASTDDS_BUILTIN_TRANSPORTS: DEFAULT  # as the control tests: LARGE_DATA lost nodes at the start (#141)
         run: |
           cp docker/.env.example docker/.env
           docker compose -f docker/docker-compose.yml up -d control perception viz

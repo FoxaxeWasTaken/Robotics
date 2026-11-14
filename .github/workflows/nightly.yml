@@ -93,7 +93,6 @@ jobs:
         env:
           EPISODES: ${{ inputs.episodes || '50' }}
           EXPOSE_GROUND_TRUTH: "true"  # the bench scores with the ground truth; the pipeline never reads it (C-06)
-          FASTDDS_BUILTIN_TRANSPORTS: DEFAULT  # as the control tests: LARGE_DATA lost nodes at the start (#141)
         run: |
           set -o pipefail  # the bench's status, not tee's
           cp docker/.env.example docker/.env
@@ -117,7 +116,6 @@ jobs:
           GAMES: ${{ inputs.games || '10' }}
           CONNECT4: "true"  # the game in place of the pick & place: the stack, and what wait_for_stack.sh waits for
           EXPOSE_GROUND_TRUTH: "true"
-          FASTDDS_BUILTIN_TRANSPORTS: DEFAULT
         run: |
           set -o pipefail
           # down then up, never restart: a restarted container keeps its environment, and wait_for_stack.sh reads

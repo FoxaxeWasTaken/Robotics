@@ -33,8 +33,8 @@ from std_srvs.srv import Trigger
 
 BRAIN_START = "/brain/start"
 RECORDER_S = 10.0  # a recorder subscribes within this: 2 s on the nightly's runner
-# A participant that joins holds the driver's executor for 0.3 s, once in ten [MES-80]: it has passed
-# shortcut: a fixed time after the recorder is seen; when the driver no longer holds (#273), drop it
+# With Fast DDS's shared-memory transport, a participant that joins holds the driver's executor for 0.3 s,
+# once in ten [MES-80]: it has passed. The images and the compose file set UDP only, where nothing holds it
 SETTLE_S = 1.0
 FOOTPRINT_HALF_M = 0.05  # half the box's inner side (08 §3)
 MAX_CUBE_Z_M = 0.06  # higher: on a wall, not in the box
