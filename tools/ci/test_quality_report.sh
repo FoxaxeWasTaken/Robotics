@@ -43,7 +43,7 @@ echo 'ceTaskId=AZ-task-1' > "$tmp/report-task.txt"
 echo '{"task":{"status":"SUCCESS","analysisId":"AZ-analysis-1"}}' > "$tmp/api/task.json"
 PASSED='{"projectStatus":{"status":"OK","conditions":[{"status":"OK","metricKey":"new_coverage","comparator":"LT","errorThreshold":"80","actualValue":"91.0"}]}}'
 FAILED='{"projectStatus":{"status":"ERROR","conditions":[{"status":"ERROR","metricKey":"new_coverage","comparator":"LT","errorThreshold":"80","actualValue":"29.3"},{"status":"OK","metricKey":"new_duplicated_lines_density","comparator":"GT","errorThreshold":"3","actualValue":"0.0"}]}}'
-echo '{"component":{"measures":[{"metric":"coverage","value":"82.6"},{"metric":"new_coverage","period":{"value":"91.0"}},{"metric":"violations","value":"12"},{"metric":"new_violations","period":{"value":"3"}}]}}' \
+echo '{"component":{"measures":[{"metric":"coverage","value":"82.6"},{"metric":"new_coverage","periods":[{"index":1,"value":"91.04981290180753","bestValue":false}]},{"metric":"violations","value":"12"},{"metric":"new_violations","periods":[{"index":1,"value":"3","bestValue":false}]}]}}' \
   > "$tmp/api/measures.json"
 printf '%s\n' "date,sha,metric,p50_ms,worst_ms" "2026-10-29,0123456,test_ik_pose,12.345,20.100" \
   "2026-10-29,0123456,control_period,20.000,24.500" > "$tmp/trends.csv"

@@ -434,28 +434,52 @@ class BrainNode(rclpy.node.Node):
         """A move to the request's target that starts at HANDOVER, its steps from `solve`. With check_only
         nothing moves and the arm may be anywhere: the reply says whether the move would start. During a
         move a check is `busy`: its IK would hold the tick, so the 50 Hz commands, for half a second."""
-        check, frame = request.check_only, self._grid if name == "drop" else self._dispenser
-        moving = self._move is not None or self._motion is not None
-        refusal, steps = ("busy" if moving else None) if check else self._refusal(), None
+        check = request.check_only
         handover = self._wait() if check else self._handover
-        if refusal is None and not check and np.max(np.abs(self._joints[0] - handover)) > drop.AT_HANDOVER:
-            refusal = "not_at_handover"
-        if refusal is None and (self._grid is None or frame is None):
-            refusal = "no_grid_pose" if self._grid is None else "no_dispenser_pose"
-        if refusal is None and handover is None:
-            refusal = "unreachable"  # the dispenser, so the place to wait at
-        if refusal is None:  # IK inline, as /go_to_target: nothing moves yet, and no pose is solved later
-            target = np.array([request.target.x, request.target.y, request.target.z])
-            steps = solve(self._kin, target, handover, self._p)
-            refusal = "unreachable" if not steps else None if drop.edge_on(frame, steps) else "not_edge_on"
-        refusal = refusal or self._unsafe(name, steps, handover)
+        refusal, steps = self._judge(name, solve, request, handover)
         self._solved = self._now()
         if check:
             reply = (refusal is None, refusal or "")
+        elif refusal:
+            reply = (False, refusal)
         else:
-            reply = (False, refusal) if refusal else await self._begin(name, steps)
+            reply = await self._begin(name, steps)
         response.success, response.message = reply
         return response
+
+    def _judge(self, name, solve, request, handover):
+        """(why the move is refused or None, its steps once solved)."""
+        frame = self._grid if name == "drop" else self._dispenser
+        refusal = self._unsolvable(request.check_only, frame, handover)
+        if refusal:
+            return refusal, None
+        # IK inline, as /go_to_target: nothing moves yet, and no pose is solved later
+        target = np.array([request.target.x, request.target.y, request.target.z])
+        steps = solve(self._kin, target, handover, self._p)
+        if not steps:
+            return "unreachable", None
+        if not drop.edge_on(frame, steps):
+            return "not_edge_on", steps
+        return self._unsafe(name, steps, handover), steps
+
+    def _unsolvable(self, check, frame, handover):
+        """Why a move from `handover` to a target in `frame` is not even solved, or None."""
+        if check:
+            if self._move is not None or self._motion is not None:
+                return "busy"
+        else:
+            refusal = self._refusal()
+            if refusal:
+                return refusal
+            if np.max(np.abs(self._joints[0] - handover)) > drop.AT_HANDOVER:
+                return "not_at_handover"
+        if self._grid is None:
+            return "no_grid_pose"
+        if frame is None:
+            return "no_dispenser_pose"
+        if handover is None:
+            return "unreachable"  # the dispenser, so the place to wait at
+        return None
 
     async def _srv_handover(self, request, response):
         """The jaws open, the arm to where it waits: replies there. After a pick cut short the arm may be
@@ -701,7 +725,9 @@ class BrainNode(rclpy.node.Node):
         return self._steady.now().nanoseconds * 1e-9
 
     def destroy_node(self):
-        self._worker.shutdown(wait=False, cancel_futures=True)  # a running plan ends, then the process
+        # Waited for: a running plan ends, then the process. A pool still closing at the interpreter's exit
+        # gets a write on its closed pipe there, a traceback at the brain's stop (#272)
+        self._worker.shutdown(wait=True, cancel_futures=True)
         super().destroy_node()
 
 
