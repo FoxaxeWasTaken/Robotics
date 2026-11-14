@@ -6,6 +6,8 @@ The team's work in this repository is licensed under the Apache License, Version
 Not the team's work, each under its own terms:
 - core/lerobot_min is derived from LeRobot (https://github.com/huggingface/lerobot), Copyright the
   HuggingFace Inc. team, Apache License 2.0; its file headers are kept.
-- The TEK5 Robotics course kit (Epitech): sim/, ros2_ws/src/so101_description/, ros2_ws/src/example_py_pkg/
-  (MIT in its manifest), docs/SUJET.md and the course slides in docs/. Published here with the school's
-  agreement; the kit states no license of its own.
+- The TEK5 Robotics course kit (Epitech): sim/, ros2_ws/src/so101_description/ (Apache License 2.0 in its
+  manifest), ros2_ws/src/example_py_pkg/ (MIT in its manifest), docs/SUJET.md and the course slides in docs/.
+  Published here with the school's agreement; the kit as a whole states no license of its own.
+- The arm's model in sim/ and ros2_ws/src/so101_description/ (URDF, MJCF, meshes) is the SO-ARM100 / SO-ARM101
+  design by TheRobotStudio (https://github.com/TheRobotStudio/SO-ARM100), Apache License 2.0.

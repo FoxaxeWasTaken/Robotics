@@ -29,6 +29,7 @@ KEYS = (
 )
 NO_STATE = "no /connect4/state yet: is the game's stack up, and built? (CONNECT4=true tools/so101 up)"
 LEVEL_KEYS = {name[0]: depth for name, depth in engine.LEVELS.items()}  # e, m, h
+GAME_KEYS = ("n", "r", "s", *LEVEL_KEYS)  # they act on the game whoever's turn it is
 HINT_DEPTH = 8
 LETTERS = {"red": "R", "yellow": "Y"}  # a token on the screen, by its color
 ANSI = {"red": "\x1b[31mR\x1b[0m", "yellow": "\x1b[33mY\x1b[0m"}
@@ -130,7 +131,7 @@ class Console:
         mine = state["state"] == "WAIT_HUMAN" and state is not self._played
         if mine and state["turn"] == "robot":  # it starts, or its token was lost: no key for that
             mine = False
-            if self._robot_turn(state, key):
+            if self._robot_turn(state, key) and key not in GAME_KEYS:
                 return
         mine = mine and state["turn"] == "human"
         if not self._automatic(state, key, mine):
@@ -139,7 +140,7 @@ class Console:
     def _robot_turn(self, state, key) -> bool:
         """The robot's turn asked for, whether it was. A try that failed waits for a key, any but the
         game's own: a service that is gone takes 10 s."""
-        if state is self._failed and not (key and key not in ("n", "r", "s", *LEVEL_KEYS)):
+        if state is self._failed and not (key and key not in GAME_KEYS):
             return False
         try:
             done, message = self.game.play()
@@ -165,8 +166,8 @@ class Console:
         if mine:  # a whole game to watch: the engine plays the person's turns, at the hint's depth
             position = engine.from_cells(state["board"], engine.HUMAN)
             column = engine.best_move(*position, max_depth=HINT_DEPTH).column
-            if not self._turn(state, str(column + 1)):
-                self.auto = False  # refused: no try at each pass
+            self.auto = False  # a turn refused, or a service that is gone: no try at each pass
+            self.auto = self._turn(state, str(column + 1))
         return True
 
     def _on_key(self, state, key, mine):
@@ -193,9 +194,13 @@ class Console:
         elif int(key) - 1 not in state["legal"]:
             self.write(f"column {key} is full")
         else:
-            reply = self.game.play(int(key) - 1)
-            if reply[0]:  # refused, the state stays as it is: the key must work again
-                self._played = state
+            try:
+                reply = self.game.play(int(key) - 1)
+            finally:
+                # Refused before the token went in, the state stays as it is: the key must work again. In
+                # the grid, whatever followed: never a second token
+                if self.game.dropped:
+                    self._played = state
             self._say(reply)
             return reply[0]
         return False

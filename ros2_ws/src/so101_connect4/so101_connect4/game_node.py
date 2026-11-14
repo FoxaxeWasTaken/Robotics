@@ -182,6 +182,7 @@ class GameNode(rclpy.node.Node):
 
     def _srv_stop(self, request, response):
         self._stop = response.success = True
+        self._new_game = False  # a new game asked before this stop, in the same tick: the stop came last
         return response
 
     def _refused(self):
