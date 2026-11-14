@@ -57,26 +57,39 @@ class Placement:
         if self._asked is not None and _moved(frames, self._asked):  # moved meanwhile: from the start
             self._asked = self._waiting = reply = None
         if self._waiting is not None and reply is not None:
-            kind, index = self._waiting
-            if reply == (False, BUSY):  # the brain moves the arm: no verdict, the same check again
-                self._todo.insert(0, self._waiting)
-            elif not reply[0]:
-                self._refusals.append(f"{NAMES[kind]} {index + 1}: {reply[1]}")
-            self._waiting = None
-        if self._asked is None:
-            if not idle or (self._judged is not None and not _moved(frames, self._judged)):
-                return None
-            self._asked, self._refusals = frames, []
-            self._todo = [("drop", column) for column in range(self._layout["grid"]["columns"])]
-            if self._dispenser:
-                self._todo += [("pick", rail) for rail in range(self._layout["dispenser"]["rails"])]
+            self._take(reply)
+        if self._asked is None and not self._start(frames, idle):
+            return None
         if self._waiting is not None or (self._todo and not idle):
             return None
-        if not self._todo:
+        if not self._todo:  # every check answered: the verdict
             self._judged, self._asked = self._asked, None
-            self._verdict = self._refusals[0] if self._refusals else ""
+            self._verdict = next(iter(self._refusals), "")  # the first refusal
             return None
+        return self._next()
+
+    def _next(self):
+        """The next check to ask."""
         kind, index = self._waiting = self._todo.pop(0)
         if kind == "drop":
             return kind, index, board.column_target(self._layout, self._asked[0], index)
         return kind, index, board.station_target(self._layout, self._asked[1], index)
+
+    def _take(self, reply):
+        """The brain's reply to the check asked last."""
+        kind, index = self._waiting
+        if reply == (False, BUSY):  # the brain moves the arm: no verdict, the same check again
+            self._todo.insert(0, self._waiting)
+        elif not reply[0]:
+            self._refusals.append(f"{NAMES[kind]} {index + 1}: {reply[1]}")
+        self._waiting = None
+
+    def _start(self, frames, idle) -> bool:
+        """A new round of checks on `frames`, when one is due: never judged, or moved since."""
+        if not idle or (self._judged is not None and not _moved(frames, self._judged)):
+            return False
+        self._asked, self._refusals = frames, []
+        self._todo = [("drop", column) for column in range(self._layout["grid"]["columns"])]
+        if self._dispenser:
+            self._todo += [("pick", rail) for rail in range(self._layout["dispenser"]["rails"])]
+        return True
