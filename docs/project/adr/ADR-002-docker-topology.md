@@ -41,3 +41,13 @@ The staff confirms the `perception` service is expected (the Dockerfile is provi
 ## Update (2026-10-30, #189)
 
 The stack keeps perception in its own container (C-02). Two test tools start a stack of their own instead, in the `control` container and on their own ROS domain: the evaluation bench (`sim.launch.py expose_ground_truth:=true perception:=true`, domain 77, `08` §3) and the robustness demo (`robustness_demo.launch.py`, `results/robustness_demo.md`). They never share a domain with the everyday stack.
+
+## Update (2026-11-14, #274, #273)
+
+**DDS over UDP only**: `FASTDDS_BUILTIN_TRANSPORTS=UDPv4`, set in both images and as the compose file's default (it was `LARGE_DATA` there, and `DEFAULT` in the E2E and nightly jobs since #141).
+
+Fast DDS's shared-memory transport is part of `DEFAULT` and of `LARGE_DATA`. With it, a process that joins the ROS graph (a rosbag recorder, RViz, a `ros2` command) makes a `publish()` of the nodes already there block for about 0.3 s, and rclpy publishes with Python's GIL held: every Python thread of the driver stops, so its 50 Hz control loop. Over 0.5 s the brain ends in `ERROR:no_joint_states`; it cost the nightly bench an episode twice. Over 150 recorders started on an idle stack: 11 holds with `DEFAULT`, 10 with `LARGE_DATA`, none with `UDPv4` [MES-80].
+
+Between two containers the stack already spoke UDP under `DEFAULT` (shared memory does not cross them): the camera's images reach perception that way in every E2E job and nightly since #141. What changes is inside a container, and the everyday stack, which leaves `LARGE_DATA`'s TCP.
+
+Reopen if the images are late or lost over UDP on a machine (a `ros2 topic hz` of `/external_cam/image_raw` under 10 Hz with a Reliable subscriber): then shared memory for the camera's topic only, by a Fast DDS profile.

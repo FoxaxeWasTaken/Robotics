@@ -32,6 +32,10 @@ from std_msgs.msg import String
 from std_srvs.srv import Trigger
 
 BRAIN_START = "/brain/start"
+RECORDER_S = 10.0  # a recorder subscribes within this: 2 s on the nightly's runner
+# With Fast DDS's shared-memory transport, a participant that joins holds the driver's executor for 0.3 s,
+# once in ten [MES-80]: it has passed. The images and the compose file set UDP only, where nothing holds it
+SETTLE_S = 1.0
 FOOTPRINT_HALF_M = 0.05  # half the box's inner side (08 §3)
 MAX_CUBE_Z_M = 0.06  # higher: on a wall, not in the box
 STARTUP_S = 60.0  # s, each check before episode 1: a fresh process may find the stack late in CI (#141)
@@ -99,6 +103,20 @@ class Bench:
         while not condition() and time.monotonic() < end:
             rclpy.spin_once(self.node, timeout_sec=0.05)
         return condition()
+
+    def listeners(self, topics) -> dict:
+        """{topic: its subscribers now} of the topics that are published: the ones a recorder takes."""
+        return {t: self.node.count_subscribers(t) for t in topics if self.node.count_publishers(t)}
+
+    def joined(self, before: dict) -> bool:
+        """Spins until a recorder started since `before` (listeners) listens to each topic, then SETTLE_S
+        more. False when it did not within RECORDER_S."""
+        seen = self.spin_until(
+            lambda: all(self.node.count_subscribers(t) > n for t, n in before.items()), RECORDER_S
+        )
+        end = time.monotonic() + SETTLE_S
+        self.spin_until(lambda: time.monotonic() > end, SETTLE_S + 1.0)
+        return seen
 
     def call(self, client, request, timeout_s: float = 10.0, resend_s: float | None = None):
         """The reply within timeout_s of the service being found. With resend_s, for a request that changes
@@ -201,7 +219,12 @@ def loop(args, bench, unit, count, seed, fields, topics, summarize) -> int:
         writer.writeheader()
         for number in range(1, count + 1):
             bag = args.bags / f"{unit}_{number:03d}" if args.bags else None
-            recorder = record(bag, topics) if bag else None
+            recorder = None
+            if bag:  # it joins before the episode starts, not during it: the driver holds then [MES-80]
+                before = bench.listeners(topics)
+                recorder = record(bag, topics)
+                if not bench.joined(before):
+                    print(f"evaluate: the recorder of {unit} {number} did not subscribe", file=sys.stderr)
             row = getattr(bench, unit)(number, seed, args.timeout)
             if recorder:
                 recorder.send_signal(signal.SIGINT)

@@ -93,7 +93,6 @@ jobs:
         env:
           EPISODES: ${{ inputs.episodes || '50' }}
           EXPOSE_GROUND_TRUTH: "true"  # the bench scores with the ground truth; the pipeline never reads it (C-06)
-          FASTDDS_BUILTIN_TRANSPORTS: DEFAULT  # as the control tests: LARGE_DATA lost nodes at the start (#141)
         run: |
           set -o pipefail  # the bench's status, not tee's
           cp docker/.env.example docker/.env
@@ -108,13 +107,15 @@ jobs:
         run: |
           docker compose -f docker/docker-compose.yml ps -a
           docker compose -f docker/docker-compose.yml logs --tail 150 control perception
+      - name: Keep the stack's log of the pick & place bench
+        if: ${{ !cancelled() }}  # here: the game bench takes this stack down. The driver names its late ticks (#274)
+        run: docker compose -f docker/docker-compose.yml logs --no-color control perception > ros2_ws/stack_bench.log 2>&1 || true
       - name: Game bench (Connect Four, phase 2)
         if: ${{ !cancelled() }}  # the games are played even when the pick & place bench stopped
         env:
           GAMES: ${{ inputs.games || '10' }}
           CONNECT4: "true"  # the game in place of the pick & place: the stack, and what wait_for_stack.sh waits for
           EXPOSE_GROUND_TRUTH: "true"
-          FASTDDS_BUILTIN_TRANSPORTS: DEFAULT
         run: |
           set -o pipefail
           # down then up, never restart: a restarted container keeps its environment, and wait_for_stack.sh reads
@@ -140,6 +141,9 @@ jobs:
         run: |
           touch "$RUNNER_TEMP/bench.log" "$RUNNER_TEMP/games.log"  # a bench that never started: an empty log, "did not finish"
           bash tools/ci/bench_report.sh "$RUNNER_TEMP/bench.log" "$RUNNER_TEMP/games.log"
+      - name: Keep the stack's log of the game bench
+        if: always()
+        run: docker compose -f docker/docker-compose.yml logs --no-color control perception > ros2_ws/stack_games.log 2>&1 || true
       - name: Stack state and logs (on failure)
         if: failure()
         run: |
@@ -164,6 +168,8 @@ jobs:
             ros2_ws/bags/
             ros2_ws/eval_games.csv
             ros2_ws/bags_games/
+            ros2_ws/stack_bench.log
+            ros2_ws/stack_games.log
           retention-days: 14
 
   quality:

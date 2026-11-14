@@ -260,3 +260,54 @@ def test_the_summary_of_no_success_has_no_duration():
 def test_the_summary_of_only_successes_has_no_cause():
     rows = [{"success": True, "duration_s": d, "cause": ""} for d in (14.0, 16.0)]
     assert summary(rows) == "success 2/2 (100 %); duration p50 15.0 s, p95 15.9 s; causes: none"
+
+
+class Recorded(FakeBench):
+    """A bench with --bags: what happens around an episode, in order."""
+
+    def __init__(self, listens=True):
+        super().__init__(pose=object())
+        self.events, self.listens = [], listens
+
+    def listeners(self, topics):
+        self.events.append("listeners")
+        return {"/joint_states": 1}
+
+    def joined(self, before):
+        self.events.append(("joined", before))
+        return self.listens
+
+    def episode(self, number, seed, timeout_s):
+        self.events.append("episode")
+        return super().episode(number, seed, timeout_s)
+
+
+def recorded_run(tmp_path, monkeypatch, bench):
+    class Recorder:
+        def send_signal(self, _signal):
+            bench.events.append("stop")
+
+        def wait(self, timeout):
+            pass
+
+    monkeypatch.setattr(evaluate, "record", lambda path, topics: bench.events.append("record") or Recorder())
+    args = bench_args(tmp_path, episodes=1)
+    args.bags = tmp_path / "bags"
+    return run(args, bench)
+
+
+def test_with_bags_an_episode_starts_once_its_recorder_listens(tmp_path, monkeypatch, capsys):
+    """A DDS participant that joins holds the driver's executor for 0.3 s, once in ten [MES-80]. The recorder
+    takes 2 s to start: joined during the cycle, it cost the nightly an episode twice (`no_joint_states`,
+    #274). The bench counts the topics' subscribers, starts the recorder, waits for it, then the episode."""
+    bench = Recorded()
+    assert recorded_run(tmp_path, monkeypatch, bench) == 0
+    assert bench.events == ["listeners", "record", ("joined", {"/joint_states": 1}), "episode", "stop"]
+    assert capsys.readouterr().err == ""
+
+
+def test_a_recorder_that_never_listens_is_said_and_the_episode_runs(tmp_path, monkeypatch, capsys):
+    bench = Recorded(listens=False)
+    assert recorded_run(tmp_path, monkeypatch, bench) == 0
+    assert bench.episodes == [1]
+    assert "the recorder of episode 1 did not subscribe" in capsys.readouterr().err

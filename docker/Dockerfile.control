@@ -38,6 +38,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-colcon-ros-domain-id-coordinator \
     && rm -rf /var/lib/apt/lists/*
 
+# DDS over UDP only. With Fast DDS's shared-memory transport (in DEFAULT and in LARGE_DATA), a process that joins
+# the ROS graph blocks a publish() of the others for 0.3 s with Python's GIL held: the driver's control loop
+# stops for that time, and over 0.5 s the brain ends in ERROR:no_joint_states [MES-80]
+ENV FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+
 # ROS2 workspace mounted as a volume (see docker-compose.yml)
 WORKDIR /ros2_ws
 
