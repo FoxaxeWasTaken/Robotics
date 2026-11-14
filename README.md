@@ -14,7 +14,8 @@
 
 <img src="docs/project/media/demo_connect4.gif" height="240" alt="A Connect Four game against the simulated arm, seen by the scene camera: the arm takes each yellow token at its dispenser, at the bottom right, and drops it into the grid; each cell read is drawn as a disc, each station of the dispenser is ringed in green, the robot's last move and its reason are written at the top, and the winning four is circled in green">
 
-*A game against the simulated arm at 16× speed, as the board reader draws it: the cells it reads, the stations of the dispenser, the robot's reason, the winning four.*
+*A game against the simulated arm at 16× speed, as the board reader draws it: the cells it reads, the stations of the dispenser, the robot's reason, the winning four.*<br>
+**Video:** [a full game at 4× speed, 27 s](https://github.com/FoxaxeWasTaken/Robotics/releases/download/v2.0.0/demo_connect4_sim.mp4)
 
 | **50/50** | **2100/2100** | **10/10** | **8/8** |
 | --- | --- | --- | --- |

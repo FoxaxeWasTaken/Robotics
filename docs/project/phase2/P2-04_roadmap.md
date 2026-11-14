@@ -114,7 +114,7 @@ One or two features of `P2-02` §9, only once P2.6 is green and ahead of §3. Di
 
 ## 2. Delivery
 
-Phase 2 ends in `09` stage 8: the sim video, the team on camera, the slides (the pitch, the edge-on geometry [MES-27], the bench numbers, and why the sim), tag `v2.0.0`. `v2.1.0` brings the real arm.
+Phase 2 ends in `09` stage 8: the sim video (a game rendered from the sim stack; no video with the team on it, `00` I-13) and tag `v2.0.0` at the code freeze. The slides (the pitch, the edge-on geometry [MES-27], the bench numbers, and why the sim) come after the tag (#98). `v2.1.0` brings the real arm.
 
 ## 3. Calendar to the hand-in
 
@@ -128,10 +128,12 @@ The team works on Thursdays and Fridays, the weekend as a reserve. Monday to Wed
 | **Sun 15** | **First full game on the stack**; console, game bench, a game on each PR; then, in this order and only if the game runs: the engine's options, the games' records, the robustness demo, the display, faster moves ✅ (all merged on Fri 13) | #86, #232, #87, #233, #244, #245, #243, #246, #247 |
 | Fri 13 – Thu 19 | Decided on 2026-11-13: the code freeze moves from Sun 15 to **Thu 19**. The token dispenser and the positions from perception, in this order: the dispenser in the scene, its pose read by the camera, the arm's pick and the game's turn, the measured poses checked before a move | #257, #258, #259, #260 |
 | Mon 16 – Wed 18 | No work day. Reviews; the nightly runs the games on what is merged | |
-| Thu 19 | **No new code after this day.** Guide, results, videos, the team on camera, rehearsal. **16:00: the last PR**, with `[2.0.0]` and the docs, opened once the gate is read; the nightly dispatched at its merge | #234, #97, #98, #229 |
-| Fri 20 | 12:00: latest tag. The tag on the school copy checked. **23:42: hand-in** | #229 |
+| Sat 14 ✅ | Decided on 2026-11-14: no filming session before the hand-in, so the phase-2 video is rendered from the sim and the video with the team is dropped (`00` I-13); the slides leave `v2.0.0`; the license (ADR-031 Update) | #97, #99 (the license) |
+| Thu 19 | **No new code after this day.** The game from a fresh clone by another member (P2-07); `E2E sim (1 game)` becomes a required check. **16:00: the last PR**, with `[2.0.0]` and the docs, opened once the gate is read; the nightly dispatched at its merge; **the tag in the evening** | #234, #233, #229 |
+| Fri 20 | The tag on the school copy checked. The slides and the rehearsal. **23:42: hand-in** | #98 |
+| Sat 21 | After the hand-in: the repository public, the slides added to `docs/project/presentations/` | #99, #98 |
 
-A feature not merged on Thursday 19 at 16:00 is cut (§4): the release needs the last PR's review, a nightly on its commit and the tag before Friday 12:00, and SonarQube reads a merge one night late, so what merges on Thursday is read by the gate once, on Friday morning. The release chain is the last PR's review, a nightly on its commit (about 20 min plus the games), then `tools/release.sh`. Tickets grouped in PRs by this table, one commit per ticket.
+A feature not merged on Thursday 19 at 16:00 is cut (§4): the release is cut that evening, and SonarQube reads a merge one night late, so what merges on Thursday is read by the gate once, by the nightly dispatched on the last PR's commit. The release chain is the last PR's review, a nightly on its commit (about 20 min plus the games), then `tools/release.sh`. Tickets grouped in PRs by this table, one commit per ticket.
 
 ## 4. Cut-offs
 
