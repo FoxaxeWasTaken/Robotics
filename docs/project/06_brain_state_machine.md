@@ -222,7 +222,7 @@ Declared by `brain_node` (read-only, with ranges): every value of `motion.*`, `g
 
 ## 10. The course's robustness questions and our answers (C-36)
 
-The day-2 slides ask "is your code robust?" with five situations [BOOT2 p12]. Each one maps to a design element and a test; the teaching staff wants a quick demo of each (2026-10-16): step 5.4a (#103), one command per case, `tools/so101 robustness <n>` (#191; it runs `ros2 launch so101_bringup robustness_demo.launch.py case:=<n>` on its own domain), outcomes in `results/robustness_demo.md`. The same questions are asked of the Connect Four game, with a stop in the middle of a move: `tools/so101 robustness g1` to `g6` (#243), in the same file. All five are handled, the lighting since #175 [MES-52]:
+The day-2 slides ask "is your code robust?" with five situations [BOOT2 p12]. Each one maps to a design element and a test; the teaching staff wants a quick demo of each (2026-10-16): step 5.4a (#103), one command per case, `tools/so101 robustness <n>` (#191; it runs `ros2 launch so101_bringup robustness_demo.launch.py case:=<n>` on its own domain), outcomes in `results/robustness_demo.md`. The same questions are asked of the Connect Four game, with a stop in the middle of a move and the grid set down elsewhere: `tools/so101 robustness g1` to `g8` (#243, #260), in the same file. All five are handled, the lighting since #175 [MES-52]:
 
 | Situation [BOOT2 p12] | Our answer | Where | Test |
 | --- | --- | --- | --- |
