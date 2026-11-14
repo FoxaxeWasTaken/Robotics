@@ -568,6 +568,21 @@ def test_a_new_game_accepted_in_the_same_tick_as_a_stop_starts(stack):
     assert ("stop",) in stack.calls
 
 
+def test_a_stop_after_a_new_game_in_the_same_tick_leaves_no_game(stack):
+    """`n` then `s` typed within one tick: the stop was taken, then the game started at the next tick, and
+    the arm moved after a stop."""
+    stack.start()
+    stack.human_plays(3)
+    stack.wait_for("WAIT_HUMAN", moves=2)
+    handovers = stack.calls.count(("handover",))
+    assert stack.game._srv_new_game(SetBool.Request(), SetBool.Response()).success
+    assert stack.game._srv_stop(Trigger.Request(), Trigger.Response()).success
+    stack.wait_for("ERROR:stopped")
+    stack.spin_for(0.5)
+    assert stack.label == "ERROR:stopped"
+    assert stack.calls.count(("handover",)) == handovers
+
+
 def test_a_destroyed_game_node_has_joined_the_threads_of_its_search_pool():
     """As the brain's planning pool (#272): a pool still closing at the interpreter's exit gets a write on
     its closed pipe there, a traceback at the node's stop."""

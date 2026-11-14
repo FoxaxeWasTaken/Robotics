@@ -311,3 +311,23 @@ def test_a_recorder_that_never_listens_is_said_and_the_episode_runs(tmp_path, mo
     assert recorded_run(tmp_path, monkeypatch, bench) == 0
     assert bench.episodes == [1]
     assert "the recorder of episode 1 did not subscribe" in capsys.readouterr().err
+
+
+def test_a_recorder_is_seen_though_the_one_before_it_was_still_counted(monkeypatch):
+    """The recorder of the episode before may still be in the graph when the subscribers are counted: it
+    leaves, the new one joins, and the count is back where it was. Joined is one more than the lowest seen."""
+
+    class Graph:
+        counts = iter([1, 1, 2, 2, 2, 2])  # the old recorder leaves (2 before, then 1), the new one joins
+
+        def count_subscribers(self, topic):
+            return next(self.counts, 2)
+
+    class Spun:
+        node = Graph()
+
+        def spin_until(self, condition, timeout_s):
+            return any(condition() for _ in range(4))
+
+    monkeypatch.setattr(evaluate, "SETTLE_S", 0.0)
+    assert Bench.joined(Spun(), {"/joint_states": 2}) is True

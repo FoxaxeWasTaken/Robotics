@@ -110,10 +110,16 @@ class Bench:
 
     def joined(self, before: dict) -> bool:
         """Spins until a recorder started since `before` (listeners) listens to each topic, then SETTLE_S
-        more. False when it did not within RECORDER_S."""
-        seen = self.spin_until(
-            lambda: all(self.node.count_subscribers(t) > n for t, n in before.items()), RECORDER_S
-        )
+        more. False when it did not within RECORDER_S. Listening: one subscriber more than the fewest seen,
+        for the recorder of the episode before may still have been counted in `before`."""
+        low = dict(before)
+
+        def listening():
+            counts = {t: self.node.count_subscribers(t) for t in low}
+            low.update({t: min(low[t], n) for t, n in counts.items()})
+            return all(counts[t] > low[t] for t in low)
+
+        seen = self.spin_until(listening, RECORDER_S)
         end = time.monotonic() + SETTLE_S
         self.spin_until(lambda: time.monotonic() > end, SETTLE_S + 1.0)
         return seen

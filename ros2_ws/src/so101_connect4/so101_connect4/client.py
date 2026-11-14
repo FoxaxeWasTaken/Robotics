@@ -60,6 +60,7 @@ def call(spin_once, client, request=None, timeout_s=10.0) -> tuple:
 class GameClient:
     def __init__(self, node, hand, spin_once=None):
         self.hand, self.state = hand, None  # the last /connect4/state, a dict
+        self.dropped = False  # the person's token went into the grid at the last play()
         self.spin_once = spin_once or (lambda: rclpy.spin_once(node, timeout_sec=0.05))
         node.create_subscription(String, "/connect4/state", self._on_state, LATCHED)
         self._new_game = node.create_client(SetBool, "/connect4/new_game")
@@ -87,17 +88,22 @@ class GameClient:
         """The person's turn: the robot's token between its jaws, the person's own in `column` (None when the
         robot is to play), then human_done. With a token dispenser (the state's token_source) nobody gives
         a token: the person fills a dispenser found empty. The first step that fails ends it, with its
-        message."""
-        state = self.state or {}
+        message. `dropped` then says whether the person's token went into the grid: never dropped twice."""
+
+        def drop():
+            return self.hand.drop_token(column)
+
+        state, self.dropped = self.state or {}, False
         steps = [self.hand.give_token]
         if state.get("token_source") == "dispenser":
             steps = [self.hand.fill_dispenser] if state["reason"] == "dispenser_empty" else []
         if column is not None:
-            steps.append(lambda: self.hand.drop_token(column))
+            steps.append(drop)
         for step in [*steps, self.human_done]:
             reply = step()
             if not reply[0]:
                 break
+            self.dropped = self.dropped or step is drop
         return reply
 
     def human_done(self) -> tuple:

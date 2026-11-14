@@ -26,6 +26,9 @@ class FakeGame:
 
     def __init__(self, state):
         self.state, self.calls, self.reply = state, [], (True, "")
+        self.dropped = False  # as GameClient: the person's token went into the grid at the last play
+        self.drops = None  # what `dropped` says after a play; None: what the reply says
+        self.gone = False  # play raises, as a service that is gone
 
     def new_game(self, robot_first=False):
         self.calls.append(("new_game", robot_first))
@@ -33,6 +36,9 @@ class FakeGame:
 
     def play(self, column=None):
         self.calls.append(("play", column))
+        self.dropped = self.reply[0] if self.drops is None else self.drops
+        if self.gone:
+            raise RuntimeError("/connect4/human_done: no such service")
         return self.reply
 
     def stop(self):
@@ -422,3 +428,36 @@ def test_a_screen_keeps_the_keys_the_last_board_and_the_last_message_and_redraws
     screen.draw("board 2")
     assert out[-1] == "\x1b[H\x1b[J" + play.KEYS + "\nboard 2\ncolumn 3 is full"
     assert len(out) == 3  # one repaint per change, the whole screen each time
+
+
+def test_a_token_in_the_grid_is_not_dropped_again_when_the_end_of_the_turn_fails(console):
+    """The hand dropped the token, then human_done was refused, or its service was gone: the key played the
+    turn again, a second token in the same column, and the game ended in FIX_BOARD."""
+    console.game.reply, console.game.drops = (False, "not the person's turn"), True
+    console.step("4")
+    console.step("4")
+    assert console.game.calls == [("play", 3)]
+    assert "not the person's turn" in console.lines
+    console.game.state = a_state()  # a new state, and the service gone this time
+    console.game.calls.clear()
+    console.game.gone = True
+    console.step("4")
+    console.step("4")
+    assert console.game.calls == [("play", 3)]
+
+
+def test_the_automatic_player_stops_when_a_service_is_gone(console):
+    """It stayed on and dropped one more token at each pass, about every 10 s, with no key pressed."""
+    console.game.gone, console.game.drops = True, False
+    console.step("a")
+    console.step()
+    console.step()
+    assert console.game.calls == [("play", 3)]
+    assert console.auto is False
+
+
+def test_a_key_of_the_game_typed_as_the_robots_turn_is_asked_is_not_lost(console):
+    """`s` in the pass that asks for the robot's turn: the turn is asked, then the stop."""
+    console.game.state = a_state(turn="robot")
+    console.step("s")
+    assert console.game.calls == [("play", None), ("stop",)]

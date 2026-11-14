@@ -209,6 +209,7 @@ flowchart TD
 | --- | --- |
 | `core/lerobot_min` | Apache-2.0 (derived from LeRobot, headers kept) |
 | `so101_description`, stub packages | Apache-2.0 declared in `package.xml` (`example_py_pkg`: MIT) |
+| The arm's model (URDF, MJCF, meshes in `sim/` and `so101_description`) | Apache-2.0: TheRobotStudio's SO-ARM100 |
 | Course kit (scenes, Dockerfiles, brief, slides) | **Not specified** |
 | The team's packages, tools, tests and docs | Apache-2.0 (`LICENSE`) |
 
@@ -221,7 +222,7 @@ flowchart TD
 | Every PR | PR template checklist; branch deleted after merge | Author |
 | Weekly | Board review in the sync (§12.4): Backlog → Ready, blocked tickets, WIP; review the risk register (`10`); merge Dependabot PRs; an open "Course repository: new commits" issue (the nightly watches the course, #137) | CP |
 | Every tag | CHANGELOG, bench report in `results/`, GitHub Release | CP + QA |
-| End of project | Final README (demo, results), videos, `v2.0.0` tag; public visibility and archive afterwards (#99) | Everyone |
+| End of project | Final README (demo, results), the sim video, `v2.0.0` tag; the slides, public visibility and archive afterwards (#98, #99) | Everyone |
 
 ## 11. Putting the prepared tree in place (keeping the history)
 
