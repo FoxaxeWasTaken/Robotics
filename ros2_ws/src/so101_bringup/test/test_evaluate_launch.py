@@ -52,6 +52,7 @@ class TestEvaluate(unittest.TestCase):
                 self.assertLess(abs(float(r["cube_x"]) - float(r["box_x"])), 0.05, r)
                 self.assertLess(float(r["duration_s"]), 60.0)
             self.assertIn("success 2/2 (100 %)", run.stdout)
+            self.assertNotIn("recorder", run.stderr, "an episode started before its recorder listened (#274)")
             self.assertEqual(list(bags.glob("*")), [], "a successful episode kept its rosbag")
 
     def test_2_a_cut_episode_fails_and_keeps_its_rosbag(self):
