@@ -48,7 +48,10 @@ else:
   python3 -c '
 import json, sys
 measures = json.loads(sys.argv[1])["component"]["measures"]
-m = {x["metric"]: x.get("value", x.get("period", {}).get("value", "?")) for x in measures}
+# A new-code measure has no "value": SonarQube Cloud gives "periods", a list of one
+m = {x["metric"]: x.get("value", (x.get("periods") or [{}])[0].get("value", "?")) for x in measures}
+if m.get("new_coverage", "?") != "?":
+    m["new_coverage"] = "{:.1f}".format(float(m["new_coverage"]))  # 93.40498290180753
 print("Coverage {} % (new code {} %), {} new issues, {} open.".format(
     m.get("coverage", "?"), m.get("new_coverage", "?"), m.get("new_violations", "?"), m.get("violations", "?")))
 ' "$json"

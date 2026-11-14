@@ -130,30 +130,47 @@ class Console:
         mine = state["state"] == "WAIT_HUMAN" and state is not self._played
         if mine and state["turn"] == "robot":  # it starts, or its token was lost: no key for that
             mine = False
-            # A try that failed waits for a key, any but the game's own: a service that is gone takes 10 s
-            if state is not self._failed or (key and key not in ("n", "r", "s", *LEVEL_KEYS)):
-                try:
-                    done, message = self.game.play()
-                except RuntimeError as error:
-                    done, message = False, str(error)
-                self._played, self._failed = (state, None) if done else (None, state)
-                if not done:
-                    self.write(f"{message}; any key to try again")
+            if self._robot_turn(state, key):
                 return
+        mine = mine and state["turn"] == "human"
+        if not self._automatic(state, key, mine):
+            self._on_key(state, key, mine)
+
+    def _robot_turn(self, state, key) -> bool:
+        """The robot's turn asked for, whether it was. A try that failed waits for a key, any but the
+        game's own: a service that is gone takes 10 s."""
+        if state is self._failed and not (key and key not in ("n", "r", "s", *LEVEL_KEYS)):
+            return False
+        try:
+            done, message = self.game.play()
+        except RuntimeError as error:
+            done, message = False, str(error)
+        self._played, self._failed = (state, None) if done else (None, state)
+        if not done:
+            self.write(f"{message}; any key to try again")
+        return True
+
+    def _automatic(self, state, key, mine) -> bool:
+        """The automatic player: switched by a key, then its move when the turn is the person's (`mine`).
+        Whether this pass was its own."""
         if key and not key.isspace() and self.auto:  # any key stops it, and is not taken for a move
             self.auto = False
             self.write("automatic player: off")
-            return
+            return True
         if key == "a":
             self.auto = True
             self.write("automatic player: on, any key stops it")
-        if self.auto:  # a whole game to watch: the engine plays the person's turns, at the hint's depth
-            if mine and state["turn"] == "human":
-                position = engine.from_cells(state["board"], engine.HUMAN)
-                column = engine.best_move(*position, max_depth=HINT_DEPTH).column
-                if not self._turn(state, str(column + 1)):
-                    self.auto = False  # refused: no try at each pass
-            return
+        if not self.auto:
+            return False
+        if mine:  # a whole game to watch: the engine plays the person's turns, at the hint's depth
+            position = engine.from_cells(state["board"], engine.HUMAN)
+            column = engine.best_move(*position, max_depth=HINT_DEPTH).column
+            if not self._turn(state, str(column + 1)):
+                self.auto = False  # refused: no try at each pass
+        return True
+
+    def _on_key(self, state, key, mine):
+        """A key of the game; `mine`: the turn is the person's."""
         if key in ("n", "r"):
             self._say(self.game.new_game(robot_first=key == "r"))
         elif key == "s":
@@ -161,7 +178,7 @@ class Console:
         elif key in LEVEL_KEYS:
             self._say(self.game.set_depth(LEVEL_KEYS[key]))
         elif key == "?" or key in tuple("1234567"):
-            if not (mine and state["turn"] == "human"):  # a token dropped now would end in FIX_BOARD
+            if not mine:  # a token dropped now would end in FIX_BOARD
                 self.write(f"not your turn: {state['state']}")
             else:
                 self._turn(state, key)
@@ -200,8 +217,9 @@ def read_key():
     if not byte:
         return "q"
     if byte == b"\x1b":
-        while select.select([stdin], [], [], 0)[0] and os.read(stdin, 32):
-            pass
+        while select.select([stdin], [], [], 0)[0]:
+            if not os.read(stdin, 32):
+                break
         return None
     return byte.decode(errors="ignore") or None
 

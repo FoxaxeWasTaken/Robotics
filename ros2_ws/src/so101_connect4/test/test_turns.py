@@ -140,7 +140,7 @@ def test_the_engine_is_asked_for_the_robots_side_once_it_has_tokens():
     cells = human_plays(c, 4)
     me, mask = c.out.think
     assert me != 0
-    assert (me, mask) == game.from_cells(cells, ROBOT)
+    assert game.from_cells(cells, ROBOT) == (me, mask)
 
 
 def test_a_win_with_the_move_itself_is_a_win_in_one_ply():
