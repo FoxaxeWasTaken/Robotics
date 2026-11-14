@@ -19,6 +19,7 @@ if [[ "${CONNECT4:-false}" = true ]]; then
 else
   nodes_ready() { ready perception "Perception node ready"; }
 fi
+echo "Waiting for the stack: the first start builds the workspace, several minutes"
 until ready control "Driver node ready" && ready control "Brain node ready" && nodes_ready; do
   if [[ "$SECONDS" -ge "$timeout_s" ]]; then
     echo "The stack is not ready after ${timeout_s} s:"

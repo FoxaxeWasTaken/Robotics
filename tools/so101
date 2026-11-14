@@ -16,13 +16,16 @@ usage() {
 Usage: tools/so101 [--dry-run] <command> [options]
 
   build [service]       build the images (both, or control or perception); ~10 min the first time
-  up                    start the stack (control, perception, viz); CONNECT4=true tools/so101 up starts the
-                        Connect Four game instead (simulation only), down then up to come back
+  up [--game]           start the stack (control, perception, viz); --game (or CONNECT4=true) starts the
+                        Connect Four game instead (simulation only). It never changes the mode of a
+                        running stack: down first
+  wait                  wait until the running stack is ready (the first start builds the workspace)
+  demo                  the Connect Four game in one command: up --game, wait, play
   down                  stop it (the control container's nodes get SIGINT: the arm parks first on the real robot)
   restart [service]     restart control (default), perception or viz: reloads changed Python code
   logs [service]        follow the logs of control (default), perception or viz
   shell                 a shell in the control container, the workspace sourced
-  rviz                  RViz with the project's configuration
+  rviz                  RViz with the project's configuration; in game mode, the game's view
   cycle                 /sim/randomize (sim only), /brain/start, then /brain_state until DONE, ERROR or STOPPED
   play                  play Connect Four against the robot from this terminal, the stack started with
                         CONNECT4=true tools/so101 up: 1 to 7 a column, ? a hint, n a new game,
@@ -82,6 +85,17 @@ ros() {  # ros [docker compose exec options] <command>: a command in the control
   run "${compose[@]}" exec "${@:1:$#-1}" control bash -lc "$SOURCED && $cmd"
 }
 
+running_mode() {  # the CONNECT4 of the running control container; nothing when the stack is down
+  local id
+  id=$("${compose[@]}" ps -q control 2> /dev/null) || return 0
+  [ -n "$id" ] || return 0
+  docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$id" 2> /dev/null | sed -n 's/^CONNECT4=//p'
+}
+
+mode_name() {
+  [ "$1" = true ] && echo "the Connect Four game" || echo "the pick & place"
+}
+
 none() {  # none "$@": this command takes no argument; a flag goes before the command (down --dry-run stopped the stack)
   [ $# -eq 0 ] || die "$command: no argument expected, got '$*' (--dry-run and --help go before the command)"
 }
@@ -109,8 +123,37 @@ case $command in
     run "${compose[@]}" build ${1:+"$1"}
     ;;
   up)
+    # The mode compose would start: --game, else CONNECT4 of the environment, else of docker/.env, else the
+    # pick & place. An up in another mode than the running stack's would recreate its containers: refused.
+    wanted=${CONNECT4:-}
+    if [ -z "$wanted" ] && [ -f "$root/docker/.env" ]; then  # a fresh clone has none
+      wanted=$(sed -n 's/^CONNECT4=//p' "$root/docker/.env" | tail -n 1)
+    fi
+    if [ "${1:-}" = --game ]; then wanted=true; shift; fi
     none "$@"
-    run "${compose[@]}" up -d control perception viz
+    [ "$wanted" = true ] || wanted=false
+    if ! "$dry"; then
+      running=$(running_mode)
+      [ -z "$running" ] || [ "$running" = "$wanted" ] \
+        || die "up: the stack runs $(mode_name "$running"): tools/so101 down first"
+    fi
+    echo "so101 up: $(mode_name "$wanted") (CONNECT4=$wanted)"
+    CONNECT4=$wanted run "${compose[@]}" up -d control perception viz
+    ;;
+  wait)
+    none "$@"
+    mode=${CONNECT4:-false}
+    "$dry" || mode=$(running_mode)
+    cd "$root"  # the script's compose path is relative to the repository
+    CONNECT4=${mode:-false} run bash tools/ci/wait_for_stack.sh 900
+    ;;
+  demo)
+    none "$@"
+    flags=()
+    ! "$dry" || flags=(--dry-run)
+    "$0" "${flags[@]}" up --game
+    "$0" "${flags[@]}" wait
+    exec "$0" "${flags[@]}" play
     ;;
   down)
     none "$@"
@@ -130,7 +173,7 @@ case $command in
     ;;
   rviz)
     none "$@"
-    ros "rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz"
+    ros "rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/\$([ \"\$CONNECT4\" = true ] && echo connect4 || echo so101).rviz"
     ;;
   cycle)
     none "$@"
