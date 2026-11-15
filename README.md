@@ -68,7 +68,7 @@ tools/so101 rviz                             # optional, in a second terminal: t
 tools/so101 down
 ```
 
-`demo` is `tools/so101 up` (control, perception, viz), `tools/so101 wait` (the first start builds the workspace, minutes) and a console: a first cycle by itself, then `n` a new cycle with the cube at a new place, `s` stop, `q` quit. It shows where the camera sees the cube and the box, each step of the cycle with its duration, and the cycles done and failed with their times. Simulation only: it refuses `USE_SIM=false`. Step by step instead: `tools/so101 up`, `tools/so101 logs` until "Brain node ready.", `tools/so101 cycle` (one cycle, the states until `DONE`).
+`demo` is `tools/so101 up` (control, perception, viz), `tools/so101 wait` (the first start builds the workspace, minutes) and a console: a first cycle by itself, then `n` a new cycle with the cube at a new place, `s` stop, `q` quit. Its screen, redrawn in place, shows where the camera sees the cube and the box, a progress bar over the cycle's ten steps, each step in plain words with its duration, and how many cubes reached the box with the last, average and best time. The game's console has the same look. Simulation only: it refuses `USE_SIM=false`. Step by step instead: `tools/so101 up`, `tools/so101 logs` until "Brain node ready.", `tools/so101 cycle` (one cycle, the states until `DONE`).
 
 `tools/so101` prints each `docker compose` command it runs; `--dry-run` only prints it, `--help` lists them all.
 

@@ -10,6 +10,7 @@ import tty
 import pytest
 from test_turns import EMPTY_BOARD, with_tokens
 
+from so101_common.terminal import WIDTH, Pen
 from so101_connect4 import play
 from so101_connect4.game import HUMAN, ROBOT
 
@@ -108,7 +109,7 @@ def test_the_colors_only_wrap_the_tokens():
     cells = with_tokens(EMPTY_BOARD, (0, HUMAN), (1, ROBOT))
     plain, colored = play.render(a_state(cells=cells)), play.render(a_state(cells=cells), color=True)
     assert "\x1b[" not in plain
-    assert "\x1b[31mR\x1b[0m \x1b[33mY\x1b[0m" in colored
+    assert "\x1b[1;31m●\x1b[0m" in colored and "\x1b[1;33m●\x1b[0m" in colored  # a terminal: the screen below
 
 
 def test_the_state_is_drawn_once_then_again_when_it_changes(console):
@@ -276,7 +277,10 @@ def test_the_winning_four_is_marked_the_other_tokens_stay():
     )
     over = a_state(state="GAME_OVER", result="human", cells=cells, moves=7)
     assert play.render(over).splitlines()[5:7] == ["| Y Y Y . . . . |", "| * * * * . . . |"]
-    assert "\x1b[31m*\x1b[0m \x1b[31m*\x1b[0m" in play.render(over, color=True)
+    assert "  | [R] [R] [R] [R]  .   .   .  |" in play.picture(
+        over, Pen()
+    )  # the terminal keeps the side's token
+    assert "\x1b[1;31;7m●\x1b[0m" in play.render(over, color=True)
 
 
 def test_the_keys_line_names_every_key():
@@ -293,9 +297,9 @@ def test_with_the_robot_on_red_its_cells_are_r_and_the_person_plays_y():
     lines = play.render(a_state(cells=cells), colors=RED_ROBOT).splitlines()
     assert lines[6] == "| Y R . . . . . |"
     assert lines[-1] == "your turn (Y): 1 to 7"
-    assert "\x1b[33mY\x1b[0m \x1b[31mR\x1b[0m" in play.render(
-        a_state(cells=cells), color=True, colors=RED_ROBOT
-    )
+    screen = play.picture(a_state(cells=cells), Pen(), RED_ROBOT)
+    assert "you     Y yellow" in screen and "robot   R red" in screen
+    assert "\x1b[1;33m●\x1b[0m" in play.render(a_state(cells=cells), color=True, colors=RED_ROBOT)
 
 
 def test_the_console_draws_with_the_color_it_was_given():
@@ -420,14 +424,63 @@ def test_the_board_goes_to_the_drawing_and_the_messages_to_the_writing():
     assert messages == [play.KEYS]
 
 
-def test_a_screen_keeps_the_keys_the_last_board_and_the_last_message_and_redraws_them_in_place():
+def test_a_screen_keeps_the_last_board_the_last_message_and_the_keys_and_redraws_them_in_place():
     out = []
     screen = play.Screen(out.append)
     screen.draw("board 1")
     screen.write("column 3 is full")
     screen.draw("board 2")
-    assert out[-1] == "\x1b[H\x1b[J" + play.KEYS + "\nboard 2\ncolumn 3 is full"
+    keys = " 1-7 play  ? hint  a auto  n new  r robot first  e/m/h level  s stop  q quit"
+    assert out[-1] == "\x1b[Hboard 2\x1b[K\n   column 3 is full\x1b[K\n" + keys + "\x1b[K\x1b[J"
     assert len(out) == 3  # one repaint per change, the whole screen each time
+    screen.write(play.KEYS)  # a key that means nothing: the keys are on the screen already
+    assert out[-1] == "\x1b[Hboard 2\x1b[K\n\x1b[K\n" + keys + "\x1b[K\x1b[J"
+
+
+def test_before_any_state_the_screen_says_what_it_waits_for():
+    out = []
+    play.Screen(out.append).write("")
+    assert " SO-101 | Connect Four" in out[-1] and " > waiting for the game's state" in out[-1]
+
+
+# The terminal's screen: the look shared with the pick & place console (so101_common.terminal).
+
+
+def test_the_terminals_screen_is_a_header_the_grid_with_its_facts_the_last_move_and_the_status():
+    cells = with_tokens(EMPTY_BOARD, (1, HUMAN), (2, HUMAN), (2, ROBOT), (4, ROBOT))
+    last = {"who": "robot", "column": 4, "planned": 4, "depth": 10}
+    lines = play.picture(a_state(cells=cells, moves=4, last=last, lost=1, missed=2), Pen()).splitlines()
+    assert lines[0].startswith(" SO-101 | Connect Four") and lines[0].endswith("WAIT_HUMAN")
+    assert lines[1].startswith("-- game --") and all(len(line) <= WIDTH for line in lines)
+    assert lines[2] == "     1   2   3   4   5   6   7"
+    assert lines[3].startswith("  +-----------------------------+") and "level   hard" in lines[3]
+    assert "moves   4" in lines[4]
+    assert "you     R red" in lines[6] and "robot   Y yellow" in lines[7]
+    assert lines[8].startswith("  |  .   .   Y   .   .   .   .  |")
+    assert (
+        lines[9].startswith("  |  .   R   R   .   Y   .   .  |") and "1 lost, 2 in a wrong column" in lines[9]
+    )
+    assert lines[11].startswith("-- last move --") and lines[12] == "   robot: column 5 (depth 10)"
+    assert lines[-1] == " > your turn (R): 1 to 7" and len(lines) == 15
+    pretty = play.picture(a_state(cells=cells), Pen(pretty=True))
+    assert pretty.endswith("\x1b[32m ► your turn (●): 1 to 7\x1b[0m")  # one color to the line's end
+    assert "\x1b[36m│\x1b[0m " in pretty  # the grid's box, in the rules' color
+
+
+@pytest.mark.parametrize(
+    ("fields", "mark"),
+    [
+        ({"state": "MOVE", "turn": "robot"}, " > the robot plays"),
+        ({"state": "GAME_OVER", "result": "robot"}, " + the robot wins"),
+        ({"state": "FIX_BOARD", "reason": "gravity:3"}, " x FIX_BOARD"),
+        ({"state": "IDLE", "ready": False, "not_ready": "no_grid_pose"}, " > waiting"),
+    ],
+)
+def test_the_status_mark_says_who_acts_and_whether_something_is_wrong(fields, mark):
+    lines = play.picture(a_state(**fields), Pen()).splitlines()
+    assert lines[-1].startswith(mark)
+    if fields.get("reason"):
+        assert lines[0].endswith("FIX_BOARD:gravity:3")  # the node's own state and reason, for the docs
 
 
 def test_a_token_in_the_grid_is_not_dropped_again_when_the_end_of_the_turn_fails(console):

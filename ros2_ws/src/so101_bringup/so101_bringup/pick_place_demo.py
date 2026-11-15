@@ -2,9 +2,10 @@
 
     ros2 run so101_bringup pick_place_demo
 
-A first cycle by itself, then a key: n a new cycle, s stop, q quit. The screen, redrawn in place, shows the
-cube, the box and the TCP as the nodes publish them, the cycle's steps with their durations, and the count of
-cycles. Through a pipe: one line per step.
+A first cycle by itself, then a key: n a new cycle, s stop, q quit. The screen, redrawn in place with the look
+of the game's console (so101_common.terminal), shows where the camera sees the cube and the box, a progress
+bar over the cycle's ten steps, each step in plain words with its duration, and how many cubes reached the
+box and how fast. Through a pipe: one line per step.
 
 Simulation only: each cycle puts the cube at a new place (/sim/randomize), as `tools/so101 cycle`. No ground
 truth: the cube and the box are perception's, and a success is the brain's DONE, which checks the cube in the
@@ -12,9 +13,7 @@ box through the camera (docs/project/06 §3.1). The bench measures with the trut
 """
 
 import sys
-import termios
 import time
-import tty
 from functools import partial
 
 import rclpy
@@ -24,15 +23,33 @@ from rclpy.qos import DurabilityPolicy, QoSProfile
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
 
+from so101_common import terminal
+from so101_common.terminal import Pen, read_key, show
 from so101_connect4.client import call
-from so101_connect4.play import read_key, show
 
-KEYS = "SO-101 pick & place, simulation        n: a new cycle   s: stop   q: quit"
-NO_STATE = "no /brain_state yet: is the stack up, and built? (tools/so101 up, then tools/so101 wait)"
+TITLE = "Pick & place, simulation"
+KEYS = [("n", "new cycle"), ("s", "stop"), ("q", "quit")]
+NO_STATE = "no /brain_state yet: tools/so101 up, then tools/so101 wait"
 ENDS = ("DONE", "ERROR", "STOPPED")
-POSES = {"cube": "/object_position", "box": "/drop_box_position", "hand": "/end_effector_pose"}
-SEEN_BY = {"cube": "seen by the camera", "box": "seen by the camera", "hand": "computed from the joints"}
-GREEN, YELLOW, RED = "\x1b[32m", "\x1b[33m", "\x1b[31m"
+POSES = {"cube": "/object_position", "box": "/drop_box_position"}
+STEPS = {  # the brain's states of a cycle, in order (06 §3.1), as a jury reads them
+    "WAIT_TARGET": "Looking for the cube",
+    "PLAN": "Planning",
+    "APPROACH": "Moving above the cube",
+    "DESCEND": "Going down",
+    "GRASP": "Closing the gripper",
+    "LIFT": "Lifting",
+    "TRANSPORT": "Carrying to the box",
+    "RELEASE": "Dropping",
+    "HOME": "Returning",
+    "VERIFY": "Checking with the camera",
+}
+CAUSES = {  # the brain's ERROR:<cause>, by its first word
+    "grasp_failed": "the cube was not grasped",
+    "object_lost": "the camera did not find the cube",
+    "no_joint_states": "the arm's joint positions stopped coming",
+    "timeout": "a move took too long",
+}
 
 
 class Report:
@@ -81,48 +98,104 @@ class Report:
                 found.append((state, 0.0, True))
         return found
 
+    @property
+    def attempt(self) -> int:
+        """Which try of the cycle is shown: a missed grasp starts again at WAIT_TARGET."""
+        return max(1, sum(state == "WAIT_TARGET" for state, _ in self.steps))
+
+    def progress(self, now) -> list:
+        """[(state, its duration in s or None, mark)] for the ten steps of the attempt in hand; mark: done,
+        run, fail (a retry, an error or a stop came next) or todo."""
+        timeline, found = self.timeline(now), {}
+        starts = [i for i, (state, _, _) in enumerate(timeline) if state == "WAIT_TARGET"]
+        attempt = timeline[starts[-1] :] if starts else timeline
+        for i, (state, duration, over) in enumerate(attempt):
+            after = attempt[i + 1] if i + 1 < len(attempt) else None
+            failed = after is not None and after[0].split(":")[0] in ("RETRY", *ENDS[1:])
+            found[state] = (duration, "fail" if failed else "done" if over else "run")
+        return [(state, *found.get(state, (None, "todo"))) for state in STEPS]
+
+    def elapsed(self, now) -> float:
+        """The time of the cycle shown, its retries included; it stops at the cycle's end."""
+        if not self.steps:
+            return 0.0
+        return (now if self.running else self.steps[-1][1]) - self._began
+
     def counts(self) -> str:
-        text = f"{self.done} done, {self.failed} failed, {self.retries} retries"
+        ended = self.done + self.failed
+        if not ended:
+            return "no cycle finished yet"
+        text = f"{self.done} of {ended} cube{'s' * (ended > 1)} in the box"
         if self.times:
             mean = sum(self.times) / len(self.times)
-            text += f"     last {self.times[-1]:.1f} s   mean {mean:.1f} s   best {min(self.times):.1f} s"
-        return text
+            text += f"   last {self.times[-1]:.1f} s   average {mean:.1f} s   best {min(self.times):.1f} s"
+        return text + (f"   retries {self.retries}" if self.retries else "")
 
 
-def render(report, now, state, poses, message, color=False) -> str:
-    """The whole screen."""
+def status(report, state, refused=False) -> tuple:
+    """(done, go, run or fail; one sentence): what happens, in plain words. `refused`: the first cycle was."""
+    if state is None:
+        return "run", "waiting for the brain's state"
+    if not report.cycle:
+        return ("go", "n: a new cycle") if refused else ("run", "starting the first cycle")
+    last = report.steps[-1][0] if report.steps else ""
+    head, _, cause = last.partition(":")
+    if report.running:
+        doing = "missed the cube, trying again" if "RETRY" in head else STEPS.get(head, "starting").lower()
+        return "run", f"cycle {report.cycle}: {doing}"
+    if head == "DONE":
+        return "done", f"cube in the box, checked by the camera ({report.times[-1]:.1f} s); n: a new cycle"
+    if head == "ERROR":
+        return "fail", f"{CAUSES.get(cause.split(':')[0], last)}; n: a new cycle"
+    return "run", "stopped; n: a new cycle"
 
-    def paint(code, text):
-        return f"{code}{text}\x1b[0m" if color else text
 
-    lines = [KEYS, ""]
+def render(report, now, state, poses, message, pen) -> str:
+    """The whole screen, 17 lines whatever happens: nothing jumps between two frames."""
+    lines = [pen.header(TITLE, state or "no state"), pen.rule("scene")]
     for name, xyz in poses.items():
-        where = "not seen" if xyz is None else "x {:+.3f}  y {:+.3f}  z {:+.3f} m".format(*xyz)
-        lines.append(f"  {name:<5} {where:<38} {SEEN_BY.get(name, '')}")
-    lines += ["", f"  cycle {report.cycle}" + " " * 24 + f"brain: {state}"]
-    for step, duration, over in report.timeline(now):
-        head = step.split(":")[0]
-        if head in ENDS:
-            lines.append(
-                paint(GREEN if head == "DONE" else RED, f"    {'ok' if head == 'DONE' else '!!'}  {step}")
-            )
-        elif over:
-            lines.append(f"    {paint(GREEN, 'ok')}  {step:<12} {duration:5.1f} s")
-        else:
-            lines.append(paint(YELLOW, f"    >   {step:<12} {duration:5.1f} s"))
-    lines += ["", "  " + report.counts()]
-    if message:
-        lines += ["", "  " + message]
-    return "\n".join(lines)
+        seen = "not seen by the camera"
+        if xyz:
+            seen = f"x {xyz[0] * 100:5.1f} cm   y {xyz[1] * 100:5.1f} cm         seen by the camera"
+        lines.append(f"  {name:<6} {seen}")
+    progress = report.progress(now)
+    done = sum(mark == "done" for _, _, mark in progress)
+    current = next((mark for _, _, mark in progress if mark in ("run", "fail")), None)
+    title = f"cycle {report.cycle}" + (f", attempt {report.attempt}" if report.attempt > 1 else "")
+    lines.append(pen.rule(title if report.cycle else "no cycle yet"))
+    bar = pen.bar(done, len(STEPS), 5, current)
+    lines.append(f"  {bar}  {done:>2}/{len(STEPS)}  {report.elapsed(now):6.1f} s")
+
+    def cell(step):
+        state, duration, mark = step
+        took = "" if duration is None else f"{duration:.1f} s"
+        text = f"{STEPS[state]:<25}{took:>7}"
+        if mark in ("run", "fail"):  # the step in hand, or the one that failed: the whole cell in its color
+            return pen.paint(mark, f"{pen.glyph(mark)} {text}")
+        return f"{pen.paint(mark, pen.glyph(mark))} {text}"
+
+    half = len(STEPS) // 2  # the pick on the left, the place on the right
+    lines += [
+        f"  {cell(pick)}   {cell(place)}"
+        for pick, place in zip(progress[:half], progress[half:], strict=True)
+    ]
+    lines += [pen.rule("total"), "  " + report.counts(), pen.rule()]
+    lines += [
+        pen.status(*status(report, state, bool(message))),
+        "   " + message if message else "",
+        pen.keys(KEYS),
+    ]
+    return "\n".join(line if "\x1b" in line else line.rstrip() for line in lines)
 
 
 class Console:
     """One step: a key, the brain's state, the screen. `arm` gives `state`, `poses`, randomize(), start() and
     stop(); the last two reply (success, message)."""
 
-    def __init__(self, arm, write=show, clock=time.monotonic, live=False):
+    def __init__(self, arm, write=show, clock=time.monotonic, live=False, pen=None):
+        """`live`: a terminal, the screen redrawn in place with `pen`; else one line per step."""
         self.arm, self.report, self.message = arm, Report(), ""
-        self._write, self._clock, self._live = write, clock, live
+        self._write, self._clock, self._live, self._pen = write, clock, live, pen or Pen()
         self._auto = True  # the first cycle starts by itself, once
         self._shown, self._drawn = None, float("-inf")
         self._born = clock()
@@ -149,10 +222,10 @@ class Console:
             elif key == "n" or self._auto:
                 self._start(state, now)
         if self._live:
-            text = render(self.report, now, state, self.arm.poses, self.message, color=True)
-            if text != self._shown and now - self._drawn >= 0.1:  # 10 Hz at most: the TCP moves at 30 Hz
+            text = render(self.report, now, state, self.arm.poses, self.message, self._pen)
+            if text != self._shown and now - self._drawn >= 0.1:  # 10 frames a second at most
                 self._shown, self._drawn = text, now
-                self._write("\x1b[H\x1b[J" + text)
+                self._write(terminal.frame(text))
         return True
 
     def _start(self, state, now):
@@ -223,20 +296,18 @@ def main(args=None):
     rclpy.init(args=args)
     node = rclpy.create_node("pick_place_demo")
     live = sys.stdout.isatty()  # a terminal: the screen redrawn in place; a pipe: one line per step
-    console = Console(Arm(node), live=live)
+    console = Console(Arm(node), live=live, pen=Pen(terminal.pretty()))
     if not live:
-        show(KEYS)
-    saved = termios.tcgetattr(sys.stdin) if sys.stdin.isatty() else None
+        show(f"SO-101 {TITLE}: " + ", ".join(f"{key} {label}" for key, label in KEYS))
     try:
-        if saved:
-            tty.setcbreak(sys.stdin)  # a key at a time, no Enter
-        while console.step(read_key()):
-            rclpy.spin_once(node, timeout_sec=0.05)
+        with terminal.session():
+            while console.step(read_key()):
+                rclpy.spin_once(node, timeout_sec=0.05)
     except (KeyboardInterrupt, ExternalShutdownException):  # Ctrl-C: rclpy's own handler may shut down first
         pass
     finally:
-        if saved:
-            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, saved)
+        if live:
+            show("")  # the shell's prompt under the last frame, not over it
         node.destroy_node()
         rclpy.try_shutdown()
 

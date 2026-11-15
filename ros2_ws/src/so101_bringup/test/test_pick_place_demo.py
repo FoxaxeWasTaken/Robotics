@@ -2,6 +2,7 @@
 fake brain. No ROS: the services and the topics are test_pick_place_gt_launch.py's and the stack's."""
 
 from so101_bringup.pick_place_demo import Console, Report, render
+from so101_common.terminal import WIDTH, Pen
 
 CYCLE = [
     "WAIT_TARGET",
@@ -66,21 +67,115 @@ def test_states_out_of_a_cycle_and_the_last_cycles_end_are_not_steps():
     assert report.running and report.timeline(now=2.0) == []
 
 
-def test_the_screen_shows_the_poses_the_steps_and_the_counts():
+def test_the_progress_is_the_ten_steps_of_the_attempt_in_hand():
+    report = Report()
+    run(report, ["WAIT_TARGET", "PLAN", "APPROACH"], step=2.0)
+    progress = report.progress(now=5.5)
+    assert [state for state, _, _ in progress] == CYCLE
+    assert progress[:4] == [
+        ("WAIT_TARGET", 2.0, "done"),
+        ("PLAN", 2.0, "done"),
+        ("APPROACH", 1.5, "run"),
+        ("DESCEND", None, "todo"),
+    ]
+    assert report.elapsed(now=5.5) == 5.5 and report.attempt == 1
+
+
+def test_a_missed_grasp_marks_its_step_failed_and_the_next_attempt_starts_the_ten_steps_again():
+    report = Report()
+    run(report, ["WAIT_TARGET", "PLAN", "APPROACH", "DESCEND", "GRASP", "RETRY", "HOME_RETRY"])
+    marks = {state: mark for state, _, mark in report.progress(now=7.0)}
+    assert (marks["DESCEND"], marks["GRASP"], marks["LIFT"]) == ("done", "fail", "todo")
+    report.on_state("WAIT_TARGET", 8.0)
+    report.on_state("PLAN", 9.0)
+    assert report.attempt == 2
+    assert report.progress(now=9.5)[:3] == [
+        ("WAIT_TARGET", 1.0, "done"),
+        ("PLAN", 0.5, "run"),
+        ("APPROACH", None, "todo"),
+    ]
+    assert report.elapsed(now=9.5) == 9.5  # the cycle's time, its first attempt included
+
+
+def test_a_finished_cycle_keeps_its_ten_steps_done_and_its_time():
+    report = Report()
+    end = run(report, [*CYCLE, "DONE"])
+    assert all(mark == "done" for _, _, mark in report.progress(now=99.0))
+    assert report.elapsed(now=99.0) == end
+
+
+def test_the_counts_say_how_many_cubes_reached_the_box_and_how_fast():
+    report = Report()
+    assert report.counts() == "no cycle finished yet"
+    run(report, [*CYCLE, "DONE"])
+    run(report, ["WAIT_TARGET"], start=20.0)
+    report.on_state("ERROR:object_lost", 30.0)
+    run(report, [*CYCLE, "DONE"], start=40.0, step=2.0)
+    text = report.counts()
+    assert "2 of 3 cubes in the box" in text
+    assert "last 20.0 s" in text and "average 15.0 s" in text and "best 10.0 s" in text
+
+
+POSES = {"cube": (0.2141, -0.0523, 0.0151), "box": None}
+
+
+def screen(report, now, state, message="", pretty=False):
+    return render(report, now, state, POSES, message, Pen(pretty)).splitlines()
+
+
+def test_the_screen_is_a_header_the_scene_the_cycle_with_its_bar_the_total_a_status_and_the_keys():
     report = Report()
     run(report, [*CYCLE, "DONE"])
-    run(report, ["WAIT_TARGET", "PLAN"], start=20.0)
-    poses = {"cube": (0.2141, -0.0523, 0.0151), "box": None, "hand": (0.21, -0.05, 0.12)}
-    text = render(report, now=22.5, state="PLAN", poses=poses, message="")
-    lines = text.splitlines()
-    assert any("cube" in line and "+0.214" in line and "-0.052" in line for line in lines)
-    assert any("box" in line and "not seen" in line for line in lines)
-    assert any("ok" in line and "WAIT_TARGET" in line and "1.0 s" in line for line in lines)
-    assert any(">" in line and "PLAN" in line and "1.5 s" in line for line in lines)
-    assert any("cycle 2" in line for line in lines)
-    assert any("1 done" in line and "0 failed" in line and "last 10.0 s" in line for line in lines)
-    assert "\x1b[" not in text  # no color unless asked: a pipe, a test
-    assert "\x1b[32m" in render(report, now=22.5, state="PLAN", poses=poses, message="", color=True)
+    run(report, ["WAIT_TARGET", "PLAN", "APPROACH", "DESCEND"], start=20.0)
+    lines = screen(report, 23.5, "DESCEND")
+    assert lines[0].startswith(" SO-101 | Pick & place, simulation") and lines[0].endswith("DESCEND")
+    assert all(len(line) <= WIDTH for line in lines) and len(lines) == 17
+    assert any("cube" in line and "x  21.4 cm" in line and "y  -5.2 cm" in line for line in lines)
+    assert any(line.rstrip() == "  box    not seen by the camera" for line in lines)
+    assert any(line.startswith("-- cycle 2 --") for line in lines)
+    bar = next(line for line in lines if "/10" in line)
+    assert "#" * 15 + "=" * 5 + "-" * 30 in bar and "3/10" in bar and "3.5 s" in bar
+    # the steps in plain words, two columns: the pick on the left, the place on the right
+    assert any(
+        "+ Moving above the cube" in line and "1.0 s" in line and ". Dropping" in line for line in lines
+    )
+    assert any("> Going down" in line and "0.5 s" in line and ". Returning" in line for line in lines)
+    assert any("1 of 1 cube in the box" in line and "last 10.0 s" in line for line in lines)
+    assert lines[-3] == " > cycle 2: going down"
+    assert lines[-2] == "" and lines[-1] == " n new cycle  s stop  q quit"
+    assert all(
+        line.isascii() and "\x1b" not in line for line in lines
+    )  # a pipe, a test: no color, no box character
+    pretty = "\n".join(screen(report, 23.5, "DESCEND", pretty=True))
+    assert "\x1b[" in pretty and "█" in pretty and "►" in pretty
+
+
+def test_the_status_says_the_end_of_a_cycle_in_plain_words():
+    report = Report()
+    assert screen(report, 0.0, None)[-3] == " > waiting for the brain's state"
+    assert screen(report, 0.0, "IDLE")[-3] == " > starting the first cycle"
+    assert any(line.startswith("-- no cycle yet --") for line in screen(report, 0.0, "IDLE"))
+    refused = screen(report, 0.0, "IDLE", message="start refused: no_joint_states")
+    assert refused[-3] == " > n: a new cycle"  # nothing is starting any more
+    run(report, [*CYCLE, "DONE"])
+    assert (
+        screen(report, 11.0, "DONE")[-3]
+        == " + cube in the box, checked by the camera (10.0 s); n: a new cycle"
+    )
+    run(report, ["WAIT_TARGET", "PLAN", "APPROACH", "DESCEND", "GRASP", "RETRY", "HOME_RETRY"], start=20.0)
+    lines = screen(report, 27.0, "HOME_RETRY")
+    assert lines[-3] == " > cycle 2: missed the cube, trying again"
+    assert any("x Closing the gripper" in line for line in lines)
+    report.on_state("WAIT_TARGET", 28.0)
+    assert any(line.startswith("-- cycle 2, attempt 2 --") for line in screen(report, 28.5, "WAIT_TARGET"))
+    report.on_state("ERROR:object_lost", 38.0)
+    assert (
+        screen(report, 39.0, "ERROR:object_lost")[-3] == " x the camera did not find the cube; n: a new cycle"
+    )
+    assert (
+        screen(report, 39.0, "ERROR:object_lost", message="start refused: busy")[-2]
+        == "   start refused: busy"
+    )
 
 
 class FakeArm:
@@ -176,11 +271,12 @@ def test_through_a_pipe_each_step_is_one_line_and_a_terminal_gets_the_whole_scre
         "PLAN",
         "DONE",
     ]
-    assert any("1 done" in line for line in written)
+    assert any("1 of 1 cube in the box" in line for line in written)
 
     made, written, clock = console(FakeArm(), live=True)
     made.step()
-    assert written and "n: a new cycle" in written[-1] and "cycle 1" in written[-1]
+    assert written and "n new cycle" in written[-1] and "cycle 1" in written[-1]
+    assert written[-1].startswith("\x1b[H")  # painted over the frame before, no screen cleared first
     count = len(written)
     made.step()  # nothing changed: nothing written again
     assert len(written) == count

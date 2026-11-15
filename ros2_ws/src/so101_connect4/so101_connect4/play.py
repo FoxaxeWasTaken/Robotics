@@ -2,23 +2,26 @@
 robot from a terminal.
 
 It draws /connect4/state, each side as the letter of its tokens' color (layout.colors), and turns keys into
-calls of client.GameClient. No rule here: whose turn it is and
-the legal columns are read in the state. The person's hand comes from the caller (client.py): this package
-names no sim service, so101_bringup's connect4_play gives the simulated one.
+calls of client.GameClient. On a terminal the screen is redrawn in place with the look of the pick & place
+console (so101_common.terminal): picture() and Screen; through a pipe, render(), one drawing after the other.
+No rule here: whose turn it is and the legal columns are read in the state. The person's hand comes from the
+caller (client.py): this package names no sim service, so101_bringup's connect4_play gives the simulated one.
 
 The engine is used twice, in this process and never through the game node: the hint for the person, a search
 of HINT_DEPTH (34 ms [MES-66]), and the cells of the winning four.
 """
 
-import os
-import select
 import sys
-import termios
-import tty
 
 import rclpy
 from rclpy.executors import ExternalShutdownException
 
+from so101_common import terminal
+from so101_common.terminal import (
+    Pen,
+    read_key,
+    show,
+)
 from so101_connect4 import game as engine
 from so101_connect4 import layout
 from so101_connect4.client import GameClient, last_move
@@ -32,7 +35,18 @@ LEVEL_KEYS = {name[0]: depth for name, depth in engine.LEVELS.items()}  # e, m, 
 GAME_KEYS = ("n", "r", "s", *LEVEL_KEYS)  # they act on the game whoever's turn it is
 HINT_DEPTH = 8
 LETTERS = {"red": "R", "yellow": "Y"}  # a token on the screen, by its color
-ANSI = {"red": "\x1b[31mR\x1b[0m", "yellow": "\x1b[33mY\x1b[0m"}
+DISCS = {"red": ("●", "1;31"), "yellow": ("●", "1;33")}  # on a terminal: a disc in its color
+TITLE = "Connect Four"
+KEY_BAR = [
+    ("1-7", "play"),
+    ("?", "hint"),
+    ("a", "auto"),
+    ("n", "new"),
+    ("r", "robot first"),
+    ("e/m/h", "level"),
+    ("s", "stop"),
+    ("q", "quit"),
+]
 RESULTS = {"robot": "the robot wins", "human": "you win", "draw": "a draw"}
 
 
@@ -60,39 +74,97 @@ def render(state, color=False, colors=None) -> str:
     """The grid as text, top row first, its columns numbered as their keys; the last move, what to do.
     `colors`: layout.colors, each side's token color; the installed layout's when not given."""
     colors = colors or layout.colors(layout.load())
+    if color:  # a terminal
+        return picture(state, Pen(pretty=True), colors)
     plain = {0: "."} | {side: LETTERS[name] for side, name in colors.items()}
-    tokens = plain | {side: ANSI[name] for side, name in colors.items()} if color else plain
-    cells = [tokens[cell] for cell in state["board"]]
+    cells = [plain[cell] for cell in state["board"]]
     for i in engine.four(state["board"]):
         cells[i] = cells[i].replace(plain[state["board"][i]], "*")  # the winning four, in its color
     rows = ["| " + " ".join(cells[row * 7 : row * 7 + 7]) + " |" for row in range(5, -1, -1)]
-    depth = state["max_depth"]
-    level = next((name for name, d in engine.LEVELS.items() if d == depth), f"depth {depth}")
-    told = " | ".join(filter(None, [f"level: {level}", last_move(state["last"])]))
+    told = " | ".join(filter(None, [f"level: {level(state)}", last_move(state["last"])]))
     return "\n".join(["  1 2 3 4 5 6 7", *rows, "+---------------+", told, status(state, plain[1])])
 
 
-def show(text):
-    print(text, flush=True)  # through a pipe stdout is block-buffered: the drawing would wait
+def level(state) -> str:
+    depth = state["max_depth"]
+    return next((name for name, d in engine.LEVELS.items() if d == depth), f"depth {depth}")
+
+
+def picture(state, pen, colors=None) -> str:
+    """The terminal's screen, from its header to its status line: the grid in its box with the game's facts
+    beside it, the last move, what to do. Screen puts the last message and the keys under it."""
+    colors = colors or layout.colors(layout.load())
+    board, four = state["board"], engine.four(state["board"])
+
+    def token(side, won=False):
+        disc, code = DISCS[colors[side]]
+        return pen.paint(code + ";7" * won, disc) if pen.pretty else LETTERS[colors[side]]
+
+    def cell(i):
+        if not board[i]:
+            return f" {'·' if pen.pretty else '.'} "
+        return f"[{token(board[i], True)}]" if i in four else f" {token(board[i])} "
+
+    side = pen.paint("chrome", pen.glyph("side"))
+    edges = ("┌┐", "└┘") if pen.pretty else ("++", "++")
+    top, bottom = (f"  {left}{pen.glyph('rule') * 29}{right}" for left, right in edges)
+    rows = [
+        f"  {side} " + " ".join(cell(row * 7 + c) for c in range(7)) + f" {side}" for row in range(5, -1, -1)
+    ]
+    facts = [
+        f"level   {level(state)}",
+        f"moves   {state['moves']}",
+        "",
+        f"you     {token(1)} {colors[1]}",
+        f"robot   {token(2)} {colors[2]}",
+        "",
+        f"drops   {state['lost']} lost, {state['missed']} in a wrong column",  # the robot's
+        "",
+    ]
+    box = [pen.paint("chrome", top), *rows, pen.paint("chrome", bottom)]
+    kind, mine = state["state"], DISCS[colors[1]][0] if pen.pretty else token(1)  # no color inside the line's
+    mood = "run"
+    if kind == "WAIT_HUMAN" and state["turn"] == "human":
+        mood = "go"
+    elif kind == "GAME_OVER" or (kind == "IDLE" and state["ready"]):
+        mood = "done"
+    elif kind in ("FIX_BOARD", "ERROR"):
+        mood = "fail"
+    tag = kind + (f":{state['reason']}" if state["reason"] else "")
+    return "\n".join(
+        [
+            pen.header(TITLE, tag).rstrip() if not pen.pretty else pen.header(TITLE, tag),
+            pen.rule("game"),
+            "     " + "   ".join("1234567"),
+            *(f"{line}      {fact}".rstrip() for line, fact in zip(box, facts, strict=True)),
+            pen.rule("last move"),
+            "   " + (last_move(state["last"]) or "none yet"),
+            pen.rule(),
+            pen.status(mood, status(state, mine)),
+        ]
+    )
 
 
 class Screen:
-    """A terminal redrawn in place: the keys, the last board, the last message under it. Printed one after
+    """A terminal redrawn in place: the last board, the last message under it, the keys. Printed one after
     the other, a turn scrolled fifty lines."""
 
-    def __init__(self, out=show):
-        self._out, self._board, self._message = out, "", ""
+    def __init__(self, out=show, pen=None):
+        self._out, self._pen, self._message = out, pen or Pen(), ""
+        waiting = [self._pen.header(TITLE, "no state").rstrip(), self._pen.rule()]
+        self._board = "\n".join([*waiting, self._pen.status("run", "waiting for the game's state")])
 
     def draw(self, board):
         self._board = board
         self._paint()
 
     def write(self, message):
-        self._message = message
+        self._message = "" if message == KEYS else message  # the keys are on the screen already
         self._paint()
 
-    def _paint(self):  # the cursor home, the screen cleared from there, then the whole screen
-        self._out("\x1b[H\x1b[J" + "\n".join(part for part in (KEYS, self._board, self._message) if part))
+    def _paint(self):  # the whole screen, over the one before
+        message = "   " + self._message if self._message else ""
+        self._out(terminal.frame("\n".join([self._board, message, self._pen.keys(KEY_BAR)])))
 
 
 class Console:
@@ -210,47 +282,28 @@ class Console:
             self.write(reply[1])
 
 
-def read_key():
-    """A key typed since the last call, else None; "q" at the end of the input. Read from the descriptor, a
-    byte at a time: Python's buffered input took every pending byte and gave one, so a key typed ahead
-    stayed there, unseen by select, and came out at the next key press. A special key is nothing: its
-    sequence holds digits (Delete is ESC [ 3 ~), which are columns."""
-    stdin = sys.stdin.fileno()
-    if not select.select([stdin], [], [], 0)[0]:
-        return None
-    byte = os.read(stdin, 1)
-    if not byte:
-        return "q"
-    if byte == b"\x1b":
-        while select.select([stdin], [], [], 0)[0]:
-            if not os.read(stdin, 32):
-                break
-        return None
-    return byte.decode(errors="ignore") or None
-
-
 def main(make_hand, args=None):
     """The console, with make_hand(node) as the person's hand."""
     rclpy.init(args=args)
     node = rclpy.create_node("connect4_play")
     game = GameClient(node, make_hand(node))
-    if sys.stdout.isatty():  # a terminal: the screen redrawn in place; a pipe: one line after the other
-        screen = Screen()
-        console = Console(game, screen.write, color=True, draw=screen.draw)
+    live = sys.stdout.isatty()  # a terminal: the screen redrawn in place; a pipe: one line after the other
+    if live:
+        pretty = terminal.pretty()
+        screen = Screen(pen=Pen(pretty))
+        console = Console(game, screen.write, color=pretty, draw=screen.draw)
         screen.write("")
     else:
         console = Console(game)
         show(KEYS)
-    saved = termios.tcgetattr(sys.stdin) if sys.stdin.isatty() else None
     try:
-        if saved:
-            tty.setcbreak(sys.stdin)  # a key at a time, no Enter
-        while console.step(read_key()):
-            rclpy.spin_once(node, timeout_sec=0.05)
+        with terminal.session():
+            while console.step(read_key()):
+                rclpy.spin_once(node, timeout_sec=0.05)
     except (KeyboardInterrupt, ExternalShutdownException):  # Ctrl-C: rclpy's own handler may shut down first
         pass
     finally:
-        if saved:
-            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, saved)
+        if live:
+            show("")  # the shell's prompt under the last screen, not over it
         node.destroy_node()
         rclpy.try_shutdown()

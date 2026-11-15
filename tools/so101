@@ -119,6 +119,14 @@ done
 command=$1
 shift
 
+console() {  # a demo console: a TTY in the container from a terminal, for the keys; a pipe keeps -T, its input is the keys
+  local tty=-T
+  [ -t 0 ] && tty=""
+  # The console hides the cursor and gives it back at its end; killed from outside (a `down` elsewhere), it cannot.
+  [ -t 1 ] && trap 'printf "\033[?7h\033[?25h\033[0m"' EXIT
+  ros $tty "$1"
+}
+
 case $command in
   build)
     [[ ${1:-} =~ ^(control|perception)?$ ]] || die "build: control or perception (viz uses the control image)"
@@ -164,9 +172,7 @@ case $command in
     CONNECT4=$game "$0" "${flags[@]}" up  # the mode asked, whatever docker/.env says
     "$0" "${flags[@]}" wait
     ! "$game" || exec "$0" "${flags[@]}" play
-    tty=-T  # as play: a TTY in the container from a terminal, for the keys
-    [ -t 0 ] && tty=""
-    ros $tty "ros2 run so101_bringup pick_place_demo"
+    console "ros2 run so101_bringup pick_place_demo"
     ;;
   down)
     none "$@"
@@ -204,10 +210,7 @@ case \$s in DONE*|ERROR*|STOPPED*) break ;; esac; done"
     ;;
   play)
     none "$@"
-    # A TTY in the container from a terminal, for the keys; a pipe keeps -T and its input is read as keys.
-    tty=-T
-    [ -t 0 ] && tty=""
-    ros $tty "[ \"\$CONNECT4\" = true ] || { echo 'so101 play: the stack does not run the game: tools/so101 down, then CONNECT4=true tools/so101 up' >&2; exit 1; }; \
+    console "[ \"\$CONNECT4\" = true ] || { echo 'so101 play: the stack does not run the game: tools/so101 down, then CONNECT4=true tools/so101 up' >&2; exit 1; }; \
 ros2 run so101_bringup connect4_play"
     ;;
   bench)
