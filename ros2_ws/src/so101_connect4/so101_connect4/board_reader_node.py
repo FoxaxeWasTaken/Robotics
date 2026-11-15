@@ -16,6 +16,9 @@ markers, its pose (board.grid_in_camera), the 42 cells (board.read), the board's
 - /connect4/debug_image: at each image; with the game's state, the last move and the robot's reason
   (client.last_move), the winning four circled (game.four) and a ring at each station of the dispenser, green
   where a token waits. Display only: nothing of it reaches the game.
+- /connect4/markers: the grid, the tokens of the last valid board, the dispenser's rails and the tokens at its
+  stations as 3D shapes (shapes.py) in the two frames above, for RViz; latched, sent when the board or the
+  stations change. Display only.
 """
 
 import json
@@ -38,9 +41,10 @@ from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, Image
 from std_msgs.msg import String, UInt8MultiArray
 from tf2_ros import TransformBroadcaster
+from visualization_msgs.msg import Marker, MarkerArray
 
 from so101_common.robot import BASE_FRAME
-from so101_connect4 import board, game, layout
+from so101_connect4 import board, game, layout, shapes
 from so101_connect4.client import last_move
 from so101_interfaces.msg import Connect4Board
 from so101_perception.calibration import detect_markers
@@ -48,9 +52,25 @@ from so101_perception.geometry import load_extrinsics, quaternion
 
 GRID_FRAME = "connect4_grid"
 DISPENSER_FRAME = "connect4_dispenser"
+FRAMES = {"grid": GRID_FRAME, "dispenser": DISPENSER_FRAME}  # shapes.py's names
 # Reliable, the newest only. A 640x480 image is 0.9 MB: a best-effort subscriber gets 1 of the 10 Hz [MES-67].
 NEWEST = QoSProfile(depth=1)
 LATCHED = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+
+
+def marker(shape) -> Marker:
+    """A shape of shapes.py for RViz. No stamp and locked to its frame: drawn at the frame's latest measured
+    pose, and it follows a grid that is moved."""
+    out = Marker(ns=shape.ns, id=shape.id, frame_locked=True)
+    out.header.frame_id = FRAMES[shape.frame]
+    out.type = Marker.CUBE if shape.kind == "box" else Marker.CYLINDER
+    out.action = Marker.ADD if shape.shown else Marker.DELETE
+    position, orientation = out.pose.position, out.pose.orientation
+    position.x, position.y, position.z = (float(v) for v in shape.center)
+    orientation.x, orientation.y, orientation.z, orientation.w = (float(v) for v in quaternion(shape.R))
+    out.scale.x, out.scale.y, out.scale.z = (float(v) for v in shape.size)
+    out.color.r, out.color.g, out.color.b, out.color.a = shape.color
+    return out
 
 
 class BoardReaderNode(rclpy.node.Node):
@@ -92,6 +112,9 @@ class BoardReaderNode(rclpy.node.Node):
         self._pub_dispenser = self.create_publisher(PoseStamped, "/connect4/dispenser_pose", LATCHED)
         self._pub_stations = self.create_publisher(UInt8MultiArray, "/connect4/stations", NEWEST)
         self._stable_stations = board.Stable(reads)
+        self._pub_markers = self.create_publisher(MarkerArray, "/connect4/markers", LATCHED)
+        self._read = [None, None]  # the last stable cells and stations, for the view's shapes
+        self._drawn = None  # what the last /connect4/markers showed
         self._tf = TransformBroadcaster(self)
         # Steady clock: a step back of the system clock (WSL2, MES-37) would pause a ROS-clock timer.
         self.create_timer(1.0 / rate, self._process, clock=Clock(clock_type=ClockType.STEADY_TIME))
@@ -134,12 +157,18 @@ class BoardReaderNode(rclpy.node.Node):
             waiting = board.stations(rgb, self._layout, dispenser[0], K, threshold=self._threshold)
             if waiting is not None and (agreed := self._stable_stations.update(stamp, waiting)):
                 self._pub_stations.publish(UInt8MultiArray(data=[int(there) for there in agreed[1]]))
+                self._read[1] = tuple(int(there) for there in agreed[1])
         stable = self._stable.update(stamp, (cells or (board.EMPTY,) * 42, valid, reason))
         if stable:
             first, (stable_cells, stable_valid, stable_reason) = stable
             msg = Connect4Board(cells=stable_cells, valid=stable_valid, reason=stable_reason)
             msg.header.stamp, msg.header.frame_id = Time(nanoseconds=first).to_msg(), GRID_FRAME
             self._pub_board.publish(msg)
+            if (
+                stable_valid
+            ):  # a grid the arm hides is published with no cell: the view keeps the last one read
+                self._read[0] = tuple(stable_cells)
+            self._publish_markers()
         if dispenser is not None:
             rgb = board.draw_stations(rgb, self._layout, dispenser[0], K, waiting)
         self._publish_debug(image, rgb, None if pose is None else pose[0], K, cells, valid, reason, stable)
@@ -159,6 +188,13 @@ class BoardReaderNode(rclpy.node.Node):
         translation.x, translation.y, translation.z = position.x, position.y, position.z
         rotation.x, rotation.y, rotation.z, rotation.w = x, y, z, w
         self._tf.sendTransform(tf)
+
+    def _publish_markers(self):
+        """The view's shapes, at the first stable board and then when it or the stations change."""
+        if tuple(self._read) != self._drawn:
+            self._drawn = tuple(self._read)
+            found = shapes.shapes(self._layout, *self._drawn)
+            self._pub_markers.publish(MarkerArray(markers=[marker(shape) for shape in found]))
 
     def _publish_debug(self, image, rgb, T_cam_grid, K, cells, valid, reason, stable):
         text = f"board {'VALID' if valid else reason}{'' if stable else ' (not stable yet)'}"

@@ -53,7 +53,7 @@ ros2 service call /brain/handover std_srvs/srv/Trigger       # game mode: the ja
 ros2 service call /sim/connect4/give_token std_srvs/srv/Trigger  # game mode: a token of the robot's color between the jaws, for /brain/drop (06 §5.1)
 ros2 service call /sim/connect4/fill_dispenser std_srvs/srv/Trigger  # game mode: the robot's tokens that are not in the grid back in the rails
 ros2 service call /sim/connect4/move_grid so101_interfaces/srv/MoveGrid "{nearer: 0.01, around: 0.05}"  # game mode: the empty grid set down elsewhere; zeros: back
-rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz     # connect4.rviz in game mode: the board shown, the pick & place displays off
+rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz     # connect4.rviz in game mode: the board and the grid's 3D shapes shown, the pick & place displays off
 
 # Manual commands
 ros2 topic pub --once -w 1 --keep-alive 1 /joint_command sensor_msgs/msg/JointState '{name: [shoulder_pan], position: [0.5]}'

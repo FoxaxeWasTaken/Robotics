@@ -82,7 +82,7 @@ After the quickstart's `build` (stop the pick & place stack first: `tools/so101 
 
 ```bash
 tools/so101 demo                             # the game in one command: starts it, waits until it is ready, opens the console
-tools/so101 rviz                             # optional, in a second terminal: the arm, and the grid as the board reader draws it
+tools/so101 rviz                             # optional, in a second terminal: the arm, the grid and its tokens as the camera reads them
 tools/so101 down                             # before coming back to the pick & place
 ```
 
@@ -230,7 +230,8 @@ tools/so101 bench --perception -n 10         # the real pipeline
   - the locked cube, a red 5 cm cube from `APPROACH` until it is lifted, in its own display "Cube (locked)": untick it to hide the cube;
   - the ghost arm, display "Commanded arm (ghost)", unchecked by default: the setpoint the driver sends to the motors (`/joint_setpoint`), translucent over the measured arm; the gap is the tracking error, useful on the real arm.
 - **The large red translucent block is the drop box** (the course's marker), not the cube.
-- **In game mode**, the display "Connect Four board (game mode)", to tick, shows `/connect4/debug_image`: a disc on each cell, filled in red or yellow when a token is read there; at the top, the read's validity (`board VALID`, or why not) and the game's state, then the last move with the robot's reason; the winning four circled in green.
+- **In game mode**, the 3D view shows beside the arm what the camera reads (display "Connect Four grid (game mode)", `/connect4/markers`): the grid where it is measured, the tokens read in its cells, the dispenser's rails and the token waiting at each station. It is what the robot believes, not the simulation's state: a token appears once it is read.
+- **In game mode**, the display "Connect Four board (game mode)" shows `/connect4/debug_image`: a disc on each cell, filled in red or yellow when a token is read there; at the top, the read's validity (`board VALID`, or why not) and the game's state, then the last move with the robot's reason; the winning four circled in green.
 
 </details>
 
