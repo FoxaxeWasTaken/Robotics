@@ -112,7 +112,7 @@ class TestPerception(unittest.TestCase):
         first = len(self.sent)
         # Counted, never a share of the images sent: both image links are best-effort and a 230 kB image is
         # more than a UDP socket holds (208 kB). On a machine short of CPU the kernel drops datagrams there,
-        # and up to 4 images in 10 never come back [MES-81].
+        # and up to 4 images in 10 never come back [MES-82].
         back = lambda: sum(key(m.header.stamp) in self.sent[first:] for m in self.debug)  # noqa: E731
         self.spin_until(lambda: back() >= IMAGES, f"fewer than {IMAGES} images came back")
         sent = set(self.sent)

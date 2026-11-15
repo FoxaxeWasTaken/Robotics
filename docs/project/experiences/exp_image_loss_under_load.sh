@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# exp_image_loss_under_load.sh: does a machine short of CPU lose perception's best-effort images? (#288, MES-81)
+# exp_image_loss_under_load.sh: does a machine short of CPU lose perception's best-effort images? (#288, MES-82)
 #
-# Perception's launch test N times (3; MES-81: 160 over 8 containers), six busy loops beside it. After each
+# Perception's launch test N times (3; MES-82: 160 over 8 containers), six busy loops beside it. After each
 # run: the test's verdict and the kernel's count of UDP datagrams dropped on a full socket buffer
 # (RcvbufErrors, cumulated). A 320x240 image is 230 kB, the buffer 208 kB (net.core.rmem_default).
 #
