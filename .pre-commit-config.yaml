@@ -95,6 +95,12 @@ repos:
         language: system
         files: ^tools/(release|ci/(milestone|linked_milestones|test_release))\.sh$
         pass_filenames: false
+      - id: scad-dimensions
+        name: the printable parts keep the simulation's dimensions (#286)
+        entry: python3 tools/ci/check_scad_dimensions.py
+        language: system
+        files: ^(hardware/connect4/dimensions\.scad|ros2_ws/src/so101_connect4/config/connect4_grid\.yaml|tools/ci/check_scad_dimensions\.py)$
+        pass_filenames: false
       - id: quality-report-test
         name: quality_report.sh test (#179)
         entry: bash tools/ci/test_quality_report.sh

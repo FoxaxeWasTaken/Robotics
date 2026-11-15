@@ -55,3 +55,7 @@ This hardware is `v2.1.0`. In `v2.0.0` the sim models it: the same grid model, t
 ## Update (2026-11-13, ADR-041): the token supply in the sim
 
 "Token supply, first version: handover" is superseded for the sim by ADR-041: the robot takes its tokens at a dispenser, three stacked rails with open pick stations, placed by the camera. The handover stays behind a setting (`token_source: hand`), and for the real arm until the dispenser is printed (`v2.1.0`). The rest of this ADR stands.
+
+## Update (2026-11-15): the parts to print
+
+The other way than a store-bought grid, already named in `phase2/P2-02` §1, has its sources: `hardware/connect4/` holds the tokens, the grid (plates, posts, feet, depth guide) and the dispenser of ADR-041 in OpenSCAD, with the dimensions of `connect4_grid.yaml`; a check run by pre-commit keeps the two alike (#286). A grid printed from them is the simulation's, so the numbers measured in sim stay true and #75 (the measure of a purchased grid) is not needed. Compiled, not printed: the print, one column first, and the measure of the printed parts are #248. The riser, the jaw pads, the jig and the wrist camera's mount are not in these files.
