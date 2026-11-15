@@ -28,7 +28,7 @@ from so101_common.robot import BASE_FRAME, CAMERA_FRAME
 from so101_perception.geometry import load_extrinsics
 
 TIMEOUT = 20.0  # s
-IMAGES = 30  # sent after the first debug image
+IMAGES = 30  # that come back after the first debug image
 DATA = Path(__file__).parent / "data"
 LABELS = json.loads((DATA / "labels.json").read_text())
 # Whole cube A, truncated cube, a cube the arm partly hides (050.png, 37 % visible, the box whole), whole
@@ -110,14 +110,15 @@ class TestPerception(unittest.TestCase):
     def test_1_each_image_comes_back_once_annotated(self):
         self.spin_until(lambda: self.debug, "no /perception/debug_image")
         first = len(self.sent)
-        self.spin_until(lambda: len(self.sent) >= first + IMAGES, "the fake camera stalled")
+        # Counted, never a share of the images sent: both image links are best-effort and a 230 kB image is
+        # more than a UDP socket holds (208 kB). On a machine short of CPU the kernel drops datagrams there,
+        # and up to 4 images in 10 never come back [MES-82].
+        back = lambda: sum(key(m.header.stamp) in self.sent[first:] for m in self.debug)  # noqa: E731
+        self.spin_until(lambda: back() >= IMAGES, f"fewer than {IMAGES} images came back")
         sent = set(self.sent)
         stamps = [key(msg.header.stamp) for msg in self.debug]
         self.assertLessEqual(set(stamps), sent, "a debug image does not carry the stamp of an input image")
         self.assertEqual(len(stamps), len(set(stamps)), "an image was processed twice")
-        later = set(self.sent[first:])
-        back = sum(stamp in later for stamp in stamps)
-        self.assertGreaterEqual(back, 0.8 * IMAGES, f"{back} of {IMAGES} images came back")
 
         msg = self.debug[-1]
         self.assertEqual(msg.header.frame_id, CAMERA_FRAME)
