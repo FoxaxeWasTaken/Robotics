@@ -56,8 +56,8 @@ Sizes are the part as it lies on the bed.
    two plates, 8 mm deep: glue it. The plates stand on the posts' steps, their floor 38 mm above the table.
    Glue a guide strip on the top edge of each plate, its skirt on the plate's outer face. Each post's bottom
    goes through a foot.
-2. **Markers** (paper, ids and size in the YAML): the grid's four go on the outlines engraved on the front
-   face of the posts, the dispenser's four on the outlines of its marker plate.
+2. **Markers**: the grid's four go on the outlines engraved on the front face of the posts, the dispenser's
+   four on the outlines of its marker plate (the table below says which id where).
 3. **Dispenser.** The stand's two feet cross it in its notches. The lowest rail sits astride the stand, the
    notch of one of its skirts on the stand's nub. Each next rail stands on the walls of the one below, its
    notches on the nubs at that rail's end: it is then 40 mm further out and 62.8 mm higher. Glue them. The
@@ -65,12 +65,28 @@ Sizes are the part as it lies on the bed.
 4. The lowest station's token is then 120 mm above the table: 20 mm above the arm's base on its 100 mm riser
    (`placement.riser`, `dispenser.placement.station_z`).
 
-## Not in these files
+## What the real setup needs besides these parts
 
-- **The riser** under the arm, 100 mm: its footprint is the arm's base, to measure on the arm (#248).
-- **Jaw pads** (#90), the **placement jig** and the clamps (#88), the **wrist camera's mount** (the staff's
-  STL, ADR-038).
-- The markers themselves: printed on paper at 100 %.
+- **A riser under the arm, 100 mm high** (`placement.riser`). Every height of the game counts on it: without it
+  the arm does not pass over the grid and loses the far columns [MES-63]. A rigid block, printed or not; its
+  footprint is the arm's base, to measure on the arm when the setup is built. It is not in these files.
+- **The game's eight markers**, on paper: [`connect4_markers.pdf`](../../docs/project/media/connect4_markers.pdf),
+  written by `tools/calibration_sheets.py` with the pick & place's sheets. Print it at 100 % and check a black
+  square: 30 mm. Cut each marker on its line (39 mm) and glue it flat on the outline engraved in the part:
+
+  | Ids | Where | Which way |
+  | --- | --- | --- |
+  | 10, 12 | The grid's post on the arm's side, front face: 10 at the top, 12 at the bottom | The marker's top up |
+  | 11, 13 | The grid's far post, front face: 11 at the top, 13 at the bottom | The marker's top up |
+  | 14, 15 | The dispenser's plate, the row nearest the lowest station: 14 beside the rails, 15 on the far side | The marker's top towards the rails |
+  | 16, 17 | The dispenser's plate, the row nearest the arm: 16 beside the rails, 17 on the far side | The marker's top towards the rails |
+
+  The camera places the grid and the dispenser from them: a marker in another place, or turned, gives a wrong
+  pose.
+- **Fixings**: the arm and its riser clamped to the table, as the arm already is for the pick & place (`07` §9);
+  the grid's two feet and the dispenser's stand held by a clamp or double-sided tape.
+- Decided on the real arm, not needed to start: the placement jig (#88), jaw pads (#90), the wrist camera and
+  its mount (ADR-038: only if the real drops stay under 90 %).
 
 ## To check before a long print
 

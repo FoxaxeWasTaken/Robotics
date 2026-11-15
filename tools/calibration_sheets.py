@@ -5,15 +5,24 @@ the control image (it needs cv2.aruco):
     tools/so101 run --out /tmp/sheets 'python3 /repo/tools/calibration_sheets.py /out'
 
 aruco_markers.pdf: the table's markers (ids 0-7, 75 mm, a cut line at 100 mm, 05 §5.2). charuco_board.pdf:
-the board of so101_perception.intrinsics (05 §3.2).
+the board of so101_perception.intrinsics (05 §3.2). connect4_markers.pdf: the game's markers, the grid's four
+and the dispenser's four, as connect4_grid.yaml says them (phase2/P2-02 §1, hardware/connect4).
 """
 
 import sys
 from pathlib import Path
 
 import cv2
+import yaml
 
 sys.path.insert(0, "/repo/ros2_ws/src/so101_perception")
+GAME = Path(__file__).resolve().parents[1] / "ros2_ws/src/so101_connect4/config/connect4_grid.yaml"
+# Where each marker goes, in the order of its ids in the YAML (layout.marker_centers,
+# layout.dispenser_marker_centers)
+ON_THE_GRID = ["montant côté bras, en haut", "montant éloigné du bras, en haut",
+               "montant côté bras, en bas", "montant éloigné du bras, en bas"]  # fmt: skip
+ON_THE_DISPENSER = ["côté rails, vers la station", "côté opposé aux rails, vers la station",
+                    "côté rails, vers le bras", "côté opposé aux rails, vers le bras"]  # fmt: skip
 
 MM = 72 / 25.4
 A4 = 210.0, 297.0
@@ -109,7 +118,42 @@ def board_pdf(path):
     write_pdf(path, [ops], (width, height))
 
 
+def game_marker(aruco, i, cx, cy, side, plane, where):
+    """A marker of the game: its black square, the cut line of its white one, and above the line an arrow
+    for its top, its id and its place."""
+    image = cv2.aruco.generateImageMarker(aruco, i, CELLS)
+    ops = rectangles(image, cx - side / 2, cy + side / 2, side / CELLS)
+    x1, y1 = cx - plane / 2, cy - plane / 2
+    ops += f"{0.25 * MM:.3f} w {x1 * MM:.4f} {y1 * MM:.4f} {plane * MM:.4f} {plane * MM:.4f} re S\n"
+    ly = cy + plane / 2 + 3
+    ops += f"{x1 * MM:.3f} {ly * MM:.3f} m {(x1 + 2) * MM:.3f} {(ly + 5) * MM:.3f} l "
+    ops += f"{(x1 + 4) * MM:.3f} {ly * MM:.3f} l f\n"
+    return ops + text(x1 + 6, ly + 1, 8, f"ID {i} : {where}")
+
+
+def game_pdf(path):
+    layout = yaml.safe_load(GAME.read_text())
+    grid, dispenser = layout["markers"], layout["dispenser"]["markers"]
+    aruco = cv2.aruco.getPredefinedDictionary(getattr(cv2.aruco, grid["dictionary"]))
+    ops = text(25, 278, 11, "Grille : face avant des montants")
+    ops += text(119, 278, 11, "Distributeur : plaque des marqueurs")
+    for cx, markers, places in ((58.0, grid, ON_THE_GRID), (152.0, dispenser, ON_THE_DISPENSER)):
+        side, plane = markers["size"] * 1000, markers["plate"] * 1000
+        for row, (i, where) in enumerate(zip(markers["ids"], places, strict=True)):
+            ops += game_marker(aruco, i, cx, 235.0 - 58.0 * row, side, plane, where)
+    side, plane = grid["size"] * 1000, grid["plate"] * 1000
+    notes = [
+        f"Imprimer à 100 %, sans ajustement. Carré noir = {side:g} mm, trait de coupe = {plane:g} mm.",
+        "La flèche montre le haut du marqueur. Grille : vers le haut. Distributeur : vers les rails.",
+        "Avant de découper : reporte l'ID et la flèche au dos. À coller à plat sur le contour gravé.",
+    ]
+    for line, note in enumerate(notes):
+        ops += text(15, 20 - 4 * line, 8, note)
+    write_pdf(path, [ops], A4)
+
+
 if __name__ == "__main__":
     out = Path(sys.argv[1])
     markers_pdf(out / "aruco_markers.pdf")
     board_pdf(out / "charuco_board.pdf")
+    game_pdf(out / "connect4_markers.pdf")
