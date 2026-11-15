@@ -215,6 +215,24 @@ def run(args, bench: Bench) -> int:
     return loop(args, bench, "episode", args.episodes, seed, FIELDS, BAG_TOPICS, summary)
 
 
+def run_one(args, bench, unit, number, seed, topics) -> dict:
+    """One episode or game; with --bags, its rosbag, kept when it failed."""
+    if not args.bags:
+        return getattr(bench, unit)(number, seed, args.timeout)
+    bag = args.bags / f"{unit}_{number:03d}"
+    # The recorder joins before the episode starts, not during it: the driver holds then [MES-80]
+    before = bench.listeners(topics)
+    recorder = record(bag, topics)
+    if not bench.joined(before):
+        print(f"evaluate: the recorder of {unit} {number} did not subscribe", file=sys.stderr)
+    row = getattr(bench, unit)(number, seed, args.timeout)
+    recorder.send_signal(signal.SIGINT)
+    recorder.wait(timeout=15)
+    if row["success"]:
+        shutil.rmtree(bag, ignore_errors=True)
+    return row
+
+
 def loop(args, bench, unit, count, seed, fields, topics, summarize) -> int:
     """`count` episodes or games (`unit`, the bench's method of that name): a CSV row and a line each, a
     rosbag of each failed one with --bags, the summary, then --min-success."""
@@ -224,19 +242,7 @@ def loop(args, bench, unit, count, seed, fields, topics, summarize) -> int:
         writer = csv.DictWriter(f, fields)
         writer.writeheader()
         for number in range(1, count + 1):
-            bag = args.bags / f"{unit}_{number:03d}" if args.bags else None
-            recorder = None
-            if bag:  # it joins before the episode starts, not during it: the driver holds then [MES-80]
-                before = bench.listeners(topics)
-                recorder = record(bag, topics)
-                if not bench.joined(before):
-                    print(f"evaluate: the recorder of {unit} {number} did not subscribe", file=sys.stderr)
-            row = getattr(bench, unit)(number, seed, args.timeout)
-            if recorder:
-                recorder.send_signal(signal.SIGINT)
-                recorder.wait(timeout=15)
-                if row["success"]:
-                    shutil.rmtree(bag, ignore_errors=True)
+            row = run_one(args, bench, unit, number, seed, topics)
             writer.writerow(row)
             f.flush()
             rows.append(row)

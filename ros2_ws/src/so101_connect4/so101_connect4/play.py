@@ -90,57 +90,70 @@ def level(state) -> str:
     return next((name for name, d in engine.LEVELS.items() if d == depth), f"depth {depth}")
 
 
+def disc(pen, colors, side, won=False) -> str:
+    """A side's token: a disc in its color on a terminal, highlighted in a winning four; else its letter."""
+    glyph, code = DISCS[colors[side]]
+    return pen.paint(code + ";7" * won, glyph) if pen.pretty else LETTERS[colors[side]]
+
+
+def grid(board, pen, colors) -> list:
+    """The grid in its box, top row first: 8 lines."""
+    four, empty = engine.four(board), "·" if pen.pretty else "."
+
+    def cell(i):
+        if not board[i]:
+            return f" {empty} "
+        return f"[{disc(pen, colors, board[i], True)}]" if i in four else f" {disc(pen, colors, board[i])} "
+
+    side = pen.paint("chrome", pen.glyph("side"))
+    edges = ("┌┐", "└┘") if pen.pretty else ("++", "++")
+    top, bottom = (pen.paint("chrome", f"  {left}{pen.glyph('rule') * 29}{right}") for left, right in edges)
+    rows = [
+        f"  {side} " + " ".join(cell(row * 7 + c) for c in range(7)) + f" {side}" for row in range(5, -1, -1)
+    ]
+    return [top, *rows, bottom]
+
+
+def mood(state) -> str:
+    """The status line's mark: go (the person acts), done, fail, or run (the robot acts, the game waits)."""
+    kind = state["state"]
+    if kind == "WAIT_HUMAN" and state["turn"] == "human":
+        return "go"
+    if kind == "GAME_OVER" or (kind == "IDLE" and state["ready"]):
+        return "done"
+    return "fail" if kind in ("FIX_BOARD", "ERROR") else "run"
+
+
 def picture(state, pen, colors=None) -> str:
     """The terminal's screen, from its header to its status line: the grid in its box with the game's facts
     beside it, the last move, what to do. Screen puts the last message and the keys under it."""
     colors = colors or layout.colors(layout.load())
-    board, four = state["board"], engine.four(state["board"])
-
-    def token(side, won=False):
-        disc, code = DISCS[colors[side]]
-        return pen.paint(code + ";7" * won, disc) if pen.pretty else LETTERS[colors[side]]
-
-    def cell(i):
-        if not board[i]:
-            return f" {'·' if pen.pretty else '.'} "
-        return f"[{token(board[i], True)}]" if i in four else f" {token(board[i])} "
-
-    side = pen.paint("chrome", pen.glyph("side"))
-    edges = ("┌┐", "└┘") if pen.pretty else ("++", "++")
-    top, bottom = (f"  {left}{pen.glyph('rule') * 29}{right}" for left, right in edges)
-    rows = [
-        f"  {side} " + " ".join(cell(row * 7 + c) for c in range(7)) + f" {side}" for row in range(5, -1, -1)
-    ]
     facts = [
         f"level   {level(state)}",
         f"moves   {state['moves']}",
         "",
-        f"you     {token(1)} {colors[1]}",
-        f"robot   {token(2)} {colors[2]}",
+        f"you     {disc(pen, colors, 1)} {colors[1]}",
+        f"robot   {disc(pen, colors, 2)} {colors[2]}",
         "",
         f"drops   {state['lost']} lost, {state['missed']} in a wrong column",  # the robot's
         "",
     ]
-    box = [pen.paint("chrome", top), *rows, pen.paint("chrome", bottom)]
-    kind, mine = state["state"], DISCS[colors[1]][0] if pen.pretty else token(1)  # no color inside the line's
-    mood = "run"
-    if kind == "WAIT_HUMAN" and state["turn"] == "human":
-        mood = "go"
-    elif kind == "GAME_OVER" or (kind == "IDLE" and state["ready"]):
-        mood = "done"
-    elif kind in ("FIX_BOARD", "ERROR"):
-        mood = "fail"
-    tag = kind + (f":{state['reason']}" if state["reason"] else "")
+    mine = DISCS[colors[1]][0] if pen.pretty else disc(pen, colors, 1)  # no color inside the status line's
+    tag = state["state"] + (f":{state['reason']}" if state["reason"] else "")
+    header = pen.header(TITLE, tag)
     return "\n".join(
         [
-            pen.header(TITLE, tag).rstrip() if not pen.pretty else pen.header(TITLE, tag),
+            header if pen.pretty else header.rstrip(),
             pen.rule("game"),
             "     " + "   ".join("1234567"),
-            *(f"{line}      {fact}".rstrip() for line, fact in zip(box, facts, strict=True)),
+            *(
+                f"{line}      {fact}".rstrip()
+                for line, fact in zip(grid(state["board"], pen, colors), facts, strict=True)
+            ),
             pen.rule("last move"),
             "   " + (last_move(state["last"]) or "none yet"),
             pen.rule(),
-            pen.status(mood, status(state, mine)),
+            pen.status(mood(state), status(state, mine)),
         ]
     )
 

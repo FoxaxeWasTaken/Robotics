@@ -311,7 +311,8 @@ def test_the_shapes_come_with_the_first_stable_board_and_again_only_when_it_chan
     token = next(
         marker for marker in msg.markers if (marker.ns, marker.id) in added and marker.ns == "tokens"
     )
-    assert token.type == Marker.CYLINDER and np.isclose(token.scale.z, LAYOUT["token"]["thickness"])
+    assert token.type == Marker.CYLINDER
+    assert np.isclose(token.scale.z, LAYOUT["token"]["thickness"])
 
     for i in range(5):  # a new game: the tokens that are gone are deleted from the view
         show(reader, picture("empty"), 2000 + 100 * i)

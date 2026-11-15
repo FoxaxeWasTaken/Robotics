@@ -41,7 +41,8 @@ def test_each_step_has_its_duration_and_the_running_one_its_time_so_far():
 def test_done_ends_the_cycle_and_counts_its_time():
     report = Report()
     end = run(report, [*CYCLE, "DONE"])
-    assert not report.running and (report.done, report.failed) == (1, 0)
+    assert not report.running
+    assert (report.done, report.failed) == (1, 0)
     assert report.times == [end]
     assert report.timeline(now=99.0)[-1] == ("DONE", 0.0, True)  # the end has no duration, and no clock
     run(report, [*CYCLE, "DONE"], start=20.0, step=0.5)
@@ -52,7 +53,8 @@ def test_an_error_is_a_failed_cycle_with_its_reason_and_a_retry_is_counted():
     report = Report()
     run(report, ["WAIT_TARGET", "PLAN", "APPROACH", "DESCEND", "GRASP", "RETRY", "HOME_RETRY", "WAIT_TARGET"])
     report.on_state("ERROR:grasp_failed", 9.0)
-    assert not report.running and (report.done, report.failed, report.retries) == (0, 1, 1)
+    assert not report.running
+    assert (report.done, report.failed, report.retries) == (0, 1, 1)
     assert report.times == []
     assert report.timeline(now=9.0)[-1][0] == "ERROR:grasp_failed"
 
@@ -64,7 +66,8 @@ def test_states_out_of_a_cycle_and_the_last_cycles_end_are_not_steps():
     report.begin(1.0)
     report.on_state("DONE", 1.1)  # the end of the cycle before, said again as this one starts
     report.on_state("IDLE", 1.2)
-    assert report.running and report.timeline(now=2.0) == []
+    assert report.running
+    assert report.timeline(now=2.0) == []
 
 
 def test_the_progress_is_the_ten_steps_of_the_attempt_in_hand():
@@ -78,7 +81,8 @@ def test_the_progress_is_the_ten_steps_of_the_attempt_in_hand():
         ("APPROACH", 1.5, "run"),
         ("DESCEND", None, "todo"),
     ]
-    assert report.elapsed(now=5.5) == 5.5 and report.attempt == 1
+    assert report.elapsed(now=5.5) == 5.5
+    assert report.attempt == 1
 
 
 def test_a_missed_grasp_marks_its_step_failed_and_the_next_attempt_starts_the_ten_steps_again():
@@ -113,7 +117,9 @@ def test_the_counts_say_how_many_cubes_reached_the_box_and_how_fast():
     run(report, [*CYCLE, "DONE"], start=40.0, step=2.0)
     text = report.counts()
     assert "2 of 3 cubes in the box" in text
-    assert "last 20.0 s" in text and "average 15.0 s" in text and "best 10.0 s" in text
+    assert "last 20.0 s" in text
+    assert "average 15.0 s" in text
+    assert "best 10.0 s" in text
 
 
 POSES = {"cube": (0.2141, -0.0523, 0.0151), "box": None}
@@ -128,13 +134,17 @@ def test_the_screen_is_a_header_the_scene_the_cycle_with_its_bar_the_total_a_sta
     run(report, [*CYCLE, "DONE"])
     run(report, ["WAIT_TARGET", "PLAN", "APPROACH", "DESCEND"], start=20.0)
     lines = screen(report, 23.5, "DESCEND")
-    assert lines[0].startswith(" SO-101 | Pick & place, simulation") and lines[0].endswith("DESCEND")
-    assert all(len(line) <= WIDTH for line in lines) and len(lines) == 17
+    assert lines[0].startswith(" SO-101 | Pick & place, simulation")
+    assert lines[0].endswith("DESCEND")
+    assert all(len(line) <= WIDTH for line in lines)
+    assert len(lines) == 17
     assert any("cube" in line and "x  21.4 cm" in line and "y  -5.2 cm" in line for line in lines)
     assert any(line.rstrip() == "  box    not seen by the camera" for line in lines)
     assert any(line.startswith("-- cycle 2 --") for line in lines)
     bar = next(line for line in lines if "/10" in line)
-    assert "#" * 15 + "=" * 5 + "-" * 30 in bar and "3/10" in bar and "3.5 s" in bar
+    assert "#" * 15 + "=" * 5 + "-" * 30 in bar
+    assert "3/10" in bar
+    assert "3.5 s" in bar
     # the steps in plain words, two columns: the pick on the left, the place on the right
     assert any(
         "+ Moving above the cube" in line and "1.0 s" in line and ". Dropping" in line for line in lines
@@ -142,12 +152,15 @@ def test_the_screen_is_a_header_the_scene_the_cycle_with_its_bar_the_total_a_sta
     assert any("> Going down" in line and "0.5 s" in line and ". Returning" in line for line in lines)
     assert any("1 of 1 cube in the box" in line and "last 10.0 s" in line for line in lines)
     assert lines[-3] == " > cycle 2: going down"
-    assert lines[-2] == "" and lines[-1] == " n new cycle  s stop  q quit"
+    assert lines[-2] == ""
+    assert lines[-1] == " n new cycle  s stop  q quit"
     assert all(
         line.isascii() and "\x1b" not in line for line in lines
     )  # a pipe, a test: no color, no box character
     pretty = "\n".join(screen(report, 23.5, "DESCEND", pretty=True))
-    assert "\x1b[" in pretty and "█" in pretty and "►" in pretty
+    assert "\x1b[" in pretty
+    assert "█" in pretty
+    assert "►" in pretty
 
 
 def test_the_status_says_the_end_of_a_cycle_in_plain_words():
@@ -208,29 +221,36 @@ def console(arm, live=False):
 def test_the_first_cycle_starts_by_itself_at_a_new_place_then_n_starts_the_next():
     arm = FakeArm()
     made, _, clock = console(arm)
-    assert made.step() and arm.calls == ["randomize", "start"]
-    assert made.step() and arm.calls == ["randomize", "start"]  # once
-    assert made.step("n") and arm.calls == ["randomize", "start"]  # a cycle is running: refused, said
+    assert made.step()
+    assert arm.calls == ["randomize", "start"]
+    assert made.step()
+    assert arm.calls == ["randomize", "start"]  # once
+    assert made.step("n")
+    assert arm.calls == ["randomize", "start"]  # a cycle is running: refused, said
     assert "running" in made.message
     for state in (*CYCLE, "DONE"):
         clock[0] += 1.0
         arm.state = state
         made.step()
     assert made.report.done == 1
-    assert made.step("n") and arm.calls == ["randomize", "start"] * 2 and made.report.running
+    assert made.step("n")
+    assert arm.calls == ["randomize", "start"] * 2
+    assert made.report.running
 
 
 def test_no_state_yet_starts_nothing_and_says_why():
     arm = FakeArm(state=None)
     made, _, clock = console(arm)
-    assert (
-        made.step() and arm.calls == [] and made.message == ""
-    )  # the first moments: the state is on its way
+    assert made.step()
+    assert arm.calls == []
+    assert made.message == ""  # the first moments: the state is on its way
     clock[0] = 3.0
-    assert made.step() and arm.calls == []
+    assert made.step()
+    assert arm.calls == []
     assert "/brain_state" in made.message
     arm.state = "IDLE"
-    assert made.step() and arm.calls == ["randomize", "start"]
+    assert made.step()
+    assert arm.calls == ["randomize", "start"]
 
 
 def test_a_refused_start_is_said_and_not_tried_again_by_itself():
@@ -239,7 +259,8 @@ def test_a_refused_start_is_said_and_not_tried_again_by_itself():
     made, _, _ = console(arm)
     made.step()
     made.step()
-    assert arm.calls == ["randomize", "start"] and not made.report.running
+    assert arm.calls == ["randomize", "start"]
+    assert not made.report.running
     assert "no_joint_states" in made.message
 
 
@@ -247,14 +268,16 @@ def test_after_an_error_n_rearms_the_brain_then_starts():
     arm = FakeArm(state="ERROR:grasp_failed")
     made, _, _ = console(arm)
     made.step()  # the first cycle, by itself
-    assert arm.calls == ["start", "randomize", "start"] and made.report.running
+    assert arm.calls == ["start", "randomize", "start"]
+    assert made.report.running
 
 
 def test_s_stops_the_brain_and_q_quits():
     arm = FakeArm()
     made, _, _ = console(arm)
     made.step()
-    assert made.step("s") and arm.calls[-1] == "stop"
+    assert made.step("s")
+    assert arm.calls[-1] == "stop"
     assert made.step("q") is False
 
 
@@ -275,7 +298,9 @@ def test_through_a_pipe_each_step_is_one_line_and_a_terminal_gets_the_whole_scre
 
     made, written, clock = console(FakeArm(), live=True)
     made.step()
-    assert written and "n new cycle" in written[-1] and "cycle 1" in written[-1]
+    assert written
+    assert "n new cycle" in written[-1]
+    assert "cycle 1" in written[-1]
     assert written[-1].startswith("\x1b[H")  # painted over the frame before, no screen cleared first
     count = len(written)
     made.step()  # nothing changed: nothing written again

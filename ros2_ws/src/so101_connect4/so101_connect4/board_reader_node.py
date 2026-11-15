@@ -152,26 +152,33 @@ class BoardReaderNode(rclpy.node.Node):
         stamp = Time.from_msg(image.header.stamp).nanoseconds
         dispenser, waiting = board.dispenser_in_camera(found, self._layout, K), None
         if dispenser is not None:
-            T_base_dispenser = self._T_base_cam @ dispenser[0]
-            self._publish_pose(image.header.stamp, T_base_dispenser, self._pub_dispenser, DISPENSER_FRAME)
-            waiting = board.stations(rgb, self._layout, dispenser[0], K, threshold=self._threshold)
-            if waiting is not None and (agreed := self._stable_stations.update(stamp, waiting)):
-                self._pub_stations.publish(UInt8MultiArray(data=[int(there) for there in agreed[1]]))
-                self._read[1] = tuple(int(there) for there in agreed[1])
+            waiting = self._read_dispenser(image.header.stamp, rgb, dispenser[0], K, stamp)
         stable = self._stable.update(stamp, (cells or (board.EMPTY,) * 42, valid, reason))
         if stable:
-            first, (stable_cells, stable_valid, stable_reason) = stable
-            msg = Connect4Board(cells=stable_cells, valid=stable_valid, reason=stable_reason)
-            msg.header.stamp, msg.header.frame_id = Time(nanoseconds=first).to_msg(), GRID_FRAME
-            self._pub_board.publish(msg)
-            if (
-                stable_valid
-            ):  # a grid the arm hides is published with no cell: the view keeps the last one read
-                self._read[0] = tuple(stable_cells)
-            self._publish_markers()
+            self._publish_board(*stable)
         if dispenser is not None:
             rgb = board.draw_stations(rgb, self._layout, dispenser[0], K, waiting)
         self._publish_debug(image, rgb, None if pose is None else pose[0], K, cells, valid, reason, stable)
+
+    def _read_dispenser(self, header_stamp, rgb, T_cam_dispenser, K, stamp):
+        """The dispenser's pose, and its stations once they are stable; what this image shows at each."""
+        T_base_dispenser = self._T_base_cam @ T_cam_dispenser
+        self._publish_pose(header_stamp, T_base_dispenser, self._pub_dispenser, DISPENSER_FRAME)
+        waiting = board.stations(rgb, self._layout, T_cam_dispenser, K, threshold=self._threshold)
+        if waiting is not None and (agreed := self._stable_stations.update(stamp, waiting)):
+            self._pub_stations.publish(UInt8MultiArray(data=[int(there) for there in agreed[1]]))
+            self._read[1] = tuple(int(there) for there in agreed[1])
+        return waiting
+
+    def _publish_board(self, first, read):
+        """A stable read, stamped as the first image of its streak, then the view's shapes."""
+        cells, valid, reason = read
+        msg = Connect4Board(cells=cells, valid=valid, reason=reason)
+        msg.header.stamp, msg.header.frame_id = Time(nanoseconds=first).to_msg(), GRID_FRAME
+        self._pub_board.publish(msg)
+        if valid:  # a grid the arm hides is published with no cell: the view keeps the last one read
+            self._read[0] = tuple(cells)
+        self._publish_markers()
 
     def _publish_pose(self, stamp, T_base_grid, publisher, frame):
         """A measured pose in base_link, on its topic and as the TF of `frame`."""

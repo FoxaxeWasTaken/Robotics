@@ -21,7 +21,8 @@ GLYPHS = {  # name: on a terminal, then its ASCII twin; one cell each, so both l
     "run": "►>",
     "go": "►>",  # the person acts
     "todo": "○.",
-    "fail": "×x",  # noqa: RUF001 (the multiplication sign, on purpose: one cell in every console font)
+    # The multiplication sign, on purpose: one cell in every console font
+    "fail": "×x",  # noqa: RUF001
     "full": "█#",
     "part": "▓=",
     "empty": "░-",

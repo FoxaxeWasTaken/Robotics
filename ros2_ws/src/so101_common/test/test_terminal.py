@@ -45,10 +45,12 @@ def test_a_session_takes_a_key_at_a_time_hides_the_cursor_and_gives_everything_b
     before, out = termios.tcgetattr(keyboard), Tty()
     with terminal.session(out):
         inside = termios.tcgetattr(keyboard)
-        assert not inside[3] & termios.ICANON and not inside[3] & termios.ECHO  # a key at a time, not shown
+        assert not inside[3] & termios.ICANON
+        assert not inside[3] & termios.ECHO  # a key at a time, not shown
         assert not inside[0] & termios.IXON  # Ctrl-S froze the screen
         assert inside[6][termios.VSUSP] == b"\x00"  # Ctrl-Z stopped the console for good
-        assert "\x1b[?25l" in out.written and "\x1b[?25h" not in out.written
+        assert "\x1b[?25l" in out.written
+        assert "\x1b[?25h" not in out.written
     assert termios.tcgetattr(keyboard) == before
     assert out.written.endswith("\x1b[?25h\x1b[0m")  # the cursor back, no color left
 
@@ -57,7 +59,8 @@ def test_a_session_gives_the_terminal_back_when_the_console_fails(keyboard):
     before, out = termios.tcgetattr(keyboard), Tty()
     with pytest.raises(RuntimeError), terminal.session(out):
         raise RuntimeError("the console failed")
-    assert termios.tcgetattr(keyboard) == before and "\x1b[?25h" in out.written
+    assert termios.tcgetattr(keyboard) == before
+    assert "\x1b[?25h" in out.written
 
 
 def test_through_a_pipe_a_session_changes_nothing(monkeypatch, capsys):
@@ -81,15 +84,19 @@ def strip(text):
 
 def test_the_header_names_the_screen_on_the_left_and_the_state_on_the_right_over_the_whole_width():
     line = PLAIN.header("Pick & place, simulation", "DESCEND")
-    assert line.startswith(" SO-101 | Pick & place, simulation") and line.endswith("DESCEND ")
+    assert line.startswith(" SO-101 | Pick & place, simulation")
+    assert line.endswith("DESCEND ")
     assert len(line) == terminal.WIDTH
     pretty = PRETTY.header("Pick & place, simulation", "DESCEND")
-    assert pretty.startswith("\x1b[1;7m") and len(strip(pretty)) == terminal.WIDTH and "│" in pretty
+    assert pretty.startswith("\x1b[1;7m")
+    assert len(strip(pretty)) == terminal.WIDTH
+    assert "│" in pretty
 
 
 def test_a_rule_carries_its_title_to_the_full_width():
     assert PLAIN.rule() == "-" * terminal.WIDTH
-    assert PLAIN.rule("cycle 3").startswith("-- cycle 3 ---") and len(PLAIN.rule("cycle 3")) == terminal.WIDTH
+    assert PLAIN.rule("cycle 3").startswith("-- cycle 3 ---")
+    assert len(PLAIN.rule("cycle 3")) == terminal.WIDTH
     assert strip(PRETTY.rule("cycle 3")).startswith("── cycle 3 ───")
 
 
