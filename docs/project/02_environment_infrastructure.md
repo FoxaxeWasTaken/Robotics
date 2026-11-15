@@ -22,7 +22,7 @@ flowchart TB
       C3["viz<br/>RSP, TF, marker"]
     end
   end
-  BRAS[("SO-101 arm")] -->|USB| U
+  ARM[("SO-101 arm")] -->|USB| U
   CAM[("USB camera")] -->|USB| U
   U -->|"/dev/ttyACM0, /dev/video0"| C1
   R -->|"ros2_ws and sim volumes"| C1

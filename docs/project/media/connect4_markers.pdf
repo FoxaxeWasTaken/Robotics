@@ -9,10 +9,10 @@ endobj
 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
 endobj
 4 0 obj
-<< /Length 5103 >>
+<< /Length 5027 >>
 stream
-BT /F1 11 Tf 70.866 788.031 Td (Grille : face avant des montants) Tj ET
-BT /F1 11 Tf 337.323 788.031 Td (Distributeur : plaque des marqueurs) Tj ET
+BT /F1 11 Tf 70.866 788.031 Td (Grid: front face of the posts) Tj ET
+BT /F1 11 Tf 337.323 788.031 Td (Dispenser: marker plate) Tj ET
 0 g
 121.8898 694.4882 85.0394 14.1732 re
 121.8898 680.3150 14.1732 14.1732 re
@@ -29,7 +29,7 @@ BT /F1 11 Tf 337.323 788.031 Td (Distributeur : plaque des marqueurs) Tj ET
 f
 0.709 w 109.1339 610.8661 110.5512 110.5512 re S
 109.134 729.921 m 114.803 744.094 l 120.472 729.921 l f
-BT /F1 8 Tf 126.142 732.756 Td (ID 10 : montant côté bras, en haut) Tj ET
+BT /F1 8 Tf 126.142 732.756 Td (ID 10: post on the arm's side, top) Tj ET
 0 g
 121.8898 530.0787 85.0394 14.1732 re
 121.8898 515.9055 56.6929 14.1732 re
@@ -45,7 +45,7 @@ BT /F1 8 Tf 126.142 732.756 Td (ID 10 : montant côté bras, en haut) Tj ET
 f
 0.709 w 109.1339 446.4567 110.5512 110.5512 re S
 109.134 565.512 m 114.803 579.685 l 120.472 565.512 l f
-BT /F1 8 Tf 126.142 568.346 Td (ID 11 : montant éloigné du bras, en haut) Tj ET
+BT /F1 8 Tf 126.142 568.346 Td (ID 11: far post, top) Tj ET
 0 g
 121.8898 365.6693 85.0394 14.1732 re
 121.8898 351.4961 85.0394 14.1732 re
@@ -60,7 +60,7 @@ BT /F1 8 Tf 126.142 568.346 Td (ID 11 : montant éloigné du bras, en haut) Tj ET
 f
 0.709 w 109.1339 282.0472 110.5512 110.5512 re S
 109.134 401.102 m 114.803 415.276 l 120.472 401.102 l f
-BT /F1 8 Tf 126.142 403.937 Td (ID 12 : montant côté bras, en bas) Tj ET
+BT /F1 8 Tf 126.142 403.937 Td (ID 12: post on the arm's side, bottom) Tj ET
 0 g
 121.8898 201.2598 85.0394 14.1732 re
 121.8898 187.0866 42.5197 14.1732 re
@@ -75,7 +75,7 @@ BT /F1 8 Tf 126.142 403.937 Td (ID 12 : montant côté bras, en bas) Tj ET
 f
 0.709 w 109.1339 117.6378 110.5512 110.5512 re S
 109.134 236.693 m 114.803 250.866 l 120.472 236.693 l f
-BT /F1 8 Tf 126.142 239.528 Td (ID 13 : montant éloigné du bras, en bas) Tj ET
+BT /F1 8 Tf 126.142 239.528 Td (ID 13: far post, bottom) Tj ET
 0 g
 388.3465 694.4882 85.0394 14.1732 re
 388.3465 680.3150 42.5197 14.1732 re
@@ -91,7 +91,7 @@ BT /F1 8 Tf 126.142 239.528 Td (ID 13 : montant éloigné du bras, en bas) Tj ET
 f
 0.709 w 375.5906 610.8661 110.5512 110.5512 re S
 375.591 729.921 m 381.260 744.094 l 386.929 729.921 l f
-BT /F1 8 Tf 392.598 732.756 Td (ID 14 : côté rails, vers la station) Tj ET
+BT /F1 8 Tf 392.598 732.756 Td (ID 14: beside the rails, station end) Tj ET
 0 g
 388.3465 530.0787 85.0394 14.1732 re
 388.3465 515.9055 42.5197 14.1732 re
@@ -106,7 +106,7 @@ BT /F1 8 Tf 392.598 732.756 Td (ID 14 : côté rails, vers la station) Tj ET
 f
 0.709 w 375.5906 446.4567 110.5512 110.5512 re S
 375.591 565.512 m 381.260 579.685 l 386.929 565.512 l f
-BT /F1 8 Tf 392.598 568.346 Td (ID 15 : côté opposé aux rails, vers la station) Tj ET
+BT /F1 8 Tf 392.598 568.346 Td (ID 15: far from the rails, station end) Tj ET
 0 g
 388.3465 365.6693 85.0394 14.1732 re
 388.3465 351.4961 28.3465 14.1732 re
@@ -122,7 +122,7 @@ BT /F1 8 Tf 392.598 568.346 Td (ID 15 : côté opposé aux rails, vers la station) 
 f
 0.709 w 375.5906 282.0472 110.5512 110.5512 re S
 375.591 401.102 m 381.260 415.276 l 386.929 401.102 l f
-BT /F1 8 Tf 392.598 403.937 Td (ID 16 : côté rails, vers le bras) Tj ET
+BT /F1 8 Tf 392.598 403.937 Td (ID 16: beside the rails, arm end) Tj ET
 0 g
 388.3465 201.2598 85.0394 14.1732 re
 388.3465 187.0866 28.3465 14.1732 re
@@ -135,10 +135,10 @@ BT /F1 8 Tf 392.598 403.937 Td (ID 16 : côté rails, vers le bras) Tj ET
 f
 0.709 w 375.5906 117.6378 110.5512 110.5512 re S
 375.591 236.693 m 381.260 250.866 l 386.929 236.693 l f
-BT /F1 8 Tf 392.598 239.528 Td (ID 17 : côté opposé aux rails, vers le bras) Tj ET
-BT /F1 8 Tf 42.520 56.693 Td (Imprimer à 100 %, sans ajustement. Carré noir = 30 mm, trait de coupe = 39 mm.) Tj ET
-BT /F1 8 Tf 42.520 45.354 Td (La flèche montre le haut du marqueur. Grille : vers le haut. Distributeur : vers les rails.) Tj ET
-BT /F1 8 Tf 42.520 34.016 Td (Avant de découper : reporte l'ID et la flèche au dos. À coller à plat sur le contour gravé.) Tj ET
+BT /F1 8 Tf 392.598 239.528 Td (ID 17: far from the rails, arm end) Tj ET
+BT /F1 8 Tf 42.520 56.693 Td (Print at 100 %, never fit to page. Black square = 30 mm, cut line = 39 mm.) Tj ET
+BT /F1 8 Tf 42.520 45.354 Td (The arrow shows the marker's top. Grid: top up. Dispenser: top towards the rails.) Tj ET
+BT /F1 8 Tf 42.520 34.016 Td (Before cutting: copy the ID and the arrow on the back. Glue it flat on the engraved outline.) Tj ET
 
 endstream
 endobj
@@ -152,9 +152,9 @@ xref
 0000000058 00000 n 
 0000000115 00000 n 
 0000000212 00000 n 
-0000005367 00000 n 
+0000005291 00000 n 
 trailer
 << /Size 6 /Root 1 0 R >>
 startxref
-5501
+5425
 %%EOF

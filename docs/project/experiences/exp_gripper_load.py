@@ -28,14 +28,14 @@ def measure(label, percent, wait=1.5, samples=20):
 
 
 try:
-    measure("ouverte, a vide", 100.0)
-    measure("fermee, a vide", 0.0)
-    measure("ouverte", 100.0)
-    input("Tiens le cube entre les machoires, puis ENTREE pour fermer...")
-    measure("fermee sur le cube", 0.0, wait=2.0)
-    input("Lache le cube (la pince le tient), puis ENTREE...")
-    measure("fermee sur le cube, lache", 0.0, wait=1.0)
-    input("Reprends le cube, puis ENTREE pour ouvrir...")
-    measure("ouverte", 100.0)
+    measure("open, empty", 100.0)
+    measure("closed, empty", 0.0)
+    measure("open", 100.0)
+    input("Hold the cube between the jaws, then ENTER to close...")
+    measure("closed on the cube", 0.0, wait=2.0)
+    input("Let go of the cube (the gripper holds it), then ENTER...")
+    measure("closed on the cube, let go", 0.0, wait=1.0)
+    input("Take the cube back, then ENTER to open...")
+    measure("open", 100.0)
 finally:
     robot.disconnect()  # torque off: keep the arm resting on its support
