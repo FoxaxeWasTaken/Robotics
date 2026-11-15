@@ -42,7 +42,7 @@ On the real arm (`v2.1.0`), the same scenario with a person: the token handed be
 | P2-04 | Engine: only legal moves; wins 100/100 against a random player; move chosen in **< 2 s** | Unit tests: only legal moves on random positions, 100/100 at depth 4, a move within 2 s with the 1 s budget; 0.64 s at most at depth 10 without it [MES-70] |
 | P2-05 | The arm **never moves** during the human's turn | `turns.py` tests; `test_game_node.py`: no call to the brain in `WAIT_HUMAN` or `FIX_BOARD`; the game bench fails a game where an arm joint moved 0.05 rad during a person's turn: none in 12 games [MES-71]. *`v2.1.0`: speeds near a person, `P2-02` §8* |
 | P2-06 | **≥ 8/10** full games in sim without intervention. *`v2.1.0`: ≥ 3 full games filmed on the real arm* | **10/10** against a random person, 2/2 against the engine [MES-71]; **20/20** with the robot taking its tokens at the dispenser [MES-77]; the game bench, `evaluate --games`, one game on each PR and ten each night; videos |
-| P2-07 | Anyone can play against the sim robot by following the README (public repository goal) | Replayed by a member who did not write the game, from a fresh clone (as MES-26) |
+| P2-07 | Anyone can play against the sim robot by following the README (public repository goal) | Replayed by a member who did not write the game, from a fresh clone (as MES-26): build 278 s (224 s on a cold cache), start about 200 s (not timed), a game of 19 tokens in 4 min 40 s to 4 min 50 s, no blocker [MES-81] |
 | P2-08 | Same quality rules as phase 1: pure modules with tests, CI green, guards C-05 / C-06 extended to the new package; a game on each PR, the game bench in the nightly | CI (`P2-03` §3.1) |
 
 ## 5. Out of scope
