@@ -145,6 +145,7 @@ The whole procedure, in order, each step with its pass criterion. It takes about
 | **Printer** and A4 paper, or the prints below | | |
 | [`charuco_board.pdf`](media/charuco_board.pdf), printed | Steps 8 and 9 | Printed at **100 %**: its squares measure 38 mm |
 | [`aruco_markers.pdf`](media/aruco_markers.pdf), printed and cut | Step 9, the check | Black square 75 mm, cut on the 100 mm line. Optional |
+| Phase 2 (`v2.1.0`): [`connect4_markers.pdf`](media/connect4_markers.pdf), printed and cut; the printed parts and a **100 mm riser** under the arm | The game's grid and dispenser, placed by the camera from these markers | Black square 30 mm, cut on the 39 mm line; which id where, the riser and the fixings: [`hardware/connect4/README.md`](../../hardware/connect4/README.md) |
 | **Stiff cardboard** and glue | A curled board gives a wrong calibration | The board glued on it, flat |
 | **Ruler or tape measure**, 30 cm, a caliper if you have one | Check the prints; place the sheets | Without it, the printed scale is only known at step 9 |
 | **Tape** (masking tape) | Holds the board and the sheets flat | Without it they lift at the edges |

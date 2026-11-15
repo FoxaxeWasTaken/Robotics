@@ -112,7 +112,8 @@ class Report:
         for i, (state, duration, over) in enumerate(attempt):
             after = attempt[i + 1] if i + 1 < len(attempt) else None
             failed = after is not None and after[0].split(":")[0] in ("RETRY", *ENDS[1:])
-            found[state] = (duration, "fail" if failed else "done" if over else "run")
+            mark = "done" if over else "run"
+            found[state] = (duration, "fail" if failed else mark)
         return [(state, *found.get(state, (None, "todo"))) for state in STEPS]
 
     def elapsed(self, now) -> float:
@@ -205,28 +206,34 @@ class Console:
         if key == "q":
             return False
         now, state = self._clock(), self.arm.state
-        if state is None:
-            if now - self._born > 2.0:  # the brain's latched state takes a moment to come (DDS discovery)
-                self._say(NO_STATE)
-        else:
-            if self.message == NO_STATE:
-                self._say("")
-            if self.report.on_state(state, now) and not self._live:
-                self._write(state)
-                if not self.report.running:
-                    self._write(self.report.counts())
-            if key == "s":
-                self._say("stop: " + self._reply(self.arm.stop))
-            elif key == "n" and self.report.running:
-                self._say("a cycle is running: s stops it")
-            elif key == "n" or self._auto:
-                self._start(state, now)
+        if state is not None:
+            self._act(state, now, key)
+        elif now - self._born > 2.0:  # the brain's latched state takes a moment to come (DDS discovery)
+            self._say(NO_STATE)
         if self._live:
-            text = render(self.report, now, state, self.arm.poses, self.message, self._pen)
-            if text != self._shown and now - self._drawn >= 0.1:  # 10 frames a second at most
-                self._shown, self._drawn = text, now
-                self._write(terminal.frame(text))
+            self._draw(state, now)
         return True
+
+    def _act(self, state, now, key):
+        """The brain's state into the report, then the key."""
+        if self.message == NO_STATE:
+            self._say("")
+        if self.report.on_state(state, now) and not self._live:
+            self._write(state)
+            if not self.report.running:
+                self._write(self.report.counts())
+        if key == "s":
+            self._say("stop: " + self._reply(self.arm.stop))
+        elif key == "n" and self.report.running:
+            self._say("a cycle is running: s stops it")
+        elif key == "n" or self._auto:
+            self._start(state, now)
+
+    def _draw(self, state, now):
+        text = render(self.report, now, state, self.arm.poses, self.message, self._pen)
+        if text != self._shown and now - self._drawn >= 0.1:  # 10 frames a second at most
+            self._shown, self._drawn = text, now
+            self._write(terminal.frame(text))
 
     def _start(self, state, now):
         self._auto = False

@@ -180,6 +180,13 @@ jobs:
             colcon build --build-base build_perception --install-base install_perception --packages-up-to so101_perception so101_connect4 &&
             colcon test --build-base build_perception --install-base install_perception --packages-select so101_perception so101_connect4 &&
             colcon test-result --test-result-base build_perception --verbose'
+      # As the control job: a failed launch test says why only in its pytest.xml (#288)
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: test-results-perception
+          path: ros2_ws/build_perception/*/pytest.xml
+          if-no-files-found: ignore
 
   e2e-smoke:
     name: E2E sim (3 episodes)

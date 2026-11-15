@@ -109,7 +109,8 @@ def test_the_colors_only_wrap_the_tokens():
     cells = with_tokens(EMPTY_BOARD, (0, HUMAN), (1, ROBOT))
     plain, colored = play.render(a_state(cells=cells)), play.render(a_state(cells=cells), color=True)
     assert "\x1b[" not in plain
-    assert "\x1b[1;31m●\x1b[0m" in colored and "\x1b[1;33m●\x1b[0m" in colored  # a terminal: the screen below
+    assert "\x1b[1;31m●\x1b[0m" in colored
+    assert "\x1b[1;33m●\x1b[0m" in colored  # a terminal: the screen below
 
 
 def test_the_state_is_drawn_once_then_again_when_it_changes(console):
@@ -298,7 +299,8 @@ def test_with_the_robot_on_red_its_cells_are_r_and_the_person_plays_y():
     assert lines[6] == "| Y R . . . . . |"
     assert lines[-1] == "your turn (Y): 1 to 7"
     screen = play.picture(a_state(cells=cells), Pen(), RED_ROBOT)
-    assert "you     Y yellow" in screen and "robot   R red" in screen
+    assert "you     Y yellow" in screen
+    assert "robot   R red" in screen
     assert "\x1b[1;33m●\x1b[0m" in play.render(a_state(cells=cells), color=True, colors=RED_ROBOT)
 
 
@@ -440,7 +442,8 @@ def test_a_screen_keeps_the_last_board_the_last_message_and_the_keys_and_redraws
 def test_before_any_state_the_screen_says_what_it_waits_for():
     out = []
     play.Screen(out.append).write("")
-    assert " SO-101 | Connect Four" in out[-1] and " > waiting for the game's state" in out[-1]
+    assert " SO-101 | Connect Four" in out[-1]
+    assert " > waiting for the game's state" in out[-1]
 
 
 # The terminal's screen: the look shared with the pick & place console (so101_common.terminal).
@@ -450,18 +453,23 @@ def test_the_terminals_screen_is_a_header_the_grid_with_its_facts_the_last_move_
     cells = with_tokens(EMPTY_BOARD, (1, HUMAN), (2, HUMAN), (2, ROBOT), (4, ROBOT))
     last = {"who": "robot", "column": 4, "planned": 4, "depth": 10}
     lines = play.picture(a_state(cells=cells, moves=4, last=last, lost=1, missed=2), Pen()).splitlines()
-    assert lines[0].startswith(" SO-101 | Connect Four") and lines[0].endswith("WAIT_HUMAN")
-    assert lines[1].startswith("-- game --") and all(len(line) <= WIDTH for line in lines)
+    assert lines[0].startswith(" SO-101 | Connect Four")
+    assert lines[0].endswith("WAIT_HUMAN")
+    assert lines[1].startswith("-- game --")
+    assert all(len(line) <= WIDTH for line in lines)
     assert lines[2] == "     1   2   3   4   5   6   7"
-    assert lines[3].startswith("  +-----------------------------+") and "level   hard" in lines[3]
+    assert lines[3].startswith("  +-----------------------------+")
+    assert "level   hard" in lines[3]
     assert "moves   4" in lines[4]
-    assert "you     R red" in lines[6] and "robot   Y yellow" in lines[7]
+    assert "you     R red" in lines[6]
+    assert "robot   Y yellow" in lines[7]
     assert lines[8].startswith("  |  .   .   Y   .   .   .   .  |")
-    assert (
-        lines[9].startswith("  |  .   R   R   .   Y   .   .  |") and "1 lost, 2 in a wrong column" in lines[9]
-    )
-    assert lines[11].startswith("-- last move --") and lines[12] == "   robot: column 5 (depth 10)"
-    assert lines[-1] == " > your turn (R): 1 to 7" and len(lines) == 15
+    assert lines[9].startswith("  |  .   R   R   .   Y   .   .  |")
+    assert "1 lost, 2 in a wrong column" in lines[9]
+    assert lines[11].startswith("-- last move --")
+    assert lines[12] == "   robot: column 5 (depth 10)"
+    assert lines[-1] == " > your turn (R): 1 to 7"
+    assert len(lines) == 15
     pretty = play.picture(a_state(cells=cells), Pen(pretty=True))
     assert pretty.endswith("\x1b[32m ► your turn (●): 1 to 7\x1b[0m")  # one color to the line's end
     assert "\x1b[36m│\x1b[0m " in pretty  # the grid's box, in the rules' color

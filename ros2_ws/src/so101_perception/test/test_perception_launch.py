@@ -84,7 +84,11 @@ class TestPerception(unittest.TestCase):
     @classmethod
     def publish_camera(cls):
         label, rgb, count = cls.script[0]
-        if count is not None and sum(cls.shown[key(m.header.stamp)] is label for m in cls.debug) >= count:
+        processed = sum(cls.shown[key(m.header.stamp)] is label for m in cls.debug)
+        # An image is over once it was processed `count` times and once a pose of each kind reached this
+        # test: its pose subscriptions match after the debug image's, and on a loaded machine the first
+        # image's poses were published to nobody (#288).
+        if count is not None and processed >= count and cls.cubes and cls.boxes:
             cls.script.pop(0)
             label, rgb, count = cls.script[0]
         image = cls.bridge.cv2_to_imgmsg(rgb, encoding="rgb8")

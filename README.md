@@ -267,6 +267,7 @@ The ground truth (`/sim/ground_truth/*`) is published only by a driver started w
 | --- | --- |
 | `ros2_ws/src/` | ROS 2 packages: `so101_driver`, `so101_perception`, `so101_brain`, `so101_connect4` (the game: board reader, engine, turns, console), `so101_common`, `so101_interfaces`, `so101_bringup` (launch files, parameters, RViz file, the benches) |
 | `docker/` | Images and compose (`control`, `perception`, `viz`) |
+| `hardware/` | `connect4/`: the game's tokens, grid and dispenser in OpenSCAD, with the simulation's dimensions, to print for the real arm (`v2.1.0`) |
 | `tools/` | `so101` (everyday commands), `so101-arm` (the real arm's calibration and joint zeros), `calibration_sheets.py` (the printed board and markers), `ci/` (the CI scripts and their tests) |
 | `docs/project/` | Design, decisions (ADRs), roadmap, measurements |
 | `results/` | Milestone reports: the real pick & place, the 50-episode bench, the calibration, the IK accuracy, the perception's robustness, the robustness demo, the Connect Four games |
