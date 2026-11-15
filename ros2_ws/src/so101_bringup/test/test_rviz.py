@@ -36,3 +36,11 @@ def test_the_games_view_shows_the_board_and_hides_the_pick_and_place():
         assert project[name]["Enabled"] is True, name
     for name in set(project) - {*GAME_ONLY, *PICK_AND_PLACE}:
         assert game[name] == project[name], name
+
+
+def test_a_display_that_is_off_is_off_twice():
+    """RViz reads "Value" then "Enabled": an image display with Value true and Enabled false shows no image
+    but keeps its empty panel in the window (the game's view showed "Perception debug" so, #278)."""
+    for name in ("connect4.rviz", "so101.rviz"):
+        for display in displays(name).values():
+            assert display["Value"] is display["Enabled"], (name, display["Name"])

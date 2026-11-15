@@ -141,7 +141,7 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /object_position
-      Value: true
+      Value: false
     - Alpha: 1
       Axes Length: 0.04
       Axes Radius: 0.006
@@ -161,7 +161,7 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /drop_box_position
-      Value: true
+      Value: false
     - Class: rviz_default_plugins/Marker
       Enabled: false
       Name: Drop box
@@ -174,7 +174,7 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /drop_box_marker
-      Value: true
+      Value: false
     - Class: rviz_default_plugins/MarkerArray
       Enabled: false
       Name: Brain targets
@@ -186,7 +186,7 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /brain/markers
-      Value: true
+      Value: false
     - Class: rviz_default_plugins/MarkerArray
       Enabled: false
       Name: Cube (locked)
@@ -202,7 +202,7 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /brain/markers
-      Value: true
+      Value: false
     - Class: rviz_default_plugins/MarkerArray
       Enabled: true
       Name: Connect Four grid (game mode)
@@ -242,7 +242,7 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Best Effort
         Value: /perception/debug_image
-      Value: true
+      Value: false
     - Class: rviz_default_plugins/Image
       Enabled: true
       Max Value: 1
@@ -256,7 +256,7 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /connect4/debug_image
-      Value: false
+      Value: true
     - Class: rviz_default_plugins/Camera
       Enabled: false
       Far Plane Distance: 100

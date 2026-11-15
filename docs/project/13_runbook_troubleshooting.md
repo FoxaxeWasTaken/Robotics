@@ -170,6 +170,7 @@ Per-symptom details:
 | RViz crashes (segfault, no log) when a **Pose** display is unchecked | Upstream rviz2 bug (14.1.24): the display frees its handler while messages keep arriving | Do not uncheck it: remove the display or close RViz |
 | `/end_effector_pose` hard to see in RViz | Pose display drawn as a 1.3 m arrow by default | Shape `Axes`, length 0.05 m; check the topic name with `ros2 topic list` |
 | RViz: "Frame [map] does not exist", no arm | RViz started without the project configuration | `rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz` (Fixed Frame `world`) |
+| RViz shows an empty image panel ("No Image") for a display that is unticked | In the `.rviz` file the display has `Enabled: false` with `Value: true`: RViz shows the panel at `Value` and never hides it (#283) | Set both keys alike; `so101_bringup/test/test_rviz.py` checks the two files |
 | Real driver: "could not open port /dev/ttyACM0" after replugging the arm | Windows took the USB device back | `usbipd attach --wsl --busid <X-Y>` again, or `--auto-attach` (`02` §5.1) |
 | Every 30 s on WSL2, `/joint_states` stops and a motion freezes for ~2.6 s | The system clock steps back (WSL2 time sync); timers or durations on the ROS clock | Schedule on the steady clock, durations with `time.monotonic()`; in tests, count messages instead of fixed windows [MES-37] |
 | Brain dies with "x0 is infeasible" on `/go_to_target` | IK seed (measured joints) slightly outside the URDF bounds | Clip the seed into the bounds before ikpy (`04` §8) |
