@@ -225,12 +225,23 @@ out=$(env -u CONNECT4 "$tmp/clone/tools/so101" --dry-run up) || fail "up with CO
 grep -qF "the Connect Four game (CONNECT4=true)" <<< "$out" || fail "up does not read the mode of docker/.env: $out"
 out=$("$so101" --dry-run wait) || fail "wait: exit $?"
 grep -qF "tools/ci/wait_for_stack.sh" <<< "$out" || fail "wait: $out"
-out=$("$so101" --dry-run demo < /dev/null) || fail "demo: exit $?"
+# #282: without an option a command is the pick & place, --game the game, as up, bench and run
+out=$(USE_SIM=true "$so101" --dry-run demo --game < /dev/null) || fail "demo --game: exit $?"
+[[ "$(grep -c '^+ ' <<< "$out")" = 3 ]] || fail "demo --game is not three commands: $out"
+grep -qF "CONNECT4=true" <<< "$out" && grep -qF "wait_for_stack.sh" <<< "$out" && grep -qF "connect4_play" <<< "$out" || fail "demo --game: $out"
+out=$(USE_SIM=true CONNECT4=true "$so101" --dry-run demo < /dev/null) || fail "demo: exit $?"  # whatever the environment says
 [[ "$(grep -c '^+ ' <<< "$out")" = 3 ]] || fail "demo is not three commands: $out"
-grep -qF "CONNECT4=true" <<< "$out" && grep -qF "wait_for_stack.sh" <<< "$out" && grep -qF "connect4_play" <<< "$out" || fail "demo: $out"
+grep -qF "CONNECT4=false" <<< "$out" && grep -qF "wait_for_stack.sh" <<< "$out" && grep -qF "pick_place_demo" <<< "$out" || fail "demo: $out"
+# One command must not start the stack and move the real arm: refused, nothing printed to run
+out=$(USE_SIM=false "$so101" --dry-run demo 2>&1) && fail "demo with USE_SIM=false ran"
+grep -qF "simulation only" <<< "$out" && ! grep -q '^+ ' <<< "$out" || fail "demo with USE_SIM=false said: $out"
+printf 'ROS_DOMAIN_ID=69\nUSE_SIM=false\n' > "$tmp/clone/docker/.env"
+cp tools/so101 "$tmp/clone/tools/"
+out=$(env -u USE_SIM "$tmp/clone/tools/so101" --dry-run demo --game 2>&1) && fail "demo --game with USE_SIM=false in docker/.env ran"
+grep -qF "simulation only" <<< "$out" || fail "demo --game with USE_SIM=false in docker/.env said: $out"
 out=$("$so101" --dry-run rviz)
 grep -qF 'echo connect4 || echo so101).rviz' <<< "$out" || fail "rviz does not open the game's view in game mode: $out"
-echo "ok: up --game, an up that keeps the running stack's mode, wait, demo in three commands, rviz with the game's view"
+echo "ok: up --game, an up that keeps the running stack's mode, wait, demo and demo --game in three commands and never on the real arm, rviz with the game's view"
 
 "$so101" --help | grep -q "bench --stub|--perception" || fail "--help"
 "$so101" --help | grep -q "r the robot first, e m h the level, s stop" || fail "--help: the keys of play"

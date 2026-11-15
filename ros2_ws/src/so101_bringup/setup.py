@@ -24,6 +24,7 @@ setup(
             "connect4_play = so101_bringup.connect4_play:main",
             "evaluate = so101_bringup.evaluate:main",
             "make_perception_dataset = so101_bringup.tools.make_perception_dataset:main",
+            "pick_place_demo = so101_bringup.pick_place_demo:main",
             "robustness_demo = so101_bringup.robustness_demo:main",
         ],
     },

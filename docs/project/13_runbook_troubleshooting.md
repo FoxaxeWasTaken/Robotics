@@ -12,7 +12,8 @@ tools/so101 build                         # the images (~10 min the first time);
 tools/so101 up                            # control, perception, viz; perception builds its packages, then starts
 tools/so101 up --game                     # the Connect Four game instead (sim only; or CONNECT4=true tools/so101 up); down, then up, to come back
 tools/so101 wait                          # until the running stack is ready: the first start builds the workspace
-tools/so101 demo                          # the game in one command: up --game, wait, play
+tools/so101 demo                          # the pick & place in one command (sim only): up, wait, a console of cycles with their times
+tools/so101 demo --game                   # the game in one command: up --game, wait, play
 tools/so101 logs                          # control's logs: wait for "Brain node ready." (logs perception, logs viz)
 tools/so101 restart                       # reload Python code changes (symlink-install); restart perception too
 tools/so101 down                          # SIGINT → destroy_node() → clean stop
@@ -53,7 +54,7 @@ ros2 service call /brain/handover std_srvs/srv/Trigger       # game mode: the ja
 ros2 service call /sim/connect4/give_token std_srvs/srv/Trigger  # game mode: a token of the robot's color between the jaws, for /brain/drop (06 §5.1)
 ros2 service call /sim/connect4/fill_dispenser std_srvs/srv/Trigger  # game mode: the robot's tokens that are not in the grid back in the rails
 ros2 service call /sim/connect4/move_grid so101_interfaces/srv/MoveGrid "{nearer: 0.01, around: 0.05}"  # game mode: the empty grid set down elsewhere; zeros: back
-rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz     # connect4.rviz in game mode: the board shown, the pick & place displays off
+rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz     # connect4.rviz in game mode: the board and the grid's 3D shapes shown, the pick & place displays off
 
 # Manual commands
 ros2 topic pub --once -w 1 --keep-alive 1 /joint_command sensor_msgs/msg/JointState '{name: [shoulder_pan], position: [0.5]}'
@@ -169,6 +170,8 @@ Per-symptom details:
 | RViz crashes (segfault, no log) when a **Pose** display is unchecked | Upstream rviz2 bug (14.1.24): the display frees its handler while messages keep arriving | Do not uncheck it: remove the display or close RViz |
 | `/end_effector_pose` hard to see in RViz | Pose display drawn as a 1.3 m arrow by default | Shape `Axes`, length 0.05 m; check the topic name with `ros2 topic list` |
 | RViz: "Frame [map] does not exist", no arm | RViz started without the project configuration | `rviz2 -d /ros2_ws/install/so101_bringup/share/so101_bringup/rviz/so101.rviz` (Fixed Frame `world`) |
+| RViz shows an empty image panel ("No Image") for a display that is unticked | In the `.rviz` file the display has `Enabled: false` with `Value: true`: RViz shows the panel at `Value` and never hides it (#283) | Set both keys alike; `so101_bringup/test/test_rviz.py` checks the two files |
+| The terminal has no cursor, or long lines no longer wrap, after a demo console | The console hides the cursor and turns line wrapping off, and gives both back at its end; it was killed before (`kill -9`, the container removed) and not through `tools/so101`, which restores them | `printf '\033[?7h\033[?25h'`, or `reset` |
 | Real driver: "could not open port /dev/ttyACM0" after replugging the arm | Windows took the USB device back | `usbipd attach --wsl --busid <X-Y>` again, or `--auto-attach` (`02` §5.1) |
 | Every 30 s on WSL2, `/joint_states` stops and a motion freezes for ~2.6 s | The system clock steps back (WSL2 time sync); timers or durations on the ROS clock | Schedule on the steady clock, durations with `time.monotonic()`; in tests, count messages instead of fixed windows [MES-37] |
 | Brain dies with "x0 is infeasible" on `/go_to_target` | IK seed (measured joints) slightly outside the URDF bounds | Clip the seed into the bounds before ikpy (`04` §8) |

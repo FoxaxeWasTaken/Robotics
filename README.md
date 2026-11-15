@@ -63,12 +63,12 @@ WAIT_TARGET → PLAN → APPROACH → DESCEND → GRASP → LIFT → TRANSPORT �
 cp docker/.env.example docker/.env           # ROS_DOMAIN_ID=69, the team's value
 tools/so101 build                            # the images, ~10 min the first time
 xhost +local:docker                          # let the containers open windows on your X server (RViz)
-tools/so101 up                               # control, perception, viz
-tools/so101 logs                             # wait for "Driver node ready." and "Brain node ready.", then Ctrl-C
-tools/so101 rviz                             # the arm, the camera, the detections; it keeps this terminal: the rest in another
-tools/so101 cycle                            # one full pick & place: the states until DONE
+tools/so101 demo                             # one command: starts the stack, waits until it is ready, then pick & place cycles in this terminal
+tools/so101 rviz                             # optional, in a second terminal: the arm, the camera, the detections
 tools/so101 down
 ```
+
+`demo` is `tools/so101 up` (control, perception, viz), `tools/so101 wait` (the first start builds the workspace, minutes) and a console: a first cycle by itself, then `n` a new cycle with the cube at a new place, `s` stop, `q` quit. Its screen, redrawn in place, shows where the camera sees the cube and the box, a progress bar over the cycle's ten steps, each step in plain words with its duration, and how many cubes reached the box with the last, average and best time. The game's console has the same look. Simulation only: it refuses `USE_SIM=false`. Step by step instead: `tools/so101 up`, `tools/so101 logs` until "Brain node ready.", `tools/so101 cycle` (one cycle, the states until `DONE`).
 
 `tools/so101` prints each `docker compose` command it runs; `--dry-run` only prints it, `--help` lists them all.
 
@@ -81,12 +81,12 @@ Linux (x86_64) with Docker and Compose v2, an X server for RViz, and about 8 GB 
 After the quickstart's `build` (stop the pick & place stack first: `tools/so101 down`):
 
 ```bash
-tools/so101 demo                             # the game in one command: starts it, waits until it is ready, opens the console
-tools/so101 rviz                             # optional, in a second terminal: the arm, and the grid as the board reader draws it
+tools/so101 demo --game                      # the game in one command: starts it, waits until it is ready, opens the console
+tools/so101 rviz                             # optional, in a second terminal: the arm, the grid and its tokens as the camera reads them
 tools/so101 down                             # before coming back to the pick & place
 ```
 
-`demo` is `tools/so101 up --game` (the game's simulation: the grid, its 42 tokens, the dispenser, the board reader, the game node), `tools/so101 wait` (the first start builds the workspace, minutes) and `tools/so101 play` (the console). An `up` never changes the mode of a running stack: `down` first.
+`demo --game` is `tools/so101 up --game` (the game's simulation: the grid, its 42 tokens, the dispenser, the board reader, the game node), `tools/so101 wait` (the first start builds the workspace, minutes) and `tools/so101 play` (the console). An `up` never changes the mode of a running stack: `down` first.
 
 <img src="docs/project/media/connect4_scene.png" width="480" alt="The simulated scene of the game: the Connect Four grid with red and yellow tokens and a marker at each corner, the arm on its riser, and the token dispenser, three stacked rails of yellow tokens behind a marker plate that carries four markers">
 
@@ -230,7 +230,8 @@ tools/so101 bench --perception -n 10         # the real pipeline
   - the locked cube, a red 5 cm cube from `APPROACH` until it is lifted, in its own display "Cube (locked)": untick it to hide the cube;
   - the ghost arm, display "Commanded arm (ghost)", unchecked by default: the setpoint the driver sends to the motors (`/joint_setpoint`), translucent over the measured arm; the gap is the tracking error, useful on the real arm.
 - **The large red translucent block is the drop box** (the course's marker), not the cube.
-- **In game mode**, the display "Connect Four board (game mode)", to tick, shows `/connect4/debug_image`: a disc on each cell, filled in red or yellow when a token is read there; at the top, the read's validity (`board VALID`, or why not) and the game's state, then the last move with the robot's reason; the winning four circled in green.
+- **In game mode**, the 3D view shows beside the arm what the camera reads (display "Connect Four grid (game mode)", `/connect4/markers`): the grid where it is measured, the tokens read in its cells, the dispenser's rails and the token waiting at each station. It is what the robot believes, not the simulation's state: a token appears once it is read.
+- **In game mode**, the display "Connect Four board (game mode)" shows `/connect4/debug_image`: a disc on each cell, filled in red or yellow when a token is read there; at the top, the read's validity (`board VALID`, or why not) and the game's state, then the last move with the robot's reason; the winning four circled in green.
 
 </details>
 

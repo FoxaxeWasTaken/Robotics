@@ -15,9 +15,10 @@ from rclpy.qos import DurabilityPolicy, ReliabilityPolicy
 from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo
 from std_msgs.msg import String
+from visualization_msgs.msg import Marker
 
 from so101_connect4 import board, layout
-from so101_connect4.board_reader_node import GRID_FRAME, BoardReaderNode
+from so101_connect4.board_reader_node import DISPENSER_FRAME, GRID_FRAME, BoardReaderNode
 from so101_perception.calibration import detect_markers
 
 LAYOUT = layout.load()
@@ -52,6 +53,8 @@ def reader():
     node.dispenser_poses, node.stations = [], []
     node._pub_dispenser.publish = node.dispenser_poses.append
     node._pub_stations.publish = node.stations.append
+    node.markers = []
+    node._pub_markers.publish = node.markers.append
     info = CameraInfo(width=640, height=480)
     info.k = K.ravel().tolist()
     node._cb_camera_info(info)
@@ -225,6 +228,10 @@ def test_the_readers_qos_is_the_contracts(reader):
     assert qos(reader.get_publishers_info_by_topic("/connect4/board")) == (reliable, volatile)
     assert qos(reader.get_publishers_info_by_topic("/connect4/grid_pose")) == (reliable, latched)
     assert qos(reader.get_publishers_info_by_topic("/connect4/debug_image")) == (reliable, volatile)
+    assert qos(reader.get_publishers_info_by_topic("/connect4/markers")) == (
+        reliable,
+        latched,
+    )  # RViz comes later
 
 
 # The token dispenser (#258): its pose and its stations, read in the same images as the grid.
@@ -276,3 +283,48 @@ def test_the_debug_image_rings_each_station_green_when_a_token_waits_there(reade
     for (u, v), there in zip(pixels, REFERENCE["stations"]["midgame"], strict=True):
         r, g, b = seen[round(v) - round(radius), round(u)]  # on the ring
         assert (g > 200 and r < 80 and b < 80) == there, (u, v, there)
+
+
+# The view's shapes (#280): the grid, its tokens and the dispenser for RViz, in the frames the reader measures
+
+
+def test_the_shapes_come_with_the_first_stable_board_and_again_only_when_it_changes(reader):
+    for i in range(4):
+        show(reader, picture("midgame"), 1000 + 100 * i)
+    assert reader.markers == []
+    for i in range(4, 8):
+        show(reader, picture("midgame"), 1000 + 100 * i)
+    (msg,) = reader.markers  # the three images after the fifth changed nothing
+    added = {(marker.ns, marker.id) for marker in msg.markers if marker.action == Marker.ADD}
+    cells = reader.boards[-1].cells
+    assert {i for ns, i in added if ns == "tokens"} == {i for i, cell in enumerate(cells) if cell}
+    assert {i for ns, i in added if ns == "stations"} == {1, 2}  # as /connect4/stations
+    frames = {marker.ns: marker.header.frame_id for marker in msg.markers}
+    assert frames == {
+        "grid": GRID_FRAME,
+        "tokens": GRID_FRAME,
+        "dispenser": DISPENSER_FRAME,
+        "stations": DISPENSER_FRAME,
+    }
+    # no stamp and locked to its frame: RViz draws each shape at the frame's latest measured pose
+    assert all(marker.frame_locked and marker.header.stamp.sec == 0 for marker in msg.markers)
+    token = next(
+        marker for marker in msg.markers if (marker.ns, marker.id) in added and marker.ns == "tokens"
+    )
+    assert token.type == Marker.CYLINDER and np.isclose(token.scale.z, LAYOUT["token"]["thickness"])
+
+    for i in range(5):  # a new game: the tokens that are gone are deleted from the view
+        show(reader, picture("empty"), 2000 + 100 * i)
+    assert len(reader.markers) == 2
+    tokens = [marker.action for marker in reader.markers[-1].markers if marker.ns == "tokens"]
+    assert tokens == [Marker.DELETE] * 42
+
+
+def test_a_grid_the_arm_hides_keeps_its_tokens_in_the_view(reader):
+    for i in range(5):
+        show(reader, picture("midgame"), 1000 + 100 * i)
+    hidden = without_markers(picture("midgame"), LAYOUT["markers"]["ids"])
+    for i in range(5):
+        show(reader, hidden, 2000 + 100 * i)
+    assert reader.boards[-1].valid is False  # published as not read, with no cell
+    assert len(reader.markers) == 1  # the view keeps the last board that was read
