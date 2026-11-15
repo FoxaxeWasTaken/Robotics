@@ -12,7 +12,8 @@ tools/so101 build                         # the images (~10 min the first time);
 tools/so101 up                            # control, perception, viz; perception builds its packages, then starts
 tools/so101 up --game                     # the Connect Four game instead (sim only; or CONNECT4=true tools/so101 up); down, then up, to come back
 tools/so101 wait                          # until the running stack is ready: the first start builds the workspace
-tools/so101 demo                          # the game in one command: up --game, wait, play
+tools/so101 demo                          # the pick & place in one command (sim only): up, wait, a console of cycles with their times
+tools/so101 demo --game                   # the game in one command: up --game, wait, play
 tools/so101 logs                          # control's logs: wait for "Brain node ready." (logs perception, logs viz)
 tools/so101 restart                       # reload Python code changes (symlink-install); restart perception too
 tools/so101 down                          # SIGINT → destroy_node() → clean stop

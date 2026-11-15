@@ -20,7 +20,9 @@ Usage: tools/so101 [--dry-run] <command> [options]
                         Connect Four game instead (simulation only). It never changes the mode of a
                         running stack: down first
   wait                  wait until the running stack is ready (the first start builds the workspace)
-  demo                  the Connect Four game in one command: up --game, wait, play
+  demo [--game]         one command, then a console (simulation only): up, wait, and pick & place cycles
+                        with the time of each step (n a new cycle, s stop, q quit); --game: the Connect
+                        Four game (up --game, wait, play)
   down                  stop it (the control container's nodes get SIGINT: the arm parks first on the real robot)
   restart [service]     restart control (default), perception or viz: reloads changed Python code
   logs [service]        follow the logs of control (default), perception or viz
@@ -148,12 +150,23 @@ case $command in
     CONNECT4=${mode:-false} run bash tools/ci/wait_for_stack.sh 900
     ;;
   demo)
+    game=false
+    if [ "${1:-}" = --game ]; then game=true; shift; fi
     none "$@"
+    # One command must not start the stack and move the real arm: its bring-up is a person's (07 §7).
+    sim=${USE_SIM:-}
+    if [ -z "$sim" ] && [ -f "$root/docker/.env" ]; then
+      sim=$(sed -n 's/^USE_SIM=//p' "$root/docker/.env" | tail -n 1)
+    fi
+    [ "$sim" != false ] || die "demo: simulation only (USE_SIM=false): the real arm is docs/project/07 §7"
     flags=()
     ! "$dry" || flags=(--dry-run)
-    "$0" "${flags[@]}" up --game
+    CONNECT4=$game "$0" "${flags[@]}" up  # the mode asked, whatever docker/.env says
     "$0" "${flags[@]}" wait
-    exec "$0" "${flags[@]}" play
+    ! "$game" || exec "$0" "${flags[@]}" play
+    tty=-T  # as play: a TTY in the container from a terminal, for the keys
+    [ -t 0 ] && tty=""
+    ros $tty "ros2 run so101_bringup pick_place_demo"
     ;;
   down)
     none "$@"

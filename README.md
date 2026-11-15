@@ -63,12 +63,12 @@ WAIT_TARGET → PLAN → APPROACH → DESCEND → GRASP → LIFT → TRANSPORT �
 cp docker/.env.example docker/.env           # ROS_DOMAIN_ID=69, the team's value
 tools/so101 build                            # the images, ~10 min the first time
 xhost +local:docker                          # let the containers open windows on your X server (RViz)
-tools/so101 up                               # control, perception, viz
-tools/so101 logs                             # wait for "Driver node ready." and "Brain node ready.", then Ctrl-C
-tools/so101 rviz                             # the arm, the camera, the detections; it keeps this terminal: the rest in another
-tools/so101 cycle                            # one full pick & place: the states until DONE
+tools/so101 demo                             # one command: starts the stack, waits until it is ready, then pick & place cycles in this terminal
+tools/so101 rviz                             # optional, in a second terminal: the arm, the camera, the detections
 tools/so101 down
 ```
+
+`demo` is `tools/so101 up` (control, perception, viz), `tools/so101 wait` (the first start builds the workspace, minutes) and a console: a first cycle by itself, then `n` a new cycle with the cube at a new place, `s` stop, `q` quit. It shows where the camera sees the cube and the box, each step of the cycle with its duration, and the cycles done and failed with their times. Simulation only: it refuses `USE_SIM=false`. Step by step instead: `tools/so101 up`, `tools/so101 logs` until "Brain node ready.", `tools/so101 cycle` (one cycle, the states until `DONE`).
 
 `tools/so101` prints each `docker compose` command it runs; `--dry-run` only prints it, `--help` lists them all.
 
@@ -81,12 +81,12 @@ Linux (x86_64) with Docker and Compose v2, an X server for RViz, and about 8 GB 
 After the quickstart's `build` (stop the pick & place stack first: `tools/so101 down`):
 
 ```bash
-tools/so101 demo                             # the game in one command: starts it, waits until it is ready, opens the console
+tools/so101 demo --game                      # the game in one command: starts it, waits until it is ready, opens the console
 tools/so101 rviz                             # optional, in a second terminal: the arm, the grid and its tokens as the camera reads them
 tools/so101 down                             # before coming back to the pick & place
 ```
 
-`demo` is `tools/so101 up --game` (the game's simulation: the grid, its 42 tokens, the dispenser, the board reader, the game node), `tools/so101 wait` (the first start builds the workspace, minutes) and `tools/so101 play` (the console). An `up` never changes the mode of a running stack: `down` first.
+`demo --game` is `tools/so101 up --game` (the game's simulation: the grid, its 42 tokens, the dispenser, the board reader, the game node), `tools/so101 wait` (the first start builds the workspace, minutes) and `tools/so101 play` (the console). An `up` never changes the mode of a running stack: `down` first.
 
 <img src="docs/project/media/connect4_scene.png" width="480" alt="The simulated scene of the game: the Connect Four grid with red and yellow tokens and a marker at each corner, the arm on its riser, and the token dispenser, three stacked rails of yellow tokens behind a marker plate that carries four markers">
 
