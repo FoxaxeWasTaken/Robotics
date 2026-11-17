@@ -2,7 +2,7 @@
 
 | Status | Date | Experts (author → reviewers) | Related requirements |
 | --- | --- | --- | --- |
-| DECIDED (Update of 2026-11-14) | 2026-10-08 | CP → teaching staff | C-53 |
+| DECIDED (Updates of 2026-11-14 and 2026-11-17) | 2026-10-08 | CP → teaching staff | C-53 |
 
 ## Context
 
@@ -45,3 +45,7 @@ Settled (team decision), one week before the hand-in and the public switch (#99)
 - **The kit's terms**: the school agreed that the kit, its brief included, is published with the repository (answer to the team, November 2026). The kit stays unmodified and under its own terms.
 
 The repository stays private until #99 makes it public.
+
+## Update (2026-11-17)
+
+The appendix of `LICENSE` ended with the Apache text's own template line, `Copyright [yyyy] [name of copyright owner]`: a placeholder for a reader of the public repository. It now carries the year and the holders of `NOTICE`, `Copyright 2026 FoxaxeWasTaken, SamuelValentin974, Hasnain-Pyarali` (#293). The license's terms are unchanged.
