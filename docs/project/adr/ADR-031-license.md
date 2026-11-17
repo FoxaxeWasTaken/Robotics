@@ -48,4 +48,4 @@ The repository stays private until #99 makes it public.
 
 ## Update (2026-11-17)
 
-The appendix of `LICENSE` ended with the Apache text's own template line, `Copyright [yyyy] [name of copyright owner]`: a placeholder for a reader of the public repository. It now carries the year and the holders of `NOTICE`, `Copyright 2026 FoxaxeWasTaken, SamuelValentin974, Hasnain-Pyarali` (#293). The license's terms are unchanged.
+The appendix of `LICENSE` ended with the Apache text's own template line, `Copyright [yyyy] [name of copyright owner]`: a placeholder for a reader of the public repository. It now carries the year and the team's names, `Copyright 2026 Axel Idoux, Samuel Valentin, Hasnain Pyarali`, and `NOTICE` names them the same way, in place of the GitHub logins (#293). The license's terms are unchanged.
