@@ -55,3 +55,7 @@ Since this decision (`14` §5):
 ## Update (2026-11-13, phase 2, #233)
 
 One more job on each PR, `E2E sim (1 game)`: a full Connect Four game on the compose stack in game mode, 44 billed minutes a push with it. Not a required check until its runs are all green (decided on 2026-11-19). The nightly plays 10 games after its 50 episodes and gives one verdict for both, which `tools/release.sh` reads (`14` §5, §6).
+
+## Update (2026-11-20, #233)
+
+`E2E sim (1 game)` is a required check: the 23 runs of the job since its merge were green, 5 to 6 minutes each. `main` has 8 required checks (`14` §8).

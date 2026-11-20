@@ -91,7 +91,7 @@ The owners are those of `.github/CODEOWNERS` (0.1d), which requests their review
   - [x] Team repository (2026-10-15): private `FoxaxeWasTaken/Robotics`; the course repository is `upstream` with push disabled (`15` §2, ADR-027); members invited; the prepared tree pushed while keeping the history (`15` §11, PR #1).
   - [x] School mirror (`16`, ADR-033): key on a member's account (no admin rights on the school repository), secret in the `main`-only `school-mirror` environment, `SCHOOL_REPO_SSH_URL`, `CI_ENABLED=true`; first run at the merge of PR #1.
   - [x] Starting code decided (2026-10-15): the course stubs as shipped (upstream PR #1 and #2 included); the bootstrap prototype stays outside the repository as a reference (ADR-039).
-  - [x] Protect `main` (ruleset "main protection": PR, 1 approval, 7 required checks today (`14` §8), squash only, no bypass).
+  - [x] Protect `main` (ruleset "main protection": PR, 1 approval, 8 required checks today (`14` §8), squash only, no bypass).
   - [x] GitHub Project set up (2026-10-15, `15` §12): one epic per stage, one PR-sized ticket per sub-step (sub-issues, *blocked by* relationships), milestones = SemVer versions.
   - [x] Assign the lanes (§1.2).
   - [ ] Set a 30-minute weekly sync.
