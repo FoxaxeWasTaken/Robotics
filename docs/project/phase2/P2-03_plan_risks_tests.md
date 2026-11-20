@@ -67,7 +67,7 @@ Same scale as `10` (P = probability, I = impact, 1 to 3; Crit. = P × I).
 
 | When | What |
 | --- | --- |
-| Every PR | The 7 required checks, unchanged in name: lint, guards (extended to `so101_connect4`, plus no `/joint_command` in the game and no `/sim/` in the pipeline), both builds and tests, phase-1 E2E. New: `E2E sim (1 game)`, one game against a random player on the compose stack in game mode (`evaluate --games 1 --min-success 1`), **not required at first**, so a flaky game cannot freeze every PR in the last week; it joins the required checks on Thu 19 if every run was green (#233) |
+| Every PR | The 7 required checks, unchanged in name: lint, guards (extended to `so101_connect4`, plus no `/joint_command` in the game and no `/sim/` in the pipeline), both builds and tests, phase-1 E2E. New: `E2E sim (1 game)`, one game against a random player on the compose stack in game mode (`evaluate --games 1 --min-success 1`), **not required at first**, so a flaky game could not freeze every PR in the last week; a required check since 2026-11-20, every run having been green (#233) |
 | Each night `main` changed | The phase-1 bench, then 10 games against a random player on the stack started again in game mode (`down`, then `up`); one verdict line, `Target ≥ 90 % and ≥ 8/10 games: met.`, read by the report and by `release.sh`; SonarQube Cloud, coverage per package, trends |
 | Release | `release.sh` needs the bench on the exact commit, the gate and the CHANGELOG (`15` §6). The gate is read **before** the last PR (#227) |
 

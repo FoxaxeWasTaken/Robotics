@@ -230,7 +230,7 @@ jobs:
 
   e2e-game:
     # Phase 2 (#233): one Connect Four game on the compose stack in game mode, scored with the ground truth.
-    # Not a required check until its runs have been green for a few days; its name must not change after that.
+    # A required check since 2026-11-20 (#233): its name must not change.
     name: E2E sim (1 game)
     if: ${{ github.event_name == 'pull_request' && vars.CI_ENABLED == 'true' && vars.E2E_ENABLED == 'true' }}
     runs-on: ubuntu-24.04

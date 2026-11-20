@@ -4,10 +4,37 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-20
+
+Phase 2, the hand-in: the robot plays Connect Four against a person, in simulation (milestone `v2.0.0`). It reads the grid with its camera, takes its token at a dispenser the camera places, and drops it in the column its engine chose; the person plays from a terminal. The last nightly on this code: 10 games of 10, 50 pick & place of 50, the quality gate passed, coverage 93.3 %. The real arm is `v2.1.0`.
+
+### Added
+
+- The `so101_connect4` package (ADR-037, ADR-040): the engine with three levels (`game.py`), the turns of a game (`turns.py`), the board reader that reads the grid and the dispenser's stations from the camera (`board.py`, `board_reader_node`), the game node, and the client the console and the bench share (#236, #238, #241, #250).
+- One move of the game through the brain: `/brain/drop`, `/brain/pick` and `/brain/handover`, with the drop pose `release_pose`; 50 tokens of 50 in their column, then 50 of 50 taken at the dispenser and dropped (#237, #242, #262) [MES-77].
+- The game's sim scene and the `CONNECT4` mode: the grid, its 42 tokens, the simulated player's services, and a token dispenser of three stacked rails with the robot's 21 tokens (ADR-036, ADR-041; #240, #261).
+- Positions from perception (ADR-042, #263): where the grid and the dispenser stand comes from the camera only; the brain judges each drop, pick and handover there before the arm moves, and the game is ready once it would play every column. A grid set down 2 cm elsewhere between two games is found and played [MES-78], [MES-79].
+- One command for each demo: `tools/so101 demo` (pick & place) and `tools/so101 demo --game` (the game), each with a console redrawn in place and the same look (`so101_common/terminal.py`); `tools/so101 play`, with the robot's reason, the level keys, a hint and an automatic player (#250, #253, #267, #281).
+- The game in RViz: its own view, the grid, the tokens and the dispenser in 3D from what the camera reads (#267, #279, #281).
+- The game bench: `tools/so101 bench --game` (`evaluate --games`), each game's columns and timings in its record, one game on each PR (`E2E sim (1 game)`, a required check since 2026-11-20, #233) and ten each night; the robustness demo of the game, `tools/so101 robustness g1` to `g8` (#250, #251, #268).
+- The README names the game first, with its GIF, its numbers and "Play against the sim robot"; a member who did not write the game replayed it from a fresh clone with the README alone (P2-07, #291) [MES-81]. The phase-2 video is a game rendered from the sim, an asset of this release (#269).
+- The parts of a real setup, to print: tokens, grid and dispenser as OpenSCAD sources kept at the simulation's dimensions by a hook (`hardware/connect4/`), and the game's eight markers as an exact-scale sheet (#287).
+- The Apache-2.0 license for the team's work, with a `NOTICE` for what it does not cover (ADR-031 Updates; #269, #294).
+- Results: `results/phase2_2026-11-13.md` and `results/phase2_2026-11-14.md`; measurements MES-63 to MES-82, decisions ADR-040 to ADR-042.
+
 ### Changed
 
 - Phase 2 scoped to the hand-in of 2026-11-20 (#74): `v2.0.0` is Connect Four in sim, `v2.1.0` the real arm. `phase2/` rewritten from an expert review that measured the design on prototypes [MES-63 to MES-66]: `/brain/drop` instead of a `PickPlace` action, the phase-1 camera unmoved, the base at the origin, a contact set for the tokens, a `CONNECT4` mode on one branch, a dated plan with its cut-offs. The real arm's findings are in `P2-02` §8.
 - `CHANGELOG.md` is updated in the milestone's last PR (`15` §6, the `release` skill), which saves a review before the tag.
+- DDS runs over UDP only (ADR-002 Update, #275): with Fast DDS's shared-memory transport, a process that joined the ROS graph held the driver's control loop for 0.3 s and more, and the nightly lost an episode to `ERROR:no_joint_states` now and then [MES-80]. The bench waits for its recorder before a cycle.
+- Faster moves of the game: a drop lasts 11.5 to 17 s, a robot's turn with its pick about 20 s (#253) [MES-73], [MES-77].
+- SonarQube Cloud, the issues of the phase-2 code, fixed or accepted with their reason (`14` §4): 79 (#256), 24 (#271), 48 (#287), 3 (#294). The nightly's quality report reads the new-code figures.
+
+### Fixed
+
+- The final review of the game (#277): no token dropped twice, a stop after a new game cancels it; the console's keys typed ahead (#266).
+- `test_perception_launch` failed now and then on a loaded machine: it asked for a share of best-effort images, which a machine short of CPU loses in the kernel (#292) [MES-82].
+- The game's RViz view showed an empty perception panel (#279, #281).
 
 ## [1.3.0] - 2026-11-07
 
@@ -166,7 +193,8 @@ The simulation milestone (step 5.3, `15` §6): the whole pick & place cycle in M
 - Control container shutdown: SIGINT goes to `ros2 launch` only, which forwards one to each node; signalling the whole process group gave each node a second SIGINT that interrupted `destroy_node()` (traceback on every `docker compose stop`).
 - Driver: SIGINT or SIGTERM while a timer callback publishes no longer ends in a traceback and exit code 1 (seen once in 40 SIGTERM stops).
 
-[Unreleased]: https://github.com/FoxaxeWasTaken/Robotics/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/FoxaxeWasTaken/Robotics/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/FoxaxeWasTaken/Robotics/compare/v1.3.0...v2.0.0
 [1.3.0]: https://github.com/FoxaxeWasTaken/Robotics/compare/v1.1.0...v1.3.0
 [1.1.0]: https://github.com/FoxaxeWasTaken/Robotics/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/FoxaxeWasTaken/Robotics/releases/tag/v1.0.0
