@@ -23,7 +23,7 @@ flowchart LR
     E["Editor<br/>ruff on save"] --> PC["pre-commit<br/>(git commit)"]
     PC --> CM["commit-msg<br/>conventional commit"]
   end
-  subgraph G["GitHub (private repo)"]
+  subgraph G["GitHub (team repo)"]
     PR["Pull request"] --> CI["PR CI<br/>lint · guards · build · tests"]
     CI --> RV["Review<br/>CODEOWNERS"]
     RV --> M["main (protected)"]
@@ -70,7 +70,7 @@ flowchart LR
 | Game bench (10 games against a random player) | | | | ✅* | `evaluate --games 10` |
 | **Full E2E (50 episodes, randomized cube and box)** | | | | ✅* | same |
 | Rendering of every Mermaid diagram | | | | ✅ | mermaid-cli (`tools/ci/check_mermaid.sh`) |
-| External links | | | | ✅ | lychee (`.lycheeignore`: the private repository) |
+| External links | | | | ✅ | lychee (`.lycheeignore`) |
 | New commits in the course repository: one issue | | | | ✅ | `tools/ci/upstream_check.sh` (`15` §2) |
 | Test of that watch, offline | | ✅ | ✅ | | `tools/ci/test_upstream_check.sh` (local hook) |
 
@@ -83,8 +83,8 @@ flowchart LR
 | Python lint and format | flake8 + black + isort · `ament_flake8`/`ament_pep257` (ROS ament_lint) · **ruff** | **ruff** (ADR-024) | One tool, 10–100× faster, autofix, configured in `pyproject.toml`; ament_lint imposes per-package config and redundant lint tests |
 | Hook manager | husky (Node) · lefthook · **pre-commit** | **pre-commit** | Python ecosystem; **same configuration locally and in CI** |
 | Commit messages | commitlint (Node) · **conventional-pre-commit** | **conventional-pre-commit** + a PR-title check | No Node install for the team. Squash merge writes the **PR title** on `main`, so a few lines of shell check it (no third-party action, no token) |
-| Workflow security | none · **zizmor** · CodeQL for Actions | **zizmor** in pre-commit; actions pinned by commit SHA, updated by Dependabot (7-day cooldown) | CodeQL needs GitHub Team + Code Security on a private repository; zizmor is free and local |
-| Secrets | `detect-private-key` · GitHub secret scanning · **gitleaks** | **gitleaks** on the whole history in the lint job | Secret scanning and push protection need a paid plan on a private repository; free once public |
+| Workflow security | none · **zizmor** · CodeQL for Actions | **zizmor** in pre-commit; actions pinned by commit SHA, updated by Dependabot (7-day cooldown) | CodeQL needed GitHub Team + Code Security while the repository was private: its default setup runs since the public switch (#99); zizmor is free and local |
+| Secrets | `detect-private-key` · GitHub secret scanning · **gitleaks** | **gitleaks** on the whole history in the lint job | Secret scanning and push protection needed a paid plan while the repository was private: both on since the public switch (#99) |
 | Code quality platform | **[SonarQube Cloud](https://sonarcloud.io/project/overview?id=FoxaxeWasTaken_Robotics), kept on 2026-11-06 after its trial** (#61; members of the SonarCloud organization only) · CodeQL | Analyses of `main` by the nightly's `quality` job, with the coverage of every package's tests; **not a required check**. PR analyses (a scan after the control job) stay an option: a PR's issues only show the next night. CodeQL and secret scanning when the repository goes public | Sonar adds a gate on new code (coverage, duplication, complexity) that ruff does not; no CI on `main` since #153, so the nightly runs its analyses |
 | Typing | mypy · pyright · none | **Staged**: not blocking in phase 1, then `mypy` on pure modules (`so101_common`, `kinematics`, `fsm`, `geometry`) once stable | rclpy nodes have few stubs; maximal gain on pure logic |
 | Tests | unittest · **pytest** · **launch_testing** | **pytest + launch_testing** through `colcon test` | Already in the image (pytest 7.4.4, launch_testing, launch_testing_ros) [MES-23] |
@@ -162,8 +162,8 @@ The table below is the plan from 2026-10-15:
 
 | Repo | GitHub quota (free plan) | Estimate | Consequence |
 | --- | --- | --- | --- |
-| Public | Unlimited | — | Daily nightly without constraint |
-| Private, GitHub Pro (our plan) | 3,000 min/month | Measured on 2026-10-15: a cached PR run ≈ 3.4 min of jobs, ≈ 6 billed (each job rounded up to the minute); first build ≈ 10 min. 100 PR pushes ≈ 600 min, leaving room for a nightly bench (≈ 45 min) most days | Daily nightly once the bench exists; watch Settings → Billing |
+| Public (ours since 2026-11-21, #99) | Unlimited | — | Daily nightly without constraint |
+| Private, GitHub Pro (ours until 2026-11-21) | 3,000 min/month | Measured on 2026-10-15: a cached PR run ≈ 3.4 min of jobs, ≈ 6 billed (each job rounded up to the minute); first build ≈ 10 min. 100 PR pushes ≈ 600 min, leaving room for a nightly bench (≈ 45 min) most days | Daily nightly once the bench exists; watch Settings → Billing |
 
 ### 5.4 What runs when (#146)
 
@@ -295,7 +295,7 @@ Files are **in place at the repository root** (workflows, hooks, configurations)
 
 1. Replace `@member1/2/3` in `.github/CODEOWNERS` with the lane owners of `09` §1.2 (done, ticket 0.1d). CODEOWNERS is indicative: GitHub requests the owners' review, but the ruleset does not require it, so any member may approve any PR (team decision, 2026-10-23).
 2. Every member: `pipx install pre-commit && pre-commit install --install-hooks -t pre-commit -t commit-msg` (plain `pip install` is refused on Ubuntu 24.04, PEP 668).
-3. Private repo → Settings → Variables: `CI_ENABLED=true` (done) (CI and nightly are opt-in so they do not run on the school mirror, `16`).
+3. Team repo → Settings → Variables: `CI_ENABLED=true` (done) (CI and nightly are opt-in so they do not run on the school mirror, `16`).
 4. Settings → Rules (or Branches): protect `main` (PR required, 1 approval, required checks **by their displayed job names**: `Lint (pre-commit)`, `Project rules (C-05, C-06, C-23)`, `Build + tests (control image)`, `Build + tests (perception image)`, `PR title (conventional commit)`, `E2E sim (3 episodes)` since #156, `E2E sim (1 game)` since #233 (2026-11-20), and `Linked tickets have a milestone`: 8 checks. A private repository needs GitHub Pro for this (`15` §12.5). Done on 2026-10-15 (ruleset "main protection", no bypass).
 5. School mirror: `16` §5 (done; first run at the merge of PR #1).
 6. The `perception` job runs since step 3.1 removed the package's `COLCON_IGNORE`.
