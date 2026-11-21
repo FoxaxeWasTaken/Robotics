@@ -38,7 +38,7 @@
 | **usbip / usbipd-win** | Sharing a Windows USB device with WSL2 |
 | **UVC / MJPG / YUYV** | Webcam USB class / compressed JPEG format / raw uncompressed format |
 | **Sim2real** | Gap between simulation and reality, and techniques to reduce it |
-| **Mirror** | Read-only copy of a repository kept in sync automatically (here: private repo → school repo) |
+| **Mirror** | Read-only copy of a repository kept in sync automatically (here: team repo → school repo) |
 | **Bus factor** | Number of people whose absence blocks the project |
 | **Phase 1 / Phase 2** | The brief's two parts: the pick & place project / your own application reusing it (both graded at the final defense) |
 | **Stage** | A work package of the roadmap (`09`, stages 0–8) and an epic on the GitHub Project; not to be confused with the brief's phases |

@@ -49,3 +49,7 @@ The repository stays private until #99 makes it public.
 ## Update (2026-11-17)
 
 The appendix of `LICENSE` ended with the Apache text's own template line, `Copyright [yyyy] [name of copyright owner]`: a placeholder for a reader of the public repository. It now carries the year and the team's names, `Copyright 2026 Axel Idoux, Samuel Valentin, Hasnain Pyarali`, and `NOTICE` names them the same way, in place of the GitHub logins (#293). The license's terms are unchanged.
+
+## Update (2026-11-21)
+
+The repository is public (#99), the day of the final defense. Checked before the switch: gitleaks on the whole history, 362 commits, no leak; no personal e-mail address in the commits (the team's are GitHub's `noreply` ones, the two others the course kit's author's); the school's agreement above. GitHub's secret scanning, push protection and CodeQL's default setup are on.

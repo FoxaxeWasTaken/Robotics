@@ -54,7 +54,7 @@ flowchart LR
 | [13_runbook_troubleshooting.md](13_runbook_troubleshooting.md) | Everyday commands, decision tree and troubleshooting table |
 | [14_quality_pipeline_ci.md](14_quality_pipeline_ci.md) | **Quality pipeline**: feedback loops, check matrix, tool choices, PR CI and nightly, test conventions, lint adoption |
 | [15_repository_hygiene.md](15_repository_hygiene.md) | **Repository hygiene**: remotes (upstream / origin / school), target layout, governance files, branches, commits, versions, heavy data, license, **planning with the GitHub Project** |
-| [16_mirroring_school_repo.md](16_mirroring_school_repo.md) | **Mirror** private repository (CI) → school repository: options, rules, workflow, setup, diagnosis |
+| [16_mirroring_school_repo.md](16_mirroring_school_repo.md) | **Mirror** team repository (CI) → school repository: options, rules, workflow, setup, diagnosis |
 | [adr/](adr/README.md) | **42 decision records** and their map (context, options, decision, evidence) |
 | [phase2/](phase2/README.md) | **Phase 2 — Connect Four against the robot** (validated by the teaching staff): pitch, scope and demo, design, plan, risks and tests, its own roadmap (`P2-04`) |
 | [experiences/](experiences/README.md) | Reproducible measurement scripts |
@@ -97,7 +97,7 @@ flowchart LR
 | 11 | `/sim/randomize` (cube **and** box) in the driver, **without modifying `sim/`**; ground truth only for the bench | Decided | C-42, C-06 |
 | 12 | Layered safety; **PARK before cutting torque**; webcam in **MJPG** | Decided | [MES-17]; LeRobot code review |
 | 13 | Quality: **ruff + pre-commit + markdownlint + conventional commits**; **GitHub Actions CI inside our Docker images** (parity), opt-in; project-rule guards; 50-episode nightly; SonarQube Cloud in the nightly, on trial (`14` §4) | Decided | Tooling executed, 13/13 hooks green [MES-23]; CI would have caught C-11 [MES-22] |
-| 14 | Repository: **private team repo + `upstream` without push + school mirror** (`main` + tags, forced exact copy, key in a `main`-only environment); squash merge, SemVer tags per milestone; no LFS; English everywhere; Apache-2.0 for the team's work (ADR-031) | Decided | `git remote -v`; ADR-027 to 033 |
+| 14 | Repository: **team repo, public since 2026-11-21 (#99), + `upstream` without push + school mirror** (`main` + tags, forced exact copy, key in a `main`-only environment); squash merge, SemVer tags per milestone; no LFS; English everywhere; Apache-2.0 for the team's work (ADR-031) | Decided | `git remote -v`; ADR-027 to 033 |
 | 15 | **Phase 2: Connect Four against the robot** (validated by the staff): store-bought grid placed edge-on, the arm on a riser, depth guide, drop poses with the wrist roll locked, a `/brain/drop` service in the brain; `v2.0.0` in sim, the real arm in `v2.1.0` | Decided | [MES-27] to [MES-29], [MES-31], [MES-32]; ADR-034 to 038, 040 to 042 |
 | 16 | **Starting code: the course stubs**; the bootstrap prototype stays outside the repository, as a reference (every line goes through a reviewed PR, C-50) | Decided | ADR-039; [MES-24] for what the prototype proved |
 

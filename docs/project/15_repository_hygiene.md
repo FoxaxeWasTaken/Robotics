@@ -22,7 +22,7 @@ All of this is now addressed in the repository tree (`README`, `CONTRIBUTING`, `
 ```mermaid
 flowchart LR
   U[("upstream<br/>JasonChmn/content-lerobot-bras-students<br/>course kit, read only")]
-  O[("origin<br/>team/so101-pick-place<br/>private team repository")]
+  O[("origin<br/>team/so101-pick-place<br/>team repository")]
   L1["member 1 clone"]
   L2["member 2 clone"]
   L3["member 3 clone"]
@@ -199,7 +199,7 @@ flowchart TD
 ## 8. Secrets and privacy
 
 - `.env` stays ignored; only `.env.example` is versioned.
-- `detect-private-key` hook; CI secrets (school deploy key) live in GitHub Secrets of the private repository only.
+- `detect-private-key` hook; CI secrets (school deploy key) live in GitHub Secrets of the team repository only.
 - Commit e-mail: enable GitHub's "noreply" address if the repository becomes public.
 - No personal data in published rosbags/videos (blur faces if needed).
 
@@ -234,7 +234,7 @@ flowchart TD
 sequenceDiagram
   participant L as Existing clone (course history)
   participant R as repo/ folder
-  participant O as Private repo (origin)
+  participant O as Team repo (origin)
   participant S as School repo
   L->>L: git remote rename origin upstream, then set-url --push upstream DISABLED
   L->>L: git switch -c chore/repo-architecture
